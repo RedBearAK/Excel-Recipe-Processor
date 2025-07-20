@@ -1,0 +1,6 @@
+recipe:
+  - name: "Test step"
+    type: "filter_data"
+    
+settings:
+  output_filename: "test_output.xlsx"

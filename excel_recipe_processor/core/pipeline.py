@@ -9,9 +9,7 @@ import logging
 
 from pathlib import Path
 
-import excel_recipe_processor as erp
-
-from excel_recipe_processor.config.loader import RecipeLoader, RecipeValidationError
+from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.readers.excel_reader import ExcelReader, ExcelReaderError
 from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
 from excel_recipe_processor.processors.base_processor import registry, StepProcessorError
@@ -19,6 +17,8 @@ from excel_recipe_processor.processors.base_processor import registry, StepProce
 
 logger = logging.getLogger(__name__)
 
+step_desc = 'step_description'
+proc_type = 'processor_type'
 
 class PipelineError(Exception):
     """Raised when pipeline execution fails."""
@@ -113,8 +113,8 @@ class ExcelPipeline:
         
         for i, step_config in enumerate(steps):
             step_number = i + 1
-            step_name = step_config.get('name', f'Step {step_number}')
-            step_type = step_config.get('type', 'unknown')
+            step_name = step_config.get(step_desc, f'Step {step_number}')
+            step_type = step_config.get(proc_type, 'unknown')
             
             try:
                 logger.info(f"Executing step {step_number}/{total_steps}: {step_name} ({step_type})")
@@ -218,8 +218,8 @@ class ExcelPipeline:
         if not isinstance(step_config, dict):
             raise PipelineError("Step configuration must be a dictionary")
         
-        if 'type' not in step_config:
-            raise PipelineError("Step configuration missing 'type' field")
+        if proc_type not in step_config:
+            raise PipelineError(f"Step configuration missing {proc_type} field")
         
         try:
             return registry.create_processor(step_config)
@@ -272,17 +272,112 @@ class ExcelPipeline:
             raise PipelineError(f"Failed to create backup: {e}")
 
 
-def get_system_capabilities():
-    capabilities = {'processors': {}}
+def get_system_capabilities() -> dict:
+    """Get capabilities of the entire Excel automation system."""
+    from excel_recipe_processor.processors.base_processor import registry
+    
+    capabilities = {
+        'system_info': {
+            'description': 'Excel Recipe Processor - Automated Excel data processing system',
+            'total_processors': len(registry.get_registered_types()),
+            'processor_types': registry.get_registered_types()
+        },
+        'processors': {}
+    }
+    
+    # Get capabilities for each registered processor
     for processor_type in registry.get_registered_types():
         try:
-            # Create processor and call its capabilities method
-            processor = registry.create_processor({'type': processor_type})
+            # Create a dummy instance to get capabilities
+            dummy_config = {
+                proc_type: processor_type,
+                step_desc: f'Capability check for {processor_type}'
+            }
+            
+            # Add minimal required fields for each processor type
+            if processor_type == 'add_calculated_column':
+                dummy_config.update({'new_column': 'test', 'calculation': {}})
+            elif processor_type == 'clean_data':
+                dummy_config.update({'rules': []})
+            elif processor_type == 'filter_data':
+                dummy_config.update({'filters': []})
+            elif processor_type == 'group_data':
+                dummy_config.update({'source_column': 'test', 'groups': {}})
+            elif processor_type == 'lookup_data':
+                dummy_config.update({
+                    'lookup_source': {}, 'lookup_key': 'test',
+                    'source_key': 'test', 'lookup_columns': ['test']
+                })
+            elif processor_type == 'rename_columns':
+                dummy_config.update({proc_type: 'mapping', 'mapping': {}})
+            elif processor_type == 'sort_data':
+                dummy_config.update({'columns': ['test']})
+            # pivot_table needs no additional fields
+            
+            processor = registry.create_processor(dummy_config)
+            
             if hasattr(processor, 'get_capabilities'):
                 capabilities['processors'][processor_type] = processor.get_capabilities()
-        except:
-            pass  # Skip processors that can't be created
+            else:
+                capabilities['processors'][processor_type] = {
+                    'description': f'{processor_type} processor (capabilities method not implemented)'
+                }
+                
+        except Exception as e:
+            capabilities['processors'][processor_type] = {
+                'error': f'Could not get capabilities: {e}'
+            }
+    
     return capabilities
+
+
+def check_recipe_capabilities(recipe_data: dict) -> dict:
+    """Check if all processors in a recipe are available and get their capabilities."""
+    
+    capabilities_report = {
+        'recipe_valid': True,
+        'total_steps': 0,
+        'step_analysis': [],
+        'missing_processors': [],
+        'available_features': []
+    }
+    
+    if 'recipe' not in recipe_data:
+        capabilities_report['recipe_valid'] = False
+        capabilities_report['error'] = 'No recipe section found'
+        return capabilities_report
+    
+    steps = recipe_data['recipe']
+    capabilities_report['total_steps'] = len(steps)
+    
+    from excel_recipe_processor.processors.base_processor import registry
+    available_types = registry.get_registered_types()
+    
+    for i, step in enumerate(steps):
+        step_analysis = {
+            'step_number': i + 1,
+            'step_name': step.get(step_desc, f'Step {i + 1}'),
+            'step_type': step.get(proc_type, 'unknown'),
+            'available': False,
+            'capabilities': None
+        }
+        
+        step_type = step.get(proc_type)
+        if step_type in available_types:
+            step_analysis['available'] = True
+            try:
+                processor = registry.create_processor(step)
+                if hasattr(processor, 'get_capabilities'):
+                    step_analysis['capabilities'] = processor.get_capabilities()
+            except:
+                pass  # Skip capability extraction if step config is incomplete
+        else:
+            capabilities_report['missing_processors'].append(step_type)
+            capabilities_report['recipe_valid'] = False
+        
+        capabilities_report['step_analysis'].append(step_analysis)
+    
+    return capabilities_report
 
 
 def register_standard_processors():
@@ -293,6 +388,7 @@ def register_standard_processors():
     from excel_recipe_processor.processors.clean_data_processor import CleanDataProcessor
     from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
     from excel_recipe_processor.processors.group_data_processor import GroupDataProcessor
+    from excel_recipe_processor.processors.lookup_data_processor import LookupDataProcessor
     from excel_recipe_processor.processors.pivot_table_processor import PivotTableProcessor
     from excel_recipe_processor.processors.rename_columns_processor import RenameColumnsProcessor
     from excel_recipe_processor.processors.sort_data_processor import SortDataProcessor
@@ -302,6 +398,7 @@ def register_standard_processors():
     registry.register('clean_data',                     CleanDataProcessor)
     registry.register('filter_data',                    FilterDataProcessor)
     registry.register('group_data',                     GroupDataProcessor)
+    registry.register('lookup_data',                    LookupDataProcessor)
     registry.register('pivot_table',                    PivotTableProcessor)
     registry.register('rename_columns',                 RenameColumnsProcessor)
     registry.register('sort_data',                      SortDataProcessor)

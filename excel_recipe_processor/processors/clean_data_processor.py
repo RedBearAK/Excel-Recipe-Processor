@@ -295,3 +295,22 @@ class CleanDataProcessor(BaseStepProcessor):
             'strip_whitespace', 'remove_special_chars', 'fix_numeric', 'fix_dates',
             'fill_empty', 'remove_duplicates', 'standardize_values'
         ]
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Clean and transform data with various operations',
+            'supported_actions': self.get_supported_actions(),
+            'cleaning_operations': [
+                'find_replace', 'regex_replace', 'case_conversion', 'whitespace_removal',
+                'special_character_removal', 'numeric_formatting', 'date_formatting',
+                'null_value_handling', 'duplicate_removal', 'value_standardization'
+            ],
+            'case_conversions': ['upper', 'lower', 'title'],
+            'examples': {
+                'replace': "Replace 'FLESH' with 'CANS'",
+                'clean_price': "Remove $ signs and convert to numeric",
+                'standardize': "Map various status values to standard terms"
+            }
+        }
+

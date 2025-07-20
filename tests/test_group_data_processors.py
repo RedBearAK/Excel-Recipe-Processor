@@ -35,8 +35,8 @@ def test_van_report_regional_grouping():
     
     # Test the exact grouping from van report Step 16
     step_config = {
-        'type': 'group_data',
-        'name': 'Group origins by region',
+        'processor_type': 'group_data',
+        'step_description': 'Group origins by region',
         'source_column': 'Product_Origin',
         'target_column': 'Region',
         'groups': {
@@ -109,7 +109,7 @@ def test_helper_method_regional_groups():
     
     test_df = create_van_report_origins_data()
     
-    processor = GroupDataProcessor({'type': 'group_data'})
+    processor = GroupDataProcessor({'processor_type': 'group_data'})
     result = processor.create_regional_groups(test_df, 'Product_Origin')
     
     print(f"✓ Helper method result: {len(result)} rows, {len(result.columns)} columns")
@@ -137,8 +137,8 @@ def test_replace_source_column():
     test_df = create_van_report_origins_data()
     
     step_config = {
-        'type': 'group_data',
-        'name': 'Replace origins with regions',
+        'processor_type': 'group_data',
+        'step_description': 'Replace origins with regions',
         'source_column': 'Product_Origin',
         'groups': {
             'Bristol Bay': ['Dillingham', 'False Pass', 'Naknek', 'Naknek West', 'Wood River'],
@@ -188,8 +188,8 @@ def test_case_insensitive_grouping():
     })
     
     step_config = {
-        'type': 'group_data',
-        'name': 'Case insensitive grouping',
+        'processor_type': 'group_data',
+        'step_description': 'Case insensitive grouping',
         'source_column': 'City',
         'target_column': 'Region',
         'groups': {
@@ -231,8 +231,8 @@ def test_unmatched_actions():
     
     # Test 'set_default' action
     step_config1 = {
-        'type': 'group_data',
-        'name': 'Set default for unmatched',
+        'processor_type': 'group_data',
+        'step_description': 'Set default for unmatched',
         'source_column': 'Category',
         'target_column': 'Group',
         'groups': {
@@ -251,8 +251,8 @@ def test_unmatched_actions():
     
     # Test 'error' action
     step_config2 = {
-        'type': 'group_data',
-        'name': 'Error on unmatched',
+        'processor_type': 'group_data',
+        'step_description': 'Error on unmatched',
         'source_column': 'Category',
         'target_column': 'Group',
         'groups': {
@@ -285,8 +285,8 @@ def test_duplicate_value_detection():
     
     # Create config with duplicate value
     step_config = {
-        'type': 'group_data',
-        'name': 'Duplicate value test',
+        'processor_type': 'group_data',
+        'step_description': 'Duplicate value test',
         'source_column': 'Item',
         'target_column': 'Group',
         'groups': {
@@ -312,7 +312,7 @@ def test_grouping_analysis():
     
     test_df = create_van_report_origins_data()
     
-    processor = GroupDataProcessor({'type': 'group_data'})
+    processor = GroupDataProcessor({'processor_type': 'group_data'})
     analysis = processor.analyze_grouping_potential(test_df, 'Product_Origin')
     
     print(f"✓ Analysis for Product_Origin:")
@@ -339,8 +339,8 @@ def test_error_handling():
     # Test missing source column
     try:
         bad_config = {
-            'type': 'group_data',
-            'name': 'Missing source column',
+            'processor_type': 'group_data',
+            'step_description': 'Missing source column',
             'groups': {'Group1': ['A', 'B']}
         }
         processor = GroupDataProcessor(bad_config)
@@ -352,8 +352,8 @@ def test_error_handling():
     # Test invalid source column
     try:
         bad_config = {
-            'type': 'group_data',
-            'name': 'Invalid source column',
+            'processor_type': 'group_data',
+            'step_description': 'Invalid source column',
             'source_column': 'NonExistentColumn',
             'groups': {'Group1': ['A', 'B']}
         }
@@ -366,8 +366,8 @@ def test_error_handling():
     # Test empty groups
     try:
         bad_config = {
-            'type': 'group_data',
-            'name': 'Empty groups',
+            'processor_type': 'group_data',
+            'step_description': 'Empty groups',
             'source_column': 'Product_Origin',
             'groups': {}
         }
@@ -396,5 +396,5 @@ if __name__ == '__main__':
         print("\n✗ Some group data processor tests failed!")
     
     # Show supported unmatched actions
-    processor = GroupDataProcessor({'type': 'group_data', 'source_column': 'x', 'groups': {}})
+    processor = GroupDataProcessor({'processor_type': 'group_data', 'source_column': 'x', 'groups': {}})
     print(f"\nSupported unmatched actions: {processor.get_supported_unmatched_actions()}")

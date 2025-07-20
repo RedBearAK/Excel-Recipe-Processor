@@ -30,9 +30,9 @@ def test_mapping_rename():
     
     # Test direct mapping rename
     step_config = {
-        'type': 'rename_columns',
-        'name': 'Clean up column names',
-        'type': 'mapping',
+        'processor_type': 'rename_columns',
+        'step_description': 'Clean up column names',
+        'processor_type': 'mapping',
         'mapping': {
             'Product Code': 'product_code',
             'Product Name!': 'product_name',
@@ -74,9 +74,9 @@ def test_pattern_rename():
     
     # Test pattern-based rename - remove 'col_' prefix
     step_config = {
-        'type': 'rename_columns',
-        'name': 'Remove col_ prefix',
-        'type': 'pattern',
+        'processor_type': 'rename_columns',
+        'step_description': 'Remove col_ prefix',
+        'processor_type': 'pattern',
         'pattern': r'^col_',
         'replacement': ''
     }
@@ -108,9 +108,9 @@ def test_transform_rename():
     
     # Test multiple transformations
     step_config = {
-        'type': 'rename_columns',
-        'name': 'Transform column names',
-        'type': 'transform',
+        'processor_type': 'rename_columns',
+        'step_description': 'Transform column names',
+        'processor_type': 'transform',
         'case_conversion': 'snake_case',
         'strip_characters': ' !',
         'replace_spaces': '_'
@@ -159,9 +159,9 @@ def test_case_conversions():
     
     for case_type, expected in case_tests:
         step_config = {
-            'type': 'rename_columns',
-            'name': f'Test {case_type}',
-            'type': 'transform',
+            'processor_type': 'rename_columns',
+            'step_description': f'Test {case_type}',
+            'processor_type': 'transform',
             'case_conversion': case_type
         }
         
@@ -186,16 +186,16 @@ def test_prefix_suffix():
     print("\nTesting prefix and suffix...")
     
     test_df = pd.DataFrame({
-        'name': [1, 2],
+        'step_description': [1, 2],
         'price': [3, 4],
         'quantity': [5, 6]
     })
     
     # Test adding prefix and suffix
     step_config = {
-        'type': 'rename_columns',
-        'name': 'Add prefix and suffix',
-        'type': 'transform',
+        'processor_type': 'rename_columns',
+        'step_description': 'Add prefix and suffix',
+        'processor_type': 'transform',
         'add_prefix': 'col_',
         'add_suffix': '_data'
     }
@@ -230,7 +230,7 @@ def test_standardize_helper():
     
     print(f"✓ Messy columns: {list(test_df.columns)}")
     
-    processor = RenameColumnsProcessor({'type': 'rename_columns', 'type': 'mapping', 'mapping': {}})
+    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'processor_type': 'mapping', 'mapping': {}})
     result = processor.standardize_column_names(test_df)
     
     print(f"✓ Standardized columns: {list(result.columns)}")
@@ -258,7 +258,7 @@ def test_column_analysis():
     
     test_df = create_messy_columns_data()
     
-    processor = RenameColumnsProcessor({'type': 'rename_columns', 'type': 'mapping', 'mapping': {}})
+    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'processor_type': 'mapping', 'mapping': {}})
     analysis = processor.get_column_analysis(test_df)
     
     print(f"✓ Analysis results:")
@@ -291,9 +291,9 @@ def test_duplicate_new_names():
     
     # Try to rename multiple columns to the same name
     step_config = {
-        'type': 'rename_columns',
-        'name': 'Duplicate names test',
-        'type': 'mapping',
+        'processor_type': 'rename_columns',
+        'step_description': 'Duplicate names test',
+        'processor_type': 'mapping',
         'mapping': {
             'col1': 'new_name',
             'col2': 'new_name',  # Duplicate!
@@ -321,9 +321,9 @@ def test_error_handling():
     # Test missing column in mapping
     try:
         bad_config = {
-            'type': 'rename_columns',
-            'name': 'Missing column',
-            'type': 'mapping',
+            'processor_type': 'rename_columns',
+            'step_description': 'Missing column',
+            'processor_type': 'mapping',
             'mapping': {
                 'NonExistentColumn': 'new_name'
             }
@@ -337,9 +337,9 @@ def test_error_handling():
     # Test empty mapping
     try:
         bad_config = {
-            'type': 'rename_columns',
-            'name': 'Empty mapping',
-            'type': 'mapping',
+            'processor_type': 'rename_columns',
+            'step_description': 'Empty mapping',
+            'processor_type': 'mapping',
             'mapping': {}
         }
         processor = RenameColumnsProcessor(bad_config)
@@ -351,9 +351,9 @@ def test_error_handling():
     # Test invalid pattern
     try:
         bad_config = {
-            'type': 'rename_columns',
-            'name': 'Invalid pattern',
-            'type': 'pattern',
+            'processor_type': 'rename_columns',
+            'step_description': 'Invalid pattern',
+            'processor_type': 'pattern',
             'pattern': '[invalid regex',
             'replacement': 'test'
         }
@@ -383,9 +383,9 @@ def test_real_world_scenario():
     
     # Clean up using transforms
     step_config = {
-        'type': 'rename_columns',
-        'name': 'Clean export data',
-        'type': 'transform',
+        'processor_type': 'rename_columns',
+        'step_description': 'Clean export data',
+        'processor_type': 'transform',
         'case_conversion': 'snake_case',
         'strip_characters': ' ()',
         'replace_spaces': '_'
@@ -431,6 +431,6 @@ if __name__ == '__main__':
         print("\n✗ Some rename columns processor tests failed!")
     
     # Show supported features
-    processor = RenameColumnsProcessor({'type': 'rename_columns', 'type': 'mapping', 'mapping': {}})
+    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'processor_type': 'mapping', 'mapping': {}})
     print(f"\nSupported rename types: {processor.get_supported_rename_types()}")
     print(f"Supported case conversions: {processor.get_supported_case_conversions()}")

@@ -30,8 +30,8 @@ def test_replace_operations():
     
     # Test basic replace - like replacing FLESH with CANS in van report
     step_config = {
-        'type': 'clean_data',
-        'name': 'Replace FLESH with CANS',
+        'processor_type': 'clean_data',
+        'step_description': 'Replace FLESH with CANS',
         'rules': [
             {
                 'column': 'Component',
@@ -58,8 +58,8 @@ def test_replace_operations():
     
     # Test case-insensitive replace
     step_config2 = {
-        'type': 'clean_data',
-        'name': 'Case-insensitive replace',
+        'processor_type': 'clean_data',
+        'step_description': 'Case-insensitive replace',
         'rules': [
             {
                 'column': 'Component',
@@ -89,8 +89,8 @@ def test_text_transformations():
     
     # Test multiple text cleaning operations
     step_config = {
-        'type': 'clean_data',
-        'name': 'Text cleaning',
+        'processor_type': 'clean_data',
+        'step_description': 'Text cleaning',
         'rules': [
             {
                 'column': 'Product_Name',
@@ -138,8 +138,8 @@ def test_numeric_cleaning():
     
     # Clean price column - remove $ signs and convert to numeric
     step_config = {
-        'type': 'clean_data',
-        'name': 'Clean prices',
+        'processor_type': 'clean_data',
+        'step_description': 'Clean prices',
         'rules': [
             {
                 'column': 'Price',
@@ -174,8 +174,8 @@ def test_fill_empty_values():
     
     # Fill empty values
     step_config = {
-        'type': 'clean_data',
-        'name': 'Fill empty values',
+        'processor_type': 'clean_data',
+        'step_description': 'Fill empty values',
         'rules': [
             {
                 'column': 'Product_Name',
@@ -219,8 +219,8 @@ def test_regex_operations():
     
     # Use regex to clean up product names
     step_config = {
-        'type': 'clean_data',
-        'name': 'Regex cleaning',
+        'processor_type': 'clean_data',
+        'step_description': 'Regex cleaning',
         'rules': [
             {
                 'column': 'Product_Name',
@@ -255,8 +255,8 @@ def test_standardize_values():
     
     # Standardize status values
     step_config = {
-        'type': 'clean_data',
-        'name': 'Standardize status',
+        'processor_type': 'clean_data',
+        'step_description': 'Standardize status',
         'rules': [
             {
                 'column': 'Status',
@@ -298,8 +298,8 @@ def test_multiple_rules():
     
     # Complex cleaning like in van report workflow
     step_config = {
-        'type': 'clean_data',
-        'name': 'Complex cleaning sequence',
+        'processor_type': 'clean_data',
+        'step_description': 'Complex cleaning sequence',
         'rules': [
             # First strip whitespace
             {
@@ -354,8 +354,8 @@ def test_error_handling():
     # Test missing required fields
     try:
         bad_config = {
-            'type': 'clean_data',
-            'name': 'Missing rules'
+            'processor_type': 'clean_data',
+            'step_description': 'Missing rules'
             # No 'rules' field
         }
         processor = CleanDataProcessor(bad_config)
@@ -367,8 +367,8 @@ def test_error_handling():
     # Test invalid column
     try:
         bad_config = {
-            'type': 'clean_data',
-            'name': 'Invalid column',
+            'processor_type': 'clean_data',
+            'step_description': 'Invalid column',
             'rules': [
                 {
                     'column': 'NonExistentColumn',
@@ -385,8 +385,8 @@ def test_error_handling():
     # Test invalid action
     try:
         bad_config = {
-            'type': 'clean_data',
-            'name': 'Invalid action',
+            'processor_type': 'clean_data',
+            'step_description': 'Invalid action',
             'rules': [
                 {
                     'column': 'Status',
@@ -419,5 +419,5 @@ if __name__ == '__main__':
         print("\n✗ Some clean data processor tests failed!")
     
     # Show supported actions
-    processor = CleanDataProcessor({'type': 'clean_data', 'rules': []})
+    processor = CleanDataProcessor({'processor_type': 'clean_data', 'rules': []})
     print(f"\nSupported actions: {processor.get_supported_actions()}")

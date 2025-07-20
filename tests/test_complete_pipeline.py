@@ -252,8 +252,8 @@ def test_registry_functionality():
     
     # Test creating a processor
     step_config = {
-        'type': 'filter_data',
-        'name': 'Test filter',
+        'processor_type': 'filter_data',
+        'step_description': 'Test filter',
         'filters': []
     }
     

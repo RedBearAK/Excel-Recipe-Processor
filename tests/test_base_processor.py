@@ -27,8 +27,8 @@ def test_basic_functionality():
     
     # Test valid step configuration
     step_config = {
-        'type': 'dummy_step',
-        'name': 'Test dummy step'
+        'processor_type': 'dummy_step',
+        'step_description': 'Test dummy step'
     }
     
     processor = DummyProcessor(step_config)
@@ -70,7 +70,7 @@ def test_error_handling():
     
     # Test missing type field
     try:
-        DummyProcessor({'name': 'test'})
+        DummyProcessor({'step_description': 'test'})
         print("✗ Should have failed with missing type")
     except StepProcessorError as e:
         print(f"✓ Caught expected error: {e}")

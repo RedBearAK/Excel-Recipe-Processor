@@ -31,10 +31,10 @@ def test_concatenation_calculation():
     
     # Test basic concatenation
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Create full product ID',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Create full product ID',
         'new_column': 'Full_Product_ID',
-        'type': 'concat',
+        'processor_type': 'concat',
         'calculation': {
             'columns': ['Product_Code', 'Product_Name'],
             'separator': ' - '
@@ -72,10 +72,10 @@ def test_mathematical_calculations():
     
     # Test multiplication - calculate total value
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Calculate total value',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Calculate total value',
         'new_column': 'Total_Value',
-        'type': 'math',
+        'processor_type': 'math',
         'calculation': {
             'operation': 'multiply',
             'column1': 'Quantity',
@@ -111,10 +111,10 @@ def test_conditional_logic():
     
     # Test conditional - categorize by quantity
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Categorize by quantity',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Categorize by quantity',
         'new_column': 'Quantity_Category',
-        'type': 'conditional',
+        'processor_type': 'conditional',
         'calculation': {
             'condition_column': 'Quantity',
             'condition': 'greater_than',
@@ -157,10 +157,10 @@ def test_date_calculations():
     
     # Test days between dates
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Calculate shipping days',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Calculate shipping days',
         'new_column': 'Shipping_Days',
-        'type': 'date',
+        'processor_type': 'date',
         'calculation': {
             'operation': 'days_between',
             'start_date_column': 'Order_Date',
@@ -195,10 +195,10 @@ def test_text_operations():
     
     # Test text length calculation
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Product name length',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Product name length',
         'new_column': 'Name_Length',
-        'type': 'text',
+        'processor_type': 'text',
         'calculation': {
             'operation': 'length',
             'column': 'Product_Name'
@@ -239,10 +239,10 @@ def test_aggregation_operations():
     
     # Test sum aggregation
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Calculate total score',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Calculate total score',
         'new_column': 'Total_Score',
-        'type': 'math',
+        'processor_type': 'math',
         'calculation': {
             'operation': 'sum',
             'columns': ['Score1', 'Score2', 'Score3']
@@ -277,10 +277,10 @@ def test_expression_calculation():
     
     # Test complex expression
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Complex calculation',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Complex calculation',
         'new_column': 'Value_Per_Unit',
-        'type': 'expression',
+        'processor_type': 'expression',
         'calculation': {
             'formula': 'Price * 1.1'  # Add 10% markup
         }
@@ -314,10 +314,10 @@ def test_overwrite_existing_column():
     
     # Test overwriting existing column
     step_config = {
-        'type': 'add_calculated_column',
-        'name': 'Overwrite price with doubled value',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Overwrite price with doubled value',
         'new_column': 'Price',  # Same as existing column
-        'type': 'math',
+        'processor_type': 'math',
         'calculation': {
             'operation': 'multiply',
             'column1': 'Price',
@@ -355,8 +355,8 @@ def test_error_handling():
     # Test missing required fields
     try:
         bad_config = {
-            'type': 'add_calculated_column',
-            'name': 'Missing fields'
+            'processor_type': 'add_calculated_column',
+            'step_description': 'Missing fields'
             # Missing 'new_column' and 'calculation'
         }
         processor = AddCalculatedColumnProcessor(bad_config)
@@ -368,10 +368,10 @@ def test_error_handling():
     # Test overwrite protection
     try:
         bad_config = {
-            'type': 'add_calculated_column',
-            'name': 'Overwrite without permission',
+            'processor_type': 'add_calculated_column',
+            'step_description': 'Overwrite without permission',
             'new_column': 'Price',  # Existing column
-            'type': 'math',
+            'processor_type': 'math',
             'calculation': {
                 'operation': 'multiply',
                 'column1': 'Quantity',
@@ -388,10 +388,10 @@ def test_error_handling():
     # Test invalid column reference
     try:
         bad_config = {
-            'type': 'add_calculated_column',
-            'name': 'Invalid column',
+            'processor_type': 'add_calculated_column',
+            'step_description': 'Invalid column',
             'new_column': 'Invalid_Calc',
-            'type': 'math',
+            'processor_type': 'math',
             'calculation': {
                 'operation': 'multiply',
                 'column1': 'NonExistentColumn',
@@ -414,10 +414,10 @@ def test_multiple_calculations():
     
     # First calculation: Total value
     step_config1 = {
-        'type': 'add_calculated_column',
-        'name': 'Calculate total value',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Calculate total value',
         'new_column': 'Total_Value',
-        'type': 'math',
+        'processor_type': 'math',
         'calculation': {
             'operation': 'multiply',
             'column1': 'Quantity',
@@ -430,10 +430,10 @@ def test_multiple_calculations():
     
     # Second calculation: Value category based on first calculation
     step_config2 = {
-        'type': 'add_calculated_column',
-        'name': 'Categorize by value',
+        'processor_type': 'add_calculated_column',
+        'step_description': 'Categorize by value',
         'new_column': 'Value_Category',
-        'type': 'conditional',
+        'processor_type': 'conditional',
         'calculation': {
             'condition_column': 'Total_Value',
             'condition': 'greater_than',
@@ -486,7 +486,7 @@ if __name__ == '__main__':
         print("\n✗ Some add calculated column processor tests failed!")
     
     # Show supported features
-    processor = AddCalculatedColumnProcessor({'type': 'add_calculated_column', 'new_column': 'x', 'calculation': {}})
+    processor = AddCalculatedColumnProcessor({'processor_type': 'add_calculated_column', 'new_column': 'x', 'calculation': {}})
     print(f"\nSupported calculation types: {processor.get_supported_calculation_types()}")
     print(f"Supported conditions: {processor.get_supported_conditions()}")
     print(f"Supported math operations: {processor.get_supported_math_operations()}")

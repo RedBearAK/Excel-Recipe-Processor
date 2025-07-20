@@ -256,7 +256,7 @@ class GroupDataProcessor(BaseStepProcessor):
         
         # Create a temporary step config for this operation
         temp_config = {
-            'type': 'group_data',
+            'process_type': 'group_data',
             'source_column': origin_column,
             'groups': van_report_groups,
             'target_column': f'{origin_column}_Region',
@@ -318,3 +318,22 @@ class GroupDataProcessor(BaseStepProcessor):
             List of supported action strings
         """
         return ['keep_original', 'set_default', 'error']
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Group individual values into categories using mapping rules',
+            'grouping_features': [
+                'category_mapping', 'regional_grouping', 'case_sensitivity_control',
+                'unmatched_value_handling', 'duplicate_detection', 'source_column_replacement'
+            ],
+            'unmatched_actions': self.get_supported_unmatched_actions(),
+            'special_methods': [
+                'create_regional_groups', 'analyze_grouping_potential'
+            ],
+            'examples': {
+                'regional': "Group cities by region (Bristol Bay, Kodiak, PWS, SE)",
+                'category': "Group products by category",
+                'status': "Group various status values into standard categories"
+            }
+        }

@@ -1,0 +1,74 @@
+# Complete test recipe showing all processor types
+# Save as: tests/complete_test_recipe.yaml
+
+recipe:
+  # 1. Filter data
+  - step_description: "Filter for canned products"
+    processor_type: "filter_data"
+    filters:
+      - column: "Product_Name"
+        condition: "contains"
+        value: "CANNED"
+
+  # 2. Clean data  
+  - step_description: "Clean product data"
+    processor_type: "clean_data"
+    rules:
+      - column: "Component"
+        action: "replace"
+        old_value: "FLESH"
+        new_value: "CANS"
+
+  # 3. Lookup data
+  - step_description: "Lookup product details"
+    processor_type: "lookup_data"
+    lookup_source: "products.xlsx"
+    lookup_key: "Product_Code"
+    source_key: "Product_Code"
+    lookup_columns: ["Category", "Price"]
+
+  # 4. Group data
+  - step_description: "Group by region"
+    processor_type: "group_data"
+    source_column: "Product_Origin"
+    target_column: "Region"
+    groups:
+      Bristol_Bay: ["Dillingham", "Naknek", "Wood River"]
+      Kodiak: ["Kodiak", "Kodiak West"]
+      PWS: ["Cordova", "Seward", "Valdez"]
+      SE: ["Craig", "Ketchikan", "Petersburg", "Sitka"]
+
+  # 5. Add calculated column
+  - step_description: "Calculate total value"
+    processor_type: "add_calculated_column"
+    new_column: "Total_Value"
+    calculation_type: "math"
+    calculation:
+      operation: "multiply"
+      column1: "Quantity"
+      column2: "Price"
+
+  # 6. Rename columns
+  - step_description: "Clean column names"
+    processor_type: "rename_columns"
+    mapping:
+      "Product_Name": "product_name"
+      "Product_Code": "product_code"
+
+  # 7. Sort data
+  - step_description: "Sort by region and value"
+    processor_type: "sort_data"
+    columns: ["Region", "Total_Value"]
+    ascending: [true, false]
+
+  # 8. Create pivot table
+  - step_description: "Create summary pivot"
+    processor_type: "pivot_table"
+    index: ["Region"]
+    columns: ["Category"]
+    values: ["Total_Value"]
+    aggfunc: "sum"
+
+settings:
+  output_filename: "complete_test_output.xlsx"
+  create_backup: true

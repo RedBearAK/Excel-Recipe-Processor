@@ -95,8 +95,8 @@ def test_with_pipeline():
         # Create recipe content
         recipe_content = f"""
 recipe:
-  - name: "Lookup product info"
-    type: "lookup_data"
+  - step_description: "Lookup product info"
+    processor_type: "lookup_data"
     lookup_source: "{lookup_file}"
     lookup_key: "Code"
     source_key: "Product_Code"

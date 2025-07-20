@@ -39,7 +39,7 @@ class BaseStepProcessor(ABC):
         
         # Guard clause: step must have a type
         if proc_type not in step_config:
-            raise StepProcessorError(f"Step configuration missing required {proc_type} field")
+            raise StepProcessorError(f"Step configuration missing required '{proc_type}' field")
         
         step_type = step_config[proc_type]
         if not isinstance(step_type, str) or not step_type.strip():

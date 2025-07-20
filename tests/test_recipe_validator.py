@@ -313,15 +313,15 @@ def main():
         print("\nExample recipes should have this structure:")
         print("""
 recipe:
-  - name: "Filter products"
-    type: "filter_data"
+  - step_description: "Filter products"
+    processor_type: "filter_data"
     filters:
       - column: "Product_Name"
         condition: "contains"
         value: "CANNED"
         
-  - name: "Add categories"
-    type: "lookup_data"
+  - step_description: "Add categories"
+    processor_type: "lookup_data"
     lookup_source: "products.xlsx"
     lookup_key: "Code"
     source_key: "Product_Code"

@@ -174,7 +174,7 @@ class RecipeLoader:
         
         # Required fields
         if 'processor_type' not in step:
-            raise RecipeValidationError(f"Step {step_index + 1} missing required {proc_type} field")
+            raise RecipeValidationError(f"Step {step_index + 1} missing required '{proc_type}' field")
         
         step_type = step[proc_type]
         # Guard clause: type must be a non-empty string

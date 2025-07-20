@@ -30,8 +30,8 @@ def test_basic_filtering():
     
     # Test 'contains' filter - like the van report workflow
     step_config = {
-        'type': 'filter_data',
-        'name': 'Filter for canned products',
+        'processor_type': 'filter_data',
+        'step_description': 'Filter for canned products',
         'filters': [
             {
                 'column': 'Product_Name',
@@ -54,8 +54,8 @@ def test_basic_filtering():
     
     # Test 'equals' filter
     step_config2 = {
-        'type': 'filter_data',
-        'name': 'Filter for grocery department',
+        'processor_type': 'filter_data',
+        'step_description': 'Filter for grocery department',
         'filters': [
             {
                 'column': 'Department',
@@ -72,8 +72,8 @@ def test_basic_filtering():
     
     # Test 'not_equals' filter
     step_config3 = {
-        'type': 'filter_data',
-        'name': 'Filter out cancelled items',
+        'processor_type': 'filter_data',
+        'step_description': 'Filter out cancelled items',
         'filters': [
             {
                 'column': 'Status',
@@ -100,8 +100,8 @@ def test_multiple_filters():
     
     # Apply multiple filters like in the van report workflow
     step_config = {
-        'type': 'filter_data',
-        'name': 'Multiple filter test',
+        'processor_type': 'filter_data',
+        'step_description': 'Multiple filter test',
         'filters': [
             {
                 'column': 'Product_Name',
@@ -147,8 +147,8 @@ def test_numeric_conditions():
     
     # Test greater_than
     step_config = {
-        'type': 'filter_data',
-        'name': 'Price greater than 15',
+        'processor_type': 'filter_data',
+        'step_description': 'Price greater than 15',
         'filters': [
             {
                 'column': 'Price',
@@ -165,8 +165,8 @@ def test_numeric_conditions():
     
     # Test less_equal
     step_config2 = {
-        'type': 'filter_data',
-        'name': 'Quantity less or equal 75',
+        'processor_type': 'filter_data',
+        'step_description': 'Quantity less or equal 75',
         'filters': [
             {
                 'column': 'Quantity',
@@ -193,8 +193,8 @@ def test_list_conditions():
     
     # Test in_list
     step_config = {
-        'type': 'filter_data',
-        'name': 'Department in list',
+        'processor_type': 'filter_data',
+        'step_description': 'Department in list',
         'filters': [
             {
                 'column': 'Department',
@@ -222,8 +222,8 @@ def test_error_handling():
     # Test missing required fields
     try:
         bad_config = {
-            'type': 'filter_data',
-            'name': 'Missing filters'
+            'processor_type': 'filter_data',
+            'step_description': 'Missing filters'
             # No 'filters' field
         }
         processor = FilterDataProcessor(bad_config)
@@ -235,8 +235,8 @@ def test_error_handling():
     # Test invalid column
     try:
         bad_config = {
-            'type': 'filter_data',
-            'name': 'Invalid column',
+            'processor_type': 'filter_data',
+            'step_description': 'Invalid column',
             'filters': [
                 {
                     'column': 'NonExistentColumn',
@@ -254,8 +254,8 @@ def test_error_handling():
     # Test invalid condition
     try:
         bad_config = {
-            'type': 'filter_data',
-            'name': 'Invalid condition',
+            'processor_type': 'filter_data',
+            'step_description': 'Invalid condition',
             'filters': [
                 {
                     'column': 'Status',
@@ -273,8 +273,8 @@ def test_error_handling():
     # Test missing value for condition that requires it
     try:
         bad_config = {
-            'type': 'filter_data',
-            'name': 'Missing value',
+            'processor_type': 'filter_data',
+            'step_description': 'Missing value',
             'filters': [
                 {
                     'column': 'Status',
@@ -299,8 +299,8 @@ def test_empty_conditions():
     
     # Test no filters
     step_config = {
-        'type': 'filter_data',
-        'name': 'No filters',
+        'processor_type': 'filter_data',
+        'step_description': 'No filters',
         'filters': []
     }
     
@@ -318,8 +318,8 @@ def test_empty_conditions():
     test_df_with_empties.loc[3, 'Department'] = None  # Make one None
     
     step_config2 = {
-        'type': 'filter_data',
-        'name': 'Remove empty departments',
+        'processor_type': 'filter_data',
+        'step_description': 'Remove empty departments',
         'filters': [
             {
                 'column': 'Department',
@@ -350,5 +350,5 @@ if __name__ == '__main__':
         print("\n✗ Some filter processor tests failed!")
     
     # Show supported conditions
-    processor = FilterDataProcessor({'type': 'filter_data', 'filters': []})
+    processor = FilterDataProcessor({'processor_type': 'filter_data', 'filters': []})
     print(f"\nSupported conditions: {processor.get_supported_conditions()}")

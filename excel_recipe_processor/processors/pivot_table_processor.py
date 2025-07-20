@@ -311,3 +311,22 @@ class PivotTableProcessor(BaseStepProcessor):
             info['column_cardinality'][col] = unique_count
         
         return info
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Create pivot tables with various aggregation functions',
+            'pivot_features': [
+                'multi_index_pivot', 'cross_tabulation', 'multiple_aggregations',
+                'hierarchical_columns', 'margin_totals', 'fill_blank_cells'
+            ],
+            'aggregation_functions': self.get_supported_aggfuncs(),
+            'helper_methods': [
+                'create_summary_pivot', 'create_cross_tab', 'get_pivot_info'
+            ],
+            'examples': {
+                'van_report': "PRODUCT_ORIGIN vs CARRIER matrix",
+                'sales_summary': "Sum sales by region and product",
+                'count_matrix': "Count occurrences by category"
+            }
+        }

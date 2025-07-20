@@ -30,8 +30,8 @@ def test_single_column_sort():
     
     # Test ascending sort by price
     step_config = {
-        'type': 'sort_data',
-        'name': 'Sort by price ascending',
+        'processor_type': 'sort_data',
+        'step_description': 'Sort by price ascending',
         'columns': ['Price'],
         'ascending': True
     }
@@ -65,8 +65,8 @@ def test_multi_column_sort():
     
     # Test sort by Department first, then Price
     step_config = {
-        'type': 'sort_data',
-        'name': 'Sort by department then price',
+        'processor_type': 'sort_data',
+        'step_description': 'Sort by department then price',
         'columns': ['Department', 'Price'],
         'ascending': [True, False]  # Department ascending, Price descending
     }
@@ -126,8 +126,8 @@ def test_custom_sort_order():
     
     # Test custom priority order: High -> Medium -> Low
     step_config = {
-        'type': 'sort_data',
-        'name': 'Sort by custom priority order',
+        'processor_type': 'sort_data',
+        'step_description': 'Sort by custom priority order',
         'columns': ['Priority'],
         'custom_orders': {
             'Priority': ['High', 'Medium', 'Low']
@@ -171,8 +171,8 @@ def test_case_insensitive_sort():
     
     # Test case-insensitive sort by product name
     step_config = {
-        'type': 'sort_data',
-        'name': 'Case insensitive product sort',
+        'processor_type': 'sort_data',
+        'step_description': 'Case insensitive product sort',
         'columns': ['Product_Name'],
         'ignore_case': True
     }
@@ -205,36 +205,36 @@ def test_null_position_handling():
     
     # Create data with null values
     test_df = pd.DataFrame({
-        'Name': ['Alice', 'Bob', None, 'Charlie', None],
+        'step_description': ['Alice', 'Bob', None, 'Charlie', None],
         'Score': [85, None, 90, 78, 92]
     })
     
     # Test nulls last (default)
     step_config1 = {
-        'type': 'sort_data',
-        'name': 'Sort with nulls last',
-        'columns': ['Name'],
+        'processor_type': 'sort_data',
+        'step_description': 'Sort with nulls last',
+        'columns': ['step_description'],
         'na_position': 'last'
     }
     
     processor1 = SortDataProcessor(step_config1)
     result1 = processor1.execute(test_df)
     
-    names1 = result1['Name'].tolist()
+    names1 = result1['step_description'].tolist()
     print(f"✓ Nulls last: {names1}")
     
     # Test nulls first
     step_config2 = {
-        'type': 'sort_data',
-        'name': 'Sort with nulls first',
-        'columns': ['Name'], 
+        'processor_type': 'sort_data',
+        'step_description': 'Sort with nulls first',
+        'columns': ['step_description'], 
         'na_position': 'first'
     }
     
     processor2 = SortDataProcessor(step_config2)
     result2 = processor2.execute(test_df)
     
-    names2 = result2['Name'].tolist()
+    names2 = result2['step_description'].tolist()
     print(f"✓ Nulls first: {names2}")
     
     # Check that nulls are positioned correctly
@@ -260,7 +260,7 @@ def test_frequency_sort():
     
     test_df = create_test_data()
     
-    processor = SortDataProcessor({'type': 'sort_data', 'columns': ['Department']})
+    processor = SortDataProcessor({'processor_type': 'sort_data', 'columns': ['Department']})
     result = processor.sort_by_frequency(test_df, 'Department', ascending=False)
     
     print(f"✓ Frequency sort: {len(result)} rows")
@@ -291,7 +291,7 @@ def test_multiple_criteria_sort():
     
     test_df = create_test_data()
     
-    processor = SortDataProcessor({'type': 'sort_data', 'columns': ['Department']})
+    processor = SortDataProcessor({'processor_type': 'sort_data', 'columns': ['Department']})
     
     # Define multiple criteria with different options
     criteria = [
@@ -333,7 +333,7 @@ def test_sort_analysis():
     
     test_df = create_test_data()
     
-    processor = SortDataProcessor({'type': 'sort_data', 'columns': ['Price']})
+    processor = SortDataProcessor({'processor_type': 'sort_data', 'columns': ['Price']})
     
     # Analyze different column types
     price_analysis = processor.get_sort_analysis(test_df, 'Price')
@@ -362,7 +362,7 @@ def test_capabilities_method():
     
     print("\nTesting capabilities method...")
     
-    processor = SortDataProcessor({'type': 'sort_data', 'columns': ['test']})
+    processor = SortDataProcessor({'processor_type': 'sort_data', 'columns': ['test']})
     capabilities = processor.get_capabilities()
     
     print(f"✓ Capabilities: {capabilities}")
@@ -389,8 +389,8 @@ def test_error_handling():
     # Test missing columns field
     try:
         bad_config = {
-            'type': 'sort_data',
-            'name': 'Missing columns'
+            'processor_type': 'sort_data',
+            'step_description': 'Missing columns'
             # No 'columns' field
         }
         processor = SortDataProcessor(bad_config)
@@ -402,8 +402,8 @@ def test_error_handling():
     # Test invalid column
     try:
         bad_config = {
-            'type': 'sort_data',
-            'name': 'Invalid column',
+            'processor_type': 'sort_data',
+            'step_description': 'Invalid column',
             'columns': ['NonExistentColumn']
         }
         processor = SortDataProcessor(bad_config)
@@ -415,8 +415,8 @@ def test_error_handling():
     # Test mismatched ascending list length
     try:
         bad_config = {
-            'type': 'sort_data',
-            'name': 'Mismatched ascending length',
+            'processor_type': 'sort_data',
+            'step_description': 'Mismatched ascending length',
             'columns': ['Price', 'Quantity'],
             'ascending': [True]  # Only one value for two columns
         }
@@ -445,8 +445,8 @@ def test_real_world_scenario():
     
     # Sort by priority, then by order value (highest first), then by date
     step_config = {
-        'type': 'sort_data',
-        'name': 'Process orders by priority',
+        'processor_type': 'sort_data',
+        'step_description': 'Process orders by priority',
         'columns': ['Customer_Priority', 'Order_Value', 'Order_Date'],
         'custom_orders': {
             'Customer_Priority': ['VIP', 'Premium', 'Standard']
@@ -498,7 +498,7 @@ if __name__ == '__main__':
         print("\n✗ Some sort data processor tests failed!")
     
     # Show capabilities
-    processor = SortDataProcessor({'type': 'sort_data', 'columns': ['test']})
+    processor = SortDataProcessor({'processor_type': 'sort_data', 'columns': ['test']})
     capabilities = processor.get_capabilities()
     print(f"\nProcessor Capabilities:")
     for key, value in capabilities.items():

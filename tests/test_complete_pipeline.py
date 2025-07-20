@@ -34,15 +34,15 @@ def create_test_recipe_file():
     recipe_content = """
 # Test Recipe - simulates part of the van report workflow
 recipe:
-  - name: "Filter for canned products only"
-    type: "filter_data"
+  - step_description: "Filter for canned products only"
+    processor_type: "filter_data"
     filters:
       - column: "Product_Name"
         condition: "contains"
         value: "CANNED"
         
-  - name: "Remove cancelled and test items"
-    type: "filter_data"
+  - step_description: "Remove cancelled and test items"
+    processor_type: "filter_data"
     filters:
       - column: "Status"
         condition: "not_equals"
@@ -51,8 +51,8 @@ recipe:
         condition: "not_equals"  
         value: "Test"
         
-  - name: "Filter for products with reasonable quantity"
-    type: "filter_data"
+  - namstep_descriptione: "Filter for products with reasonable quantity"
+    processor_type: "filter_data"
     filters:
       - column: "Quantity"
         condition: "greater_than"
@@ -252,8 +252,8 @@ def test_registry_functionality():
     
     # Test creating a processor
     step_config = {
-        'type': 'filter_data',
-        'name': 'Test filter',
+        'processor_type': 'filter_data',
+        'step_description': 'Test filter',
         'filters': []
     }
     

@@ -49,10 +49,10 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         # Validate required configuration
         self.validate_required_fields(['new_column', 'calculation'])
         
-        new_column = self.get_config_value('new_column')
-        calculation = self.get_config_value('calculation')
-        calculation_type = self.get_config_value('type', 'expression')
-        overwrite = self.get_config_value('overwrite', False)
+        new_column              = self.get_config_value('new_column')
+        calculation             = self.get_config_value('calculation')
+        calculation_type        = self.get_config_value('calculation_type', 'expression')
+        overwrite               = self.get_config_value('overwrite', False)
         
         # Validate configuration
         self._validate_calculation_config(data, new_column, calculation, overwrite)
@@ -471,3 +471,22 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             List of supported math operation strings
         """
         return ['add', 'subtract', 'multiply', 'divide', 'sum', 'mean', 'min', 'max']
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Add new columns with calculated values based on existing data',
+            'calculation_types': self.get_supported_calculation_types(),
+            'conditional_operations': self.get_supported_conditions(),
+            'math_operations': self.get_supported_math_operations(),
+            'supported_features': [
+                'expression_calculations', 'string_concatenation', 'conditional_logic',
+                'mathematical_operations', 'date_calculations', 'text_operations',
+                'multi_column_aggregations', 'column_overwriting'
+            ],
+            'examples': {
+                'simple_math': "Price * Quantity = Total_Value",
+                'concatenation': "First_Name + Last_Name = Full_Name",
+                'conditional': "If Quantity > 100 then 'High' else 'Low'"
+            }
+        }

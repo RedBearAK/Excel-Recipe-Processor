@@ -10,6 +10,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+step_desc = 'step_description'
+proc_type = 'processor_type'
 
 class StepProcessorError(Exception):
     """Raised when a step processor encounters an error during execution."""
@@ -36,20 +38,20 @@ class BaseStepProcessor(ABC):
             raise StepProcessorError("Step configuration must be a dictionary")
         
         # Guard clause: step must have a type
-        if 'type' not in step_config:
-            raise StepProcessorError("Step configuration missing required 'type' field")
+        if proc_type not in step_config:
+            raise StepProcessorError(f"Step configuration missing required '{proc_type}' field")
         
-        step_type = step_config['type']
+        step_type = step_config[proc_type]
         if not isinstance(step_type, str) or not step_type.strip():
-            raise StepProcessorError("Step 'type' must be a non-empty string")
+            raise StepProcessorError(f"Step {proc_type} must be a non-empty string")
         
         self.step_config = step_config
         self.step_type = step_type
-        self.step_name = step_config.get('name', f'Unnamed {step_type} step')
+        self.step_name = step_config.get('step_description', f'Unnamed {step_type} step')
         
         # Guard clause: step_name must be a string if provided
-        if 'name' in step_config and not isinstance(self.step_name, str):
-            raise StepProcessorError("Step 'name' must be a string")
+        if 'step_description' in step_config and not isinstance(self.step_name, str):
+            raise StepProcessorError("Step 'step_description' must be a string")
         
         logger.debug(f"Initialized {self.__class__.__name__} for step: {self.step_name}")
     
@@ -166,7 +168,7 @@ class BaseStepProcessor(ABC):
     
     def __str__(self) -> str:
         """String representation of the step processor."""
-        return f"{self.__class__.__name__}(name='{self.step_name}', type='{self.step_type}')"
+        return f"{self.__class__.__name__}(name='{self.step_name}', {proc_type}='{self.step_type}')"
     
     def __repr__(self) -> str:
         """Developer representation of the step processor."""
@@ -254,10 +256,10 @@ class StepProcessorRegistry:
         if not isinstance(step_config, dict):
             raise StepProcessorError("Step configuration must be a dictionary")
         
-        if 'type' not in step_config:
-            raise StepProcessorError("Step configuration missing 'type' field")
+        if proc_type not in step_config:
+            raise StepProcessorError(f"Step configuration missing {proc_type} field")
         
-        step_type = step_config['type']
+        step_type = step_config[proc_type]
         processor_class = self.get_processor_class(step_type)
         
         try:

@@ -1,0 +1,551 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0
+rootdir: /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor
+configfile: pyproject.toml
+plugins: mock-3.14.1, cov-6.2.1
+collected 99 items
+
+test_add_calculated_column_processor.py ..........                       [ 10%]
+test_base_processor.py ..                                                [ 12%]
+test_basic.py ...                                                        [ 15%]
+test_clean_data_processor.py ........                                    [ 23%]
+test_complete_pipeline.py ....                                           [ 27%]
+test_config_validation.py ..                                             [ 29%]
+test_excel_io.py ....                                                    [ 33%]
+test_filter_data_processor.py ......                                     [ 39%]
+test_group_data_processors.py ........                                   [ 47%]
+test_lookup_data_processor.py ................                           [ 63%]
+test_lookup_integration.py ..                                            [ 65%]
+test_pivot_table_processor.py .........                                  [ 74%]
+test_rename_columns_processor.py ..........                              [ 84%]
+test_sort_data_processor.py ...........                                  [ 95%]
+test_verify_fixes.py ....                                                [100%]
+
+=============================== warnings summary ===============================
+tests/test_add_calculated_column_processor.py::test_concatenation_calculation
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_concatenation_calculation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_mathematical_calculations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_mathematical_calculations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_conditional_logic
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_conditional_logic returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_date_calculations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_date_calculations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_text_operations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_text_operations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_aggregation_operations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_aggregation_operations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_expression_calculation
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_expression_calculation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_overwrite_existing_column
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_overwrite_existing_column returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_add_calculated_column_processor.py::test_multiple_calculations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_add_calculated_column_processor.py::test_multiple_calculations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_replace_operations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_replace_operations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_text_transformations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_text_transformations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_numeric_cleaning
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_numeric_cleaning returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_fill_empty_values
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_fill_empty_values returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_regex_operations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_regex_operations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_standardize_values
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_standardize_values returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_clean_data_processor.py::test_multiple_rules
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_clean_data_processor.py::test_multiple_rules returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_complete_pipeline.py::test_complete_pipeline_workflow
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_complete_pipeline.py::test_complete_pipeline_workflow returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_complete_pipeline.py::test_complete_pipeline_shortcut
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_complete_pipeline.py::test_complete_pipeline_shortcut returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_complete_pipeline.py::test_registry_functionality
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_complete_pipeline.py::test_registry_functionality returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_config_validation.py::test_enhanced_validation
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_config_validation.py::test_enhanced_validation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_config_validation.py::test_valid_recipe
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_config_validation.py::test_valid_recipe returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_excel_io.py::test_basic_write_and_read
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_excel_io.py::test_basic_write_and_read returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_excel_io.py::test_multiple_sheets
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_excel_io.py::test_multiple_sheets returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_filter_data_processor.py::test_basic_filtering
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_filter_data_processor.py::test_basic_filtering returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_filter_data_processor.py::test_multiple_filters
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_filter_data_processor.py::test_multiple_filters returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_filter_data_processor.py::test_numeric_conditions
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_filter_data_processor.py::test_numeric_conditions returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_filter_data_processor.py::test_list_conditions
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_filter_data_processor.py::test_list_conditions returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_van_report_regional_grouping
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_van_report_regional_grouping returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_helper_method_regional_groups
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_helper_method_regional_groups returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_replace_source_column
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_replace_source_column returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_case_insensitive_grouping
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_case_insensitive_grouping returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_unmatched_actions
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_unmatched_actions returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_duplicate_value_detection
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_duplicate_value_detection returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_data_processors.py::test_grouping_analysis
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_data_processors.py::test_grouping_analysis returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_basic_vlookup_style
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_basic_vlookup_style returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_multiple_column_lookup
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_multiple_column_lookup returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_join_types
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_join_types returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_default_values
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_default_values returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_prefix_suffix
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_prefix_suffix returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_case_sensitivity
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_case_sensitivity returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_duplicate_handling
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_duplicate_handling returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_dictionary_lookup_source
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_dictionary_lookup_source returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_file_lookup_source
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_file_lookup_source returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_vlookup_helper_method
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_vlookup_helper_method returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_index_match_helper_method
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_index_match_helper_method returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_multi_column_lookup_helper
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_multi_column_lookup_helper returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_lookup_analysis
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_lookup_analysis returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_chained_lookups
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_chained_lookups returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_data_processor.py::test_real_world_scenario
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_data_processor.py::test_real_world_scenario returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_integration.py::test_lookup_integration
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_integration.py::test_lookup_integration returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_lookup_integration.py::test_with_pipeline
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_lookup_integration.py::test_with_pipeline returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_basic_pivot_table
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_basic_pivot_table returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_van_report_style_pivot
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_van_report_style_pivot returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_origin_vs_carrier_matrix
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_origin_vs_carrier_matrix returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_multiple_aggregations
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_multiple_aggregations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_no_values_pivot
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_no_values_pivot returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_fill_blanks_option
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_fill_blanks_option returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_cross_tabulation
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_cross_tabulation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_pivot_table_processor.py::test_pivot_info
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_pivot_table_processor.py::test_pivot_info returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_mapping_rename
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_mapping_rename returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_pattern_rename
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_pattern_rename returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_transform_rename
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_transform_rename returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_case_conversions
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_case_conversions returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_prefix_suffix
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_prefix_suffix returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_standardize_helper
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_standardize_helper returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_column_analysis
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_column_analysis returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_duplicate_new_names
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_duplicate_new_names returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_rename_columns_processor.py::test_real_world_scenario
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_rename_columns_processor.py::test_real_world_scenario returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_single_column_sort
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_single_column_sort returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_multi_column_sort
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_multi_column_sort returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_custom_sort_order
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_custom_sort_order returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_case_insensitive_sort
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_case_insensitive_sort returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_null_position_handling
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_null_position_handling returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_frequency_sort
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_frequency_sort returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_multiple_criteria_sort
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_multiple_criteria_sort returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_sort_analysis
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_sort_analysis returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_capabilities_method
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_capabilities_method returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_sort_data_processor.py::test_real_world_scenario
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_sort_data_processor.py::test_real_world_scenario returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_verify_fixes.py::test_rename_columns_capabilities
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_verify_fixes.py::test_rename_columns_capabilities returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_verify_fixes.py::test_feature_matrix_formatting
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_verify_fixes.py::test_feature_matrix_formatting returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_verify_fixes.py::test_configuration_validation
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_verify_fixes.py::test_configuration_validation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_verify_fixes.py::test_processor_name_abbreviation
+  /home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/.venv/lib64/python3.13/site-packages/_pytest/python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_verify_fixes.py::test_processor_name_abbreviation returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.13.5-final-0 ________________
+
+Name                                                                                                                            Stmts   Miss  Cover
+---------------------------------------------------------------------------------------------------------------------------------------------------
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/__init__.py                                         4      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/__main__.py                                        21     21     0%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/_version.py                                         5      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/config/__init__.py                                  0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/config/recipe_loader.py                           148     61    59%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/__init__.py                                    0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/main.py                                       27     27     0%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/pipeline.py                                  179     68    62%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/__init__.py                              0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/add_calculated_column_processor.py     244     95    61%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/base_processor.py                       95     21    78%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/clean_data_processor.py                154     39    75%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/filter_data_processor.py               117     33    72%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/group_data_processor.py                112     15    87%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/lookup_data_processor.py               208     50    76%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/pivot_table_processor.py               123     35    72%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/rename_columns_processor.py            180     18    90%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/processors/sort_data_processor.py                 144     33    77%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/readers/__init__.py                                 0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/readers/excel_reader.py                           108     35    68%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/transformers/__init__.py                            0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/utils/__init__.py                                   0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/validators/__init__.py                              0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/writers/__init__.py                                 0      0   100%
+/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/writers/excel_writer.py                           113     67    41%
+---------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                                                            1982    618    69%
+Coverage HTML written to dir htmlcov
+======================= 99 passed, 82 warnings in 2.66s ========================

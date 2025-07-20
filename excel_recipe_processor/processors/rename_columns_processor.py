@@ -15,6 +15,8 @@ from excel_recipe_processor.processors.base_processor import BaseStepProcessor, 
 
 logger = logging.getLogger(__name__)
 
+proc_type = 'processor_type'
+
 
 class RenameColumnsProcessor(BaseStepProcessor):
     """
@@ -46,7 +48,7 @@ class RenameColumnsProcessor(BaseStepProcessor):
         self.validate_data_not_empty(data)
         
         # Get configuration
-        rename_type = self.get_config_value('type', 'mapping')
+        rename_type = self.get_config_value('rename_type', 'mapping')
         mapping = self.get_config_value('mapping', {})
         pattern = self.get_config_value('pattern', None)
         replacement = self.get_config_value('replacement', '')
@@ -109,7 +111,7 @@ class RenameColumnsProcessor(BaseStepProcessor):
         """
         # Validate rename type
         if not isinstance(rename_type, str):
-            raise StepProcessorError("'type' must be a string")
+            raise StepProcessorError(f"'{proc_type}' must be a string")
         
         # Validate mapping if using mapping type
         if rename_type == 'mapping':
@@ -275,16 +277,27 @@ class RenameColumnsProcessor(BaseStepProcessor):
     
     def _to_snake_case(self, name: str) -> str:
         """Convert a string to snake_case."""
-        # Replace spaces and hyphens with underscores
+        # Replace spaces and hyphens with underscores first
         name = re.sub(r'[-\s]+', '_', name)
-        # Insert underscores before uppercase letters (for camelCase)
-        name = re.sub(r'(?<!^)(?=[A-Z])', '_', name)
+        
+        # Handle sequences of uppercase letters followed by lowercase (e.g., "XMLHttp" -> "XML_Http")
+        name = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', name)
+        
+        # Insert underscores before uppercase letters that follow lowercase letters (e.g., "camelCase" -> "camel_Case")
+        name = re.sub(r'([a-z])([A-Z])', r'\1_\2', name)
+        
         # Convert to lowercase
         name = name.lower()
+        
+        # Remove special characters (except underscores and alphanumeric)
+        name = re.sub(r'[^a-z0-9_]', '_', name)
+        
         # Remove multiple consecutive underscores
         name = re.sub(r'_+', '_', name)
+        
         # Strip leading/trailing underscores
         name = name.strip('_')
+        
         return name
     
     def _to_camel_case(self, name: str) -> str:
@@ -389,3 +402,24 @@ class RenameColumnsProcessor(BaseStepProcessor):
             List of supported case conversion strings
         """
         return ['upper', 'lower', 'title', 'snake_case', 'camel_case']
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Rename DataFrame columns with flexible transformation options',
+            'rename_types': self.get_supported_rename_types(),
+            'case_conversions': self.get_supported_case_conversions(),
+            'transformation_features': [
+                'direct_mapping', 'pattern_replacement', 'case_conversion',
+                'prefix_suffix_addition', 'special_character_removal',
+                'standardization', 'snake_case_conversion', 'camel_case_conversion'
+            ],
+            'helper_methods': [
+                'standardize_column_names', 'get_column_analysis'
+            ],
+            'examples': {
+                'cleanup': "Convert 'Product Name!' to 'product_name'",
+                'standardize': "Apply consistent naming conventions",
+                'mapping': "Rename specific columns to business-friendly names"
+            }
+        }

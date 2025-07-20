@@ -232,3 +232,20 @@ class FilterDataProcessor(BaseStepProcessor):
             'greater_than', 'less_than', 'greater_equal', 'less_equal',
             'not_empty', 'is_empty', 'in_list', 'not_in_list'
         ]
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Filter DataFrame rows based on specified conditions',
+            'supported_conditions': self.get_supported_conditions(),
+            'filter_operations': [
+                'exact_matching', 'text_contains', 'numeric_comparisons',
+                'list_membership', 'null_checking', 'pattern_matching'
+            ],
+            'comparison_operators': ['equals', 'not_equals', 'greater_than', 'less_than', 'contains'],
+            'examples': {
+                'text_filter': "Product_Name contains 'CANNED'",
+                'numeric_filter': "Price > 15.00",
+                'list_filter': "Department in ['Electronics', 'Tools']"
+            }
+        }

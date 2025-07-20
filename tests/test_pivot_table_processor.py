@@ -42,8 +42,8 @@ def test_basic_pivot_table():
     
     # Test simple pivot - sum quantities by origin
     step_config = {
-        'type': 'pivot_table',
-        'name': 'Sum by origin',
+        'processor_type': 'pivot_table',
+        'step_description': 'Sum by origin',
         'index': ['Product_Origin'],
         'values': ['Quantity'],
         'aggfunc': 'sum'
@@ -81,8 +81,8 @@ def test_van_report_style_pivot():
     
     # Test the first pivot from van report: PRODUCT ORIGIN, VAN NUMBER, CARRIER, DESTINATION
     step_config = {
-        'type': 'pivot_table',
-        'name': 'Van report first pivot',
+        'processor_type': 'pivot_table',
+        'step_description': 'Van report first pivot',
         'index': ['Product_Origin', 'Van_Number', 'Carrier', 'Destination'],
         'values': ['Quantity'],
         'aggfunc': 'sum',
@@ -115,8 +115,8 @@ def test_origin_vs_carrier_matrix():
     
     # Test the second pivot: PRODUCT ORIGIN as rows, CARRIER as columns, VAN NUMBER as values
     step_config = {
-        'type': 'pivot_table',
-        'name': 'Origin vs Carrier matrix',
+        'processor_type': 'pivot_table',
+        'step_description': 'Origin vs Carrier matrix',
         'index': ['Product_Origin'],
         'columns': ['Carrier'],
         'values': ['Quantity'],
@@ -163,8 +163,8 @@ def test_multiple_aggregations():
     
     for aggfunc, description in test_cases:
         step_config = {
-            'type': 'pivot_table',
-            'name': f'Test {aggfunc}',
+            'processor_type': 'pivot_table',
+            'step_description': f'Test {aggfunc}',
             'index': ['Carrier'],
             'values': ['Quantity'],
             'aggfunc': aggfunc
@@ -187,8 +187,8 @@ def test_no_values_pivot():
     
     # Create a count pivot without specifying values
     step_config = {
-        'type': 'pivot_table',
-        'name': 'Count pivot',
+        'processor_type': 'pivot_table',
+        'step_description': 'Count pivot',
         'index': ['Product_Origin'],
         'columns': ['Carrier'],
         'aggfunc': 'count'
@@ -216,8 +216,8 @@ def test_fill_blanks_option():
     
     # Create pivot with fill_blanks option
     step_config = {
-        'type': 'pivot_table',
-        'name': 'Pivot with fill blanks',
+        'processor_type': 'pivot_table',
+        'step_description': 'Pivot with fill blanks',
         'index': ['Product_Origin'],
         'values': ['Quantity'],
         'aggfunc': 'sum',
@@ -251,7 +251,7 @@ def test_cross_tabulation():
     test_df = create_van_report_test_data()
     
     # Create a processor to test cross-tab functionality
-    processor = PivotTableProcessor({'type': 'pivot_table'})
+    processor = PivotTableProcessor({'processor_type': 'pivot_table'})
     
     # Test cross-tab
     crosstab_result = processor.create_cross_tab(
@@ -280,8 +280,8 @@ def test_error_handling():
     # Test invalid index column
     try:
         bad_config = {
-            'type': 'pivot_table',
-            'name': 'Invalid index',
+            'processor_type': 'pivot_table',
+            'step_description': 'Invalid index',
             'index': ['NonExistentColumn'],
             'values': ['Quantity'],
             'aggfunc': 'sum'
@@ -295,8 +295,8 @@ def test_error_handling():
     # Test invalid values column
     try:
         bad_config = {
-            'type': 'pivot_table',
-            'name': 'Invalid values',
+            'processor_type': 'pivot_table',
+            'step_description': 'Invalid values',
             'index': ['Product_Origin'],
             'values': ['NonExistentColumn'],
             'aggfunc': 'sum'
@@ -310,8 +310,8 @@ def test_error_handling():
     # Test invalid aggregation function
     try:
         bad_config = {
-            'type': 'pivot_table',
-            'name': 'Invalid aggfunc',
+            'processor_type': 'pivot_table',
+            'step_description': 'Invalid aggfunc',
             'index': ['Product_Origin'],
             'values': ['Quantity'],
             'aggfunc': 'invalid_function'
@@ -331,7 +331,7 @@ def test_pivot_info():
     test_df = create_van_report_test_data()
     
     # Create a processor to test pivot info
-    processor = PivotTableProcessor({'type': 'pivot_table'})
+    processor = PivotTableProcessor({'processor_type': 'pivot_table'})
     
     info = processor.get_pivot_info(test_df)
     
@@ -369,5 +369,5 @@ if __name__ == '__main__':
         print("\n✗ Some pivot table processor tests failed!")
     
     # Show supported aggregation functions
-    processor = PivotTableProcessor({'type': 'pivot_table'})
+    processor = PivotTableProcessor({'processor_type': 'pivot_table'})
     print(f"\nSupported aggregation functions: {processor.get_supported_aggfuncs()}")

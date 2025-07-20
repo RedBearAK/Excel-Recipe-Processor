@@ -13,6 +13,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+step_desc = 'step_description'
+proc_type = 'processor_type'
 
 class RecipeValidationError(Exception):
     """Raised when a recipe file has invalid structure or content."""
@@ -171,19 +173,19 @@ class RecipeLoader:
             raise RecipeValidationError(f"Step {step_index + 1} must be a dictionary")
         
         # Required fields
-        if 'type' not in step:
-            raise RecipeValidationError(f"Step {step_index + 1} missing required 'type' field")
+        if 'processor_type' not in step:
+            raise RecipeValidationError(f"Step {step_index + 1} missing required '{proc_type}' field")
         
-        step_type = step['type']
+        step_type = step[proc_type]
         # Guard clause: type must be a non-empty string
         if not isinstance(step_type, str) or not step_type.strip():
-            raise RecipeValidationError(f"Step {step_index + 1} 'type' must be a non-empty string")
+            raise RecipeValidationError(f"Step {step_index + 1} {proc_type} must be a non-empty string")
         
         # Optional but recommended fields
-        if 'name' in step:
+        if step_desc in step:
             # Guard clause: name must be a string if present
-            if not isinstance(step['name'], str):
-                raise RecipeValidationError(f"Step {step_index + 1} 'name' must be a string")
+            if not isinstance(step[step_desc], str):
+                raise RecipeValidationError(f"Step {step_index + 1} {step_desc} must be a string")
         
         logger.debug(f"Step {step_index + 1} validated: {step_type}")
     
@@ -248,7 +250,7 @@ class RecipeLoader:
         
         return settings
     
-    def get_step_by_name(self, step_name: str) -> Optional[dict]:
+    def get_step_by_name(self, step_desc_arg: str) -> Optional[dict]:
         """
         Find a step by its name.
         
@@ -259,12 +261,12 @@ class RecipeLoader:
             Step dictionary if found, None otherwise
         """
         # Guard clause: step_name must be a string
-        if not isinstance(step_name, str):
+        if not isinstance(step_desc_arg, str):
             raise ValueError("Step name must be a string")
         
         for step in self.get_steps():
             # Guard clause: each step should be a dict
-            if isinstance(step, dict) and step.get('name') == step_name:
+            if isinstance(step, dict) and step.get(step_desc) == step_desc_arg:
                 return step
         return None
     
@@ -285,7 +287,7 @@ class RecipeLoader:
         matching_steps = []
         for step in self.get_steps():
             # Guard clause: each step should be a dict with type
-            if isinstance(step, dict) and step.get('type') == step_type:
+            if isinstance(step, dict) and step.get(proc_type) == step_type:
                 matching_steps.append(step)
         
         return matching_steps
@@ -317,8 +319,8 @@ class RecipeLoader:
         step_types = {}
         for step in steps:
             # Guard clause: ensure each step is a dict with type
-            if isinstance(step, dict) and 'type' in step:
-                step_type = step['type']
+            if isinstance(step, dict) and proc_type in step:
+                step_type = step[proc_type]
                 if isinstance(step_type, str):
                     step_types[step_type] = step_types.get(step_type, 0) + 1
         

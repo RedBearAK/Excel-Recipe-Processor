@@ -8,6 +8,8 @@ import argparse
 from ._version import __version__, __description__
 
 
+pkg_name = "excel_recipe_processor"
+
 def main():
     """Main entry point for the excel_recipe_processor package."""
     parser = argparse.ArgumentParser(
@@ -52,7 +54,7 @@ def main():
         return run_main(args)
     except ImportError:
         print(f"Main functionality not yet implemented for {pkg_name}")
-        print("Please implement the main function in {pkg_name}/core/main.py")
+        print(f"Please implement the main function in {pkg_name}/core/main.py")
         return 1
 
 

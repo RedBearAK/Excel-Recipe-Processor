@@ -30,9 +30,9 @@ def test_mapping_rename():
     
     # Test direct mapping rename
     step_config = {
-        'processor_type': 'rename_columns',
         'step_description': 'Clean up column names',
-        'processor_type': 'mapping',
+        'processor_type': 'rename_columns',
+        'rename_type': 'mapping',
         'mapping': {
             'Product Code': 'product_code',
             'Product Name!': 'product_name',
@@ -74,9 +74,9 @@ def test_pattern_rename():
     
     # Test pattern-based rename - remove 'col_' prefix
     step_config = {
-        'processor_type': 'rename_columns',
         'step_description': 'Remove col_ prefix',
-        'processor_type': 'pattern',
+        'processor_type': 'rename_columns',
+        'rename_type': 'pattern',
         'pattern': r'^col_',
         'replacement': ''
     }
@@ -108,9 +108,9 @@ def test_transform_rename():
     
     # Test multiple transformations
     step_config = {
-        'processor_type': 'rename_columns',
         'step_description': 'Transform column names',
-        'processor_type': 'transform',
+        'processor_type': 'rename_columns',
+        'rename_type': 'transform',
         'case_conversion': 'snake_case',
         'strip_characters': ' !',
         'replace_spaces': '_'
@@ -159,9 +159,9 @@ def test_case_conversions():
     
     for case_type, expected in case_tests:
         step_config = {
-            'processor_type': 'rename_columns',
             'step_description': f'Test {case_type}',
-            'processor_type': 'transform',
+            'processor_type': 'rename_columns',
+            'rename_type': 'transform',
             'case_conversion': case_type
         }
         
@@ -193,9 +193,9 @@ def test_prefix_suffix():
     
     # Test adding prefix and suffix
     step_config = {
-        'processor_type': 'rename_columns',
         'step_description': 'Add prefix and suffix',
-        'processor_type': 'transform',
+        'processor_type': 'rename_columns',
+        'rename_type': 'transform',
         'add_prefix': 'col_',
         'add_suffix': '_data'
     }
@@ -230,7 +230,7 @@ def test_standardize_helper():
     
     print(f"✓ Messy columns: {list(test_df.columns)}")
     
-    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'processor_type': 'mapping', 'mapping': {}})
+    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'rename_type': 'mapping', 'mapping': {}})
     result = processor.standardize_column_names(test_df)
     
     print(f"✓ Standardized columns: {list(result.columns)}")
@@ -258,7 +258,7 @@ def test_column_analysis():
     
     test_df = create_messy_columns_data()
     
-    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'processor_type': 'mapping', 'mapping': {}})
+    processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'rename_type': 'mapping', 'mapping': {}})
     analysis = processor.get_column_analysis(test_df)
     
     print(f"✓ Analysis results:")
@@ -293,7 +293,7 @@ def test_duplicate_new_names():
     step_config = {
         'processor_type': 'rename_columns',
         'step_description': 'Duplicate names test',
-        'processor_type': 'mapping',
+        'rename_type': 'mapping',
         'mapping': {
             'col1': 'new_name',
             'col2': 'new_name',  # Duplicate!
@@ -323,7 +323,7 @@ def test_error_handling():
         bad_config = {
             'processor_type': 'rename_columns',
             'step_description': 'Missing column',
-            'processor_type': 'mapping',
+            'rename_type': 'mapping',
             'mapping': {
                 'NonExistentColumn': 'new_name'
             }
@@ -339,7 +339,7 @@ def test_error_handling():
         bad_config = {
             'processor_type': 'rename_columns',
             'step_description': 'Empty mapping',
-            'processor_type': 'mapping',
+            'rename_type': 'mapping',
             'mapping': {}
         }
         processor = RenameColumnsProcessor(bad_config)
@@ -353,7 +353,7 @@ def test_error_handling():
         bad_config = {
             'processor_type': 'rename_columns',
             'step_description': 'Invalid pattern',
-            'processor_type': 'pattern',
+            'rename_type': 'pattern',
             'pattern': '[invalid regex',
             'replacement': 'test'
         }
@@ -385,7 +385,7 @@ def test_real_world_scenario():
     step_config = {
         'processor_type': 'rename_columns',
         'step_description': 'Clean export data',
-        'processor_type': 'transform',
+        'rename_type': 'transform',
         'case_conversion': 'snake_case',
         'strip_characters': ' ()',
         'replace_spaces': '_'

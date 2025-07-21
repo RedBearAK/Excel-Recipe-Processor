@@ -111,7 +111,7 @@ class RenameColumnsProcessor(BaseStepProcessor):
         """
         # Validate rename type
         if not isinstance(rename_type, str):
-            raise StepProcessorError(f"'{proc_type}' must be a string")
+            raise StepProcessorError(f"'rename_type' must be a string")
         
         # Validate mapping if using mapping type
         if rename_type == 'mapping':

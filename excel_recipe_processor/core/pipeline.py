@@ -385,6 +385,7 @@ def register_standard_processors():
     from excel_recipe_processor.processors.add_calculated_column_processor import (
         AddCalculatedColumnProcessor
     )
+    from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
     from excel_recipe_processor.processors.clean_data_processor import CleanDataProcessor
     from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
     from excel_recipe_processor.processors.group_data_processor import GroupDataProcessor
@@ -392,9 +393,11 @@ def register_standard_processors():
     from excel_recipe_processor.processors.pivot_table_processor import PivotTableProcessor
     from excel_recipe_processor.processors.rename_columns_processor import RenameColumnsProcessor
     from excel_recipe_processor.processors.sort_data_processor import SortDataProcessor
+    from excel_recipe_processor.processors.split_column_processor import SplitColumnProcessor
     
     # Register the processors we've built
     registry.register('add_calculated_column',          AddCalculatedColumnProcessor)
+    registry.register('aggregate_data',                 AggregateDataProcessor)
     registry.register('clean_data',                     CleanDataProcessor)
     registry.register('filter_data',                    FilterDataProcessor)
     registry.register('group_data',                     GroupDataProcessor)
@@ -402,6 +405,7 @@ def register_standard_processors():
     registry.register('pivot_table',                    PivotTableProcessor)
     registry.register('rename_columns',                 RenameColumnsProcessor)
     registry.register('sort_data',                      SortDataProcessor)
+    registry.register('split_column',                   SplitColumnProcessor)
     
     logger.debug("Registered standard processors")
 

@@ -5,6 +5,7 @@ Allows the package to be executed with: python -m excel_recipe_processor
 
 import sys
 import argparse
+
 from excel_recipe_processor._version import __version__, __description__
 
 

@@ -1,9 +1,10 @@
 """Main functionality for excel_recipe_processor package."""
 
-import logging
 import sys
+import logging
+
+from typing import Any, Optional
 from pathlib import Path
-from typing import Any, Dict, Optional
 from argparse import Namespace
 
 from excel_recipe_processor.core.pipeline import (
@@ -24,7 +25,14 @@ def run_main(args: Namespace) -> int:
         Exit code (0 for success, non-zero for error)
     """
     try:
-        # Set up logging level
+        # Handle special commands first (before setting up logging)
+        if hasattr(args, 'list_capabilities') and args.list_capabilities:
+            return list_system_capabilities()
+        
+        if hasattr(args, 'validate_recipe') and args.validate_recipe:
+            return validate_recipe_file(args.validate_recipe)
+        
+        # Set up logging only for actual processing
         if args.verbose:
             logging.basicConfig(
                 level=logging.DEBUG,
@@ -38,22 +46,15 @@ def run_main(args: Namespace) -> int:
             
         logger.info(f"Starting Excel Recipe Processor v{get_version()}")
         
-        # Handle special commands first
-        if hasattr(args, 'list_capabilities') and args.list_capabilities:
-            return list_system_capabilities()
-        
-        if hasattr(args, 'validate_recipe') and args.validate_recipe:
-            return validate_recipe_file(args.validate_recipe)
-        
         # Main processing requires input file and recipe
         if not args.input_file:
-            logger.error("Input file is required for processing")
-            logger.info("Use --help for usage information")
+            print("Error: Input file is required for processing")
+            print("Use --help for usage information")
             return 1
             
         if not args.config:
-            logger.error("Recipe file is required (use --config)")
-            logger.info("Use --help for usage information")
+            print("Error: Recipe file is required (use --config)")
+            print("Use --help for usage information")
             return 1
         
         # Process the files
@@ -62,18 +63,22 @@ def run_main(args: Namespace) -> int:
             recipe_file=args.config,
             output_file=args.output,
             input_sheet=getattr(args, 'sheet', 0),
-            output_sheet=getattr(args, 'output_sheet', 'ProcessedData')
+            output_sheet=getattr(args, 'output_sheet', 'ProcessedData'),
+            verbose=args.verbose
         )
         
     except Exception as e:
-        logger.error(f"Error in Excel Recipe Processor: {e}")
-        if args.verbose:
-            logger.exception("Full traceback:")
+        # For unexpected errors, always show them clearly
+        print(f"Error: {e}")
+        if hasattr(args, 'verbose') and args.verbose:
+            import traceback
+            traceback.print_exc()
         return 1
 
 
 def process_excel_file(input_file: str, recipe_file: str, output_file: Optional[str] = None,
-                      input_sheet: Any = 0, output_sheet: str = 'ProcessedData') -> int:
+                      input_sheet: Any = 0, output_sheet: str = 'ProcessedData', 
+                      verbose: bool = False) -> int:
     """
     Process an Excel file using a recipe.
     
@@ -83,6 +88,7 @@ def process_excel_file(input_file: str, recipe_file: str, output_file: Optional[
         output_file: Path for output file (optional, can be specified in recipe)
         input_sheet: Sheet to read from input file
         output_sheet: Sheet name for output
+        verbose: Whether to show detailed error information
         
     Returns:
         Exit code (0 for success, non-zero for error)
@@ -93,11 +99,11 @@ def process_excel_file(input_file: str, recipe_file: str, output_file: Optional[
         recipe_path = Path(recipe_file)
         
         if not input_path.exists():
-            logger.error(f"Input file not found: {input_file}")
+            print(f"Error: Input file not found: {input_file}")
             return 1
             
         if not recipe_path.exists():
-            logger.error(f"Recipe file not found: {recipe_file}")
+            print(f"Error: Recipe file not found: {recipe_file}")
             return 1
         
         logger.info(f"Processing: {input_file}")
@@ -130,7 +136,7 @@ def process_excel_file(input_file: str, recipe_file: str, output_file: Optional[
             settings = pipeline.recipe_loader.get_settings()
             
             if 'output_filename' not in settings:
-                logger.error("No output filename specified in recipe or command line")
+                print("Error: No output filename specified in recipe or command line")
                 return 1
             
             final_output = settings['output_filename']
@@ -147,28 +153,30 @@ def process_excel_file(input_file: str, recipe_file: str, output_file: Optional[
         rows_processed = len(result)
         columns_processed = len(result.columns)
         
-        logger.info(f"✓ Processing completed successfully")
-        logger.info(f"✓ Final result: {rows_processed} rows, {columns_processed} columns")
-        logger.info(f"✓ Executed {pipeline.steps_executed} processing steps")
+        print(f"✓ Processing completed successfully")
+        print(f"✓ Final result: {rows_processed} rows, {columns_processed} columns")
+        print(f"✓ Executed {pipeline.steps_executed} processing steps")
         
         # Show final output path (after variable substitution)
         if hasattr(pipeline, 'variable_substitution') and pipeline.variable_substitution:
             final_path = pipeline.variable_substitution.substitute_variables(final_output)
             if final_path != final_output:
-                logger.info(f"✓ Output saved to: {final_path}")
+                print(f"✓ Output saved to: {final_path}")
             else:
-                logger.info(f"✓ Output saved to: {final_output}")
+                print(f"✓ Output saved to: {final_output}")
         else:
-            logger.info(f"✓ Output saved to: {final_output}")
+            print(f"✓ Output saved to: {final_output}")
         
         return 0
         
     except PipelineError as e:
-        logger.error(f"Pipeline error: {e}")
+        print(f"Pipeline error: {e}")
         return 1
     except Exception as e:
-        logger.error(f"Unexpected error during processing: {e}")
-        logger.exception("Full traceback:")
+        print(f"Unexpected error during processing: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
         return 1
 
 
@@ -180,35 +188,35 @@ def list_system_capabilities() -> int:
         Exit code (always 0)
     """
     try:
-        logger.info("Excel Recipe Processor - System Capabilities")
-        logger.info("=" * 50)
+        print("Excel Recipe Processor - System Capabilities")
+        print("=" * 50)
         
         capabilities = get_system_capabilities()
         system_info = capabilities['system_info']
         
-        logger.info(f"System: {system_info['description']}")
-        logger.info(f"Total Processors: {system_info['total_processors']}")
-        logger.info("")
+        print(f"System: {system_info['description']}")
+        print(f"Total Processors: {system_info['total_processors']}")
+        print()
         
-        logger.info("Available Processors:")
-        logger.info("-" * 20)
+        print("Available Processors:")
+        print("-" * 20)
         
         for proc_type in sorted(system_info['processor_types']):
             proc_info = capabilities['processors'].get(proc_type, {})
             
             if 'error' in proc_info:
-                logger.info(f"  {proc_type}: ERROR - {proc_info['error']}")
+                print(f"  {proc_type}: ERROR - {proc_info['error']}")
             else:
                 description = proc_info.get('description', 'No description available')
-                logger.info(f"  {proc_type}: {description}")
+                print(f"  {proc_type}: {description}")
         
-        logger.info("")
-        logger.info("Use 'python -m excel_recipe_processor --help' for usage information")
+        print()
+        print("Use 'python -m excel_recipe_processor --help' for usage information")
         
         return 0
         
     except Exception as e:
-        logger.error(f"Error listing capabilities: {e}")
+        print(f"Error listing capabilities: {e}")
         return 1
 
 
@@ -226,10 +234,10 @@ def validate_recipe_file(recipe_file: str) -> int:
         recipe_path = Path(recipe_file)
         
         if not recipe_path.exists():
-            logger.error(f"Recipe file not found: {recipe_file}")
+            print(f"Error: Recipe file not found: {recipe_file}")
             return 1
         
-        logger.info(f"Validating recipe: {recipe_file}")
+        print(f"Validating recipe: {recipe_file}")
         
         # Try to load the recipe
         pipeline = ExcelPipeline()
@@ -240,30 +248,30 @@ def validate_recipe_file(recipe_file: str) -> int:
         settings = pipeline.recipe_loader.get_settings()
         steps = pipeline.recipe_loader.get_steps()
         
-        logger.info("✓ Recipe file is valid")
-        logger.info(f"✓ {summary}")
-        logger.info(f"✓ Settings: {len(settings)} configured")
-        logger.info(f"✓ Steps: {len(steps)} processing steps defined")
+        print("✓ Recipe file is valid")
+        print(f"✓ {summary}")
+        print(f"✓ Settings: {len(settings)} configured")
+        print(f"✓ Steps: {len(steps)} processing steps defined")
         
         # Check processor availability
         from excel_recipe_processor.core.pipeline import check_recipe_capabilities
         capabilities_report = check_recipe_capabilities(recipe_data)
         
         if capabilities_report['recipe_valid']:
-            logger.info("✓ All processors are available")
+            print("✓ All processors are available")
         else:
-            logger.warning("⚠ Some processors may not be available:")
+            print("⚠ Some processors may not be available:")
             for missing in capabilities_report['missing_processors']:
-                logger.warning(f"  - {missing}")
+                print(f"  - {missing}")
         
         # Show output filename if specified
         if 'output_filename' in settings:
-            logger.info(f"✓ Output filename: {settings['output_filename']}")
+            print(f"✓ Output filename: {settings['output_filename']}")
         
         return 0 if capabilities_report['recipe_valid'] else 2
         
     except Exception as e:
-        logger.error(f"Recipe validation failed: {e}")
+        print(f"Recipe validation failed: {e}")
         return 1
 
 
@@ -276,7 +284,7 @@ def get_version() -> str:
         return "unknown"
 
 
-def process_file(input_file: str, config: Optional[Dict[str, Any]] = None) -> bool:
+def process_file(input_file: str, config: Optional[dict[str, Any]] = None) -> bool:
     """
     Legacy function for backward compatibility.
     
@@ -287,19 +295,20 @@ def process_file(input_file: str, config: Optional[Dict[str, Any]] = None) -> bo
     Returns:
         True if successful, False otherwise
     """
-    logger.warning("process_file() is deprecated. Use process_excel_file() instead.")
+    print("Warning: process_file() is deprecated. Use process_excel_file() instead.")
     
     try:
         if config and 'recipe_file' in config:
             result = process_excel_file(
                 input_file=input_file,
                 recipe_file=config['recipe_file'],
-                output_file=config.get('output_file')
+                output_file=config.get('output_file'),
+                verbose=config.get('verbose', False)
             )
             return result == 0
         else:
-            logger.error("Config must include 'recipe_file'")
+            print("Error: Config must include 'recipe_file'")
             return False
     except Exception as e:
-        logger.error(f"Error in process_file: {e}")
+        print(f"Error in process_file: {e}")
         return False

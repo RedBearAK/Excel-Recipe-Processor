@@ -28,6 +28,9 @@ def test_replace_operations():
     test_df = create_messy_test_data()
     print(f"✓ Created messy test data: {len(test_df)} rows")
     
+    # Debug: Check the actual test data
+    print("Component column before replace:", test_df['Component'].tolist())
+    
     # Test basic replace - like replacing FLESH with CANS in van report
     step_config = {
         'processor_type': 'clean_data',
@@ -48,13 +51,16 @@ def test_replace_operations():
     # Check that FLESH was replaced with CANS
     flesh_count = (result['Component'] == 'FLESH').sum()
     cans_count = (result['Component'] == 'CANS').sum()
+    lowercase_flesh_count = (result['Component'] == 'flesh').sum()
     
-    print(f"✓ Replace FLESH→CANS: {flesh_count} FLESH remaining, {cans_count} CANS found")
+    print(f"✓ Replace FLESH→CANS: {flesh_count} FLESH remaining, {cans_count} CANS found, {lowercase_flesh_count} lowercase flesh")
+    print("Component column after replace:", result['Component'].tolist())
     
-    if flesh_count == 1 and cans_count == 4:  # One 'flesh' lowercase should remain
+    # CORRECTED EXPECTATION: Should be 4 CANS (uppercase FLESH replaced) and 1 'flesh' (lowercase unchanged)
+    if flesh_count == 0 and cans_count == 4 and lowercase_flesh_count == 1:
         print("✓ Case-sensitive replace worked correctly")
     else:
-        print(f"✗ Unexpected replace result: {flesh_count} FLESH, {cans_count} CANS")
+        print(f"✗ Unexpected replace result: {flesh_count} FLESH, {cans_count} CANS, {lowercase_flesh_count} lowercase")
     
     # Test case-insensitive replace
     step_config2 = {
@@ -401,6 +407,320 @@ def test_error_handling():
         print(f"✓ Caught expected error: {e}")
 
 
+
+def test_conditional_replacement():
+    """Test conditional replacement like the van report FLESH->CANS scenario."""
+    
+    print("\nTesting conditional replacement...")
+    
+    # Create data that mimics the van report scenario
+    test_df = pd.DataFrame({
+        'Product_Name': [
+            'CANNED BEANS',      # Should trigger replacement
+            'FRESH SALMON',      # Should NOT trigger replacement  
+            'CANNED CORN',       # Should trigger replacement
+            'DRIED FISH',        # Should NOT trigger replacement
+            'canned soup'        # Should trigger replacement (case insensitive)
+        ],
+        'Component': [
+            'FLESH',             # Should become CANS
+            'FLESH',             # Should stay FLESH
+            'FLESH',             # Should become CANS
+            'FLESH',             # Should stay FLESH
+            'FLESH'              # Should become CANS
+        ]
+    })
+    
+    print(f"✓ Created van report test data: {len(test_df)} rows")
+    print("Original data:")
+    for i in range(len(test_df)):
+        product = test_df.iloc[i]['Product_Name']
+        component = test_df.iloc[i]['Component']
+        print(f"  {product}: {component}")
+    
+    # Test conditional replacement - only replace FLESH in canned products
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Conditional FLESH to CANS replacement',
+        'rules': [
+            {
+                'column': 'Component',
+                'action': 'replace',
+                'old_value': 'FLESH',
+                'new_value': 'CANS',
+                'condition_column': 'Product_Name',
+                'condition': 'contains',
+                'condition_value': 'CANNED',
+                'case_sensitive': False  # Should catch 'canned soup'
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print("\nAfter conditional replacement:")
+    cans_count = 0
+    flesh_count = 0
+    
+    for i in range(len(result)):
+        product = result.iloc[i]['Product_Name']
+        component = result.iloc[i]['Component']
+        print(f"  {product}: {component}")
+        
+        if component == 'CANS':
+            cans_count += 1
+        elif component == 'FLESH':
+            flesh_count += 1
+    
+    print(f"\n✓ Results: {cans_count} CANS, {flesh_count} FLESH")
+    
+    # Should have 3 CANS (canned products) and 2 FLESH (non-canned products)
+    if cans_count == 3 and flesh_count == 2:
+        print("✓ Conditional replacement worked correctly")
+        return True
+    else:
+        print(f"✗ Expected 3 CANS and 2 FLESH, got {cans_count} CANS and {flesh_count} FLESH")
+        return False
+
+
+def test_conditional_replacement_with_equals():
+    """Test conditional replacement with equals condition."""
+    
+    print("\nTesting conditional replacement with equals...")
+    
+    test_df = pd.DataFrame({
+        'Status': ['Active', 'Inactive', 'Active', 'Pending', 'Active'],
+        'Priority': ['High', 'Low', 'Medium', 'High', 'Low'],
+        'Notes': ['urgent', 'normal', 'urgent', 'normal', 'urgent']
+    })
+    
+    print("Test data:")
+    for i in range(len(test_df)):
+        status = test_df.iloc[i]['Status']
+        notes = test_df.iloc[i]['Notes']
+        print(f"  Row {i}: Status='{status}', Notes='{notes}'")
+    
+    # Replace 'urgent' with 'PRIORITY' only for Active status
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Conditional notes update',
+        'rules': [
+            {
+                'column': 'Notes',
+                'action': 'replace',
+                'old_value': 'urgent',
+                'new_value': 'PRIORITY',
+                'condition_column': 'Status',
+                'condition': 'equals',
+                'condition_value': 'Active'
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print("After conditional replacement:")
+    for i in range(len(result)):
+        status = result.iloc[i]['Status']
+        notes = result.iloc[i]['Notes']
+        print(f"  Row {i}: Status='{status}', Notes='{notes}'")
+    
+    # Check results - should be 3 Active rows with 'urgent' → all become 'PRIORITY'
+    priority_count = (result['Notes'] == 'PRIORITY').sum()
+    urgent_count = (result['Notes'] == 'urgent').sum()
+    
+    print(f"✓ Priority notes: {priority_count}, Urgent remaining: {urgent_count}")
+    
+    # CORRECTED EXPECTATION: Should have 3 PRIORITY (all Active+urgent rows) and 0 urgent (all were replaced)
+    if priority_count == 3 and urgent_count == 0:
+        print("✓ Conditional replacement with equals worked correctly")
+        return True
+    else:
+        print(f"✗ Unexpected results: {priority_count} PRIORITY, {urgent_count} urgent")
+        return False
+
+
+def test_conditional_replacement_numeric():
+    """Test conditional replacement with numeric conditions."""
+    
+    print("\nTesting conditional replacement with numeric conditions...")
+    
+    test_df = pd.DataFrame({
+        'Price': [100, 50, 200, 25, 150],
+        'Category': ['Standard', 'Standard', 'Standard', 'Standard', 'Standard'],
+        'Quantity': [10, 5, 20, 3, 15]
+    })
+    
+    # Change category to Premium for high-price items
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Upgrade high-price categories',
+        'rules': [
+            {
+                'column': 'Category',
+                'action': 'replace',
+                'old_value': 'Standard',
+                'new_value': 'Premium',
+                'condition_column': 'Price',
+                'condition': 'greater_than',
+                'condition_value': 100
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    # Check results
+    premium_count = (result['Category'] == 'Premium').sum()
+    standard_count = (result['Category'] == 'Standard').sum()
+    
+    print(f"✓ Premium items: {premium_count}, Standard items: {standard_count}")
+    
+    # Should have 2 Premium (price > 100) and 3 Standard (price <= 100)
+    if premium_count == 2 and standard_count == 3:
+        print("✓ Conditional replacement with numeric condition worked correctly")
+        return True
+    else:
+        print(f"✗ Unexpected results: {premium_count} Premium, {standard_count} Standard")
+        return False
+
+
+def test_conditional_replacement_error_handling():
+    """Test error handling for conditional replacement."""
+    
+    print("\nTesting conditional replacement error handling...")
+    
+    test_df = create_messy_test_data()
+    
+    # Test missing condition_column (but has other conditional fields)
+    try:
+        bad_config = {
+            'processor_type': 'clean_data',
+            'step_description': 'Missing condition column',
+            'rules': [
+                {
+                    'column': 'Component',
+                    'action': 'replace',
+                    'old_value': 'FLESH',
+                    'new_value': 'CANS',
+                    'condition': 'contains',           # Has this conditional field
+                    'condition_value': 'CANNED'       # Has this conditional field
+                    # Missing 'condition_column' - should fail
+                }
+            ]
+        }
+        processor = CleanDataProcessor(bad_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with incomplete conditional config")
+    except StepProcessorError as e:
+        print(f"✓ Caught expected error: {e}")
+    
+    # Test having only condition_column (but missing other conditional fields)
+    try:
+        bad_config = {
+            'processor_type': 'clean_data',
+            'step_description': 'Incomplete conditional config',
+            'rules': [
+                {
+                    'column': 'Component',
+                    'action': 'replace',
+                    'old_value': 'FLESH',
+                    'new_value': 'CANS',
+                    'condition_column': 'Product_Name'  # Has this but missing condition and condition_value
+                }
+            ]
+        }
+        processor = CleanDataProcessor(bad_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with incomplete conditional config")
+    except StepProcessorError as e:
+        print(f"✓ Caught expected error: {e}")
+
+
+def test_van_report_exact_scenario():
+    """Test the exact van report scenario described in the requirements."""
+    
+    print("\nTesting exact van report scenario...")
+    
+    # Create data that exactly matches the van report description
+    test_df = pd.DataFrame({
+        'PRODUCT NAME': [
+            'CANNED SALMON',
+            'FRESH HALIBUT', 
+            'CANNED TUNA',
+            'FROZEN COD',
+            'CANNED SARDINES',
+            'FRESH SALMON'
+        ],
+        'COMPONENT': [
+            'FLESH',    # Should become CANS
+            'FLESH',    # Should stay FLESH  
+            'FLESH',    # Should become CANS
+            'FLESH',    # Should stay FLESH
+            'FLESH',    # Should become CANS
+            'FLESH'     # Should stay FLESH
+        ],
+        'MAJOR SPECIES': ['SALMON', 'HALIBUT', 'TUNA', 'COD', 'SARDINES', 'SALMON'],
+        'PRODUCT ORIGIN': ['Naknek', 'Kodiak', 'Seward', 'Dutch Harbor', 'Sitka', 'Cordova']
+    })
+    
+    print(f"✓ Created exact van report scenario: {len(test_df)} rows")
+    print("Before processing:")
+    for i in range(len(test_df)):
+        product = test_df.iloc[i]['PRODUCT NAME']
+        component = test_df.iloc[i]['COMPONENT']
+        print(f"  {product}: {component}")
+    
+    # Apply the exact cleaning rule from the van report
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Van report FLESH to CANS replacement',
+        'rules': [
+            {
+                'column': 'COMPONENT',
+                'action': 'replace',
+                'old_value': 'FLESH',
+                'new_value': 'CANS',
+                'condition_column': 'PRODUCT NAME',
+                'condition': 'contains',
+                'condition_value': 'CANNED',
+                'case_sensitive': False
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print("\nAfter van report processing:")
+    canned_products_with_cans = 0
+    fresh_products_with_flesh = 0
+    
+    for i in range(len(result)):
+        product = result.iloc[i]['PRODUCT NAME']
+        component = result.iloc[i]['COMPONENT']
+        print(f"  {product}: {component}")
+        
+        if 'CANNED' in product.upper() and component == 'CANS':
+            canned_products_with_cans += 1
+        elif 'CANNED' not in product.upper() and component == 'FLESH':
+            fresh_products_with_flesh += 1
+    
+    print(f"\n✓ Canned products with CANS: {canned_products_with_cans}")
+    print(f"✓ Non-canned products with FLESH: {fresh_products_with_flesh}")
+    
+    # Should have 3 canned products with CANS and 3 non-canned with FLESH
+    if canned_products_with_cans == 3 and fresh_products_with_flesh == 3:
+        print("✓ Van report exact scenario worked perfectly!")
+        return True
+    else:
+        print("✗ Van report scenario failed")
+        return False
+
+
 if __name__ == '__main__':
     success = True
     
@@ -411,7 +731,14 @@ if __name__ == '__main__':
     success &= test_regex_operations()
     success &= test_standardize_values()
     success &= test_multiple_rules()
+
+    success &= test_conditional_replacement()
+    success &= test_conditional_replacement_with_equals()
+    success &= test_conditional_replacement_numeric()
+    success &= test_van_report_exact_scenario()
+
     test_error_handling()
+    test_conditional_replacement_error_handling()
     
     if success:
         print("\n✓ All clean data processor tests passed!")

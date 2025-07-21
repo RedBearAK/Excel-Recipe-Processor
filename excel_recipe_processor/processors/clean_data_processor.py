@@ -1,13 +1,11 @@
 """
-Clean data step processor for Excel automation recipes.
+Enhanced clean data step processor for Excel automation recipes.
 
-Handles various data cleaning operations like find/replace, format fixes, and transformations.
+Handles various data cleaning operations including conditional replacements.
 """
 
 import pandas as pd
 import logging
-
-from typing import Any
 
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -20,10 +18,10 @@ class CleanDataProcessor(BaseStepProcessor):
     Processor for cleaning and transforming DataFrame data.
     
     Supports various cleaning operations like find/replace, case conversion,
-    removing special characters, fixing data types, and more.
+    removing special characters, fixing data types, and conditional operations.
     """
     
-    def execute(self, data: Any) -> pd.DataFrame:
+    def execute(self, data) -> pd.DataFrame:
         """
         Execute the data cleaning operations on the provided DataFrame.
         
@@ -185,10 +183,27 @@ class CleanDataProcessor(BaseStepProcessor):
                 raise StepProcessorError(f"Error applying cleaning action '{action}' to column '{column}': {e}")
     
     def _apply_replace(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
-        """Apply find and replace operation."""
+        """Apply find and replace operation, with optional conditional logic."""
         if 'old_value' not in rule or 'new_value' not in rule:
             raise StepProcessorError(f"Cleaning rule {rule_index + 1} with 'replace' action requires 'old_value' and 'new_value'")
         
+        # Validate conditional replacement parameters if any are present
+        conditional_fields = ['condition_column', 'condition', 'condition_value']
+        has_any_conditional = any(field in rule for field in conditional_fields)
+        
+        if has_any_conditional:
+            # If any conditional field is present, all must be present
+            missing_conditional = [field for field in conditional_fields if field not in rule]
+            if missing_conditional:
+                raise StepProcessorError(
+                    f"Cleaning rule {rule_index + 1} has partial conditional replacement config. "
+                    f"Missing required fields: {missing_conditional}. "
+                    f"For conditional replacement, all of {conditional_fields} are required."
+                )
+            # Use conditional replacement
+            return self._apply_conditional_replace(df, rule, column, rule_index)
+        
+        # Standard unconditional replacement
         old_value = rule['old_value']
         new_value = rule['new_value']
         case_sensitive = rule.get('case_sensitive', True)
@@ -202,6 +217,80 @@ class CleanDataProcessor(BaseStepProcessor):
             )
         
         logger.debug(f"Replaced '{old_value}' with '{new_value}' in column '{column}'")
+        return df
+    
+    def _apply_conditional_replace(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
+        """Apply conditional find and replace based on another column's value."""
+        
+        # Validate conditional replacement parameters
+        required_conditional_fields = ['condition_column', 'condition', 'condition_value']
+        for field in required_conditional_fields:
+            if field not in rule:
+                raise StepProcessorError(
+                    f"Cleaning rule {rule_index + 1} with conditional replacement requires '{field}'"
+                )
+        
+        condition_column = rule['condition_column']
+        condition = rule['condition']
+        condition_value = rule['condition_value']
+        old_value = rule['old_value']
+        new_value = rule['new_value']
+        case_sensitive = rule.get('case_sensitive', True)
+        
+        # Check if condition column exists
+        if condition_column not in df.columns:
+            available_columns = list(df.columns)
+            raise StepProcessorError(
+                f"Cleaning rule {rule_index + 1} condition column '{condition_column}' not found. "
+                f"Available columns: {available_columns}"
+            )
+        
+        # Create mask based on condition
+        try:
+            if condition == 'equals':
+                mask = df[condition_column] == condition_value
+            elif condition == 'contains':
+                mask = df[condition_column].astype(str).str.contains(str(condition_value), na=False, case=case_sensitive)
+            elif condition == 'not_equals':
+                mask = df[condition_column] != condition_value
+            elif condition == 'not_contains':
+                mask = ~df[condition_column].astype(str).str.contains(str(condition_value), na=False, case=case_sensitive)
+            elif condition == 'greater_than':
+                mask = df[condition_column] > condition_value
+            elif condition == 'less_than':
+                mask = df[condition_column] < condition_value
+            elif condition == 'is_null':
+                mask = df[condition_column].isnull()
+            elif condition == 'not_null':
+                mask = df[condition_column].notnull()
+            else:
+                available_conditions = ['equals', 'contains', 'not_equals', 'not_contains', 
+                                        'greater_than', 'less_than', 'is_null', 'not_null']
+                raise StepProcessorError(
+                    f"Cleaning rule {rule_index + 1} unknown condition: '{condition}'. "
+                    f"Available conditions: {', '.join(available_conditions)}"
+                )
+            
+            # Apply replacement only where condition is true
+            if case_sensitive:
+                df.loc[mask, column] = df.loc[mask, column].replace(old_value, new_value)
+            else:
+                df.loc[mask, column] = df.loc[mask, column].astype(str).str.replace(
+                    str(old_value), str(new_value), case=False, regex=False
+                )
+            
+            affected_rows = mask.sum()
+            logger.debug(
+                f"Conditionally replaced '{old_value}' with '{new_value}' in column '{column}' "
+                f"where {condition_column} {condition} '{condition_value}' ({affected_rows} rows affected)"
+            )
+            
+        except Exception as e:
+            if isinstance(e, StepProcessorError):
+                raise
+            else:
+                raise StepProcessorError(f"Error applying conditional replacement: {e}")
+        
         return df
     
     def _apply_regex_replace(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
@@ -302,15 +391,18 @@ class CleanDataProcessor(BaseStepProcessor):
             'description': 'Clean and transform data with various operations',
             'supported_actions': self.get_supported_actions(),
             'cleaning_operations': [
-                'find_replace', 'regex_replace', 'case_conversion', 'whitespace_removal',
-                'special_character_removal', 'numeric_formatting', 'date_formatting',
-                'null_value_handling', 'duplicate_removal', 'value_standardization'
+                'find_replace', 'conditional_replace', 'regex_replace', 'case_conversion', 
+                'whitespace_removal', 'special_character_removal', 'numeric_formatting', 
+                'date_formatting', 'null_value_handling', 'duplicate_removal', 'value_standardization'
+            ],
+            'conditional_operations': [
+                'equals', 'contains', 'not_equals', 'not_contains', 'greater_than', 
+                'less_than', 'is_null', 'not_null'
             ],
             'case_conversions': ['upper', 'lower', 'title'],
             'examples': {
-                'replace': "Replace 'FLESH' with 'CANS'",
+                'conditional_replace': "Replace 'FLESH' with 'CANS' only in rows where Product_Name contains 'CANNED'",
                 'clean_price': "Remove $ signs and convert to numeric",
                 'standardize': "Map various status values to standard terms"
             }
         }
-

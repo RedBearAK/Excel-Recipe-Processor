@@ -380,25 +380,28 @@ def check_recipe_capabilities(recipe_data: dict) -> dict:
     return capabilities_report
 
 
+# Import each new processor object when created, and register in function below
+from excel_recipe_processor.processors.add_calculated_column_processor import AddCalculatedColumnProcessor
+from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
+from excel_recipe_processor.processors.clean_data_processor import CleanDataProcessor
+from excel_recipe_processor.processors.debug_breakpoint_processor import DebugBreakpointProcessor
+from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
+from excel_recipe_processor.processors.group_data_processor import GroupDataProcessor
+from excel_recipe_processor.processors.lookup_data_processor import LookupDataProcessor
+from excel_recipe_processor.processors.pivot_table_processor import PivotTableProcessor
+from excel_recipe_processor.processors.rename_columns_processor import RenameColumnsProcessor
+from excel_recipe_processor.processors.sort_data_processor import SortDataProcessor
+from excel_recipe_processor.processors.split_column_processor import SplitColumnProcessor
+
+
 def register_standard_processors():
     """Register all standard step processors with the global registry."""
-    from excel_recipe_processor.processors.add_calculated_column_processor import (
-        AddCalculatedColumnProcessor
-    )
-    from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
-    from excel_recipe_processor.processors.clean_data_processor import CleanDataProcessor
-    from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
-    from excel_recipe_processor.processors.group_data_processor import GroupDataProcessor
-    from excel_recipe_processor.processors.lookup_data_processor import LookupDataProcessor
-    from excel_recipe_processor.processors.pivot_table_processor import PivotTableProcessor
-    from excel_recipe_processor.processors.rename_columns_processor import RenameColumnsProcessor
-    from excel_recipe_processor.processors.sort_data_processor import SortDataProcessor
-    from excel_recipe_processor.processors.split_column_processor import SplitColumnProcessor
-    
+
     # Register the processors we've built
     registry.register('add_calculated_column',          AddCalculatedColumnProcessor)
     registry.register('aggregate_data',                 AggregateDataProcessor)
     registry.register('clean_data',                     CleanDataProcessor)
+    registry.register('debug_breakpoint',               DebugBreakpointProcessor)
     registry.register('filter_data',                    FilterDataProcessor)
     registry.register('group_data',                     GroupDataProcessor)
     registry.register('lookup_data',                    LookupDataProcessor)

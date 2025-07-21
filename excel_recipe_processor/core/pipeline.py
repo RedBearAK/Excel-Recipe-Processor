@@ -4,10 +4,12 @@ Pipeline orchestrator for Excel automation recipes.
 Coordinates loading recipes, reading Excel files, executing steps, and saving results.
 """
 
+import re
 import pandas as pd
 import logging
 
 from pathlib import Path
+from datetime import datetime
 
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.readers.excel_reader import ExcelReader, ExcelReaderError
@@ -25,6 +27,164 @@ class PipelineError(Exception):
     pass
 
 
+class FilenameVariableSubstitution:
+    """Handles variable substitution in filenames for dynamic naming."""
+    
+    def __init__(self, input_path=None, recipe_path=None, custom_variables=None):
+        """
+        Initialize variable substitution system.
+        
+        Args:
+            input_path: Path to input file (for input-based variables)
+            recipe_path: Path to recipe file (for recipe-based variables)
+            custom_variables: Dictionary of custom variables
+        """
+        self.input_path = Path(input_path) if input_path else None
+        self.recipe_path = Path(recipe_path) if recipe_path else None
+        self.custom_variables = custom_variables or {}
+        self.now = datetime.now()
+    
+    def substitute_variables(self, filename_template: str) -> str:
+        """
+        Substitute variables in filename template.
+        
+        Args:
+            filename_template: Template string with {variable} placeholders
+            
+        Returns:
+            Filename with variables substituted
+        """
+        if not isinstance(filename_template, str):
+            return filename_template
+        
+        # Build variable dictionary
+        variables = self._build_variable_dict()
+        
+        try:
+            # Simple variable substitution: {variable}
+            result = filename_template.format(**variables)
+            
+            # Advanced formatted substitution: {date:MMDD}
+            result = self._substitute_formatted_variables(result)
+            
+            return result
+            
+        except KeyError as e:
+            # If variable substitution fails, provide helpful error
+            available_vars = list(variables.keys())
+            raise ValueError(
+                f"Unknown variable {e} in filename template '{filename_template}'. "
+                f"Available variables: {available_vars}"
+            )
+    
+    def _build_variable_dict(self) -> dict:
+        """Build dictionary of available variables."""
+        variables = {}
+        
+        # Date and time variables
+        variables.update({
+            'year':             self.now.strftime('%Y'),
+            'month':            self.now.strftime('%m'),
+            'day':              self.now.strftime('%d'),
+            'hour':             self.now.strftime('%H'),
+            'minute':           self.now.strftime('%M'),
+            'second':           self.now.strftime('%S'),
+            'date':             self.now.strftime('%Y%m%d'),
+            'time':             self.now.strftime('%H%M%S'),
+            'timestamp':        self.now.strftime('%Y%m%d_%H%M%S'),
+            'MMDD':             self.now.strftime('%m%d'),
+            'YYYY':             self.now.strftime('%Y'),
+            'YY':               self.now.strftime('%y'),
+            'MM':               self.now.strftime('%m'),
+            'DD':               self.now.strftime('%d'),
+            'HH':               self.now.strftime('%H'),
+            'HHMM':             self.now.strftime('%H%M')
+        })
+        
+        # Input file variables
+        if self.input_path:
+            variables.update({
+                'input_filename':   self.input_path.name,
+                'input_basename':   self.input_path.stem,
+                'input_extension':  self.input_path.suffix
+            })
+        
+        # Recipe file variables
+        if self.recipe_path:
+            variables.update({
+                'recipe_filename':  self.recipe_path.name,
+                'recipe_basename':  self.recipe_path.stem
+            })
+        
+        # Custom variables override built-ins
+        variables.update(self.custom_variables)
+        
+        return variables
+    
+    def _substitute_formatted_variables(self, filename: str) -> str:
+        """Handle formatted variables like {date:MMDD}."""
+        
+        # Pattern to match {variable:format}
+        pattern = r'\{(\w+):([^}]+)\}'
+        
+        def replace_formatted(match):
+            var_name = match.group(1)
+            format_spec = match.group(2)
+            
+            if var_name == 'date':
+                return self._format_date(format_spec)
+            elif var_name == 'time':
+                return self._format_time(format_spec)
+            else:
+                # For other variables, just return the variable value
+                variables = self._build_variable_dict()
+                return variables.get(var_name, match.group(0))
+        
+        return re.sub(pattern, replace_formatted, filename)
+    
+    def _format_date(self, format_spec: str) -> str:
+        """Format date according to specification."""
+        format_map = {
+            'YYYY': '%Y',
+            'YY': '%y', 
+            'MM': '%m',
+            'DD': '%d',
+            'MMDD': '%m%d',
+            'YYYYMMDD': '%Y%m%d',
+            'MonthDay': '%b%d',
+            'Month': '%b',
+            'MonthName': '%B'
+        }
+        
+        # Try direct mapping first
+        if format_spec in format_map:
+            return self.now.strftime(format_map[format_spec])
+        
+        # Try as direct strftime format
+        try:
+            return self.now.strftime(format_spec)
+        except ValueError:
+            return format_spec  # Return original if format invalid
+    
+    def _format_time(self, format_spec: str) -> str:
+        """Format time according to specification."""
+        format_map = {
+            'HH': '%H',
+            'MM': '%M',
+            'SS': '%S',
+            'HHMM': '%H%M',
+            'HHMMSS': '%H%M%S'
+        }
+        
+        if format_spec in format_map:
+            return self.now.strftime(format_map[format_spec])
+        
+        try:
+            return self.now.strftime(format_spec)
+        except ValueError:
+            return format_spec
+
+
 class ExcelPipeline:
     """
     Orchestrates the execution of Excel processing recipes.
@@ -35,14 +195,15 @@ class ExcelPipeline:
     
     def __init__(self):
         """Initialize the pipeline orchestrator."""
-        self.recipe_loader = RecipeLoader()
-        self.excel_reader = ExcelReader()
-        self.excel_writer = ExcelWriter()
+        self.recipe_loader              = RecipeLoader()
+        self.excel_reader               = ExcelReader()
+        self.excel_writer               = ExcelWriter()
         
-        self.recipe_data = None
-        self.input_data = None
-        self.current_data = None
-        self.steps_executed = 0
+        self.recipe_data                = None
+        self.input_data                 = None
+        self.current_data               = None
+        self.steps_executed             = 0
+        self.variable_substitution      = None
     
     def load_recipe(self, recipe_path) -> dict:
         """
@@ -140,17 +301,14 @@ class ExcelPipeline:
         logger.info(f"Recipe execution complete: {self.steps_executed}/{total_steps} steps executed")
         return self.current_data
     
-    def save_result(self, output_path, sheet_name='ProcessedData') -> None:
-        """
-        Save the processed data to an Excel file.
+    def save_result(self, output_path, sheet_name='ProcessedData'):
+        """Enhanced save_result with variable substitution."""
         
-        Args:
-            output_path: Path for output file
-            sheet_name: Name of the sheet to create
-            
-        Raises:
-            PipelineError: If saving fails
-        """
+        # Apply variable substitution if available
+        if self.variable_substitution and isinstance(output_path, str):
+            output_path = self.variable_substitution.substitute_variables(output_path)
+        
+        # Call original save logic
         # Guard clause
         if self.current_data is None:
             raise PipelineError("No processed data to save. Execute recipe first.")
@@ -162,36 +320,35 @@ class ExcelPipeline:
             raise PipelineError(f"Failed to save result: {e}")
     
     def run_complete_pipeline(self, recipe_path, input_path, output_path, 
-                             input_sheet=0, output_sheet='ProcessedData') -> pd.DataFrame:
-        """
-        Run the complete pipeline from start to finish.
+                                input_sheet=0, output_sheet='ProcessedData'):
+        """Enhanced run_complete_pipeline with variable substitution."""
         
-        Args:
-            recipe_path: Path to recipe file
-            input_path: Path to input Excel file  
-            output_path: Path for output Excel file
-            input_sheet: Sheet to read from input (default: first sheet)
-            output_sheet: Sheet name for output
-            
-        Returns:
-            Final processed DataFrame
-            
-        Raises:
-            PipelineError: If any step fails
-        """
         logger.info("Starting complete pipeline execution")
         
         try:
-            # Load recipe
+            # Load recipe and check for variables
             self.load_recipe(recipe_path)
             
-            # Load input data
+            # Get custom variables from recipe settings
+            custom_variables = self.recipe_loader.get_settings().get('variables', {})
+            
+            # Initialize variable substitution
+            self.variable_substitution = FilenameVariableSubstitution(
+                input_path=input_path,
+                recipe_path=recipe_path,
+                custom_variables=custom_variables
+            )
+            
+            # Substitute variables in output path
+            if isinstance(output_path, str):
+                original_output = output_path
+                output_path = self.variable_substitution.substitute_variables(output_path)
+                if output_path != original_output:
+                    logger.info(f"Substituted variables in output filename: {original_output} → {output_path}")
+            
+            # Continue with normal pipeline execution
             self.load_input_file(input_path, sheet_name=input_sheet)
-            
-            # Execute all steps
             result = self.execute_recipe()
-            
-            # Save result
             self.save_result(output_path, sheet_name=output_sheet)
             
             logger.info("Pipeline execution completed successfully")
@@ -272,8 +429,69 @@ class ExcelPipeline:
             raise PipelineError(f"Failed to create backup: {e}")
 
 
+# def get_system_capabilities() -> dict:
+#     """Get capabilities of the entire Excel automation system."""
+#     from excel_recipe_processor.processors.base_processor import registry
+    
+#     capabilities = {
+#         'system_info': {
+#             'description': 'Excel Recipe Processor - Automated Excel data processing system',
+#             'total_processors': len(registry.get_registered_types()),
+#             'processor_types': registry.get_registered_types()
+#         },
+#         'processors': {}
+#     }
+    
+#     # Get capabilities for each registered processor
+#     for processor_type in registry.get_registered_types():
+#         try:
+#             # Create a dummy instance to get capabilities
+#             dummy_config = {
+#                 proc_type: processor_type,
+#                 step_desc: f'Capability check for {processor_type}'
+#             }
+            
+#             # Add minimal required fields for each processor type
+#             if processor_type == 'add_calculated_column':
+#                 dummy_config.update({'new_column': 'test', 'calculation': {}})
+#             elif processor_type == 'clean_data':
+#                 dummy_config.update({'rules': []})
+#             elif processor_type == 'filter_data':
+#                 dummy_config.update({'filters': []})
+#             elif processor_type == 'group_data':
+#                 dummy_config.update({'source_column': 'test', 'groups': {}})
+#             elif processor_type == 'lookup_data':
+#                 dummy_config.update({
+#                     'lookup_source': {}, 'lookup_key': 'test',
+#                     'source_key': 'test', 'lookup_columns': ['test']
+#                 })
+#             elif processor_type == 'rename_columns':
+#                 dummy_config.update({'rename_type': 'mapping', 'mapping': {}})
+#             elif processor_type == 'sort_data':
+#                 dummy_config.update({'columns': ['test']})
+#             # pivot_table needs no additional fields
+            
+#             processor = registry.create_processor(dummy_config)
+            
+#             if hasattr(processor, 'get_capabilities'):
+#                 capabilities['processors'][processor_type] = processor.get_capabilities()
+#             else:
+#                 capabilities['processors'][processor_type] = {
+#                     'description': f'{processor_type} processor (capabilities method not implemented)'
+#                 }
+                
+#         except Exception as e:
+#             capabilities['processors'][processor_type] = {
+#                 'error': f'Could not get capabilities: {e}'
+#             }
+    
+#     return capabilities
+
+
+# SIMPLE FIX: Just replace the get_system_capabilities() function in pipeline.py
+
 def get_system_capabilities() -> dict:
-    """Get capabilities of the entire Excel automation system."""
+    """Get capabilities of the entire Excel automation system using self-reported minimal configs."""
     from excel_recipe_processor.processors.base_processor import registry
     
     capabilities = {
@@ -285,37 +503,35 @@ def get_system_capabilities() -> dict:
         'processors': {}
     }
     
-    # Get capabilities for each registered processor
+    # Get capabilities for each registered processor using their self-reported minimal config
     for processor_type in registry.get_registered_types():
         try:
-            # Create a dummy instance to get capabilities
-            dummy_config = {
-                proc_type: processor_type,
-                step_desc: f'Capability check for {processor_type}'
-            }
+            # Get the processor class from registry
+            processor_class = registry._processors.get(processor_type)
             
-            # Add minimal required fields for each processor type
-            if processor_type == 'add_calculated_column':
-                dummy_config.update({'new_column': 'test', 'calculation': {}})
-            elif processor_type == 'clean_data':
-                dummy_config.update({'rules': []})
-            elif processor_type == 'filter_data':
-                dummy_config.update({'filters': []})
-            elif processor_type == 'group_data':
-                dummy_config.update({'source_column': 'test', 'groups': {}})
-            elif processor_type == 'lookup_data':
-                dummy_config.update({
-                    'lookup_source': {}, 'lookup_key': 'test',
-                    'source_key': 'test', 'lookup_columns': ['test']
-                })
-            elif processor_type == 'rename_columns':
-                dummy_config.update({proc_type: 'mapping', 'mapping': {}})
-            elif processor_type == 'sort_data':
-                dummy_config.update({'columns': ['test']})
-            # pivot_table needs no additional fields
+            if processor_class is None:
+                capabilities['processors'][processor_type] = {
+                    'error': f'Could not get processor class for {processor_type}'
+                }
+                continue
             
-            processor = registry.create_processor(dummy_config)
+            # Get minimal configuration from the processor class (if it has the method)
+            if hasattr(processor_class, 'get_minimal_config'):
+                minimal_config = processor_class.get_minimal_config()
+            else:
+                raise StepProcessorError(
+                    f"Processor class {processor_class.__name__} missing get_minimal_config() method. "
+                    f"Add this method to enable self-discovery."
+                )
+
+            # Add required fields
+            minimal_config[proc_type] = processor_type
+            minimal_config[step_desc] = f'Capability check for {processor_type}'
             
+            # Create processor instance
+            processor = registry.create_processor(minimal_config)
+            
+            # Get capabilities
             if hasattr(processor, 'get_capabilities'):
                 capabilities['processors'][processor_type] = processor.get_capabilities()
             else:
@@ -329,6 +545,28 @@ def get_system_capabilities() -> dict:
             }
     
     return capabilities
+
+
+# def _get_fallback_minimal_config(processor_type: str) -> dict:
+#     """Fallback minimal configs for processors that haven't been updated yet."""
+#     fallback_configs = {
+#         'add_calculated_column': {'new_column': 'test', 'calculation': {}},
+#         'clean_data': {'rules': []},
+#         'filter_data': {'filters': []},
+#         'group_data': {'source_column': 'test', 'groups': {}},
+#         'lookup_data': {
+#             'lookup_source': {}, 'lookup_key': 'test',
+#             'source_key': 'test', 'lookup_columns': ['test']
+#         },
+#         'rename_columns': {'mapping': {}},
+#         'sort_data': {'columns': ['test']},
+#         'pivot_table': {},
+#         'aggregate_data': {'group_by': ['test'], 'aggregations': []},
+#         'split_column': {'source_column': 'test', 'delimiter': ',', 'new_columns': ['a', 'b']},
+#         'debug_breakpoint': {'message': 'test'}
+#     }
+    
+#     return fallback_configs.get(processor_type, {})
 
 
 def check_recipe_capabilities(recipe_data: dict) -> dict:
@@ -378,6 +616,28 @@ def check_recipe_capabilities(recipe_data: dict) -> dict:
         capabilities_report['step_analysis'].append(step_analysis)
     
     return capabilities_report
+
+
+def get_available_variables():
+    """Get list of all available variables for documentation."""
+    dummy_substitution = FilenameVariableSubstitution()
+    variables = dummy_substitution._build_variable_dict()
+    
+    return {
+        'date_time_variables': [
+            'year', 'month', 'day', 'hour', 'minute', 'second',
+            'date', 'time', 'timestamp', 'MMDD', 'YYYY', 'YY', 'MM', 'DD', 'HH', 'HHMM'
+        ],
+        'formatted_variables': [
+            '{date:MMDD}', '{date:YYYYMMDD}', '{date:MonthDay}', 
+            '{time:HHMM}', '{time:HHMMSS}'
+        ],
+        'file_variables': [
+            'input_filename', 'input_basename', 'input_extension',
+            'recipe_filename', 'recipe_basename'
+        ],
+        'custom_variables': 'Any variables defined in settings.variables'
+    }
 
 
 # Import each new processor object when created, and register in function below

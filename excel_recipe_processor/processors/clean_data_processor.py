@@ -21,6 +21,23 @@ class CleanDataProcessor(BaseStepProcessor):
     removing special characters, fixing data types, and conditional operations.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        """
+        Get the minimal configuration required to instantiate this processor.
+        
+        Returns:
+            Dictionary with minimal configuration fields
+        """
+        return {
+            'rules': [
+                {
+                    'column': 'test_column',
+                    'action': 'strip_whitespace'
+                }
+            ]
+        }
+    
     def execute(self, data) -> pd.DataFrame:
         """
         Execute the data cleaning operations on the provided DataFrame.

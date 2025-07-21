@@ -23,6 +23,14 @@ class PivotTableProcessor(BaseStepProcessor):
     different aggregation functions, and handling of missing data.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'index': ['test_index_column'],
+            'columns': ['test_column_column'],
+            'values': ['test_values_column']
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the pivot table operation on the provided DataFrame.

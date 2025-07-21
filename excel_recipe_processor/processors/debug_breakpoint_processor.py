@@ -24,6 +24,12 @@ class DebugBreakpointProcessor(BaseStepProcessor):
     processing at any point for testing and troubleshooting.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'message': 'Debug checkpoint'
+        }
+    
     def execute(self, data) -> pd.DataFrame:
         """
         Save current data and stop recipe execution.

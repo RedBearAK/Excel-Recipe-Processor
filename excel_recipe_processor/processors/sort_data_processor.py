@@ -23,6 +23,12 @@ class SortDataProcessor(BaseStepProcessor):
     custom sort orders, and null value handling.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'columns': ['test_column']
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the sorting operation on the provided DataFrame.

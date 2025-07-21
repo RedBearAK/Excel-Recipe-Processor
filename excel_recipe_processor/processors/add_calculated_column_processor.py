@@ -25,6 +25,19 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
     string manipulations, date calculations, and conditional logic.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        """
+        Get the minimal configuration required to instantiate this processor.
+        
+        Returns:
+            Dictionary with minimal configuration fields
+        """
+        return {
+            'new_column': 'test_column',
+            'calculation': {'formula': 'test_value'}
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the calculated column operation on the provided DataFrame.

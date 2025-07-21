@@ -24,6 +24,14 @@ class SplitColumnProcessor(BaseStepProcessor):
     and various options for handling edge cases.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'source_column': 'test_column',
+            'delimiter': ',',
+            'new_columns': ['part1', 'part2']
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the column splitting operation on the provided DataFrame.

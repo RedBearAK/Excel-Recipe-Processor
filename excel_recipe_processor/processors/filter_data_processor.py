@@ -22,6 +22,18 @@ class FilterDataProcessor(BaseStepProcessor):
     Can apply multiple filters in sequence.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'filters': [
+                {
+                    'column': 'test_column',
+                    'condition': 'equals',
+                    'value': 'test_value'
+                }
+            ]
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the filter operation on the provided DataFrame.

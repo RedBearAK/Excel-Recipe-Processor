@@ -26,6 +26,19 @@ class RenameColumnsProcessor(BaseStepProcessor):
     and systematic column name transformations.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        """
+        Get the minimal configuration required to instantiate this processor.
+        
+        Returns:
+            Dictionary with minimal configuration fields
+        """
+        return {
+            'rename_type': 'mapping',
+            'mapping': {'test_old_column': 'test_new_column'}
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the column renaming operation on the provided DataFrame.

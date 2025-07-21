@@ -83,3 +83,5 @@ tmp/
 dmypy.json
 tests/current_capabilities.json
 tests/current_directory_structure.txt
+tests/current_capabilities_simple.txt
+tests/current_capabilities_detailed.txt

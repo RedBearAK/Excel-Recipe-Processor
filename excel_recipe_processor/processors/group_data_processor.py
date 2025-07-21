@@ -24,6 +24,16 @@ class GroupDataProcessor(BaseStepProcessor):
     grouping cities into regions, products into categories, etc.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'source_column': 'test_column',
+            'groups': {
+                'Group1': ['value1', 'value2'],
+                'Group2': ['value3', 'value4']
+            }
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the data grouping operation on the provided DataFrame.

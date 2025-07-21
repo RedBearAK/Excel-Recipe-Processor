@@ -23,6 +23,19 @@ class AggregateDataProcessor(BaseStepProcessor):
     aggregation functions to create summary statistics.
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'group_by': ['test_group_column'],
+            'aggregations': [
+                {
+                    'column': 'test_agg_column',
+                    'function': 'sum',
+                    'output_name': 'total_test'
+                }
+            ]
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the aggregation operation on the provided DataFrame.

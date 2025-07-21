@@ -27,6 +27,15 @@ class LookupDataProcessor(BaseStepProcessor):
     - Default value handling for non-matches
     """
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        return {
+            'lookup_source': {'type': 'inline', 'data': [{'key': 'test', 'value': 'result'}]},
+            'lookup_key': 'test_lookup_key',
+            'source_key': 'test_source_key', 
+            'lookup_columns': ['test_result_column']
+        }
+    
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the lookup operation on the provided DataFrame.

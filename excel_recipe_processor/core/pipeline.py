@@ -547,28 +547,6 @@ def get_system_capabilities() -> dict:
     return capabilities
 
 
-# def _get_fallback_minimal_config(processor_type: str) -> dict:
-#     """Fallback minimal configs for processors that haven't been updated yet."""
-#     fallback_configs = {
-#         'add_calculated_column': {'new_column': 'test', 'calculation': {}},
-#         'clean_data': {'rules': []},
-#         'filter_data': {'filters': []},
-#         'group_data': {'source_column': 'test', 'groups': {}},
-#         'lookup_data': {
-#             'lookup_source': {}, 'lookup_key': 'test',
-#             'source_key': 'test', 'lookup_columns': ['test']
-#         },
-#         'rename_columns': {'mapping': {}},
-#         'sort_data': {'columns': ['test']},
-#         'pivot_table': {},
-#         'aggregate_data': {'group_by': ['test'], 'aggregations': []},
-#         'split_column': {'source_column': 'test', 'delimiter': ',', 'new_columns': ['a', 'b']},
-#         'debug_breakpoint': {'message': 'test'}
-#     }
-    
-#     return fallback_configs.get(processor_type, {})
-
-
 def check_recipe_capabilities(recipe_data: dict) -> dict:
     """Check if all processors in a recipe are available and get their capabilities."""
     

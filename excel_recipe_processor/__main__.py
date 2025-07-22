@@ -15,7 +15,7 @@ def main():
         description=f"{__description__}\n\nProcess Excel files using YAML recipes for automated data transformation.",
         prog="python -m excel_recipe_processor",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+epilog="""
 Examples:
   # Process Excel file with recipe
   python -m excel_recipe_processor data.xlsx --config recipe.yaml
@@ -26,8 +26,17 @@ Examples:
   # Process specific sheet with verbose logging
   python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet "Sheet2" --verbose
   
-  # List available processors
+  # List available processors (basic)
   python -m excel_recipe_processor --list-capabilities
+  
+  # List detailed capabilities
+  python -m excel_recipe_processor --list-capabilities --detailed
+  
+  # Export capabilities as JSON
+  python -m excel_recipe_processor --list-capabilities --json
+  
+  # Show feature comparison matrix
+  python -m excel_recipe_processor --list-capabilities --matrix
   
   # Validate a recipe file
   python -m excel_recipe_processor --validate-recipe recipe.yaml
@@ -91,6 +100,24 @@ Examples:
         help='List all available processors and their capabilities'
     )
     
+    parser.add_argument(
+        '--detailed',
+        action='store_true',
+        help='Show detailed capabilities (use with --list-capabilities)'
+    )
+
+    parser.add_argument(
+        '--json',
+        action='store_true',
+        help='Output capabilities as JSON (use with --list-capabilities)'
+    )
+
+    parser.add_argument(
+        '--matrix',
+        action='store_true',
+        help='Show feature matrix (use with --list-capabilities)'
+    )
+
     # Recipe validation
     parser.add_argument(
         '--validate-recipe',

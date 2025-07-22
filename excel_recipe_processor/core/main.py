@@ -8,7 +8,10 @@ from pathlib import Path
 from argparse import Namespace
 
 from excel_recipe_processor.core.pipeline import (
-    ExcelPipeline, PipelineError, get_system_capabilities)
+    ExcelPipeline,
+    PipelineError,
+    get_system_capabilities
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -27,7 +30,19 @@ def run_main(args: Namespace) -> int:
     try:
         # Handle special commands first (before setting up logging)
         if hasattr(args, 'list_capabilities') and args.list_capabilities:
-            return list_system_capabilities()
+            # Check for output format flags
+            detailed = getattr(args, 'detailed', False)
+            json_output = getattr(args, 'json', False)
+            matrix = getattr(args, 'matrix', False)
+            
+            if json_output:
+                return list_system_capabilities_json()
+            elif detailed:
+                return list_system_capabilities_detailed()
+            elif matrix:
+                return list_system_capabilities_matrix()
+            else:
+                return list_system_capabilities()  # Basic format
         
         if hasattr(args, 'validate_recipe') and args.validate_recipe:
             return validate_recipe_file(args.validate_recipe)
@@ -77,8 +92,8 @@ def run_main(args: Namespace) -> int:
 
 
 def process_excel_file(input_file: str, recipe_file: str, output_file: Optional[str] = None,
-                      input_sheet: Any = 0, output_sheet: str = 'ProcessedData', 
-                      verbose: bool = False) -> int:
+                        input_sheet: Any = 0, output_sheet: str = 'ProcessedData', 
+                        verbose: bool = False) -> int:
     """
     Process an Excel file using a recipe.
     
@@ -217,6 +232,244 @@ def list_system_capabilities() -> int:
         
     except Exception as e:
         print(f"Error listing capabilities: {e}")
+        return 1
+
+
+def list_system_capabilities() -> int:
+    """
+    List all available processors and their capabilities (basic format).
+    
+    Returns:
+        Exit code (always 0)
+    """
+    try:
+        print("Excel Recipe Processor - System Capabilities")
+        print("=" * 50)
+        
+        capabilities = get_system_capabilities()
+        system_info = capabilities['system_info']
+        
+        print(f"System: {system_info['description']}")
+        print(f"Total Processors: {system_info['total_processors']}")
+        print()
+        
+        print("Available Processors:")
+        print("-" * 20)
+        
+        for proc_type in sorted(system_info['processor_types']):
+            proc_info = capabilities['processors'].get(proc_type, {})
+            
+            if 'error' in proc_info:
+                print(f"  {proc_type}: ERROR - {proc_info['error']}")
+            else:
+                description = proc_info.get('description', 'No description available')
+                print(f"  {proc_type}: {description}")
+        
+        print()
+        print("Use --detailed for more information or --json for machine-readable output")
+        print("Use 'python -m excel_recipe_processor --help' for usage information")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error listing capabilities: {e}")
+        return 1
+
+
+def list_system_capabilities_json() -> int:
+    """
+    Output system capabilities as JSON.
+    
+    Returns:
+        Exit code (always 0)
+    """
+    try:
+        import json
+        capabilities = get_system_capabilities()
+        print(json.dumps(capabilities, indent=2))
+        return 0
+        
+    except Exception as e:
+        print(f"Error generating JSON capabilities: {e}")
+        return 1
+
+
+def list_system_capabilities_detailed() -> int:
+    """
+    List detailed capabilities for each processor.
+    
+    Returns:
+        Exit code (always 0)
+    """
+    try:
+        print("=" * 80)
+        print("🏭 EXCEL RECIPE PROCESSOR - DETAILED CAPABILITIES REPORT")
+        print("=" * 80)
+        
+        capabilities = get_system_capabilities()
+        
+        # System Overview
+        system = capabilities['system_info']
+        print(f"\n📊 System Overview:")
+        print(f"   Description: {system['description']}")
+        print(f"   Total Processors: {system['total_processors']}")
+        
+        # Processor Summary
+        print(f"\n🔧 Available Processors:")
+        for i, (processor_type, info) in enumerate(capabilities['processors'].items(), 1):
+            description = info.get('description', 'No description available')
+            print(f"   {i:2d}. {processor_type:<20} - {description}")
+        
+        # Detailed capabilities
+        print(f"\n🚀 DETAILED PROCESSOR CAPABILITIES:")
+        print("=" * 80)
+        
+        for processor_type, info in capabilities['processors'].items():
+            print(f"\n📋 {processor_type.upper().replace('_', ' ')} PROCESSOR")
+            print("-" * 60)
+            
+            if 'error' in info:
+                print(f"   ❌ Error: {info['error']}")
+                continue
+            
+            # Description
+            if 'description' in info:
+                print(f"   📝 Description: {info['description']}")
+            
+            # Main features/capabilities
+            feature_keys = [
+                'supported_actions', 'calculation_types', 'supported_conditions',
+                'lookup_features', 'pivot_features', 'rename_types', 'supported_options',
+                'filter_operations', 'grouping_features', 'transformation_features'
+            ]
+            
+            for key in feature_keys:
+                if key in info:
+                    count = len(info[key]) if isinstance(info[key], list) else 'N/A'
+                    print(f"   🎯 {key.replace('_', ' ').title()}: {count} available")
+            
+            # Special capabilities
+            if 'join_types' in info:
+                print(f"   🔗 Join Types: {', '.join(info['join_types'])}")
+            
+            if 'data_sources' in info:
+                print(f"   📁 Data Sources: {', '.join(info['data_sources'])}")
+            
+            if 'aggregation_functions' in info:
+                count = len(info['aggregation_functions']) if isinstance(info['aggregation_functions'], list) else 'N/A'
+                print(f"   📊 Aggregation Functions: {count} available")
+            
+            if 'case_conversions' in info:
+                print(f"   🔤 Case Conversions: {', '.join(info['case_conversions'])}")
+            
+            # Helper methods
+            if 'helper_methods' in info:
+                count = len(info['helper_methods']) if isinstance(info['helper_methods'], list) else 'N/A'
+                print(f"   🔧 Helper Methods: {count} available")
+            
+            if 'special_methods' in info:
+                count = len(info['special_methods']) if isinstance(info['special_methods'], list) else 'N/A'
+                print(f"   ⚡ Special Methods: {count} available")
+            
+            # Examples
+            if 'examples' in info:
+                print(f"   💡 Example Uses:")
+                for example_type, example_desc in list(info['examples'].items())[:2]:
+                    print(f"      • {example_desc}")
+        
+        print(f"\n💡 Use --json for machine-readable output or --matrix for feature comparison")
+        return 0
+        
+    except Exception as e:
+        print(f"Error generating detailed capabilities: {e}")
+        return 1
+
+
+def list_system_capabilities_matrix() -> int:
+    """
+    Print a feature matrix showing what each processor can do.
+    
+    Returns:
+        Exit code (always 0)
+    """
+    try:
+        capabilities = get_system_capabilities()
+        
+        print("=" * 80)
+        print("🏭 EXCEL RECIPE PROCESSOR - FEATURE MATRIX")
+        print("=" * 80)
+        
+        print(f"\n📈 FEATURE MATRIX:")
+        print("=" * 120)
+        
+        # Collect all unique features across processors
+        all_features = set()
+        processor_features = {}
+        
+        for processor_type, info in capabilities['processors'].items():
+            features = set()
+            
+            # Extract features from different capability fields
+            for key in ['supported_actions', 'calculation_types', 'filter_operations', 
+                        'lookup_features', 'pivot_features', 'grouping_features']:
+                if key in info and isinstance(info[key], list):
+                    features.update(info[key])
+            
+            processor_features[processor_type] = features
+            all_features.update(features)
+        
+        # Sort features
+        sorted_features = sorted(all_features)
+        
+        print(f"Legend: ✅ = Supported, ❌ = Not Supported\n")
+        
+        # Print header
+        processors = list(capabilities['processors'].keys())
+        header_names = []
+        
+        for proc in processors:
+            if len(proc) <= 15:
+                header_names.append(proc[:15])
+            else:
+                # Smart abbreviation
+                parts = proc.split('_')
+                if len(parts) == 2:
+                    header_names.append(f"{parts[0][:7]}_{parts[1][:6]}")
+                elif len(parts) >= 3:
+                    header_names.append(f"{parts[0][:5]}_{parts[1][:3]}_{parts[2][:3]}")
+                else:
+                    header_names.append(proc[:15])
+        
+        # Calculate dynamic column width
+        col_width = max(15, max(len(name) for name in header_names))
+        
+        header = f"{'Feature':<30} " + " ".join(f"{name:<{col_width}}" for name in header_names)
+        print(header)
+        print("-" * len(header))
+        
+        # Print feature matrix (show first 25 features)
+        for feature in sorted_features[:25]:
+            feature_name = feature[:29]  # Truncate long feature names
+            row = f"{feature_name:<30} "
+            
+            for processor_type in processors:
+                has_feature = feature in processor_features.get(processor_type, set())
+                symbol = "✅" + " " * (col_width - 1) if has_feature else "❌" + " " * (col_width - 1)
+                row += symbol
+            
+            print(row)
+        
+        if len(sorted_features) > 25:
+            print(f"\n... and {len(sorted_features) - 25} more features")
+        
+        print(f"\n💡 Total unique features across all processors: {len(sorted_features)}")
+        print(f"📊 Matrix shows top 25 features across {len(processors)} processors")
+        print(f"\nUse --detailed for full processor descriptions or --json for complete data")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error generating feature matrix: {e}")
         return 1
 
 

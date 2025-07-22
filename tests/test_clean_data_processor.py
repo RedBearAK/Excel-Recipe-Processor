@@ -721,9 +721,211 @@ def test_van_report_exact_scenario():
         return False
 
 
+def test_remove_invisible_chars():
+    """Test removal of invisible Unicode characters."""
+    
+    print("\nTesting remove invisible characters...")
+    
+    # Create test data with invisible characters that break filtering
+    test_df = pd.DataFrame({
+        'Component': [
+            'CANS\u200B',      # Zero-width space
+            'FLESH\uFEFF',     # BOM character  
+            'CANS\u00A0',      # Non-breaking space
+            '\u2000FLESH',     # En quad at start
+            'CANS\u200C\u200D' # Multiple invisible chars
+        ],
+        'Product_Name': [
+            'Test\u200BProduct',
+            'Normal Product', 
+            'Another\uFEFFTest',
+            'Clean Product',
+            'Final\u00A0Test'
+        ]
+    })
+    
+    print("Before invisible char removal:")
+    for i in range(len(test_df)):
+        component = repr(test_df.iloc[i]['Component'])  # Use repr to show invisible chars
+        print(f"  Component {i}: {component}")
+    
+    # Test remove_invisible_chars action
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Remove invisible characters',
+        'rules': [
+            {
+                'column': 'Component',
+                'action': 'remove_invisible_chars'
+            },
+            {
+                'column': 'Product_Name', 
+                'action': 'remove_invisible_chars'
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print("After invisible char removal:")
+    for i in range(len(result)):
+        component = repr(result.iloc[i]['Component'])
+        print(f"  Component {i}: {component}")
+    
+    # Check that invisible characters were removed
+    clean_components = result['Component'].tolist()
+    expected_clean = ['CANS', 'FLESH', 'CANS', 'FLESH', 'CANS']
+    
+    if clean_components == expected_clean:
+        print("✓ Invisible character removal worked correctly")
+        return True
+    else:
+        print(f"✗ Expected {expected_clean}, got {clean_components}")
+        return False
+
+
+def test_normalize_whitespace():
+    """Test comprehensive whitespace normalization."""
+    
+    print("\nTesting normalize whitespace...")
+    
+    # Create test data with various whitespace issues
+    test_df = pd.DataFrame({
+        'Product_Origin': [
+            '  CORDOVA  ',           # Leading/trailing spaces
+            'NAKNEK\u200B\u200C',    # Invisible chars
+            'DILLINGHAM\n\r',        # Line endings
+            'FALSE\u00A0PASS',       # Non-breaking space in middle
+            '  KODIAK\t\t  '         # Mixed whitespace
+        ],
+        'Notes': [
+            'Multiple   spaces   here',
+            'Line\nbreak\rhere',
+            '\u200BSome\u200Ctext\uFEFF',
+            '  Clean this up  ',
+            'Normal text'
+        ]
+    })
+    
+    print("Before whitespace normalization:")
+    for i in range(len(test_df)):
+        origin = repr(test_df.iloc[i]['Product_Origin'])
+        notes = repr(test_df.iloc[i]['Notes'])
+        print(f"  Row {i}: Origin={origin}, Notes={notes}")
+    
+    # Test normalize_whitespace action (should do invisible chars + regular whitespace)
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Normalize all whitespace',
+        'rules': [
+            {
+                'column': 'Product_Origin',
+                'action': 'normalize_whitespace'
+            },
+            {
+                'column': 'Notes',
+                'action': 'normalize_whitespace'
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print("After whitespace normalization:")
+    for i in range(len(result)):
+        origin = repr(result.iloc[i]['Product_Origin'])
+        notes = repr(result.iloc[i]['Notes'])
+        print(f"  Row {i}: Origin={origin}, Notes={notes}")
+    
+    # Check expected results
+    clean_origins = result['Product_Origin'].tolist()
+    expected_origins = ['CORDOVA', 'NAKNEK', 'DILLINGHAM', 'FALSE PASS', 'KODIAK']
+    
+    clean_notes = result['Notes'].tolist()
+    expected_notes = ['Multiple spaces here', 'Line break here', 'Sometext', 'Clean this up', 'Normal text']
+    
+    origins_match = clean_origins == expected_origins
+    notes_match = clean_notes == expected_notes
+    
+    if origins_match and notes_match:
+        print("✓ Whitespace normalization worked correctly")
+        return True
+    else:
+        print(f"✗ Origins match: {origins_match}, Notes match: {notes_match}")
+        print(f"Expected origins: {expected_origins}")
+        print(f"Got origins: {clean_origins}")
+        print(f"Expected notes: {expected_notes}")
+        print(f"Got notes: {clean_notes}")
+        return False
+
+
+def test_invisible_chars_filtering_scenario():
+    """Test the scenario where invisible chars break exact filtering."""
+    
+    print("\nTesting invisible chars breaking filtering scenario...")
+    
+    # Simulate the exact problem from the van report
+    test_df = pd.DataFrame({
+        'Component': [
+            'CANS\u200B',      # Looks like "CANS" but has invisible char
+            'FLESH',           # Clean FLESH
+            'CANS\uFEFF',      # Another "CANS" with BOM
+            'SALMON\u00A0',    # Looks like "SALMON" with non-breaking space
+        ],
+        'Major_Species': [
+            'SALMON\u200C',    # Invisible char in SALMON
+            'HALIBUT',         # Clean
+            'SALMON\u200B',    # Another SALMON with invisible char
+            'SALMON'           # Clean SALMON
+        ]
+    })
+    
+    # Simulate the filtering issue - before cleaning, exact matches fail
+    print("Before cleaning - simulating failed filters:")
+    cans_matches_before = (test_df['Component'] == 'CANS').sum()
+    salmon_matches_before = (test_df['Major_Species'] == 'SALMON').sum()
+    print(f"  'CANS' exact matches: {cans_matches_before} (should be 0 due to invisible chars)")
+    print(f"  'SALMON' exact matches: {salmon_matches_before} (should be 1)")
+    
+    # Clean the data
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Fix filtering issues with invisible chars',
+        'rules': [
+            {
+                'column': 'Component',
+                'action': 'normalize_whitespace'
+            },
+            {
+                'column': 'Major_Species',
+                'action': 'normalize_whitespace'
+            }
+        ]
+    }
+    
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    # After cleaning, exact matches should work
+    print("After cleaning - filters should work:")
+    cans_matches_after = (result['Component'] == 'CANS').sum()
+    salmon_matches_after = (result['Major_Species'] == 'SALMON').sum()
+    print(f"  'CANS' exact matches: {cans_matches_after} (should be 2)")
+    print(f"  'SALMON' exact matches: {salmon_matches_after} (should be 3)")
+    
+    if cans_matches_before == 0 and cans_matches_after == 2 and salmon_matches_after == 3:
+        print("✓ Invisible chars filtering fix worked correctly")
+        return True
+    else:
+        print("✗ Filtering fix failed")
+        return False
+
+
 if __name__ == '__main__':
     success = True
-    
+
     success &= test_replace_operations()
     success &= test_text_transformations()
     success &= test_numeric_cleaning()
@@ -736,6 +938,10 @@ if __name__ == '__main__':
     success &= test_conditional_replacement_with_equals()
     success &= test_conditional_replacement_numeric()
     success &= test_van_report_exact_scenario()
+
+    success &= test_remove_invisible_chars()
+    success &= test_normalize_whitespace() 
+    success &= test_invisible_chars_filtering_scenario()
 
     test_error_handling()
     test_conditional_replacement_error_handling()

@@ -179,17 +179,18 @@ class CleanDataProcessor(BaseStepProcessor):
             elif action == 'standardize_values':
                 return self._apply_standardize_values(df, rule, column, rule_index)
                 
+            elif action == 'remove_invisible_chars':
+                return self._apply_remove_invisible_chars(df, rule, column, rule_index)
+            
+            elif action == 'normalize_whitespace':
+                return self._apply_normalize_whitespace(df, rule, column, rule_index)
+            
             else:
-                available_actions = [
-                    'replace', 'regex_replace', 'uppercase', 'lowercase', 'title_case',
-                    'strip_whitespace', 'remove_special_chars', 'fix_numeric', 'fix_dates',
-                    'fill_empty', 'remove_duplicates', 'standardize_values'
-                ]
+                available_actions = self.get_supported_actions()  # Use dynamic list
                 raise StepProcessorError(
                     f"Cleaning rule {rule_index + 1} unknown action: '{action}'. "
                     f"Available actions: {', '.join(available_actions)}"
                 )
-            
             return df
             
         except Exception as e:
@@ -389,6 +390,73 @@ class CleanDataProcessor(BaseStepProcessor):
         logger.debug(f"Standardized values in column '{column}' using mapping: {mapping}")
         return df
     
+    def _apply_remove_invisible_chars(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
+        """Remove invisible Unicode characters that break exact string matching."""
+        
+        # Characters that should be replaced with regular space (not removed)
+        space_chars = [
+            '\u00A0',  # Non-breaking space
+            '\u1680',  # Ogham space mark
+            '\u2000',  # En quad
+            '\u2001',  # Em quad
+            '\u2002',  # En space
+            '\u2003',  # Em space
+            '\u2004',  # Three-per-em space
+            '\u2005',  # Four-per-em space
+            '\u2006',  # Six-per-em space
+            '\u2007',  # Figure space
+            '\u2008',  # Punctuation space
+            '\u2009',  # Thin space
+            '\u200A',  # Hair space
+            '\u202F',  # Narrow no-break space
+            '\u205F',  # Medium mathematical space
+            '\u3000',  # Ideographic space
+        ]
+        
+        # Characters that should be completely removed
+        remove_chars = [
+            '\u200B',  # Zero-width space
+            '\u200C',  # Zero-width non-joiner
+            '\u200D',  # Zero-width joiner
+            '\u200E',  # Left-to-right mark
+            '\u200F',  # Right-to-left mark
+            '\u2060',  # Word joiner
+            '\uFEFF',  # Byte order mark (BOM)
+        ]
+        
+        # First replace space-like chars with regular space
+        space_pattern = '[' + ''.join(space_chars) + ']'
+        df[column] = df[column].astype(str).str.replace(space_pattern, ' ', regex=True)
+        
+        # Then remove zero-width chars completely
+        remove_pattern = '[' + ''.join(remove_chars) + ']'
+        df[column] = df[column].astype(str).str.replace(remove_pattern, '', regex=True)
+        
+        # Finally, trim leading/trailing spaces that may have resulted from replacements
+        df[column] = df[column].str.strip()
+        
+        logger.debug(f"Cleaned invisible characters from column '{column}'")
+        return df
+    
+    def _apply_normalize_whitespace(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
+        """Comprehensive whitespace normalization including invisible characters."""
+        
+        # Step 1: Remove invisible characters
+        df = self._apply_remove_invisible_chars(df, rule, column, rule_index)
+        
+        # Step 2: Normalize regular whitespace
+        # Remove leading/trailing whitespace
+        df[column] = df[column].astype(str).str.strip()
+        
+        # Collapse multiple whitespace into single spaces
+        df[column] = df[column].str.replace(r'\s+', ' ', regex=True)
+        
+        # Remove line endings and carriage returns
+        df[column] = df[column].str.replace(r'[\r\n]+', ' ', regex=True)
+        
+        logger.debug(f"Normalized all whitespace in column '{column}'")
+        return df
+    
     def get_supported_actions(self) -> list:
         """
         Get list of supported cleaning actions.
@@ -398,7 +466,8 @@ class CleanDataProcessor(BaseStepProcessor):
         """
         return [
             'replace', 'regex_replace', 'uppercase', 'lowercase', 'title_case',
-            'strip_whitespace', 'remove_special_chars', 'fix_numeric', 'fix_dates',
+            'strip_whitespace', 'normalize_whitespace', 'remove_invisible_chars',
+            'remove_special_chars', 'fix_numeric', 'fix_dates',
             'fill_empty', 'remove_duplicates', 'standardize_values'
         ]
     

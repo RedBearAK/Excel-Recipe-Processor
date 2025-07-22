@@ -429,67 +429,6 @@ class ExcelPipeline:
             raise PipelineError(f"Failed to create backup: {e}")
 
 
-# def get_system_capabilities() -> dict:
-#     """Get capabilities of the entire Excel automation system."""
-#     from excel_recipe_processor.processors.base_processor import registry
-    
-#     capabilities = {
-#         'system_info': {
-#             'description': 'Excel Recipe Processor - Automated Excel data processing system',
-#             'total_processors': len(registry.get_registered_types()),
-#             'processor_types': registry.get_registered_types()
-#         },
-#         'processors': {}
-#     }
-    
-#     # Get capabilities for each registered processor
-#     for processor_type in registry.get_registered_types():
-#         try:
-#             # Create a dummy instance to get capabilities
-#             dummy_config = {
-#                 proc_type: processor_type,
-#                 step_desc: f'Capability check for {processor_type}'
-#             }
-            
-#             # Add minimal required fields for each processor type
-#             if processor_type == 'add_calculated_column':
-#                 dummy_config.update({'new_column': 'test', 'calculation': {}})
-#             elif processor_type == 'clean_data':
-#                 dummy_config.update({'rules': []})
-#             elif processor_type == 'filter_data':
-#                 dummy_config.update({'filters': []})
-#             elif processor_type == 'group_data':
-#                 dummy_config.update({'source_column': 'test', 'groups': {}})
-#             elif processor_type == 'lookup_data':
-#                 dummy_config.update({
-#                     'lookup_source': {}, 'lookup_key': 'test',
-#                     'source_key': 'test', 'lookup_columns': ['test']
-#                 })
-#             elif processor_type == 'rename_columns':
-#                 dummy_config.update({'rename_type': 'mapping', 'mapping': {}})
-#             elif processor_type == 'sort_data':
-#                 dummy_config.update({'columns': ['test']})
-#             # pivot_table needs no additional fields
-            
-#             processor = registry.create_processor(dummy_config)
-            
-#             if hasattr(processor, 'get_capabilities'):
-#                 capabilities['processors'][processor_type] = processor.get_capabilities()
-#             else:
-#                 capabilities['processors'][processor_type] = {
-#                     'description': f'{processor_type} processor (capabilities method not implemented)'
-#                 }
-                
-#         except Exception as e:
-#             capabilities['processors'][processor_type] = {
-#                 'error': f'Could not get capabilities: {e}'
-#             }
-    
-#     return capabilities
-
-
-# SIMPLE FIX: Just replace the get_system_capabilities() function in pipeline.py
-
 def get_system_capabilities() -> dict:
     """Get capabilities of the entire Excel automation system using self-reported minimal configs."""
     from excel_recipe_processor.processors.base_processor import registry

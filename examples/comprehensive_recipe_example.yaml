@@ -1,0 +1,387 @@
+# =============================================================================
+# COMPREHENSIVE EXCEL RECIPE PROCESSOR EXAMPLE
+# Demonstrates all known processor capabilities with practical examples
+# =============================================================================
+
+# Recipe metadata and settings
+settings:
+  output_filename: "{YY}{MMDD}_ComprehensiveExample_{timestamp}.xlsx"
+  create_backup: true
+  description: "Complete demonstration of all Excel Recipe Processor capabilities"
+  variables:
+    report_type: "comprehensive_demo"
+    processing_date: "{date}"
+
+# Processing steps sequence - showcasing all processors
+recipe:
+
+  # ==========================================================================
+  # 1. DATA CLEANING - Remove invisible characters and normalize data
+  # ==========================================================================
+  
+  - step_description: "Clean invisible Unicode characters from SQL export"
+    processor_type: "clean_data"
+    rules:
+      # Remove invisible characters that break exact filtering
+      - column: "Product Origin"
+        action: "normalize_whitespace"
+      - column: "Component"
+        action: "normalize_whitespace"
+      - column: "Major Species"
+        action: "normalize_whitespace"
+      - column: "Carrier"
+        action: "normalize_whitespace"
+
+  - step_description: "Standardize text case and clean data types"
+    processor_type: "clean_data"
+    rules:
+      # Text case normalization
+      - column: "Component"
+        action: "uppercase"
+      - column: "Major Species"
+        action: "uppercase"
+      - column: "Product Origin"
+        action: "title_case"
+      - column: "Customer Name"
+        action: "title_case"
+      
+      # Fix numeric columns
+      - column: "Price"
+        action: "fix_numeric"
+        fill_na: 0.0
+      - column: "Quantity"
+        action: "fix_numeric"
+        fill_na: 1
+      
+      # Fix date columns
+      - column: "Order Date"
+        action: "fix_dates"
+        format: "%Y-%m-%d"
+      
+      # Remove special characters from product codes
+      - column: "Product Code"
+        action: "remove_special_chars"
+        pattern: "[^A-Za-z0-9-]"
+        replacement: ""
+
+  - step_description: "Conditional data replacement (van report style)"
+    processor_type: "clean_data"
+    rules:
+      # Replace FLESH with CANS only for canned products
+      - column: "Component"
+        action: "replace"
+        old_value: "FLESH"
+        new_value: "CANS"
+        condition_column: "Product Name"
+        condition: "contains"
+        condition_value: "Canned"
+        case_sensitive: false
+      
+      # Standardize status values using mapping
+      - column: "Order Status"
+        action: "standardize_values"
+        mapping:
+          "active": "Active"
+          "ACTIVE": "Active"
+          "pending": "Pending"
+          "cancelled": "Cancelled"
+          "complete": "Completed"
+
+  # ==========================================================================
+  # 2. COLUMN OPERATIONS - Split, rename, and add calculated columns
+  # ==========================================================================
+  
+  - step_description: "Split full names into first and last names"
+    processor_type: "split_column"
+    source_column: "Customer Name"
+    split_type: "delimiter"
+    delimiter: " "
+    new_columns: ["First Name", "Last Name"]
+    max_splits: 1
+    remove_original: false
+    fill_missing: ""
+
+  - step_description: "Split product codes into category and item"
+    processor_type: "split_column"
+    source_column: "Product Code"
+    split_type: "regex"
+    pattern: "([A-Z]+)-([0-9]+)"
+    new_columns: ["Product Category", "Product Number"]
+    remove_original: false
+
+  - step_description: "Add calculated columns for business metrics"
+    processor_type: "add_calculated_column"
+    new_column: "Total Value"
+    calculation:
+      type: "expression"
+      expression: "Price * Quantity"
+      
+  - step_description: "Add conditional priority column"
+    processor_type: "add_calculated_column"
+    new_column: "Priority Level"
+    calculation:
+      type: "conditional"
+      conditions:
+        - condition: "Total Value > 1000"
+          value: "High"
+        - condition: "Total Value > 500"
+          value: "Medium"
+        - condition: "Total Value <= 500"
+          value: "Low"
+      default_value: "Unknown"
+
+  - step_description: "Add concatenated description column"
+    processor_type: "add_calculated_column"
+    new_column: "Full Description"
+    calculation:
+      type: "concat"
+      columns: ["Product Category", "Major Species", "Component"]
+      separator: " - "
+
+  - step_description: "Rename columns for better presentation"
+    processor_type: "rename_columns"
+    rename_type: "mapping"
+    mapping:
+      "Product Origin": "Origin Location"
+      "Van Number": "Container ID"
+      "Major Species": "Species Type"
+      "Total Value": "Order Value ($)"
+
+  # ==========================================================================
+  # 3. DATA ENRICHMENT - Lookup operations
+  # ==========================================================================
+  
+  - step_description: "Enrich data with region information using lookup"
+    processor_type: "lookup_data"
+    lookup_source:
+      type: "dictionary"
+      data:
+        "Cordova": {"Region": "PWS", "State": "Alaska", "Zone": "Coastal"}
+        "Naknek": {"Region": "Bristol Bay", "State": "Alaska", "Zone": "Inland"}
+        "Dillingham": {"Region": "Bristol Bay", "State": "Alaska", "Zone": "Inland"}
+        "False Pass": {"Region": "Bristol Bay", "State": "Alaska", "Zone": "Coastal"}
+        "Kodiak": {"Region": "Kodiak", "State": "Alaska", "Zone": "Island"}
+        "Seward": {"Region": "PWS", "State": "Alaska", "Zone": "Coastal"}
+        "Craig": {"Region": "SE", "State": "Alaska", "Zone": "Island"}
+        "Ketchikan": {"Region": "SE", "State": "Alaska", "Zone": "Coastal"}
+    lookup_key: "Origin Location"
+    source_key: "Origin Location"
+    lookup_columns: ["Region", "State", "Zone"]
+    join_type: "left"
+    default_values:
+      "Region": "Unknown"
+      "State": "Unknown"
+      "Zone": "Unknown"
+
+  # ==========================================================================
+  # 4. DATA FILTERING - Remove unwanted records
+  # ==========================================================================
+  
+  - step_description: "Filter for active salmon records (van report style)"
+    processor_type: "filter_data"
+    filters:
+      # Exclude CANS component
+      - column: "Component"
+        condition: "not_equals"
+        value: "CANS"
+      
+      # Include only SALMON species
+      - column: "Species Type"
+        condition: "contains"
+        value: "SALMON"
+      
+      # Include only recent orders
+      - column: "Order Date"
+        condition: "greater_than"
+        value: "2024-01-01"
+      
+      # Include only active orders
+      - column: "Order Status"
+        condition: "in_list"
+        value: ["Active", "Pending", "Completed"]
+      
+      # Exclude low-value orders
+      - column: "Order Value ($)"
+        condition: "greater_than"
+        value: 100
+
+  # ==========================================================================
+  # 5. DATA GROUPING - Categorize values
+  # ==========================================================================
+  
+  - step_description: "Group origins into regional categories"
+    processor_type: "group_data"
+    source_column: "Origin Location"
+    target_column: "Regional Group"
+    groups:
+      "Bristol Bay Region":
+        - "Dillingham"
+        - "False Pass"
+        - "Naknek"
+        - "Naknek West"
+        - "Wood River"
+      "Kodiak Region":
+        - "Kodiak"
+        - "Kodiak West"
+      "Prince William Sound":
+        - "Cordova"
+        - "Seward"
+        - "Valdez"
+      "Southeast Alaska":
+        - "Craig"
+        - "Ketchikan"
+        - "Petersburg"
+        - "Sitka"
+    unmatched_action: "keep_original"
+    case_sensitive: false
+
+  # ==========================================================================
+  # 6. DATA SORTING - Order records logically
+  # ==========================================================================
+  
+  - step_description: "Sort data by region, date, and value"
+    processor_type: "sort_data"
+    columns: ["Regional Group", "Order Date", "Order Value ($)"]
+    ascending: [true, false, false]  # Region A-Z, Date newest first, Value highest first
+    na_position: "last"
+
+  # ==========================================================================
+  # 7. DATA AGGREGATION - Create summary statistics
+  # ==========================================================================
+  
+  - step_description: "Create regional summary statistics"
+    processor_type: "aggregate_data"
+    group_by: ["Regional Group", "Species Type"]
+    aggregations:
+      - column: "Order Value ($)"
+        function: "sum"
+        new_column_name: "Total Regional Value"
+      - column: "Order Value ($)"
+        function: "mean"
+        new_column_name: "Average Order Value"
+      - column: "Container ID"
+        function: "nunique"
+        new_column_name: "Unique Containers"
+      - column: "Customer Name"
+        function: "nunique"
+        new_column_name: "Unique Customers"
+      - column: "Order Date"
+        function: "count"
+        new_column_name: "Total Orders"
+    keep_group_columns: true
+    sort_by_groups: true
+
+  # ==========================================================================
+  # 8. PIVOT TABLES - Create cross-tabulations
+  # ==========================================================================
+  
+  - step_description: "Create carrier-by-region pivot table (van report style)"
+    processor_type: "pivot_table"
+    index: ["Regional Group", "Origin Location"]
+    columns: ["Carrier"]
+    values: ["Container ID"]
+    aggfunc: "nunique"
+    fill_value: 0
+    margins: true
+    margins_name: "Grand Total"
+    dropna: true
+
+  # ==========================================================================
+  # 9. DEBUGGING - Save intermediate results
+  # ==========================================================================
+  
+  - step_description: "Debug checkpoint - save pivot table results"
+    processor_type: "debug_breakpoint"
+    message: "Pivot table created - verify carrier distribution by region"
+    output_path: "./debug_outputs/"
+    filename_prefix: "pivot_results"
+    include_timestamp: true
+    show_sample: true
+    sample_rows: 10
+
+  # ==========================================================================
+  # 10. FINAL CLEANUP - Prepare for output
+  # ==========================================================================
+  
+  - step_description: "Final column renaming for presentation"
+    processor_type: "rename_columns"
+    rename_type: "transform"
+    transformation: "title_case"
+    
+  - step_description: "Remove temporary debugging columns"
+    processor_type: "clean_data"
+    rules:
+      - column: "temp_calculation"
+        action: "fill_empty"
+        fill_value: "N/A"
+        method: "value"
+
+  # ==========================================================================
+  # 11. ADVANCED EXAMPLES - Show complex capabilities
+  # ==========================================================================
+  
+  # Example of complex regex replacement
+  - step_description: "Advanced regex cleaning for product codes"
+    processor_type: "clean_data"
+    rules:
+      - column: "Container ID"
+        action: "regex_replace"
+        pattern: "([A-Z]{4})\\s*([0-9]+)"
+        replacement: "\\1-\\2"
+
+  # Example of multiple conditional replacements
+  - step_description: "Complex conditional standardization"
+    processor_type: "clean_data"
+    rules:
+      - column: "Priority Level"
+        action: "replace"
+        old_value: "High"
+        new_value: "PRIORITY"
+        condition_column: "Order Value ($)"
+        condition: "greater_than"
+        condition_value: 2000
+      
+      - column: "Priority Level"
+        action: "replace"
+        old_value: "Low"
+        new_value: "STANDARD"
+        condition_column: "Regional Group"
+        condition: "not_equals"
+        condition_value: "Bristol Bay Region"
+
+  # Example of custom sort with specific order
+  - step_description: "Custom regional sort order"
+    processor_type: "sort_data"
+    columns: ["Regional Group"]
+    custom_orders:
+      "Regional Group": ["Bristol Bay Region", "Kodiak Region", "Prince William Sound", "Southeast Alaska"]
+    ascending: true
+
+  # Example of advanced calculated column with date operations
+  - step_description: "Add days since order calculation"
+    processor_type: "add_calculated_column"
+    new_column: "Days Since Order"
+    calculation:
+      type: "date"
+      operation: "days_difference"
+      from_column: "Order Date"
+      to_date: "today"
+
+# =============================================================================
+# FEATURE SHOWCASE SUMMARY:
+# 
+# This recipe demonstrates:
+# ✅ All 11 processor types
+# ✅ Variable substitution in settings
+# ✅ Conditional operations
+# ✅ Multiple data types (text, numeric, dates)
+# ✅ Complex filtering and grouping
+# ✅ Data enrichment with lookups
+# ✅ Pivot table creation with hierarchies
+# ✅ Debug checkpoints for troubleshooting
+# ✅ Advanced regex operations
+# ✅ Custom sorting and aggregations
+# ✅ Column transformations and calculations
+# 
+# Usage: python -m excel_recipe_processor input.xlsx --config comprehensive_example.yaml
+# =============================================================================

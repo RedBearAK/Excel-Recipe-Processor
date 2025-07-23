@@ -559,6 +559,7 @@ def get_available_variables():
 
 # Import each new processor object when created, and register in function below
 from excel_recipe_processor.processors.add_calculated_column_processor  import AddCalculatedColumnProcessor
+from excel_recipe_processor.processors.add_subtotals_processor          import AddSubtotalsProcessor
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
@@ -578,6 +579,7 @@ def register_standard_processors():
 
     # Register the processors we've built
     registry.register('add_calculated_column',          AddCalculatedColumnProcessor        )
+    registry.register('add_subtotals',                  AddSubtotalsProcessor               )
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )

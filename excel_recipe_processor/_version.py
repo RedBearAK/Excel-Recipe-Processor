@@ -1,6 +1,6 @@
 """Version information for excel_recipe_processor package."""
 
-__version__ = "20250721.0"
+__version__ = "20250722.0"
 __author__ = "RedBearAK"
 __email__ = "64876997+RedBearAK@users.noreply.github.com"
 __description__ = "A Python package for excel_recipe_processor"

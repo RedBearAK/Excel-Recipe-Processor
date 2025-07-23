@@ -562,6 +562,7 @@ from excel_recipe_processor.processors.add_calculated_column_processor  import A
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
+from excel_recipe_processor.processors.fill_data_processor              import FillDataProcessor
 from excel_recipe_processor.processors.filter_data_processor            import FilterDataProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
@@ -579,6 +580,7 @@ def register_standard_processors():
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
+    registry.register('fill_data',                      FillDataProcessor                   )
     registry.register('filter_data',                    FilterDataProcessor                 )
     registry.register('group_data',                     GroupDataProcessor                  )
     registry.register('lookup_data',                    LookupDataProcessor                 )

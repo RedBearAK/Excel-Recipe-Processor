@@ -62,19 +62,20 @@ python -m excel_recipe_processor --list-capabilities --detailed
 
 ## Available Processors
 
-| Processor | Purpose | Example Use |
-|-----------|---------|-------------|
-| `clean_data` | Fix formatting, replace values | Remove invisible chars from SQL exports |
-| `filter_data` | Remove unwanted rows | Keep only active orders |
-| `pivot_table` | Create cross-tabulations | Sales by region and product |
-| `aggregate_data` | Summary statistics | Total sales by category |
-| `group_data` | Categorize values | Cities → Regions |
-| `lookup_data` | Enrich with external data | Add customer details |
-| `add_calculated_column` | Create new fields | Price × Quantity = Total |
-| `split_column` | Separate combined data | "Last, First" → separate columns |
-| `rename_columns` | Standardize headers | Make column names consistent |
-| `sort_data` | Order records | Sort by date, priority |
-| `debug_breakpoint` | Save intermediate results | Check data at any step |
+| Processor               | Purpose                     | Example Use                        |
+|-------------------------|-----------------------------|------------------------------------|
+| `add_calculated_column` | Create new fields           | Price × Quantity = Total           |
+| `aggregate_data`        | Summary statistics          | Total sales by category            |
+| `clean_data`            | Fix formatting, replace     | Remove invisible chars from SQL    |
+| `debug_breakpoint`      | Save intermediate results   | Check data at any step             |
+| `fill_data`             | Fill missing values         | Replace nulls with 'Unknown'       |
+| `filter_data`           | Remove unwanted rows        | Keep only active orders            |
+| `group_data`            | Categorize values           | Cities → Regions                   |
+| `lookup_data`           | Enrich with external data   | Add customer details               |
+| `pivot_table`           | Create cross-tabulations    | Sales by region and product        |
+| `rename_columns`        | Standardize headers         | Make column names consistent       |
+| `sort_data`             | Order records               | Sort by date, priority             |
+| `split_column`          | Separate combined data      | "Last, First" → separate columns   |
 
 ## Next Steps
 

@@ -48,13 +48,13 @@ python -m excel_recipe_processor --list-capabilities --detailed
 ## Core Concepts
 
 **🧾 Recipes**: YAML files defining step-by-step data transformations  
-**🔧 Processors**: 11 specialized tools for different operations  
+**🔧 Processors**: Several specialized tools for different operations  
 **📊 Pipeline**: Automatic execution from raw data to final output  
 **🐛 Debug**: Built-in checkpoints for troubleshooting  
 
 ## When to Use This
 
-- **Repetitive Excel work**: Same steps every week/month
+- **Repetitive Excel work**: Same steps every week/month/day
 - **SQL export cleanup**: Fix formatting and invisible characters
 - **Complex transformations**: Multi-step data processing 
 - **Quality control**: Consistent, auditable results
@@ -62,20 +62,21 @@ python -m excel_recipe_processor --list-capabilities --detailed
 
 ## Available Processors
 
-| Processor               | Purpose                     | Example Use                        |
-|-------------------------|-----------------------------|------------------------------------|
-| `add_calculated_column` | Create new fields           | Price × Quantity = Total           |
-| `aggregate_data`        | Summary statistics          | Total sales by category            |
-| `clean_data`            | Fix formatting, replace     | Remove invisible chars from SQL    |
-| `debug_breakpoint`      | Save intermediate results   | Check data at any step             |
-| `fill_data`             | Fill missing values         | Replace nulls with 'Unknown'       |
-| `filter_data`           | Remove unwanted rows        | Keep only active orders            |
-| `group_data`            | Categorize values           | Cities → Regions                   |
-| `lookup_data`           | Enrich with external data   | Add customer details               |
-| `pivot_table`           | Create cross-tabulations    | Sales by region and product        |
-| `rename_columns`        | Standardize headers         | Make column names consistent       |
-| `sort_data`             | Order records               | Sort by date, priority             |
-| `split_column`          | Separate combined data      | "Last, First" → separate columns   |
+| Processor               | Purpose                     | Example Use                         |
+|-------------------------|-----------------------------|-------------------------------------|
+| `add_calculated_column` | Create new fields           | Price × Quantity = Total            |
+| `aggregate_data`        | Summary statistics          | Total sales by category             |
+| `clean_data`            | Fix formatting, replace     | Remove invisible chars from SQL     |
+| `debug_breakpoint`      | Save intermediate results   | Check data at any step              |
+| `fill_data`             | Fill missing values         | Replace nulls with 'Unknown'        |
+| `filter_data`           | Remove unwanted rows        | Keep only active orders             |
+| `group_data`            | Categorize values           | Cities → Regions                    |
+| `lookup_data`           | Enrich with external data   | Add customer details                |
+| `merge_data`            | Join with external datasets | Orders + cust. file = Complete data |
+| `pivot_table`           | Create cross-tabulations    | Sales by region and product         |
+| `rename_columns`        | Standardize headers         | Make column names consistent        |
+| `sort_data`             | Order records               | Sort by date, priority              |
+| `split_column`          | Separate combined data      | "Last, First" → separate columns    |
 
 ## Next Steps
 

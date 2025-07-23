@@ -65,6 +65,7 @@ python -m excel_recipe_processor --list-capabilities --detailed
 | Processor               | Purpose                     | Example Use                         |
 |-------------------------|-----------------------------|-------------------------------------|
 | `add_calculated_column` | Create new fields           | Price × Quantity = Total            |
+| `add_subtotals`         | Insert subtotal rows        | Regional totals in reports          |
 | `aggregate_data`        | Summary statistics          | Total sales by category             |
 | `clean_data`            | Fix formatting, replace     | Remove invisible chars from SQL     |
 | `debug_breakpoint`      | Save intermediate results   | Check data at any step              |

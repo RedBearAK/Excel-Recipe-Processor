@@ -53,6 +53,12 @@ python -m excel_recipe_processor --list-capabilities --detailed
 # JSON output (for scripts/automation)
 python -m excel_recipe_processor --list-capabilities --json
 
+# YAML output (cleaner than JSON)
+python -m excel_recipe_processor --list-capabilities --yaml
+
+# Detailed with YAML capability listings
+python -m excel_recipe_processor --list-capabilities --detailed-yaml
+
 # Feature comparison matrix
 python -m excel_recipe_processor --list-capabilities --matrix
 ```
@@ -62,8 +68,14 @@ python -m excel_recipe_processor --list-capabilities --matrix
 # Save JSON for documentation or automation
 python -m excel_recipe_processor --list-capabilities --json > capabilities.json
 
+# Save YAML for cleaner documentation
+python -m excel_recipe_processor --list-capabilities --yaml > capabilities.yaml
+
 # Save detailed report
 python -m excel_recipe_processor --list-capabilities --detailed > system-info.txt
+
+# Save detailed YAML report (hybrid format)
+python -m excel_recipe_processor --list-capabilities --detailed-yaml > detailed-capabilities.yaml
 ```
 
 ## Recipe Validation
@@ -112,6 +124,8 @@ python -m excel_recipe_processor --version
 | `--list-capabilities` | Show available processors | Text list |
 | `--list-capabilities --detailed` | Detailed processor info | Formatted report |
 | `--list-capabilities --json` | Machine-readable capabilities | JSON object |
+| `--list-capabilities --yaml` | Clean machine-readable capabilities | YAML format |
+| `--list-capabilities --detailed-yaml` | Detailed with YAML capability listings | Hybrid format |
 | `--list-capabilities --matrix` | Feature comparison | Table format |
 | `--validate-recipe` | Check recipe syntax | Validation report |
 
@@ -135,16 +149,19 @@ python -m excel_recipe_processor --version
 
 ### Development Workflow
 ```bash
-# 1. Check system capabilities
-python -m excel_recipe_processor --list-capabilities --detailed
+# 1. Check system capabilities with clean YAML output
+python -m excel_recipe_processor --list-capabilities --yaml
 
-# 2. Validate recipe during development
+# 2. Get detailed view with structured YAML listings
+python -m excel_recipe_processor --list-capabilities --detailed-yaml
+
+# 3. Validate recipe during development
 python -m excel_recipe_processor --validate-recipe recipe.yaml
 
-# 3. Test with verbose output
+# 4. Test with verbose output
 python -m excel_recipe_processor test-data.xlsx --config recipe.yaml --verbose
 
-# 4. Production run
+# 5. Production run
 python -m excel_recipe_processor data.xlsx --config recipe.yaml
 ```
 
@@ -153,8 +170,8 @@ python -m excel_recipe_processor data.xlsx --config recipe.yaml
 #!/bin/bash
 # Automated processing script
 
-# Get system info for logging
-python -m excel_recipe_processor --list-capabilities --json > system-info.json
+# Get system info for logging (YAML is cleaner for parsing)
+python -m excel_recipe_processor --list-capabilities --yaml > system-info.yaml
 
 # Validate recipe
 if python -m excel_recipe_processor --validate-recipe monthly-report.yaml; then
@@ -170,6 +187,18 @@ else
 fi
 ```
 
+### Documentation Generation
+```bash
+# Generate comprehensive capability documentation
+python -m excel_recipe_processor --list-capabilities --detailed-yaml > docs/system-capabilities.md
+
+# Generate machine-readable capability index
+python -m excel_recipe_processor --list-capabilities --yaml > config/system-capabilities.yaml
+
+# Generate feature compatibility matrix
+python -m excel_recipe_processor --list-capabilities --matrix > docs/feature-matrix.txt
+```
+
 ### Troubleshooting
 ```bash
 # Debug a failing recipe
@@ -178,8 +207,11 @@ python -m excel_recipe_processor data.xlsx \
   --verbose \
   --output debug-output.xlsx
 
-# Check if specific processor is available
-python -m excel_recipe_processor --list-capabilities --json | grep "pivot_table"
+# Check if specific processor is available (YAML is easier to parse)
+python -m excel_recipe_processor --list-capabilities --yaml | grep "pivot_table"
+
+# Get detailed capability info for debugging
+python -m excel_recipe_processor --list-capabilities --detailed-yaml | grep -A 20 "PIVOT"
 
 # Validate recipe step by step
 python -m excel_recipe_processor --validate-recipe recipe.yaml
@@ -193,6 +225,9 @@ python -m excel_recipe_processor --validate-recipe recipe.yaml
 Get-ChildItem *.xlsx | ForEach-Object {
     python -m excel_recipe_processor $_.Name --config recipe.yaml
 }
+
+# Export system capabilities for documentation
+python -m excel_recipe_processor --list-capabilities --yaml | Out-File -Encoding UTF8 capabilities.yaml
 ```
 
 ### Bash Scripting
@@ -206,13 +241,28 @@ else
     echo "Processing failed"
     exit 1
 fi
+
+# Parse YAML capabilities in scripts (requires yq)
+TOTAL_PROCESSORS=$(python -m excel_recipe_processor --list-capabilities --yaml | yq '.system_info.total_processors')
+echo "System has $TOTAL_PROCESSORS processors available"
 ```
 
 ### Scheduled Tasks
 ```bash
-# Cron job for daily processing
-# 0 6 * * * /usr/bin/python -m excel_recipe_processor /data/daily.xlsx --config /scripts/daily-recipe.yaml
+# Cron job for daily processing with capability check
+# 0 6 * * * /usr/bin/python -m excel_recipe_processor --list-capabilities --yaml > /logs/capabilities.yaml && /usr/bin/python -m excel_recipe_processor /data/daily.xlsx --config /scripts/daily-recipe.yaml
 ```
+
+## Output Format Comparison
+
+| Format | Use Case | Pros | Cons |
+|--------|----------|------|------|
+| Basic (`--list-capabilities`) | Quick overview | Fast, human-readable | Limited detail |
+| Detailed (`--detailed`) | Manual inspection | Rich formatting, examples | Not machine-parseable |
+| JSON (`--json`) | Automation/scripts | Standard format, all data | Verbose, harder to read |
+| **YAML (`--yaml`)** | Clean automation | Less cluttered than JSON, human-readable | Requires PyYAML |
+| **Detailed YAML (`--detailed-yaml`)** | Documentation | Structured + complete listings | Longer output |
+| Matrix (`--matrix`) | Feature comparison | Visual compatibility | Limited to features only |
 
 ## Performance Tips
 
@@ -220,6 +270,8 @@ fi
 - Validate recipes before running in production
 - Process smaller files first to test recipes
 - Use specific sheet names rather than indexes when possible
+- Use YAML output for cleaner automation scripts
+- Use detailed-yaml for comprehensive documentation
 
 ## See Also
 

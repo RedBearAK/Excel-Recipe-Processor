@@ -68,14 +68,19 @@ python -m excel_recipe_processor --list-capabilities --detailed
 | `add_subtotals`         | Insert subtotal rows        | Regional totals in reports          |
 | `aggregate_data`        | Summary statistics          | Total sales by category             |
 | `clean_data`            | Fix formatting, replace     | Remove invisible chars from SQL     |
+| `create_stage`          | Insert named data stage     | ???   |
 | `debug_breakpoint`      | Save intermediate results   | Check data at any step              |
+| `export_file`           | Export data to file         | ???   |
 | `fill_data`             | Fill missing values         | Replace nulls with 'Unknown'        |
 | `filter_data`           | Remove unwanted rows        | Keep only active orders             |
 | `group_data`            | Categorize values           | Cities → Regions                    |
+| `import_file`           | Import data from file       | ???   |
+| `load_stage`            | Load a named data stage     | ???   |
 | `lookup_data`           | Enrich with external data   | Add customer details                |
 | `merge_data`            | Join with external datasets | Orders + cust. file = Complete data |
 | `pivot_table`           | Create cross-tabulations    | Sales by region and product         |
 | `rename_columns`        | Standardize headers         | Make column names consistent        |
+| `save_stage`            | Save data to named stage    | ???   |
 | `sort_data`             | Order records               | Sort by date, priority              |
 | `split_column`          | Separate combined data      | "Last, First" → separate columns    |
 

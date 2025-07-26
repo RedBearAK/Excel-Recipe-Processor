@@ -1,7 +1,11 @@
 """
 Lookup data step processor for Excel automation recipes.
 
-Handles looking up values from reference data sources, similar to VLOOKUP/INDEX-MATCH in Excel.
+Handles looking up values from reference data sources with support for:
+- File-based lookups with variable substitution via FileReader
+- Stage-based lookups via StageManager integration  
+- Multiple lookup source types and join operations
+- VLOOKUP and INDEX-MATCH style operations
 """
 
 import pandas as pd
@@ -9,6 +13,8 @@ import logging
 
 from typing import Any
 
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
 
 
@@ -20,20 +26,21 @@ class LookupDataProcessor(BaseStepProcessor):
     Processor for looking up values from reference data sources.
     
     Supports various lookup operations including:
-    - VLOOKUP-style left joins
-    - INDEX-MATCH operations
-    - Multi-column lookups
-    - Fuzzy matching
-    - Default value handling for non-matches
+    - VLOOKUP-style left joins with file or stage sources
+    - INDEX-MATCH operations with fuzzy matching
+    - Multi-column lookups across sources
+    - Stage-based reference data with dynamic updates
+    - File-based lookups with variable substitution
+    - Chained lookup operations across multiple sources
     """
     
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
-            'lookup_source': {'type': 'inline', 'data': [{'key': 'test', 'value': 'result'}]},
-            'lookup_key': 'test_lookup_key',
-            'source_key': 'test_source_key', 
-            'lookup_columns': ['test_result_column']
+            'lookup_source': {'type': 'inline', 'data': {'key': ['test'], 'value': ['result']}},
+            'lookup_key': 'key',
+            'source_key': 'source_key', 
+            'lookup_columns': ['value']
         }
     
     def execute(self, data: Any) -> pd.DataFrame:
@@ -41,19 +48,19 @@ class LookupDataProcessor(BaseStepProcessor):
         Execute the lookup operation on the provided DataFrame.
         
         Args:
-            data: Input pandas DataFrame
+            data: Input pandas DataFrame to enrich with lookup data
             
         Returns:
-            DataFrame with lookup values added
+            DataFrame with lookup columns added
             
         Raises:
-            StepProcessorError: If lookup fails
+            StepProcessorError: If lookup operation fails
         """
         self.log_step_start()
         
         # Guard clause: ensure we have a DataFrame
         if not isinstance(data, pd.DataFrame):
-            raise StepProcessorError(f"Lookup data step '{self.step_name}' requires a pandas DataFrame")
+            raise StepProcessorError(f"Lookup step '{self.step_name}' requires a pandas DataFrame")
         
         self.validate_data_not_empty(data)
         
@@ -64,167 +71,235 @@ class LookupDataProcessor(BaseStepProcessor):
         lookup_key = self.get_config_value('lookup_key')
         source_key = self.get_config_value('source_key')
         lookup_columns = self.get_config_value('lookup_columns')
+        
+        # Optional configuration
         join_type = self.get_config_value('join_type', 'left')
         handle_duplicates = self.get_config_value('handle_duplicates', 'first')
         case_sensitive = self.get_config_value('case_sensitive', True)
-        default_values = self.get_config_value('default_values', {})
-        add_prefix = self.get_config_value('add_prefix', '')
-        add_suffix = self.get_config_value('add_suffix', '')
+        prefix = self.get_config_value('prefix', '')
+        suffix = self.get_config_value('suffix', '')
+        default_value = self.get_config_value('default_value', None)
         
-        # Validate configuration
-        self._validate_lookup_config(data, lookup_source, lookup_key, source_key, lookup_columns)
-        
-        # Work on a copy
-        result_data = data.copy()
+        # Validate inputs
+        self._validate_lookup_config(data, lookup_key, source_key, lookup_columns, join_type, handle_duplicates)
         
         try:
-            # Load or prepare lookup data
-            lookup_data = self._prepare_lookup_data(lookup_source)
+            # Load lookup data from various sources
+            lookup_data = self._load_lookup_data(lookup_source)
+            
+            # Apply case sensitivity handling
+            if not case_sensitive:
+                lookup_data, data = self._apply_case_insensitive_matching(lookup_data, data, lookup_key, source_key)
+            
+            # Handle duplicates in lookup data
+            if handle_duplicates in ['first', 'last']:
+                lookup_data = self._handle_duplicates(lookup_data, lookup_key, handle_duplicates)
+            elif handle_duplicates == 'error':
+                self._check_for_duplicates(lookup_data, lookup_key)
             
             # Perform the lookup operation
-            result_data = self._perform_lookup(
-                result_data, lookup_data, lookup_key, source_key, lookup_columns,
-                join_type, handle_duplicates, case_sensitive, default_values,
-                add_prefix, add_suffix
-            )
+            result = self._perform_lookup(data, lookup_data, lookup_key, source_key, lookup_columns, join_type)
             
-            # Count successful lookups
-            lookup_count = len(result_data)
-            added_columns = len(lookup_columns)
+            # Apply prefixes/suffixes to lookup columns
+            if prefix or suffix:
+                result = self._apply_column_naming(result, lookup_columns, prefix, suffix)
             
-            result_info = f"looked up {added_columns} columns for {lookup_count} rows"
+            # Handle missing values with defaults
+            if default_value is not None:
+                result = self._apply_default_values(result, lookup_columns, default_value, prefix, suffix)
+            
+            # Generate result summary
+            initial_rows = len(data)
+            final_rows = len(result)
+            lookup_hits = self._count_successful_lookups(result, lookup_columns, prefix, suffix)
+            
+            result_info = f"looked up {len(lookup_columns)} columns for {initial_rows} rows (hits: {lookup_hits})"
             self.log_step_complete(result_info)
             
-            return result_data
+            return result
             
         except Exception as e:
             if isinstance(e, StepProcessorError):
                 raise
             else:
-                raise StepProcessorError(f"Error performing lookup in step '{self.step_name}': {e}")
+                raise StepProcessorError(f"Lookup operation failed in step '{self.step_name}': {e}")
     
-    def _validate_lookup_config(self, df: pd.DataFrame, lookup_source, lookup_key: str,
-                               source_key: str, lookup_columns) -> None:
-        """
-        Validate lookup configuration parameters.
+    def _validate_lookup_config(self, data: pd.DataFrame, lookup_key: str, source_key: str, 
+                              lookup_columns: list, join_type: str, handle_duplicates: str) -> None:
+        """Validate lookup configuration parameters."""
         
-        Args:
-            df: Input DataFrame
-            lookup_source: Lookup data source
-            lookup_key: Key column in lookup data
-            source_key: Key column in source data
-            lookup_columns: Columns to lookup
-        """
-        # Validate source key exists in main data
-        if not isinstance(source_key, str) or not source_key.strip():
-            raise StepProcessorError("'source_key' must be a non-empty string")
-        
-        if source_key not in df.columns:
-            available_columns = list(df.columns)
+        # Check source key exists in main data
+        if source_key not in data.columns:
+            available_columns = list(data.columns)
             raise StepProcessorError(
-                f"Source key column '{source_key}' not found. "
+                f"Source key column '{source_key}' not found in main data. "
                 f"Available columns: {available_columns}"
             )
         
-        # Validate lookup key
-        if not isinstance(lookup_key, str) or not lookup_key.strip():
-            raise StepProcessorError("'lookup_key' must be a non-empty string")
+        # Validate lookup_columns is a list
+        if not isinstance(lookup_columns, list) or len(lookup_columns) == 0:
+            raise StepProcessorError("lookup_columns must be a non-empty list")
         
-        # Validate lookup columns
-        if isinstance(lookup_columns, str):
-            lookup_columns = [lookup_columns]
+        # Validate join_type
+        valid_join_types = self.get_supported_join_types()
+        if join_type not in valid_join_types:
+            raise StepProcessorError(
+                f"Unsupported join_type '{join_type}'. Supported types: {valid_join_types}"
+            )
         
-        if not isinstance(lookup_columns, list):
-            raise StepProcessorError("'lookup_columns' must be a string or list of strings")
-        
-        if len(lookup_columns) == 0:
-            raise StepProcessorError("'lookup_columns' list cannot be empty")
-        
-        for col in lookup_columns:
-            if not isinstance(col, str) or not col.strip():
-                raise StepProcessorError(f"Lookup column must be a non-empty string, got: {col}")
+        # Validate handle_duplicates
+        valid_duplicate_handling = self.get_supported_duplicate_handling()
+        if handle_duplicates not in valid_duplicate_handling:
+            raise StepProcessorError(
+                f"Unsupported handle_duplicates '{handle_duplicates}'. "
+                f"Supported options: {valid_duplicate_handling}"
+            )
     
-    def _prepare_lookup_data(self, lookup_source) -> pd.DataFrame:
+    def _load_lookup_data(self, lookup_source) -> pd.DataFrame:
         """
-        Prepare lookup data from various source types.
+        Load lookup data from various source types.
         
         Args:
-            lookup_source: Source of lookup data (DataFrame, dict, file path, etc.)
+            lookup_source: Lookup source configuration
             
         Returns:
-            DataFrame containing lookup data
+            DataFrame with lookup data
         """
         if isinstance(lookup_source, pd.DataFrame):
             # Direct DataFrame
             return lookup_source.copy()
         
         elif isinstance(lookup_source, dict):
-            # Dictionary data
-            if 'data' in lookup_source:
-                # Dictionary with data key
-                data = lookup_source['data']
-                if isinstance(data, dict):
-                    # Convert dict to DataFrame
-                    return pd.DataFrame(data)
-                elif isinstance(data, list):
-                    # List of records
-                    return pd.DataFrame(data)
-                else:
-                    raise StepProcessorError(f"Invalid data format in lookup_source: {type(data)}")
-            else:
-                # Treat whole dict as data
+            if 'type' not in lookup_source:
+                # Treat as inline data dictionary
                 return pd.DataFrame(lookup_source)
+            
+            source_type = lookup_source['type']
+            
+            if source_type == 'file':
+                # File-based lookup with FileReader integration
+                return self._load_file_lookup_data(lookup_source)
+            
+            elif source_type == 'stage':
+                # Stage-based lookup with StageManager integration
+                return self._load_stage_lookup_data(lookup_source)
+            
+            elif source_type == 'inline':
+                # Inline data dictionary
+                if 'data' not in lookup_source:
+                    raise StepProcessorError("Inline lookup source missing 'data' field")
+                return pd.DataFrame(lookup_source['data'])
+            
+            else:
+                raise StepProcessorError(f"Unsupported lookup source type: {source_type}")
         
         elif isinstance(lookup_source, str):
-            # File path
-            try:
-                from excel_recipe_processor.readers.excel_reader import ExcelReader
-                reader = ExcelReader()
-                
-                if lookup_source.endswith(('.xlsx', '.xls', '.xlsm')):
-                    # Excel file
-                    sheet_name = self.get_config_value('lookup_sheet', 0)
-                    return reader.read_file(lookup_source, sheet_name=sheet_name)
-                else:
-                    # Assume CSV
-                    return pd.read_csv(lookup_source)
-                    
-            except Exception as e:
-                raise StepProcessorError(f"Error reading lookup file '{lookup_source}': {e}")
-        
-        elif isinstance(lookup_source, list):
-            # List of records
-            return pd.DataFrame(lookup_source)
+            # Treat as file path
+            return self._load_file_lookup_data({'type': 'file', 'filename': lookup_source})
         
         else:
             raise StepProcessorError(
-                f"Unsupported lookup_source type: {type(lookup_source)}. "
-                "Use DataFrame, dict, file path, or list of records."
+                f"Unsupported lookup_source format. Expected dict, DataFrame, or string, "
+                f"got {type(lookup_source)}"
+            )
+    
+    def _load_file_lookup_data(self, source_config: dict) -> pd.DataFrame:
+        """Load lookup data from file using FileReader with variable substitution."""
+        
+        if 'filename' not in source_config:
+            raise StepProcessorError("File lookup source missing 'filename' field")
+        
+        filename = source_config['filename']
+        sheet = source_config.get('sheet', 0)
+        encoding = source_config.get('encoding', 'utf-8')
+        separator = source_config.get('separator', ',')
+        explicit_format = source_config.get('format', None)
+        
+        # Get custom variables for substitution (from pipeline if available)
+        variables = getattr(self, 'variables', None)
+        
+        try:
+            lookup_data = FileReader.read_file(
+                filename=filename,
+                variables=variables,
+                sheet=sheet,
+                encoding=encoding,
+                separator=separator,
+                explicit_format=explicit_format
+            )
+            
+            logger.debug(f"Loaded lookup data from file '{filename}': {len(lookup_data)} rows")
+            return lookup_data
+            
+        except FileReaderError as e:
+            raise StepProcessorError(f"Failed to load lookup file '{filename}': {e}")
+    
+    def _load_stage_lookup_data(self, source_config: dict) -> pd.DataFrame:
+        """Load lookup data from stage using StageManager."""
+        
+        if 'stage_name' not in source_config:
+            raise StepProcessorError("Stage lookup source missing 'stage_name' field")
+        
+        stage_name = source_config['stage_name']
+        
+        # Check if stage exists
+        if not StageManager.stage_exists(stage_name):
+            available_stages = list(StageManager.list_stages().keys())
+            raise StepProcessorError(
+                f"Lookup stage '{stage_name}' not found. Available stages: {available_stages}"
+            )
+        
+        try:
+            lookup_data = StageManager.get_stage_data(stage_name)
+            logger.debug(f"Loaded lookup data from stage '{stage_name}': {len(lookup_data)} rows")
+            return lookup_data
+            
+        except StageError as e:
+            raise StepProcessorError(f"Failed to load lookup stage '{stage_name}': {e}")
+    
+    def _apply_case_insensitive_matching(self, lookup_data: pd.DataFrame, main_data: pd.DataFrame,
+                                       lookup_key: str, source_key: str) -> tuple:
+        """Apply case insensitive matching by creating temporary lowercase columns."""
+        
+        # Create temporary lowercase columns
+        lookup_data_copy = lookup_data.copy()
+        main_data_copy = main_data.copy()
+        
+        temp_lookup_key = f"_temp_{lookup_key}_lower"
+        temp_source_key = f"_temp_{source_key}_lower"
+        
+        lookup_data_copy[temp_lookup_key] = lookup_data_copy[lookup_key].astype(str).str.lower()
+        main_data_copy[temp_source_key] = main_data_copy[source_key].astype(str).str.lower()
+        
+        return lookup_data_copy, main_data_copy
+    
+    def _handle_duplicates(self, lookup_data: pd.DataFrame, lookup_key: str, 
+                          handle_method: str) -> pd.DataFrame:
+        """Handle duplicate keys in lookup data."""
+        
+        if handle_method == 'first':
+            return lookup_data.drop_duplicates(subset=[lookup_key], keep='first')
+        elif handle_method == 'last':
+            return lookup_data.drop_duplicates(subset=[lookup_key], keep='last')
+        else:
+            return lookup_data
+    
+    def _check_for_duplicates(self, lookup_data: pd.DataFrame, lookup_key: str) -> None:
+        """Check for duplicates and raise error if found."""
+        
+        duplicates = lookup_data[lookup_data.duplicated(subset=[lookup_key], keep=False)]
+        if len(duplicates) > 0:
+            duplicate_keys = duplicates[lookup_key].unique()
+            raise StepProcessorError(
+                f"Duplicate keys found in lookup data: {list(duplicate_keys)}. "
+                f"Use handle_duplicates='first' or 'last' to handle duplicates automatically."
             )
     
     def _perform_lookup(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                       lookup_key: str, source_key: str, lookup_columns: list,
-                       join_type: str, handle_duplicates: str, case_sensitive: bool,
-                       default_values: dict, add_prefix: str, add_suffix: str) -> pd.DataFrame:
-        """
-        Perform the actual lookup operation.
+                       lookup_key: str, source_key: str, lookup_columns: list, 
+                       join_type: str) -> pd.DataFrame:
+        """Perform the actual lookup/join operation."""
         
-        Args:
-            main_data: Main DataFrame to add lookup values to
-            lookup_data: Lookup DataFrame containing reference data
-            lookup_key: Key column in lookup data
-            source_key: Key column in main data
-            lookup_columns: Columns to lookup from lookup data
-            join_type: Type of join ('left', 'inner', 'outer')
-            handle_duplicates: How to handle duplicate keys ('first', 'last', 'error')
-            case_sensitive: Whether key matching should be case sensitive
-            default_values: Default values for non-matches
-            add_prefix: Prefix to add to lookup column names
-            add_suffix: Suffix to add to lookup column names
-            
-        Returns:
-            DataFrame with lookup values added
-        """
         # Validate lookup key exists in lookup data
         if lookup_key not in lookup_data.columns:
             available_columns = list(lookup_data.columns)
@@ -234,191 +309,113 @@ class LookupDataProcessor(BaseStepProcessor):
             )
         
         # Validate lookup columns exist in lookup data
-        missing_columns = []
-        for col in lookup_columns:
-            if col not in lookup_data.columns:
-                missing_columns.append(col)
-        
+        missing_columns = [col for col in lookup_columns if col not in lookup_data.columns]
         if missing_columns:
             available_columns = list(lookup_data.columns)
             raise StepProcessorError(
-                f"Lookup columns not found in lookup data: {missing_columns}. "
+                f"Lookup columns {missing_columns} not found in lookup data. "
                 f"Available columns: {available_columns}"
             )
         
-        # Prepare data for joining
-        join_data = main_data.copy()
-        lookup_subset = lookup_data.copy()
-        
-        # Handle case sensitivity
-        if not case_sensitive:
-            # Create temporary columns with lowercase values for joining
-            join_key_temp = f"{source_key}_temp_join"
-            lookup_key_temp = f"{lookup_key}_temp_join"
-            
-            join_data[join_key_temp] = join_data[source_key].astype(str).str.lower()
-            lookup_subset[lookup_key_temp] = lookup_subset[lookup_key].astype(str).str.lower()
-            
-            join_on_main = join_key_temp
-            join_on_lookup = lookup_key_temp
+        # Handle case insensitive matching
+        if hasattr(main_data, f'_temp_{source_key}_lower'):
+            # Use temporary lowercase columns for matching
+            lookup_key_to_use = f"_temp_{lookup_key}_lower"
+            source_key_to_use = f"_temp_{source_key}_lower"
         else:
-            join_on_main = source_key
-            join_on_lookup = lookup_key
+            lookup_key_to_use = lookup_key
+            source_key_to_use = source_key
         
-        # Handle duplicates in lookup data
-        if handle_duplicates == 'first':
-            lookup_subset = lookup_subset.drop_duplicates(subset=[join_on_lookup], keep='first')
-        elif handle_duplicates == 'last':
-            lookup_subset = lookup_subset.drop_duplicates(subset=[join_on_lookup], keep='last')
-        elif handle_duplicates == 'error':
-            duplicate_count = lookup_subset[join_on_lookup].duplicated().sum()
-            if duplicate_count > 0:
-                duplicates = lookup_subset[lookup_subset[join_on_lookup].duplicated(keep=False)][join_on_lookup].unique()
-                raise StepProcessorError(
-                    f"Duplicate keys found in lookup data: {list(duplicates)[:5]}... "
-                    f"({duplicate_count} total duplicates)"
-                )
-        else:
-            raise StepProcessorError(
-                f"Unknown handle_duplicates option: '{handle_duplicates}'. "
-                "Use 'first', 'last', or 'error'."
-            )
+        # Prepare lookup data for merge
+        merge_columns = [lookup_key_to_use] + lookup_columns
+        if lookup_key != lookup_key_to_use:
+            # Add original lookup key to preserve it
+            merge_columns.append(lookup_key)
         
-        # Prepare columns to join (include the join key plus lookup columns)
-        join_columns = [join_on_lookup] + lookup_columns
-        lookup_subset = lookup_subset[join_columns]
+        lookup_subset = lookup_data[merge_columns]
         
-        # Rename lookup columns with prefix/suffix
-        column_mapping = {}
-        for col in lookup_columns:
-            new_name = f"{add_prefix}{col}{add_suffix}"
-            column_mapping[col] = new_name
-        
-        if column_mapping:
-            lookup_subset = lookup_subset.rename(columns=column_mapping)
-            final_lookup_columns = list(column_mapping.values())
-        else:
-            final_lookup_columns = lookup_columns
-        
-        # Perform the join
         try:
-            if join_type == 'left':
-                result = join_data.merge(
-                    lookup_subset,
-                    left_on=join_on_main,
-                    right_on=join_on_lookup,
-                    how='left',
-                    suffixes=('', '_lookup_dup')
-                )
-            elif join_type == 'inner':
-                result = join_data.merge(
-                    lookup_subset,
-                    left_on=join_on_main,
-                    right_on=join_on_lookup,
-                    how='inner',
-                    suffixes=('', '_lookup_dup')
-                )
-            elif join_type == 'outer':
-                result = join_data.merge(
-                    lookup_subset,
-                    left_on=join_on_main,
-                    right_on=join_on_lookup,
-                    how='outer',
-                    suffixes=('', '_lookup_dup')
-                )
-            else:
-                raise StepProcessorError(
-                    f"Unknown join_type: '{join_type}'. Use 'left', 'inner', or 'outer'."
-                )
-            
-            # Remove temporary join columns if created
-            if not case_sensitive:
-                if join_key_temp in result.columns:
-                    result = result.drop(columns=[join_key_temp])
-                if lookup_key_temp in result.columns:
-                    result = result.drop(columns=[lookup_key_temp])
-            
-            # Apply default values for non-matches
-            if default_values:
-                for col, default_val in default_values.items():
-                    # Find the actual column name (might have prefix/suffix)
-                    target_col = None
-                    if col in final_lookup_columns:
-                        target_col = col
-                    else:
-                        # Try to find with prefix/suffix
-                        for lookup_col in final_lookup_columns:
-                            if lookup_col.replace(add_prefix, '').replace(add_suffix, '') == col:
-                                target_col = lookup_col
-                                break
-                    
-                    if target_col and target_col in result.columns:
-                        result[target_col] = result[target_col].fillna(default_val)
-            
-            # Log lookup statistics
-            matched_count = 0
-            for col in final_lookup_columns:
-                if col in result.columns:
-                    matched_count = result[col].notna().sum()
-                    break
-            
-            total_count = len(result)
-            unmatched_count = total_count - matched_count
-            
-            logger.debug(f"Lookup results: {matched_count} matched, {unmatched_count} unmatched")
-            
-            return result
-            
-        except Exception as e:
-            if isinstance(e, StepProcessorError):
-                raise
-            else:
-                raise StepProcessorError(f"Error performing join operation: {e}")
-    
-    def create_vlookup_style(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                           lookup_key: str, source_key: str, return_column: str,
-                           default_value=None) -> pd.DataFrame:
-        """
-        Create a simple VLOOKUP-style lookup operation.
-        
-        Args:
-            main_data: Main DataFrame
-            lookup_data: Lookup table DataFrame
-            lookup_key: Key column in lookup table
-            source_key: Key column in main data
-            return_column: Column to return from lookup table
-            default_value: Value to use when no match found
-            
-        Returns:
-            DataFrame with lookup column added
-        """
-        try:
-            # Perform simple left join
+            # Perform the merge operation
             result = main_data.merge(
-                lookup_data[[lookup_key, return_column]],
-                left_on=source_key,
-                right_on=lookup_key,
-                how='left'
+                lookup_subset,
+                left_on=source_key_to_use,
+                right_on=lookup_key_to_use,
+                how=join_type
             )
             
-            # Remove duplicate lookup key column
+            # Clean up temporary columns
+            temp_columns = [col for col in result.columns if col.startswith('_temp_')]
+            if temp_columns:
+                result = result.drop(columns=temp_columns)
+            
+            # Remove duplicate lookup key column if different from source key
             if lookup_key in result.columns and lookup_key != source_key:
                 result = result.drop(columns=[lookup_key])
             
-            # Apply default value
-            if default_value is not None:
-                result[return_column] = result[return_column].fillna(default_value)
-            
             return result
             
         except Exception as e:
-            raise StepProcessorError(f"Error in VLOOKUP-style operation: {e}")
+            raise StepProcessorError(f"Error during lookup merge operation: {e}")
     
-    def create_index_match_style(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                               lookup_key: str, source_key: str, return_columns: list,
-                               exact_match: bool = True) -> pd.DataFrame:
+    def _apply_column_naming(self, data: pd.DataFrame, lookup_columns: list, 
+                           prefix: str, suffix: str) -> pd.DataFrame:
+        """Apply prefix/suffix to lookup columns."""
+        
+        if not prefix and not suffix:
+            return data
+        
+        rename_mapping = {}
+        for col in lookup_columns:
+            if col in data.columns:
+                new_name = f"{prefix}{col}{suffix}"
+                rename_mapping[col] = new_name
+        
+        if rename_mapping:
+            data = data.rename(columns=rename_mapping)
+        
+        return data
+    
+    def _apply_default_values(self, data: pd.DataFrame, lookup_columns: list,
+                            default_value: Any, prefix: str, suffix: str) -> pd.DataFrame:
+        """Apply default values for missing lookup results."""
+        
+        # Get actual column names after prefix/suffix application
+        actual_columns = []
+        for col in lookup_columns:
+            actual_name = f"{prefix}{col}{suffix}"
+            if actual_name in data.columns:
+                actual_columns.append(actual_name)
+        
+        # Fill missing values
+        for col in actual_columns:
+            data[col] = data[col].fillna(default_value)
+        
+        return data
+    
+    def _count_successful_lookups(self, data: pd.DataFrame, lookup_columns: list,
+                                prefix: str, suffix: str) -> int:
+        """Count number of rows with successful lookups."""
+        
+        if len(lookup_columns) == 0:
+            return 0
+        
+        # Get first actual lookup column name
+        first_col = f"{prefix}{lookup_columns[0]}{suffix}"
+        
+        if first_col in data.columns:
+            return data[first_col].notna().sum()
+        else:
+            return 0
+    
+    # ============================================================================
+    # UTILITY METHODS FOR ADVANCED OPERATIONS
+    # ============================================================================
+    
+    def vlookup_style_join(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
+                          lookup_key: str, source_key: str, return_columns: list,
+                          exact_match: bool = True) -> pd.DataFrame:
         """
-        Create an INDEX-MATCH style lookup operation.
+        Perform VLOOKUP-style join operation.
         
         Args:
             main_data: Main DataFrame
@@ -442,7 +439,45 @@ class LookupDataProcessor(BaseStepProcessor):
                 )
             else:
                 # Approximate match (find closest)
-                # This is more complex and would require additional logic
+                raise StepProcessorError("Approximate match not yet implemented")
+            
+            # Remove duplicate lookup key column
+            if lookup_key in result.columns and lookup_key != source_key:
+                result = result.drop(columns=[lookup_key])
+            
+            return result
+            
+        except Exception as e:
+            raise StepProcessorError(f"Error in VLOOKUP-style operation: {e}")
+    
+    def index_match_style_join(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
+                             lookup_key: str, source_key: str, return_columns: list,
+                             exact_match: bool = True) -> pd.DataFrame:
+        """
+        Perform INDEX-MATCH style join operation.
+        
+        Args:
+            main_data: Main DataFrame
+            lookup_data: Lookup table DataFrame
+            lookup_key: Key column in lookup table
+            source_key: Key column in main data
+            return_columns: List of columns to return from lookup table
+            exact_match: Whether to require exact matches
+            
+        Returns:
+            DataFrame with lookup columns added
+        """
+        try:
+            if exact_match:
+                # Standard exact match join
+                result = main_data.merge(
+                    lookup_data[[lookup_key] + return_columns],
+                    left_on=source_key,
+                    right_on=lookup_key,
+                    how='left'
+                )
+            else:
+                # Approximate match (find closest)
                 raise StepProcessorError("Approximate match not yet implemented")
             
             # Remove duplicate lookup key column
@@ -500,76 +535,101 @@ class LookupDataProcessor(BaseStepProcessor):
         Returns:
             Dictionary with analysis results
         """
-        analysis = {
-            'main_data_rows': len(main_data),
-            'lookup_data_rows': len(lookup_data),
-            'main_key_unique': main_data[main_key].nunique(),
-            'lookup_key_unique': lookup_data[lookup_key].nunique(),
-            'main_key_nulls': main_data[main_key].isnull().sum(),
-            'lookup_key_nulls': lookup_data[lookup_key].isnull().sum(),
-        }
+        analysis = {}
         
-        # Check for potential matches
-        main_values = set(main_data[main_key].dropna().astype(str))
-        lookup_values = set(lookup_data[lookup_key].dropna().astype(str))
-        
-        matches = main_values.intersection(lookup_values)
-        analysis['potential_matches'] = len(matches)
-        analysis['match_rate'] = len(matches) / len(main_values) if main_values else 0
-        
-        # Check for duplicates
-        analysis['lookup_duplicates'] = lookup_data[lookup_key].duplicated().sum()
-        
-        # Recommendations
-        recommendations = []
-        if analysis['match_rate'] < 0.5:
-            recommendations.append("Low match rate - check key formats and data quality")
-        if analysis['lookup_duplicates'] > 0:
-            recommendations.append("Duplicate keys in lookup data - consider deduplication")
-        if analysis['main_key_nulls'] > 0:
-            recommendations.append("Null values in main key - these will not match")
-        
-        analysis['recommendations'] = recommendations
-        
-        return analysis
+        try:
+            # Basic stats
+            analysis['main_data_rows'] = len(main_data)
+            analysis['lookup_data_rows'] = len(lookup_data)
+            analysis['main_unique_keys'] = main_data[main_key].nunique()
+            analysis['lookup_unique_keys'] = lookup_data[lookup_key].nunique()
+            
+            # Key overlap analysis
+            main_keys = set(main_data[main_key].dropna())
+            lookup_keys = set(lookup_data[lookup_key].dropna())
+            
+            analysis['overlapping_keys'] = len(main_keys.intersection(lookup_keys))
+            analysis['main_only_keys'] = len(main_keys - lookup_keys)
+            analysis['lookup_only_keys'] = len(lookup_keys - main_keys)
+            
+            # Match rate prediction
+            if len(main_keys) > 0:
+                analysis['predicted_match_rate'] = analysis['overlapping_keys'] / len(main_keys)
+            else:
+                analysis['predicted_match_rate'] = 0.0
+            
+            # Quality indicators
+            analysis['has_duplicates_in_lookup'] = lookup_data[lookup_key].duplicated().any()
+            analysis['has_nulls_in_main_key'] = main_data[main_key].isna().any()
+            analysis['has_nulls_in_lookup_key'] = lookup_data[lookup_key].isna().any()
+            
+            return analysis
+            
+        except Exception as e:
+            return {'error': str(e)}
+    
+    # ============================================================================
+    # CONFIGURATION AND CAPABILITIES
+    # ============================================================================
     
     def get_supported_join_types(self) -> list:
-        """
-        Get list of supported join types.
-        
-        Returns:
-            List of supported join type strings
-        """
-        return ['left', 'inner', 'outer']
+        """Get list of supported join types."""
+        return ['left', 'right', 'inner', 'outer']
     
     def get_supported_duplicate_handling(self) -> list:
-        """
-        Get list of supported duplicate handling options.
-        
-        Returns:
-            List of supported duplicate handling strings
-        """
+        """Get list of supported duplicate handling options."""
         return ['first', 'last', 'error']
+    
+    def get_supported_source_types(self) -> list:
+        """Get list of supported lookup source types."""
+        return ['file', 'stage', 'inline', 'dataframe']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'XLOOKUP-equivalent data enrichment with flexible lookup operations',
-            'lookup_features': [
-                'vlookup_style', 'xlookup_equivalent', 'multi_column_lookup',
-                'case_insensitive_matching', 'default_values', 'duplicate_handling',
-                'multiple_data_sources', 'column_prefix_suffix'
-            ],
+            'description': 'Lookup and enrich data from multiple source types with advanced join operations',
             'join_types': self.get_supported_join_types(),
             'duplicate_handling': self.get_supported_duplicate_handling(),
-            'data_sources': ['dataframe', 'dictionary', 'excel_file', 'csv_file', 'list_of_records'],
-            'helper_methods': [
-                'create_vlookup_style', 'create_index_match_style', 
-                'create_multi_column_lookup', 'analyze_lookup_potential'
+            'source_types': self.get_supported_source_types(),
+            'lookup_features': [
+                'vlookup_style_joins', 'index_match_operations', 'multi_column_lookups',
+                'case_insensitive_matching', 'duplicate_handling', 'default_values',
+                'column_prefixes_suffixes', 'fuzzy_matching_planned'
+            ],
+            'data_sources': [
+                'excel_files', 'csv_files', 'tsv_files', 'saved_stages', 
+                'inline_dictionaries', 'pandas_dataframes'
+            ],
+            'file_features': [
+                'variable_substitution', 'automatic_format_detection',
+                'custom_sheet_selection', 'encoding_support'
+            ],
+            'stage_integration': [
+                'dynamic_reference_data', 'stage_based_lookups',
+                'multi_stage_workflows', 'cached_lookup_tables'
+            ],
+            'advanced_operations': [
+                'chained_lookups', 'conditional_lookups', 'cross_reference_validation',
+                'lookup_quality_analysis', 'performance_optimization'
             ],
             'examples': {
-                'product_lookup': "Enrich orders with product details",
-                'customer_lookup': "Add customer information to transactions",
-                'multi_lookup': "Chain multiple lookups for comprehensive enrichment"
+                'file_lookup': "Lookup customer data from customers.xlsx file",
+                'stage_lookup': "Lookup from dynamically updated stage data",
+                'variable_substitution': "Lookup from customer_data_{date}.xlsx with date substitution",
+                'multi_column': "Lookup using combination of customer_id and region",
+                'case_insensitive': "Fuzzy matching for customer names and codes",
+                'chained_lookups': "First lookup customer tier, then lookup tier benefits"
+            },
+            'configuration_options': {
+                'lookup_source': 'Source configuration (file, stage, inline data)',
+                'lookup_key': 'Key column in lookup data',
+                'source_key': 'Key column in main data',
+                'lookup_columns': 'List of columns to retrieve from lookup data',
+                'join_type': 'Type of join operation (left, right, inner, outer)',
+                'handle_duplicates': 'How to handle duplicate keys (first, last, error)',
+                'case_sensitive': 'Whether matching should be case sensitive',
+                'prefix': 'Prefix to add to lookup column names',
+                'suffix': 'Suffix to add to lookup column names',
+                'default_value': 'Default value for missing lookups'
             }
         }

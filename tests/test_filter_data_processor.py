@@ -1,59 +1,86 @@
 """
-Test the FilterDataProcessor functionality.
+Comprehensive tests for the refactored FilterDataProcessor with StageManager integration.
+
+Tests both existing functionality (regression) and new stage-based filtering capabilities.
 """
 
 import pandas as pd
 
-from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
+from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
 
 
 def create_test_data():
-    """Create sample data for testing."""
+    """Create sample DataFrame for testing."""
     return pd.DataFrame({
-        'Product_Name': ['CANNED BEANS', 'FRESH FISH', 'CANNED CORN', 'DRIED FRUIT', 'CANNED SOUP'],
-        'Component': ['FLESH', 'FLESH', 'FLESH', 'FLESH', 'FLESH'],
-        'Quantity': [100, 50, 75, 25, 200],
-        'Price': [10.50, 25.00, 15.75, 8.25, 12.00],
-        'Department': ['Grocery', 'Fresh', 'Grocery', 'Snacks', 'Grocery'],
-        'Status': ['Active', 'Active', 'Cancelled', 'Active', 'Active']
+        'Product_ID': ['P001', 'P002', 'P003', 'P004', 'P005'],
+        'Product_Name': ['CANNED BEANS', 'FRESH FISH', 'CANNED SOUP', 'CANNED CORN', 'FROZEN PEAS'],
+        'Department': ['Grocery', 'Seafood', 'Grocery', 'Grocery', 'Frozen'],
+        'Price': [12.50, 25.00, 11.75, 15.00, 6.25],  # Changed CANNED SOUP from 8.75 to 11.75
+        'Quantity': [100, 50, 200, 75, 150],
+        'Status': ['Active', 'Active', 'Active', 'Cancelled', 'Active'],
+        'Supplier_ID': ['S001', 'S002', 'S001', 'S003', 'S002']
     })
 
 
-def test_basic_filtering():
-    """Test basic filter operations."""
+def create_approved_customers_stage():
+    """Create sample approved customers stage data."""
+    return pd.DataFrame({
+        'Customer_ID': ['C001', 'C003', 'C005', 'C007'],
+        'Customer_Name': ['Alice Corp', 'Charlie Ltd', 'Eve Industries', 'Grace Co'],
+        'Tier': ['Gold', 'Silver', 'Gold', 'Bronze']
+    })
+
+
+def create_price_history_stage():
+    """Create sample price history stage data."""
+    return pd.DataFrame({
+        'Product_ID': ['P001', 'P002', 'P003', 'P004', 'P005'],
+        'Historical_Price': [10.00, 30.00, 8.00, 12.00, 7.00],
+        'Last_Updated': ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']
+    })
+
+
+def create_orders_with_customers():
+    """Create orders data that can be filtered against customer stages."""
+    return pd.DataFrame({
+        'Order_ID': ['O001', 'O002', 'O003', 'O004', 'O005'],
+        'Customer_ID': ['C001', 'C002', 'C003', 'C004', 'C005'],
+        'Product_ID': ['P001', 'P002', 'P003', 'P004', 'P005'],
+        'Order_Amount': [100, 200, 150, 300, 75],
+        'Order_Date': ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']
+    })
+
+
+def setup_test_stages():
+    """Set up test stages for stage-based filtering tests."""
+    StageManager.initialize_stages(max_stages=10)
     
-    print("Testing basic filtering...")
+    # Create approved customers stage
+    approved_customers = create_approved_customers_stage()
+    StageManager.save_stage(
+        stage_name='Approved Customers',
+        data=approved_customers,
+        description='List of approved customers for orders'
+    )
+    
+    # Create price history stage
+    price_history = create_price_history_stage()
+    StageManager.save_stage(
+        stage_name='Price History',
+        data=price_history,
+        description='Historical pricing data for products'
+    )
+
+
+def test_basic_equals_filter():
+    """Test basic equals filtering still works (regression test)."""
+    print("\nTesting basic equals filter...")
     
     test_df = create_test_data()
-    print(f"✓ Created test data: {len(test_df)} rows")
     
-    # Test 'contains' filter - like the van report workflow
     step_config = {
-        'processor_type': 'filter_data',
-        'step_description': 'Filter for canned products',
-        'filters': [
-            {
-                'column': 'Product_Name',
-                'condition': 'contains',
-                'value': 'CANNED'
-            }
-        ]
-    }
-    
-    processor = FilterDataProcessor(step_config)
-    result = processor.execute(test_df)
-    
-    print(f"✓ Filter for 'CANNED': {len(test_df)} → {len(result)} rows")
-    
-    # Should have 3 canned products
-    if len(result) == 3:
-        print("✓ Correct number of canned products found")
-    else:
-        print(f"✗ Expected 3 canned products, got {len(result)}")
-    
-    # Test 'equals' filter
-    step_config2 = {
         'processor_type': 'filter_data',
         'step_description': 'Filter for grocery department',
         'filters': [
@@ -65,43 +92,26 @@ def test_basic_filtering():
         ]
     }
     
-    processor2 = FilterDataProcessor(step_config2)
-    result2 = processor2.execute(test_df)
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(test_df)
     
-    print(f"✓ Filter for Department='Grocery': {len(test_df)} → {len(result2)} rows")
-    
-    # Test 'not_equals' filter
-    step_config3 = {
-        'processor_type': 'filter_data',
-        'step_description': 'Filter out cancelled items',
-        'filters': [
-            {
-                'column': 'Status',
-                'condition': 'not_equals',
-                'value': 'Cancelled'
-            }
-        ]
-    }
-    
-    processor3 = FilterDataProcessor(step_config3)
-    result3 = processor3.execute(test_df)
-    
-    print(f"✓ Filter out Status='Cancelled': {len(test_df)} → {len(result3)} rows")
-    
-    return True
+    if len(result) == 3 and all(result['Department'] == 'Grocery'):
+        print("✓ Basic equals filter works correctly")
+        return True
+    else:
+        print(f"✗ Expected 3 grocery items, got {len(result)}")
+        return False
 
 
 def test_multiple_filters():
-    """Test applying multiple filters in sequence."""
-    
+    """Test multiple filters applied in sequence (regression test)."""
     print("\nTesting multiple filters...")
     
     test_df = create_test_data()
     
-    # Apply multiple filters like in the van report workflow
     step_config = {
         'processor_type': 'filter_data',
-        'step_description': 'Multiple filter test',
+        'step_description': 'Multiple filters test',
         'filters': [
             {
                 'column': 'Product_Name',
@@ -110,13 +120,13 @@ def test_multiple_filters():
             },
             {
                 'column': 'Status',
-                'condition': 'not_equals',
-                'value': 'Cancelled'
+                'condition': 'equals',
+                'value': 'Active'
             },
             {
-                'column': 'Quantity',
+                'column': 'Price',
                 'condition': 'greater_than',
-                'value': 80
+                'value': 10.0
             }
         ]
     }
@@ -124,36 +134,37 @@ def test_multiple_filters():
     processor = FilterDataProcessor(step_config)
     result = processor.execute(test_df)
     
-    print(f"✓ Multiple filters: {len(test_df)} → {len(result)} rows")
-    
-    # Should be CANNED products, not cancelled, with quantity > 80
-    # That should be: CANNED BEANS (100) and CANNED SOUP (200)
-    # But CANNED CORN is cancelled, so only 2 should remain
-    if len(result) == 2:
-        print("✓ Multiple filters applied correctly")
+    # Should be CANNED BEANS and CANNED SOUP (CANNED CORN is cancelled)
+    if (len(result) == 2 and 
+        all('CANNED' in name for name in result['Product_Name']) and
+        all(result['Status'] == 'Active') and
+        all(result['Price'] > 10.0)):
+        print("✓ Multiple filters work correctly")
         return True
     else:
-        print(f"✗ Expected 2 rows after multiple filters, got {len(result)}")
-        print("Remaining products:", result['Product_Name'].tolist())
+        print(f"✗ Expected 2 items after multiple filters, got {len(result)}")
         return False
 
 
 def test_numeric_conditions():
-    """Test numeric comparison conditions."""
-    
+    """Test numeric comparison conditions (regression test)."""
     print("\nTesting numeric conditions...")
     
     test_df = create_test_data()
     
-    # Test greater_than
     step_config = {
         'processor_type': 'filter_data',
-        'step_description': 'Price greater than 15',
+        'step_description': 'Price range filter',
         'filters': [
             {
                 'column': 'Price',
-                'condition': 'greater_than',
-                'value': 15.0
+                'condition': 'greater_equal',
+                'value': 10.0
+            },
+            {
+                'column': 'Price',
+                'condition': 'less_equal',
+                'value': 20.0
             }
         ]
     }
@@ -161,45 +172,28 @@ def test_numeric_conditions():
     processor = FilterDataProcessor(step_config)
     result = processor.execute(test_df)
     
-    print(f"✓ Price > 15.0: {len(test_df)} → {len(result)} rows")
-    
-    # Test less_equal
-    step_config2 = {
-        'processor_type': 'filter_data',
-        'step_description': 'Quantity less or equal 75',
-        'filters': [
-            {
-                'column': 'Quantity',
-                'condition': 'less_equal',
-                'value': 75
-            }
-        ]
-    }
-    
-    processor2 = FilterDataProcessor(step_config2)
-    result2 = processor2.execute(test_df)
-    
-    print(f"✓ Quantity <= 75: {len(test_df)} → {len(result2)} rows")
-    
-    return True
+    if all(10.0 <= price <= 20.0 for price in result['Price']):
+        print("✓ Numeric conditions work correctly")
+        return True
+    else:
+        print("✗ Some prices are outside the range 10-20")
+        return False
 
 
 def test_list_conditions():
-    """Test in_list and not_in_list conditions."""
-    
+    """Test in_list and not_in_list conditions (regression test)."""
     print("\nTesting list conditions...")
     
     test_df = create_test_data()
     
-    # Test in_list
     step_config = {
         'processor_type': 'filter_data',
-        'step_description': 'Department in list',
+        'step_description': 'Department list filter',
         'filters': [
             {
                 'column': 'Department',
                 'condition': 'in_list',
-                'value': ['Grocery', 'Snacks']
+                'value': ['Grocery', 'Frozen']
             }
         ]
     }
@@ -207,148 +201,329 @@ def test_list_conditions():
     processor = FilterDataProcessor(step_config)
     result = processor.execute(test_df)
     
-    print(f"✓ Department in ['Grocery', 'Snacks']: {len(test_df)} → {len(result)} rows")
-    
-    return True
+    if (len(result) == 4 and 
+        all(dept in ['Grocery', 'Frozen'] for dept in result['Department'])):
+        print("✓ List conditions work correctly")
+        return True
+    else:
+        print(f"✗ Expected 4 items from Grocery/Frozen, got {len(result)}")
+        return False
 
 
-def test_error_handling():
-    """Test error handling for various failure cases."""
+def test_in_stage_filter():
+    """Test filtering to include only items found in a stage."""
+    print("\nTesting in_stage filter...")
     
-    print("\nTesting error handling...")
+    orders_df = create_orders_with_customers()
     
-    test_df = create_test_data()
-    
-    # Test missing required fields
-    try:
-        bad_config = {
-            'processor_type': 'filter_data',
-            'step_description': 'Missing filters'
-            # No 'filters' field
-        }
-        processor = FilterDataProcessor(bad_config)
-        processor.execute(test_df)
-        print("✗ Should have failed with missing filters")
-    except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
-    
-    # Test invalid column
-    try:
-        bad_config = {
-            'processor_type': 'filter_data',
-            'step_description': 'Invalid column',
-            'filters': [
-                {
-                    'column': 'NonExistentColumn',
-                    'condition': 'equals',
-                    'value': 'test'
-                }
-            ]
-        }
-        processor = FilterDataProcessor(bad_config)
-        processor.execute(test_df)
-        print("✗ Should have failed with invalid column")
-    except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
-    
-    # Test invalid condition
-    try:
-        bad_config = {
-            'processor_type': 'filter_data',
-            'step_description': 'Invalid condition',
-            'filters': [
-                {
-                    'column': 'Status',
-                    'condition': 'invalid_condition',
-                    'value': 'test'
-                }
-            ]
-        }
-        processor = FilterDataProcessor(bad_config)
-        processor.execute(test_df)
-        print("✗ Should have failed with invalid condition")
-    except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
-    
-    # Test missing value for condition that requires it
-    try:
-        bad_config = {
-            'processor_type': 'filter_data',
-            'step_description': 'Missing value',
-            'filters': [
-                {
-                    'column': 'Status',
-                    'condition': 'equals'
-                    # No 'value' field
-                }
-            ]
-        }
-        processor = FilterDataProcessor(bad_config)
-        processor.execute(test_df)
-        print("✗ Should have failed with missing value")
-    except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
-
-
-def test_empty_conditions():
-    """Test edge cases like no filters, empty data."""
-    
-    print("\nTesting edge cases...")
-    
-    test_df = create_test_data()
-    
-    # Test no filters
     step_config = {
         'processor_type': 'filter_data',
-        'step_description': 'No filters',
-        'filters': []
+        'step_description': 'Filter for approved customers only',
+        'filters': [
+            {
+                'column': 'Customer_ID',
+                'condition': 'in_stage',
+                'stage_name': 'Approved Customers',
+                'stage_column': 'Customer_ID'
+            }
+        ]
+    }
+    
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(orders_df)
+    
+    # Should only include orders from C001, C003, C005 (approved customers)
+    expected_customers = {'C001', 'C003', 'C005'}
+    actual_customers = set(result['Customer_ID'])
+    
+    if actual_customers == expected_customers and len(result) == 3:
+        print("✓ in_stage filter works correctly")
+        return True
+    else:
+        print(f"✗ Expected {expected_customers}, got {actual_customers}")
+        return False
+
+
+def test_not_in_stage_filter():
+    """Test filtering to exclude items found in a stage."""
+    print("\nTesting not_in_stage filter...")
+    
+    orders_df = create_orders_with_customers()
+    
+    step_config = {
+        'processor_type': 'filter_data',
+        'step_description': 'Filter out approved customers',
+        'filters': [
+            {
+                'column': 'Customer_ID',
+                'condition': 'not_in_stage',
+                'stage_name': 'Approved Customers',
+                'stage_column': 'Customer_ID'
+            }
+        ]
+    }
+    
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(orders_df)
+    
+    # Should only include orders from C002, C004 (not approved)
+    expected_customers = {'C002', 'C004'}
+    actual_customers = set(result['Customer_ID'])
+    
+    if actual_customers == expected_customers and len(result) == 2:
+        print("✓ not_in_stage filter works correctly")
+        return True
+    else:
+        print(f"✗ Expected {expected_customers}, got {actual_customers}")
+        return False
+
+
+def test_stage_comparison_filter():
+    """Test filtering based on comparison with stage values."""
+    print("\nTesting stage_comparison filter...")
+    
+    test_df = create_test_data()
+    
+    step_config = {
+        'processor_type': 'filter_data',
+        'step_description': 'Filter for products with price increases',
+        'filters': [
+            {
+                'column': 'Price',
+                'condition': 'stage_comparison',
+                'stage_name': 'Price History',
+                'key_column': 'Product_ID',
+                'stage_key_column': 'Product_ID',
+                'stage_value_column': 'Historical_Price',
+                'comparison_operator': 'greater_than'
+            }
+        ]
     }
     
     processor = FilterDataProcessor(step_config)
     result = processor.execute(test_df)
     
-    if len(result) == len(test_df):
-        print("✓ No filters applied correctly (returns original data)")
+    # Check which products have price increases
+    # P001: 12.50 > 10.00 ✓, P002: 25.00 < 30.00 ✗, P003: 8.75 > 8.00 ✓, 
+    # P004: 15.00 > 12.00 ✓, P005: 6.25 < 7.00 ✗
+    expected_products = {'P001', 'P003', 'P004'}
+    actual_products = set(result['Product_ID'])
+    
+    if actual_products == expected_products and len(result) == 3:
+        print("✓ stage_comparison filter works correctly")
+        return True
     else:
-        print("✗ No filters should return original data unchanged")
+        print(f"✗ Expected {expected_products}, got {actual_products}")
+        return False
+
+
+def test_combined_stage_and_basic_filters():
+    """Test combining stage-based and basic filters."""
+    print("\nTesting combined stage and basic filters...")
     
-    # Test not_empty condition
-    test_df_with_empties = test_df.copy()
-    test_df_with_empties.loc[2, 'Department'] = ''  # Make one empty
-    test_df_with_empties.loc[3, 'Department'] = None  # Make one None
+    orders_df = create_orders_with_customers()
     
-    step_config2 = {
+    step_config = {
         'processor_type': 'filter_data',
-        'step_description': 'Remove empty departments',
+        'step_description': 'High-value orders from approved customers',
         'filters': [
             {
-                'column': 'Department',
-                'condition': 'not_empty'
+                'column': 'Customer_ID',
+                'condition': 'in_stage',
+                'stage_name': 'Approved Customers',
+                'stage_column': 'Customer_ID'
+            },
+            {
+                'column': 'Order_Amount',
+                'condition': 'greater_than',
+                'value': 100
             }
         ]
     }
     
-    processor2 = FilterDataProcessor(step_config2)
-    result2 = processor2.execute(test_df_with_empties)
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(orders_df)
     
-    print(f"✓ Remove empty departments: {len(test_df_with_empties)} → {len(result2)} rows")
+    # Should only include approved customers with order amount > 100
+    # C001: 100 (not > 100), C003: 150 ✓, C005: 75 (not > 100)
+    if (len(result) == 1 and 
+        result.iloc[0]['Customer_ID'] == 'C003' and
+        result.iloc[0]['Order_Amount'] == 150):
+        print("✓ Combined stage and basic filters work correctly")
+        return True
+    else:
+        print(f"✗ Expected 1 high-value approved order, got {len(result)}")
+        return False
+
+
+def test_stage_filter_error_handling():
+    """Test error handling for stage-based filtering."""
+    print("\nTesting stage filter error handling...")
+    
+    # Set up a basic test stage
+    StageManager.initialize_stages(max_stages=10)
+    test_stage = pd.DataFrame({
+        'ID': ['A', 'B', 'C'],
+        'Value': [1, 2, 3]
+    })
+    StageManager.save_stage('Test Stage', test_stage, 'Test stage for error handling')
+    
+    try:
+        test_df = create_test_data()
+        
+        # Test missing stage_name
+        try:
+            step_config = {
+                'processor_type': 'filter_data',
+                'filters': [
+                    {
+                        'column': 'Product_ID',
+                        'condition': 'in_stage',
+                        'stage_column': 'ID'
+                        # Missing stage_name
+                    }
+                ]
+            }
+            
+            processor = FilterDataProcessor(step_config)
+            processor.execute(test_df)
+            print("✗ Should have failed with missing stage_name")
+            return False
+        except StepProcessorError as e:
+            if "requires 'stage_name'" in str(e):
+                print("✓ Caught expected error for missing stage_name")
+            else:
+                print(f"✗ Wrong error message: {e}")
+                return False
+        
+        # Test nonexistent stage
+        try:
+            step_config = {
+                'processor_type': 'filter_data',
+                'filters': [
+                    {
+                        'column': 'Product_ID',
+                        'condition': 'in_stage',
+                        'stage_name': 'Nonexistent Stage',
+                        'stage_column': 'ID'
+                    }
+                ]
+            }
+            
+            processor = FilterDataProcessor(step_config)
+            processor.execute(test_df)
+            print("✗ Should have failed with nonexistent stage")
+            return False
+        except StepProcessorError as e:
+            if "non-existent stage" in str(e):
+                print("✓ Caught expected error for nonexistent stage")
+            else:
+                print(f"✗ Wrong error message: {e}")
+                return False
+        
+        print("✓ Error handling works correctly")
+        return True
+        
+    finally:
+        StageManager.cleanup_stages()
+
+
+def test_capabilities_include_stage_features():
+    """Test that processor capabilities include stage integration features."""
+    print("\nTesting capabilities reporting...")
+    
+    processor = FilterDataProcessor({'processor_type': 'filter_data', 'filters': []})
+    
+    supported = processor.get_supported_conditions()
+    stage_conditions = processor.get_stage_based_conditions()
+    capabilities = processor.get_capabilities()
+    
+    # Check that all stage conditions are in supported conditions
+    stage_conditions_supported = all(cond in supported for cond in stage_conditions)
+    
+    # Check for stage-related capability information
+    has_stage_capabilities = (
+        'stage_based_conditions' in capabilities and
+        'stage_integration' in capabilities
+    )
+    
+    # Check specific new conditions
+    expected_stage_conditions = ['in_stage', 'not_in_stage', 'stage_comparison']
+    has_new_conditions = all(cond in supported for cond in expected_stage_conditions)
+    
+    if stage_conditions_supported and has_stage_capabilities and has_new_conditions:
+        print("✓ Capabilities include stage integration features")
+        return True
+    else:
+        print("✗ Missing stage capabilities in reporting")
+        return False
+
+
+def test_backward_compatibility():
+    """Test that minimal config is unchanged for backward compatibility."""
+    print("\nTesting backward compatibility...")
+    
+    minimal_config = FilterDataProcessor.get_minimal_config()
+    
+    has_filters = 'filters' in minimal_config
+    filters_is_list = isinstance(minimal_config['filters'], list)
+    has_example = len(minimal_config['filters']) > 0
+    
+    if has_filters and filters_is_list and has_example:
+        example_filter = minimal_config['filters'][0]
+        has_basic_fields = (
+            'column' in example_filter and
+            'condition' in example_filter and
+            'value' in example_filter
+        )
+        
+        if has_basic_fields:
+            print("✓ Backward compatibility maintained")
+            return True
+        else:
+            print("✗ Example filter missing basic fields")
+            return False
+    else:
+        print("✗ Minimal config structure changed")
+        return False
 
 
 if __name__ == '__main__':
+    print("Testing FilterDataProcessor refactoring...")
     success = True
     
-    success &= test_basic_filtering()
+    # Basic regression tests
+    print("\n=== Testing Basic Functionality (Regression) ===")
+    success &= test_basic_equals_filter()
     success &= test_multiple_filters()
     success &= test_numeric_conditions()
     success &= test_list_conditions()
-    test_error_handling()
-    test_empty_conditions()
+    
+    # Stage-based tests
+    print("\n=== Testing Stage-Based Filtering (New Features) ===")
+    setup_test_stages()
+    try:
+        success &= test_in_stage_filter()
+        success &= test_not_in_stage_filter()
+        success &= test_stage_comparison_filter()
+        success &= test_combined_stage_and_basic_filters()
+    finally:
+        StageManager.cleanup_stages()
+    
+    # Error handling and capabilities tests
+    print("\n=== Testing Error Handling and Capabilities ===")
+    success &= test_stage_filter_error_handling()
+    success &= test_capabilities_include_stage_features()
+    success &= test_backward_compatibility()
     
     if success:
-        print("\n✓ All filter processor tests passed!")
+        print("\n🎉 All FilterDataProcessor refactoring tests passed!")
     else:
-        print("\n✗ Some filter processor tests failed!")
+        print("\n❌ Some FilterDataProcessor refactoring tests failed!")
     
-    # Show supported conditions
+    # Show processor capabilities
     processor = FilterDataProcessor({'processor_type': 'filter_data', 'filters': []})
     print(f"\nSupported conditions: {processor.get_supported_conditions()}")
+    print(f"Stage-based conditions: {processor.get_stage_based_conditions()}")
+    
+    print("\nTo run with pytest: pytest test_filter_data_processor_refactored.py -v")

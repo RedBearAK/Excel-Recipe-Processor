@@ -345,6 +345,8 @@ def test_stage_based_lookup():
     """Test stage-based lookup with StageManager integration."""
     print("\nTesting stage-based lookup...")
     
+    setup_test_stages()
+
     main_df = create_main_data()
     
     step_config = {
@@ -379,6 +381,8 @@ def test_chained_stage_lookups():
     """Test chained lookups across multiple stages."""
     print("\nTesting chained stage lookups...")
     
+    setup_test_stages()
+
     main_df = create_main_data()
     
     # First lookup: Get customer info
@@ -713,6 +717,8 @@ def test_capabilities_and_configuration():
 def test_real_world_scenario():
     """Test a complete real-world lookup scenario."""
     print("\nTesting real-world scenario...")
+    
+    setup_test_stages()
     
     # Simulate order enrichment workflow
     orders_df = pd.DataFrame({

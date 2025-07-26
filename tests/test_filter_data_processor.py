@@ -214,6 +214,8 @@ def test_in_stage_filter():
     """Test filtering to include only items found in a stage."""
     print("\nTesting in_stage filter...")
     
+    setup_test_stages()
+
     orders_df = create_orders_with_customers()
     
     step_config = {
@@ -248,6 +250,8 @@ def test_not_in_stage_filter():
     """Test filtering to exclude items found in a stage."""
     print("\nTesting not_in_stage filter...")
     
+    setup_test_stages()
+
     orders_df = create_orders_with_customers()
     
     step_config = {
@@ -282,6 +286,8 @@ def test_stage_comparison_filter():
     """Test filtering based on comparison with stage values."""
     print("\nTesting stage_comparison filter...")
     
+    setup_test_stages()
+
     test_df = create_test_data()
     
     step_config = {
@@ -320,6 +326,8 @@ def test_stage_comparison_filter():
 def test_combined_stage_and_basic_filters():
     """Test combining stage-based and basic filters."""
     print("\nTesting combined stage and basic filters...")
+    
+    setup_test_stages()
     
     orders_df = create_orders_with_customers()
     

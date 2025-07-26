@@ -285,6 +285,8 @@ def test_stage_based_grouping_wide():
     """Test stage-based grouping with wide format."""
     print("\nTesting stage-based grouping (wide format)...")
     
+    setup_test_stages()
+
     customer_data = create_customer_data()
     
     step_config = {
@@ -317,6 +319,8 @@ def test_stage_based_grouping_long():
     """Test stage-based grouping with long format."""
     print("\nTesting stage-based grouping (long format)...")
     
+    setup_test_stages()
+
     customer_data = create_customer_data()
     
     step_config = {
@@ -483,6 +487,8 @@ def test_save_to_stage():
     """Test saving grouping results to a stage."""
     print("\nTesting save to stage...")
     
+    setup_test_stages()
+
     van_data = create_van_report_data()
     
     step_config = {
@@ -701,6 +707,8 @@ def test_capabilities_and_configuration():
 def test_real_world_scenario():
     """Test a complete real-world grouping scenario."""
     print("\nTesting real-world scenario...")
+    
+    setup_test_stages()
     
     # Simulate complex van report processing
     van_data = pd.DataFrame({

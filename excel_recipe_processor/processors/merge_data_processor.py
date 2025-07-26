@@ -1,18 +1,16 @@
 """
 Merge data step processor for Excel automation recipes.
 
-Handles merging DataFrames with external data sources using various join strategies.
+Handles merging DataFrames with external data sources using FileReader
+infrastructure and StageManager for comprehensive data integration.
 """
 
 import pandas as pd
 import logging
 
-from typing import Any
-from pathlib import Path
-
-from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
-
+from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +19,13 @@ class MergeDataProcessor(BaseStepProcessor):
     """
     Processor for merging DataFrames with external data sources.
     
-    Supports merging with Excel files, CSV files, or dictionaries using
-    various join types (left, right, inner, outer). Handles key column
-    specification and column naming conflicts.
+    Supports merging with Excel files, CSV files, dictionaries, or saved stages using
+    various join types (left, right, inner, outer). Uses FileReader for file operations
+    and StageManager for stage access.
     """
     
-
     @classmethod
-    def get_minimal_config(cls) -> dict:
+    def get_minimal_config(cls):
         return {
             'merge_source': {
                 'type': 'stage',
@@ -38,7 +35,7 @@ class MergeDataProcessor(BaseStepProcessor):
             'right_key': 'key_column'
         }
 
-    def execute(self, data: Any) -> pd.DataFrame:
+    def execute(self, data):
         """
         Execute the merge operation on the provided DataFrame.
         
@@ -68,12 +65,15 @@ class MergeDataProcessor(BaseStepProcessor):
         join_type = self.get_config_value('join_type', 'left')
         suffixes = self.get_config_value('suffixes', ('_x', '_y'))
         
+        # Get custom variables from pipeline if available
+        variables = self._get_pipeline_variables()
+        
         # Validate configuration
         self._validate_merge_config(data, merge_source, left_key, right_key, join_type)
         
         try:
             # Load the merge source data
-            merge_data = self._load_merge_source(merge_source)
+            merge_data = self._load_merge_source(merge_source, variables)
             
             # Validate merge keys exist
             self._validate_merge_keys(data, merge_data, left_key, right_key)
@@ -91,14 +91,17 @@ class MergeDataProcessor(BaseStepProcessor):
             
             return result_data
             
+        except FileReaderError as e:
+            raise StepProcessorError(f"Error reading merge source in step '{self.step_name}': {e}")
+        except StageError as e:
+            raise StepProcessorError(f"Error accessing stage data in step '{self.step_name}': {e}")
         except Exception as e:
             if isinstance(e, StepProcessorError):
                 raise
             else:
                 raise StepProcessorError(f"Error during merge in step '{self.step_name}': {e}")
     
-    def _validate_merge_config(self, df: pd.DataFrame, merge_source: dict, 
-                                left_key: str, right_key: str, join_type: str) -> None:
+    def _validate_merge_config(self, df, merge_source, left_key, right_key, join_type):
         """
         Validate merge configuration parameters.
         
@@ -117,7 +120,7 @@ class MergeDataProcessor(BaseStepProcessor):
             raise StepProcessorError("'merge_source' must specify a 'type'")
         
         source_type = merge_source['type']
-        valid_types = ['excel', 'csv', 'dictionary', 'stage']
+        valid_types = ['excel', 'csv', 'tsv', 'dictionary', 'stage']
         if source_type not in valid_types:
             raise StepProcessorError(f"merge_source type '{source_type}' not supported. Valid types: {valid_types}")
         
@@ -139,22 +142,21 @@ class MergeDataProcessor(BaseStepProcessor):
         if join_type not in valid_joins:
             raise StepProcessorError(f"join_type '{join_type}' not supported. Valid types: {valid_joins}")
     
-    def _load_merge_source(self, merge_source: dict) -> pd.DataFrame:
+    def _load_merge_source(self, merge_source, variables):
         """
         Load data from the specified merge source.
         
         Args:
             merge_source: Configuration for the merge source
+            variables: Variables for filename substitution
             
         Returns:
             DataFrame with merge data
         """
         source_type = merge_source['type']
         
-        if source_type == 'excel':
-            return self._load_excel_source(merge_source)
-        elif source_type == 'csv':
-            return self._load_csv_source(merge_source)
+        if source_type in ['excel', 'csv', 'tsv']:
+            return self._load_file_source(merge_source, variables)
         elif source_type == 'dictionary':
             return self._load_dictionary_source(merge_source)
         elif source_type == 'stage':
@@ -162,42 +164,36 @@ class MergeDataProcessor(BaseStepProcessor):
         else:
             raise StepProcessorError(f"Unsupported merge source type: {source_type}")
     
-    def _load_excel_source(self, merge_source: dict) -> pd.DataFrame:
-        """Load data from Excel file."""
+    def _load_file_source(self, merge_source, variables):
+        """Load data from Excel, CSV, or TSV file using FileReader."""
         if 'path' not in merge_source:
-            raise StepProcessorError("Excel merge source requires 'path' field")
+            source_type = merge_source['type']
+            raise StepProcessorError(f"{source_type.upper()} merge source requires 'path' field")
         
-        file_path = Path(merge_source['path'])
-        if not file_path.exists():
-            raise StepProcessorError(f"Excel file not found: {file_path}")
-        
-        sheet_name = merge_source.get('sheet', 0)
+        file_path = merge_source['path']
+        sheet = merge_source.get('sheet', 0)
+        encoding = merge_source.get('encoding', 'utf-8')
+        separator = merge_source.get('separator', ',')
+        explicit_format = merge_source.get('format', None)
         
         try:
-            return pd.read_excel(file_path, sheet_name=sheet_name)
-        except Exception as e:
-            raise StepProcessorError(f"Error reading Excel file '{file_path}': {e}")
-    
-    def _load_csv_source(self, merge_source: dict) -> pd.DataFrame:
-        """Load data from CSV file."""
-        if 'path' not in merge_source:
-            raise StepProcessorError("CSV merge source requires 'path' field")
-        
-        file_path = Path(merge_source['path'])
-        if not file_path.exists():
-            raise StepProcessorError(f"CSV file not found: {file_path}")
-        
-        try:
-            # Use common CSV reading options
-            return pd.read_csv(
-                file_path,
-                encoding=merge_source.get('encoding', 'utf-8'),
-                sep=merge_source.get('separator', ',')
+            # Use FileReader for all file operations
+            merge_data = FileReader.read_file(
+                filename=file_path,
+                variables=variables,
+                sheet=sheet,
+                encoding=encoding,
+                separator=separator,
+                explicit_format=explicit_format
             )
-        except Exception as e:
-            raise StepProcessorError(f"Error reading CSV file '{file_path}': {e}")
+            
+            logger.debug(f"Loaded merge data from file '{file_path}': {merge_data.shape}")
+            return merge_data
+            
+        except FileReaderError as e:
+            raise StepProcessorError(f"Error reading merge file '{file_path}': {e}")
     
-    def _load_dictionary_source(self, merge_source: dict) -> pd.DataFrame:
+    def _load_dictionary_source(self, merge_source):
         """Load data from dictionary configuration."""
         if 'data' not in merge_source:
             raise StepProcessorError("Dictionary merge source requires 'data' field")
@@ -215,11 +211,13 @@ class MergeDataProcessor(BaseStepProcessor):
             df.reset_index(inplace=True)
             df.rename(columns={'index': 'key'}, inplace=True)
             
+            logger.debug(f"Created merge data from dictionary: {df.shape}")
             return df
+            
         except Exception as e:
             raise StepProcessorError(f"Error creating DataFrame from dictionary: {e}")
     
-    def _load_stage_source(self, merge_source: dict) -> pd.DataFrame:
+    def _load_stage_source(self, merge_source):
         """Load data from a saved stage."""
         if 'stage_name' not in merge_source:
             raise StepProcessorError("Stage merge source requires 'stage_name' field")
@@ -233,14 +231,16 @@ class MergeDataProcessor(BaseStepProcessor):
             )
         
         try:
+            # Use get_stage_data instead of load_stage to avoid incrementing usage counter
+            # since this is an access operation, not a load operation
             stage_data = StageManager.get_stage_data(stage_name)
-            logger.debug(f"Loaded merge data from stage '{stage_name}': {len(stage_data)} rows")
+            logger.debug(f"Loaded merge data from stage '{stage_name}': {stage_data.shape}")
             return stage_data
+            
         except StageError as e:
             raise StepProcessorError(f"Error loading merge data from stage '{stage_name}': {e}")
     
-    def _validate_merge_keys(self, left_df: pd.DataFrame, right_df: pd.DataFrame,
-                            left_key: str, right_key: str) -> None:
+    def _validate_merge_keys(self, left_df, right_df, left_key, right_key):
         """
         Validate that merge keys exist in both DataFrames.
         
@@ -257,8 +257,7 @@ class MergeDataProcessor(BaseStepProcessor):
                 f"Available columns: {available_columns}"
             )
     
-    def _perform_merge(self, left_df: pd.DataFrame, right_df: pd.DataFrame,
-                      left_key: str, right_key: str, join_type: str, suffixes: tuple) -> pd.DataFrame:
+    def _perform_merge(self, left_df, right_df, left_key, right_key, join_type, suffixes):
         """
         Perform the actual merge operation.
         
@@ -289,7 +288,7 @@ class MergeDataProcessor(BaseStepProcessor):
                     # Try to convert right key to match left key type
                     if pd.api.types.is_numeric_dtype(left_df[left_key]):
                         # Left key is numeric, try to convert right key to numeric
-                        right_df_copy[right_key] = pd.to_numeric(right_df_copy[right_key], errors='coerce')
+                        right_df_copy[right_key] = pd.to_numeric(right_df_copy[right_key])
                     elif pd.api.types.is_string_dtype(left_df[left_key]) or left_df[left_key].dtype == 'object':
                         # Left key is string/object, convert right key to string
                         right_df_copy[right_key] = right_df_copy[right_key].astype(str)
@@ -324,7 +323,7 @@ class MergeDataProcessor(BaseStepProcessor):
         except Exception as e:
             raise StepProcessorError(f"Error performing {join_type} merge: {e}")
     
-    def _handle_column_conflicts(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_column_conflicts(self, df):
         """
         Handle any remaining column naming conflicts.
         
@@ -364,7 +363,18 @@ class MergeDataProcessor(BaseStepProcessor):
         
         return result_df
     
-    def get_supported_join_types(self) -> list:
+    def _get_pipeline_variables(self):
+        """
+        Get variables from the pipeline for filename substitution.
+        
+        Returns:
+            Dictionary of variables for substitution
+        """
+        # TODO: Access pipeline variables when available
+        # For now, return empty dict - FileReader will use built-in variables
+        return {}
+    
+    def get_supported_join_types(self):
         """
         Get list of supported join types.
         
@@ -373,16 +383,16 @@ class MergeDataProcessor(BaseStepProcessor):
         """
         return ['left', 'right', 'inner', 'outer']
     
-    def get_supported_source_types(self) -> list:
+    def get_supported_source_types(self):
         """
         Get list of supported data source types.
         
         Returns:
             List of supported source type strings
         """
-        return ['excel', 'csv', 'dictionary', 'stage']
+        return ['excel', 'csv', 'tsv', 'dictionary', 'stage']
     
-    def get_capabilities(self) -> dict:
+    def get_capabilities(self):
         """Get processor capabilities information."""
         return {
             'description': 'Merge DataFrames with external data sources using various join strategies',
@@ -391,16 +401,36 @@ class MergeDataProcessor(BaseStepProcessor):
             'merge_features': [
                 'external_file_merging', 'multiple_join_types', 'key_column_specification',
                 'column_conflict_handling', 'duplicate_key_removal', 'column_prefixing',
-                'stage_based_merging'
+                'stage_based_merging', 'variable_substitution_in_paths'
             ],
             'stage_integration': [
-                'cross_stage_merging', 'reusable_reference_data', 'dynamic_merge_sources'
+                'cross_stage_merging', 'reusable_reference_data', 'dynamic_merge_sources',
+                'stage_validation_and_error_handling'
             ],
-            'file_formats': ['xlsx', 'xls', 'csv', 'dictionary', 'stage'],
+            'file_integration': [
+                'uses_file_reader_infrastructure', 'automatic_format_detection',
+                'variable_substitution', 'encoding_support', 'sheet_selection'
+            ],
+            'file_formats': ['xlsx', 'xls', 'xlsm', 'csv', 'tsv', 'txt', 'dictionary', 'stage'],
             'examples': {
                 'excel_lookup': "Merge with product catalog from Excel file",
-                'csv_enrichment': "Add customer data from CSV export", 
-                'dictionary_mapping': "Add category mappings from configuration",
-                'stage_merge': "Merge with data from previously created stage"
+                'csv_enrichment': "Add customer data from CSV export with variable paths",
+                'dictionary_mapping': "Add category mappings from configuration", 
+                'stage_merge': "Merge with data from previously created stage",
+                'variable_file': "Merge with data_{date}.xlsx using date substitution",
+                'cross_stage': "Combine current data with multiple reference stages"
+            },
+            'configuration_options': {
+                'merge_source': 'Data source configuration (file, dictionary, or stage)',
+                'left_key': 'Key column in current DataFrame',
+                'right_key': 'Key column in merge source',
+                'join_type': 'Type of join (left, right, inner, outer)',
+                'suffixes': 'Suffixes for duplicate column names',
+                'drop_duplicate_keys': 'Whether to drop duplicate key columns',
+                'column_prefix': 'Prefix for columns from merge source'
             }
         }
+
+
+# Note: Other processors should use FileReader directly for simple file reading
+# Example: data = FileReader.read_file(filename, variables, sheet, encoding)

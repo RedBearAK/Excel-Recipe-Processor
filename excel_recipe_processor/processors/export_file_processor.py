@@ -1,17 +1,16 @@
 """
-Export file step processor for Excel automation recipes - REFACTORED VERSION.
+Export file step processor for Excel automation recipes.
 
-Handles exporting data to various file formats using existing ExcelWriter infrastructure.
+Handles exporting data to various file formats using FileWriter infrastructure
+and StageManager for accessing multiple data sources.
 """
 
 import pandas as pd
 import logging
 
-from pathlib import Path
-from datetime import datetime
-
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
-from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
 
 
 logger = logging.getLogger(__name__)
@@ -22,16 +21,16 @@ class ExportFileProcessor(BaseStepProcessor):
     Processor for exporting data to files in various formats.
     
     Supports single and multi-sheet Excel files, CSV, TSV formats with 
-    variable substitution and uses existing ExcelWriter infrastructure.
+    variable substitution and access to saved stages via StageManager.
     """
     
     @classmethod
-    def get_minimal_config(cls) -> dict:
+    def get_minimal_config(cls):
         return {
             'output_file': 'output.xlsx'
         }
     
-    def execute(self, data: pd.DataFrame) -> pd.DataFrame:
+    def execute(self, data):
         """
         Execute the file export operation while passing data through unchanged.
         
@@ -57,64 +56,68 @@ class ExportFileProcessor(BaseStepProcessor):
         
         output_file = self.get_config_value('output_file')
         sheets = self.get_config_value('sheets', None)
-        format_type = self.get_config_value('format', None)
+        sheet_name = self.get_config_value('sheet_name', 'Data')
+        explicit_format = self.get_config_value('format', None)
         create_backup = self.get_config_value('create_backup', False)
+        encoding = self.get_config_value('encoding', 'utf-8')
+        separator = self.get_config_value('separator', ',')
+        
+        # Get custom variables from pipeline if available
+        variables = self._get_pipeline_variables()
         
         # Validate configuration
-        self._validate_export_config(output_file, sheets, format_type)
+        self._validate_export_config(output_file, sheets, explicit_format)
         
         try:
-            # Apply variable substitution to output filename
-            final_output_file = self._apply_variable_substitution(output_file)
-            
-            # Determine export format
-            export_format = self._determine_format(final_output_file, format_type)
-            
-            # Initialize ExcelWriter for backup and Excel operations
-            excel_writer = ExcelWriter()
-            
-            # Create backup if requested and file exists
-            if create_backup and Path(final_output_file).exists():
-                excel_writer.create_backup(final_output_file)
-            
-            # Export the file using appropriate method
-            if export_format == 'csv':
-                self._export_csv(data, final_output_file)
-            elif export_format == 'tsv':
-                self._export_tsv(data, final_output_file)
-            elif export_format in ['xlsx', 'xls']:
-                if sheets:
-                    self._export_multi_sheet_excel(data, final_output_file, sheets, excel_writer)
-                else:
-                    self._export_single_sheet_excel(data, final_output_file, excel_writer)
+            if sheets:
+                # Multi-sheet export
+                sheets_data = self._build_sheets_data(data, sheets)
+                active_sheet = self._get_active_sheet(sheets)
+                
+                final_output_file = FileWriter.write_multi_sheet_excel(
+                    sheets_data=sheets_data,
+                    filename=output_file,
+                    variables=variables,
+                    create_backup=create_backup,
+                    active_sheet=active_sheet
+                )
+                
+                result_info = f"exported {len(sheets)} sheets to {final_output_file}"
             else:
-                raise StepProcessorError(f"Unsupported export format: {export_format}")
+                # Single file export
+                final_output_file = FileWriter.write_file(
+                    data=data,
+                    filename=output_file,
+                    variables=variables,
+                    sheet_name=sheet_name,
+                    create_backup=create_backup,
+                    explicit_format=explicit_format,
+                    encoding=encoding,
+                    separator=separator
+                )
+                
+                result_info = f"exported {len(data)} rows to {final_output_file}"
             
-            # Log success
-            rows_exported = len(data)
-            sheet_info = f", {len(sheets)} sheets" if sheets else ""
-            result_info = f"exported {rows_exported} rows to {final_output_file} ({export_format}{sheet_info})"
             self.log_step_complete(result_info)
             
             # Return original data unchanged
             return data
             
-        except ExcelWriterError as e:
-            raise StepProcessorError(f"Excel export error in step '{self.step_name}': {e}")
+        except FileWriterError as e:
+            raise StepProcessorError(f"Error exporting file in step '{self.step_name}': {e}")
+        except StageError as e:
+            raise StepProcessorError(f"Error accessing stage data in step '{self.step_name}': {e}")
         except Exception as e:
-            if isinstance(e, StepProcessorError):
-                raise
-            else:
-                raise StepProcessorError(f"Error exporting file in step '{self.step_name}': {e}")
+            raise StepProcessorError(f"Unexpected error exporting file in step '{self.step_name}': {e}")
     
-    def _validate_export_config(self, output_file: str, sheets: list, format_type: str) -> None:
+    def _validate_export_config(self, output_file, sheets, explicit_format):
         """
         Validate export configuration parameters.
         
         Args:
             output_file: Output file path
             sheets: Sheet configuration list
-            format_type: Explicit format type
+            explicit_format: Explicit format type
         """
         # Validate output file
         if not isinstance(output_file, str) or not output_file.strip():
@@ -137,134 +140,54 @@ class ExportFileProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Sheet {i+1} missing required 'sheet_name'")
                 
                 sheet_name = sheet['sheet_name']
+                if not isinstance(sheet_name, str) or not sheet_name.strip():
+                    raise StepProcessorError(f"Sheet {i+1} 'sheet_name' must be a non-empty string")
+                
                 if sheet_name in sheet_names:
                     raise StepProcessorError(f"Duplicate sheet name: '{sheet_name}'")
                 sheet_names.append(sheet_name)
                 
                 # Validate data_source if provided
                 data_source = sheet.get('data_source', 'current')
-                valid_sources = ['current', 'input']  # Will expand when save_stage is implemented
-                if data_source not in valid_sources and not isinstance(data_source, str):
-                    logger.warning(f"Data source '{data_source}' may not be available. Valid sources: {valid_sources}")
+                if not isinstance(data_source, str) or not data_source.strip():
+                    raise StepProcessorError(f"Sheet {i+1} 'data_source' must be a non-empty string")
         
-        # Validate format if provided
-        if format_type is not None:
-            valid_formats = ['xlsx', 'xls', 'csv', 'tsv']
-            if format_type not in valid_formats:
-                raise StepProcessorError(f"Invalid format '{format_type}'. Valid formats: {valid_formats}")
-    
-    def _apply_variable_substitution(self, filename: str) -> str:
-        """
-        Apply variable substitution to filename using pipeline variables.
-        
-        Args:
-            filename: Original filename template
+        # Validate explicit format if provided
+        if explicit_format is not None:
+            if not isinstance(explicit_format, str) or not explicit_format.strip():
+                raise StepProcessorError("'format' must be a non-empty string")
             
-        Returns:
-            Filename with variables substituted
-        """
-        # TODO: Access pipeline's variable substitution system
-        # For now, do basic timestamp substitution
-        now = datetime.now()
-        
-        # Basic variable substitutions
-        substitutions = {
-            '{timestamp}': now.strftime('%Y%m%d_%H%M%S'),
-            '{date}': now.strftime('%Y%m%d'),
-            '{YY}': now.strftime('%y'),
-            '{MMDD}': now.strftime('%m%d'),
-            '{year}': now.strftime('%Y'),
-            '{month}': now.strftime('%m'),
-            '{day}': now.strftime('%d')
-        }
-        
-        result = filename
-        for variable, value in substitutions.items():
-            result = result.replace(variable, value)
-        
-        return result
+            supported_formats = FileWriter.get_supported_formats()['all_formats']
+            if explicit_format.lower() not in supported_formats:
+                raise StepProcessorError(
+                    f"Unsupported format '{explicit_format}'. "
+                    f"Supported formats: {supported_formats}"
+                )
     
-    def _determine_format(self, filename: str, explicit_format: str) -> str:
+    def _build_sheets_data(self, current_data, sheets):
         """
-        Determine export format from filename extension or explicit format.
+        Build dictionary of sheet data for multi-sheet export.
         
         Args:
-            filename: Output filename
-            explicit_format: Explicitly specified format
-            
-        Returns:
-            Format string ('xlsx', 'csv', etc.)
-        """
-        if explicit_format:
-            return explicit_format.lower()
-        
-        # Determine from file extension
-        file_path = Path(filename)
-        extension = file_path.suffix.lower()
-        
-        format_map = {
-            '.xlsx': 'xlsx',
-            '.xls': 'xls', 
-            '.csv': 'csv',
-            '.tsv': 'tsv',
-            '.txt': 'tsv'  # Assume tab-separated for .txt
-        }
-        
-        return format_map.get(extension, 'xlsx')  # Default to xlsx
-    
-    def _export_csv(self, data: pd.DataFrame, filename: str) -> None:
-        """Export data as CSV file."""
-        data.to_csv(filename, index=False)
-        logger.debug(f"Exported CSV: {filename}")
-    
-    def _export_tsv(self, data: pd.DataFrame, filename: str) -> None:
-        """Export data as TSV file."""
-        data.to_csv(filename, sep='\t', index=False)
-        logger.debug(f"Exported TSV: {filename}")
-    
-    def _export_single_sheet_excel(self, data: pd.DataFrame, filename: str, excel_writer: ExcelWriter) -> None:
-        """Export data as single-sheet Excel file using ExcelWriter."""
-        sheet_name = self.get_config_value('sheet_name', 'Data')
-        
-        try:
-            excel_writer.write_file(
-                df=data,
-                output_path=filename,
-                sheet_name=sheet_name,
-                index=False
-            )
-            logger.debug(f"Exported single-sheet Excel: {filename}")
-        except ExcelWriterError as e:
-            raise StepProcessorError(f"Failed to export single-sheet Excel: {e}")
-    
-    def _export_multi_sheet_excel(self, data: pd.DataFrame, filename: str, sheets: list, excel_writer: ExcelWriter) -> None:
-        """
-        Export data as multi-sheet Excel file using ExcelWriter.
-        
-        Args:
-            data: Current pipeline data
-            filename: Output filename
+            current_data: Current pipeline data
             sheets: List of sheet configurations
-            excel_writer: ExcelWriter instance
+            
+        Returns:
+            Dictionary mapping sheet names to DataFrames
         """
-        # Build data dictionary for multi-sheet export
-        data_dict = {}
+        sheets_data = {}
         
         for sheet_config in sheets:
             sheet_name = sheet_config['sheet_name']
             data_source = sheet_config.get('data_source', 'current')
             
             # Get data for this sheet
-            sheet_data = self._get_sheet_data(data, data_source)
-            data_dict[sheet_name] = sheet_data
+            sheet_data = self._get_sheet_data(current_data, data_source)
+            sheets_data[sheet_name] = sheet_data
         
-        try:
-            excel_writer.write_multiple_sheets(data_dict, filename)
-            logger.debug(f"Exported multi-sheet Excel: {filename} ({len(sheets)} sheets)")
-        except ExcelWriterError as e:
-            raise StepProcessorError(f"Failed to export multi-sheet Excel: {e}")
+        return sheets_data
     
-    def _get_sheet_data(self, current_data: pd.DataFrame, data_source: str) -> pd.DataFrame:
+    def _get_sheet_data(self, current_data, data_source):
         """
         Get data for a specific sheet based on data source.
         
@@ -278,50 +201,112 @@ class ExportFileProcessor(BaseStepProcessor):
         if data_source == 'current':
             return current_data
         elif data_source == 'input':
-            # TODO: Access original input data from pipeline
+            # TODO: Access original input data from pipeline when available
             logger.warning("Input data source not yet implemented, using current data")
             return current_data
         else:
-            # TODO: Access saved stages from pipeline
-            logger.warning(f"Stage data source '{data_source}' not yet implemented, using current data")
-            return current_data
+            # Assume it's a stage name
+            try:
+                stage_data = StageManager.get_stage_data(data_source)
+                logger.debug(f"Retrieved data from stage '{data_source}': {stage_data.shape}")
+                return stage_data
+            except StageError as e:
+                # Provide helpful error with available stages
+                available_stages = list(StageManager.list_stages().keys())
+                raise StepProcessorError(
+                    f"Cannot access data source '{data_source}': {e}. "
+                    f"Available stages: {available_stages}"
+                )
     
-    def get_supported_formats(self) -> list:
+    def _get_active_sheet(self, sheets):
+        """
+        Get the name of the sheet that should be active.
+        
+        Args:
+            sheets: List of sheet configurations
+            
+        Returns:
+            Name of active sheet or None
+        """
+        for sheet_config in sheets:
+            if sheet_config.get('active', False):
+                return sheet_config['sheet_name']
+        
+        # Default to first sheet if none specified as active
+        return sheets[0]['sheet_name'] if sheets else None
+    
+    def _get_pipeline_variables(self):
+        """
+        Get variables from the pipeline for filename substitution.
+        
+        Returns:
+            Dictionary of variables for substitution
+        """
+        # TODO: Access pipeline variables when available
+        # For now, return empty dict - FileWriter will use built-in variables
+        return {}
+    
+    def get_supported_formats(self):
         """
         Get list of supported export formats.
         
         Returns:
             List of supported format strings
         """
-        return ['xlsx', 'xls', 'csv', 'tsv']
+        return FileWriter.get_supported_formats()['all_formats']
     
-    def get_supported_data_sources(self) -> list:
+    def get_supported_data_sources(self):
         """
         Get list of supported data sources for sheets.
         
         Returns:
             List of supported data source strings
         """
-        return ['current', 'input']  # Will expand with save_stage integration
+        stage_names = list(StageManager.list_stages().keys())
+        return ['current', 'input'] + stage_names
     
-    def get_capabilities(self) -> dict:
+    def get_capabilities(self):
         """Get processor capabilities information."""
+        supported_info = FileWriter.get_supported_formats()
+        
         return {
-            'description': 'Export data to files in various formats with multi-sheet support',
-            'export_formats': self.get_supported_formats(),
-            'data_sources': self.get_supported_data_sources(),
+            'description': 'Export data to files in various formats with multi-sheet and stage support',
+            'export_formats': supported_info['all_formats'],
+            'supported_extensions': supported_info['supported_extensions'],
             'export_features': [
                 'multi_sheet_excel', 'single_sheet_excel', 'csv_export', 'tsv_export',
-                'variable_substitution', 'backup_creation', 'uses_excel_writer_infrastructure'
+                'variable_substitution', 'backup_creation', 'stage_data_access'
+            ],
+            'data_sources': [
+                'current_pipeline_data', 'saved_stages', 'input_data_planned'
             ],
             'file_features': [
                 'automatic_format_detection', 'explicit_format_override', 
-                'custom_sheet_naming', 'sheet_ordering'
+                'custom_sheet_naming', 'active_sheet_control', 'custom_encoding'
+            ],
+            'stage_integration': [
+                'export_from_multiple_stages', 'combine_current_and_stage_data',
+                'stage_validation_and_error_handling'
             ],
             'examples': {
-                'single_file': "Export current data to report.xlsx", 
-                'multi_sheet': "Export summary and details to combined report",
-                'csv_export': "Export data as comma-separated values",
-                'intermediate': "Export intermediate results while continuing processing"
+                'single_file': "Export current data to report.xlsx",
+                'multi_sheet_current': "Export current data to multiple sheets",
+                'multi_sheet_stages': "Export from different stages to combined report",
+                'csv_export': "Export data as comma-separated values with custom encoding",
+                'variable_filename': "Export to report_{date}.xlsx with date substitution",
+                'backup_export': "Export with automatic backup of existing file"
+            },
+            'configuration_options': {
+                'output_file': 'File path with optional variable substitution',
+                'sheets': 'List of sheet configurations for multi-sheet export',
+                'sheet_name': 'Sheet name for single-sheet Excel export',
+                'format': 'Explicit format override (auto-detected by default)',
+                'create_backup': 'Whether to backup existing file before overwrite',
+                'encoding': 'Text encoding for CSV/TSV files',
+                'separator': 'Column separator for CSV files'
             }
         }
+
+
+# Note: Other processors should use FileWriter directly for simple exports
+# Example: FileWriter.write_file(data, filename, variables, sheet_name, format)

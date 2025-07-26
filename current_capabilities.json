@@ -1,0 +1,813 @@
+{
+  "system_info": {
+    "description": "Excel Recipe Processor - Automated Excel data processing system",
+    "total_processors": 17,
+    "processor_types": [
+      "add_calculated_column",
+      "add_subtotals",
+      "aggregate_data",
+      "clean_data",
+      "create_stage",
+      "debug_breakpoint",
+      "fill_data",
+      "filter_data",
+      "group_data",
+      "load_stage",
+      "lookup_data",
+      "merge_data",
+      "pivot_table",
+      "rename_columns",
+      "save_stage",
+      "sort_data",
+      "split_column"
+    ]
+  },
+  "processors": {
+    "add_calculated_column": {
+      "description": "Add new columns with calculated values based on existing data",
+      "calculation_types": [
+        "expression",
+        "concat",
+        "conditional",
+        "math",
+        "date",
+        "text"
+      ],
+      "conditional_operations": [
+        "equals",
+        "greater_than",
+        "less_than",
+        "contains",
+        "is_null",
+        "not_null"
+      ],
+      "math_operations": [
+        "add",
+        "subtract",
+        "multiply",
+        "divide",
+        "sum",
+        "mean",
+        "min",
+        "max"
+      ],
+      "supported_features": [
+        "expression_calculations",
+        "string_concatenation",
+        "conditional_logic",
+        "mathematical_operations",
+        "date_calculations",
+        "text_operations",
+        "multi_column_aggregations",
+        "column_overwriting"
+      ],
+      "examples": {
+        "simple_math": "Price * Quantity = Total_Value",
+        "concatenation": "First_Name + Last_Name = Full_Name",
+        "conditional": "If Quantity > 100 then 'High' else 'Low'"
+      }
+    },
+    "add_subtotals": {
+      "description": "Add subtotal rows to grouped data with various aggregation functions",
+      "subtotal_features": [
+        "hierarchical_grouping",
+        "multiple_aggregation_functions",
+        "flexible_positioning",
+        "grand_total_preservation",
+        "custom_labeling",
+        "multi_level_subtotals"
+      ],
+      "aggregation_functions": [
+        "sum",
+        "count",
+        "mean",
+        "min",
+        "max",
+        "nunique",
+        "std",
+        "var"
+      ],
+      "subtotal_positions": [
+        "before_group",
+        "after_group"
+      ],
+      "data_compatibility": [
+        "pivot_table_results",
+        "aggregate_data_results",
+        "any_grouped_data"
+      ],
+      "examples": {
+        "sales_by_region": "Add regional subtotals to sales data",
+        "pivot_enhancement": "Add subtotals to existing pivot table results",
+        "hierarchical_reporting": "Multi-level subtotals for complex reports"
+      }
+    },
+    "aggregate_data": {
+      "description": "Groups data and calculates summary statistics",
+      "aggregation_functions": [
+        "sum",
+        "mean",
+        "median",
+        "min",
+        "max",
+        "count",
+        "nunique",
+        "std",
+        "var",
+        "first",
+        "last",
+        "size",
+        "sem",
+        "mad",
+        "prod",
+        "quantile"
+      ],
+      "source_types": [
+        "inline",
+        "file",
+        "stage",
+        "lookup"
+      ],
+      "file_formats": [
+        "xlsx",
+        "csv",
+        "tsv"
+      ],
+      "grouping_features": [
+        "single_column_grouping",
+        "multi_column_grouping",
+        "sorting_control",
+        "index_management"
+      ],
+      "output_features": [
+        "custom_column_naming",
+        "group_column_inclusion",
+        "stage_saving",
+        "multiple_functions_per_column"
+      ],
+      "helper_methods": [
+        "create_summary_aggregation",
+        "create_crosstab_aggregation",
+        "analyze_aggregation_results"
+      ],
+      "integration_features": [
+        "stage_manager_integration",
+        "file_reader_integration",
+        "variable_substitution",
+        "configuration_from_external_sources"
+      ]
+    },
+    "clean_data": {
+      "description": "Clean and transform data with various operations",
+      "supported_actions": [
+        "replace",
+        "regex_replace",
+        "uppercase",
+        "lowercase",
+        "title_case",
+        "strip_whitespace",
+        "normalize_whitespace",
+        "remove_invisible_chars",
+        "remove_special_chars",
+        "fix_numeric",
+        "fix_dates",
+        "fill_empty",
+        "remove_duplicates",
+        "standardize_values"
+      ],
+      "cleaning_operations": [
+        "find_replace",
+        "conditional_replace",
+        "regex_replace",
+        "case_conversion",
+        "whitespace_removal",
+        "special_character_removal",
+        "numeric_formatting",
+        "date_formatting",
+        "null_value_handling",
+        "duplicate_removal",
+        "value_standardization"
+      ],
+      "conditional_operations": [
+        "equals",
+        "contains",
+        "not_equals",
+        "not_contains",
+        "greater_than",
+        "less_than",
+        "is_null",
+        "not_null"
+      ],
+      "case_conversions": [
+        "upper",
+        "lower",
+        "title"
+      ],
+      "examples": {
+        "conditional_replace": "Replace 'FLESH' with 'CANS' only in rows where Product_Name contains 'CANNED'",
+        "clean_price": "Remove $ signs and convert to numeric",
+        "standardize": "Map various status values to standard terms"
+      }
+    },
+    "create_stage": {
+      "description": "Create stages from inline data with support for lists, tables, and dictionaries",
+      "data_formats": [
+        "list",
+        "table",
+        "dictionary"
+      ],
+      "size_limits": {
+        "list_items": 100,
+        "table_rows": 200,
+        "dictionary_entries": 150,
+        "warning_thresholds": {
+          "list_items": 75,
+          "table_rows": 150,
+          "dictionary_entries": 112
+        }
+      },
+      "inline_features": [
+        "reference_lists",
+        "lookup_tables",
+        "configuration_mappings",
+        "size_validation",
+        "format_validation",
+        "overwrite_protection",
+        "stage_descriptions",
+        "usage_tracking",
+        "memory_monitoring"
+      ],
+      "integration": [
+        "stages_module_integration",
+        "pipeline_stage_management",
+        "cross_processor_stage_access",
+        "automatic_cleanup"
+      ],
+      "use_cases": [
+        "filter_criteria",
+        "lookup_data",
+        "category_mappings",
+        "validation_lists",
+        "test_data",
+        "configuration_driven_processing"
+      ],
+      "examples": {
+        "approved_customers": "List of approved customer IDs for filtering",
+        "region_mapping": "Table mapping states to regions",
+        "tier_lookup": "Dictionary mapping customer IDs to tier levels",
+        "test_scenarios": "Inline test data for recipe development"
+      }
+    },
+    "debug_breakpoint": {
+      "description": "Stop recipe execution and save current data state for debugging",
+      "features": [
+        "automatic_timestamping",
+        "custom_output_paths",
+        "data_preview",
+        "execution_stopping",
+        "troubleshooting_support"
+      ],
+      "options": [
+        "output_path",
+        "filename_prefix",
+        "include_timestamp",
+        "message",
+        "show_sample",
+        "sample_rows"
+      ],
+      "examples": {
+        "simple": "Stop execution and save data with timestamp",
+        "custom": "Save to specific location with custom message",
+        "testing": "Check intermediate results during recipe development"
+      }
+    },
+    "fill_data": {
+      "description": "Fill missing/null values using various strategies similar to Excel fill operations",
+      "fill_methods": [
+        "constant",
+        "forward_fill",
+        "ffill",
+        "backward_fill",
+        "bfill",
+        "interpolate",
+        "mean",
+        "median",
+        "mode",
+        "replace",
+        "zero",
+        "empty_string"
+      ],
+      "condition_types": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "less_than",
+        "contains",
+        "not_contains",
+        "is_null",
+        "not_null",
+        "in_list",
+        "not_in_list"
+      ],
+      "supported_features": [
+        "constant_fill",
+        "forward_backward_fill",
+        "statistical_fill",
+        "conditional_fill",
+        "interpolation",
+        "replacement_fill",
+        "missing_data_analysis",
+        "limit_consecutive_fills"
+      ],
+      "helper_methods": [
+        "fill_blanks_with_value",
+        "forward_fill_series",
+        "fill_with_statistical_value",
+        "analyze_missing_data"
+      ],
+      "excel_equivalents": {
+        "fill_down": "forward_fill method",
+        "fill_up": "backward_fill method",
+        "fill_series": "interpolate method",
+        "find_replace": "replace method"
+      },
+      "examples": {
+        "basic_fill": "Fill null values with 'Unknown'",
+        "forward_fill": "Carry forward last known value",
+        "conditional": "Fill based on other column values"
+      }
+    },
+    "filter_data": {
+      "description": "Filter DataFrame rows based on specified conditions including stage-based comparisons",
+      "supported_conditions": [
+        "equals",
+        "not_equals",
+        "contains",
+        "not_contains",
+        "greater_than",
+        "less_than",
+        "greater_equal",
+        "less_equal",
+        "not_empty",
+        "is_empty",
+        "in_list",
+        "not_in_list",
+        "in_stage",
+        "not_in_stage",
+        "stage_comparison"
+      ],
+      "stage_based_conditions": [
+        "in_stage",
+        "not_in_stage",
+        "stage_comparison"
+      ],
+      "filter_operations": [
+        "exact_matching",
+        "text_contains",
+        "numeric_comparisons",
+        "list_membership",
+        "null_checking",
+        "pattern_matching",
+        "stage_inclusion",
+        "stage_exclusion",
+        "stage_value_comparison"
+      ],
+      "comparison_operators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "less_than",
+        "contains"
+      ],
+      "stage_integration": [
+        "filter_by_stage_membership",
+        "exclude_by_stage_values",
+        "compare_against_stage_data",
+        "cross_reference_filtering"
+      ],
+      "examples": {
+        "basic_filter": "Product_Name contains 'CANNED'",
+        "numeric_filter": "Price > 15.00",
+        "list_filter": "Department in ['Electronics', 'Tools']",
+        "stage_inclusion": "Customer_ID in stage 'Approved Customers'",
+        "stage_exclusion": "Product_Code not in stage 'Discontinued Items'",
+        "stage_comparison": "Current_Price > Historical_Price from stage lookup"
+      },
+      "configuration_options": {
+        "filters": "List of filter rules to apply in sequence",
+        "column": "Column name to filter on",
+        "condition": "Filter condition type",
+        "value": "Value for comparison (required for most conditions)",
+        "stage_name": "Name of stage for stage-based conditions",
+        "stage_column": "Column in stage for inclusion/exclusion filters",
+        "key_column": "Column for matching in stage comparison filters",
+        "stage_key_column": "Stage column for matching in comparisons",
+        "stage_value_column": "Stage column for value comparison",
+        "comparison_operator": "Operator for stage value comparisons"
+      }
+    },
+    "group_data": {
+      "description": "Group individual values into categories using various source types and advanced workflows",
+      "source_types": [
+        "inline",
+        "stage",
+        "file",
+        "lookup",
+        "predefined"
+      ],
+      "unmatched_actions": [
+        "keep_original",
+        "set_default",
+        "error"
+      ],
+      "file_formats": [
+        "wide",
+        "long"
+      ],
+      "predefined_groups": [
+        "van_report_regions",
+        "us_regions",
+        "product_categories"
+      ],
+      "grouping_features": [
+        "category_mapping",
+        "regional_grouping",
+        "case_sensitivity_control",
+        "unmatched_value_handling",
+        "duplicate_detection",
+        "source_column_replacement",
+        "stage_based_definitions",
+        "file_based_definitions",
+        "cross_reference_grouping"
+      ],
+      "stage_integration": [
+        "stage_based_group_definitions",
+        "dynamic_group_updates",
+        "cross_reference_grouping",
+        "hierarchical_grouping_workflows",
+        "grouping_result_caching",
+        "multi_stage_group_chains"
+      ],
+      "file_features": [
+        "variable_substitution",
+        "automatic_format_detection",
+        "multiple_file_formats",
+        "encoding_support",
+        "dynamic_group_files"
+      ],
+      "advanced_operations": [
+        "hierarchical_grouping",
+        "conditional_grouping",
+        "lookup_based_grouping",
+        "grouping_analysis",
+        "validation_grouping",
+        "multi_level_categorization"
+      ],
+      "helper_methods": [
+        "create_regional_groups",
+        "analyze_grouping_potential",
+        "create_hierarchical_groups"
+      ],
+      "examples": {
+        "inline_groups": "Group cities into regions using hardcoded mappings",
+        "stage_groups": "Group using dynamic definitions from saved stage",
+        "file_groups": "Group using definitions from external Excel/CSV file",
+        "lookup_groups": "Group based on cross-reference with validation data",
+        "hierarchical": "Multi-level grouping (city \u2192 region \u2192 territory)",
+        "variable_substitution": "Use group definitions from file_{date}.xlsx"
+      },
+      "configuration_options": {
+        "source_column": "Column to group",
+        "groups": "Inline group definitions (traditional)",
+        "groups_source": "Advanced source configuration (stage, file, lookup)",
+        "target_column": "New column name for groups",
+        "replace_source": "Replace source column with grouped values",
+        "unmatched_action": "How to handle unmatched values",
+        "unmatched_value": "Default value for unmatched items",
+        "case_sensitive": "Whether matching is case sensitive",
+        "save_to_stage": "Save grouping results to stage",
+        "stage_description": "Description for saved stage"
+      }
+    },
+    "load_stage": {
+      "description": "Load previously saved stage data, replacing current DataFrame",
+      "stage_features": [
+        "stage_retrieval",
+        "usage_tracking",
+        "data_replacement",
+        "confirm_replace_safety",
+        "stage_validation"
+      ],
+      "safety_features": [
+        "confirm_replace_required",
+        "stage_existence_validation",
+        "data_copying"
+      ],
+      "examples": {
+        "restore_backup": "Return to original data after processing",
+        "branch_switching": "Switch to different processing branch",
+        "comparison": "Load reference data for comparison"
+      }
+    },
+    "lookup_data": {
+      "description": "Lookup and enrich data from multiple source types with advanced join operations",
+      "join_types": [
+        "left",
+        "right",
+        "inner",
+        "outer"
+      ],
+      "duplicate_handling": [
+        "first",
+        "last",
+        "error"
+      ],
+      "source_types": [
+        "file",
+        "stage",
+        "inline",
+        "dataframe"
+      ],
+      "lookup_features": [
+        "vlookup_style_joins",
+        "index_match_operations",
+        "multi_column_lookups",
+        "case_insensitive_matching",
+        "duplicate_handling",
+        "default_values",
+        "column_prefixes_suffixes",
+        "fuzzy_matching_planned"
+      ],
+      "data_sources": [
+        "excel_files",
+        "csv_files",
+        "tsv_files",
+        "saved_stages",
+        "inline_dictionaries",
+        "pandas_dataframes"
+      ],
+      "file_features": [
+        "variable_substitution",
+        "automatic_format_detection",
+        "custom_sheet_selection",
+        "encoding_support"
+      ],
+      "stage_integration": [
+        "dynamic_reference_data",
+        "stage_based_lookups",
+        "multi_stage_workflows",
+        "cached_lookup_tables"
+      ],
+      "advanced_operations": [
+        "chained_lookups",
+        "conditional_lookups",
+        "cross_reference_validation",
+        "lookup_quality_analysis",
+        "performance_optimization"
+      ],
+      "examples": {
+        "file_lookup": "Lookup customer data from customers.xlsx file",
+        "stage_lookup": "Lookup from dynamically updated stage data",
+        "variable_substitution": "Lookup from customer_data_{date}.xlsx with date substitution",
+        "multi_column": "Lookup using combination of customer_id and region",
+        "case_insensitive": "Fuzzy matching for customer names and codes",
+        "chained_lookups": "First lookup customer tier, then lookup tier benefits"
+      },
+      "configuration_options": {
+        "lookup_source": "Source configuration (file, stage, inline data)",
+        "lookup_key": "Key column in lookup data",
+        "source_key": "Key column in main data",
+        "lookup_columns": "List of columns to retrieve from lookup data",
+        "join_type": "Type of join operation (left, right, inner, outer)",
+        "handle_duplicates": "How to handle duplicate keys (first, last, error)",
+        "case_sensitive": "Whether matching should be case sensitive",
+        "prefix": "Prefix to add to lookup column names",
+        "suffix": "Suffix to add to lookup column names",
+        "default_value": "Default value for missing lookups"
+      }
+    },
+    "merge_data": {
+      "description": "Merge DataFrames with external data sources using various join strategies",
+      "join_types": [
+        "left",
+        "right",
+        "inner",
+        "outer"
+      ],
+      "data_sources": [
+        "excel",
+        "csv",
+        "tsv",
+        "dictionary",
+        "stage"
+      ],
+      "merge_features": [
+        "external_file_merging",
+        "multiple_join_types",
+        "key_column_specification",
+        "column_conflict_handling",
+        "duplicate_key_removal",
+        "column_prefixing",
+        "stage_based_merging",
+        "variable_substitution_in_paths"
+      ],
+      "stage_integration": [
+        "cross_stage_merging",
+        "reusable_reference_data",
+        "dynamic_merge_sources",
+        "stage_validation_and_error_handling"
+      ],
+      "file_integration": [
+        "uses_file_reader_infrastructure",
+        "automatic_format_detection",
+        "variable_substitution",
+        "encoding_support",
+        "sheet_selection"
+      ],
+      "file_formats": [
+        "xlsx",
+        "xls",
+        "xlsm",
+        "csv",
+        "tsv",
+        "txt",
+        "dictionary",
+        "stage"
+      ],
+      "examples": {
+        "excel_lookup": "Merge with product catalog from Excel file",
+        "csv_enrichment": "Add customer data from CSV export with variable paths",
+        "dictionary_mapping": "Add category mappings from configuration",
+        "stage_merge": "Merge with data from previously created stage",
+        "variable_file": "Merge with data_{date}.xlsx using date substitution",
+        "cross_stage": "Combine current data with multiple reference stages"
+      },
+      "configuration_options": {
+        "merge_source": "Data source configuration (file, dictionary, or stage)",
+        "left_key": "Key column in current DataFrame",
+        "right_key": "Key column in merge source",
+        "join_type": "Type of join (left, right, inner, outer)",
+        "suffixes": "Suffixes for duplicate column names",
+        "drop_duplicate_keys": "Whether to drop duplicate key columns",
+        "column_prefix": "Prefix for columns from merge source"
+      }
+    },
+    "pivot_table": {
+      "description": "Create pivot tables with various aggregation functions",
+      "pivot_features": [
+        "multi_index_pivot",
+        "cross_tabulation",
+        "multiple_aggregations",
+        "hierarchical_columns",
+        "margin_totals",
+        "fill_blank_cells"
+      ],
+      "aggregation_functions": [
+        "sum",
+        "mean",
+        "count",
+        "min",
+        "max",
+        "std",
+        "var",
+        "first",
+        "last",
+        "nunique"
+      ],
+      "helper_methods": [
+        "create_summary_pivot",
+        "create_cross_tab",
+        "get_pivot_info"
+      ],
+      "examples": {
+        "van_report": "PRODUCT_ORIGIN vs CARRIER matrix",
+        "sales_summary": "Sum sales by region and product",
+        "count_matrix": "Count occurrences by category"
+      }
+    },
+    "rename_columns": {
+      "description": "Rename DataFrame columns with flexible transformation options",
+      "rename_types": [
+        "mapping",
+        "pattern",
+        "transform"
+      ],
+      "case_conversions": [
+        "upper",
+        "lower",
+        "title",
+        "snake_case",
+        "camel_case"
+      ],
+      "transformation_features": [
+        "direct_mapping",
+        "pattern_replacement",
+        "case_conversion",
+        "prefix_suffix_addition",
+        "special_character_removal",
+        "standardization",
+        "snake_case_conversion",
+        "camel_case_conversion"
+      ],
+      "helper_methods": [
+        "standardize_column_names",
+        "get_column_analysis"
+      ],
+      "examples": {
+        "cleanup": "Convert 'Product Name!' to 'product_name'",
+        "standardize": "Apply consistent naming conventions",
+        "mapping": "Rename specific columns to business-friendly names"
+      }
+    },
+    "save_stage": {
+      "description": "Save current DataFrame as a named stage for later use",
+      "stage_features": [
+        "data_preservation",
+        "overwrite_protection",
+        "metadata_tracking",
+        "usage_monitoring",
+        "memory_tracking",
+        "stage_limits"
+      ],
+      "safety_features": [
+        "overwrite_validation",
+        "stage_name_validation",
+        "data_copying"
+      ],
+      "examples": {
+        "backup": "Save original data before processing",
+        "checkpoint": "Save intermediate results for later analysis",
+        "branching": "Save data before trying different processing paths"
+      }
+    },
+    "sort_data": {
+      "description": "Sort DataFrame rows by one or multiple columns",
+      "supported_options": [
+        "single_column_sort",
+        "multi_column_sort",
+        "custom_sort_orders",
+        "case_insensitive_sort",
+        "null_position_control",
+        "frequency_based_sort"
+      ],
+      "na_positions": [
+        "first",
+        "last"
+      ],
+      "sort_directions": [
+        "ascending",
+        "descending"
+      ],
+      "special_methods": [
+        "sort_by_frequency",
+        "sort_by_custom_function",
+        "sort_by_multiple_criteria"
+      ]
+    },
+    "split_column": {
+      "description": "Split single columns into multiple columns using various methods",
+      "split_types": [
+        "delimiter",
+        "fixed_width",
+        "regex",
+        "position"
+      ],
+      "splitting_methods": [
+        "delimiter_splitting",
+        "fixed_width_splitting",
+        "regex_pattern_splitting",
+        "position_based_splitting",
+        "custom_column_naming",
+        "whitespace_handling",
+        "missing_value_filling",
+        "original_column_retention"
+      ],
+      "helper_methods": [
+        "split_name_column",
+        "analyze_column_patterns"
+      ],
+      "common_delimiters": [
+        ",",
+        ";",
+        "|",
+        ":",
+        "-",
+        "_",
+        " ",
+        "\t"
+      ],
+      "options": [
+        "max_splits",
+        "remove_original",
+        "fill_missing",
+        "strip_whitespace",
+        "expand_to_columns"
+      ],
+      "examples": {
+        "name_splitting": "Split 'Smith, John' into First_Name and Last_Name",
+        "csv_data": "Split 'A|B|C' into separate columns",
+        "fixed_format": "Split fixed-width data like product codes"
+      }
+    }
+  }
+}

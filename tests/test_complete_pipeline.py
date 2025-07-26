@@ -51,7 +51,7 @@ recipe:
         condition: "not_equals"  
         value: "Test"
         
-  - namstep_descriptione: "Filter for products with reasonable quantity"
+  - step_description: "Filter for products with reasonable quantity"
     processor_type: "filter_data"
     filters:
       - column: "Quantity"

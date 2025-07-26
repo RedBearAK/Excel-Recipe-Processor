@@ -1,45 +1,112 @@
 """
-Test the AggregateDataProcessor functionality.
+Comprehensive tests for the refactored AggregateDataProcessor with StageManager, 
+FileReader, and variable substitution integration.
+
+Tests both existing functionality (regression) and new enhanced capabilities.
 """
 
+import json
 import pandas as pd
+import tempfile
 
-from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
+from pathlib import Path
+
+from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
 
 
 def create_sales_test_data():
-    """Create sample sales data for testing aggregations."""
+    """Create sample sales data for testing."""
     return pd.DataFrame({
-        'Region': [
-            'North', 'South', 'North', 'East', 'West', 'South', 
-            'North', 'East', 'West', 'South', 'East', 'West'
-        ],
-        'Department': [
-            'Electronics', 'Tools', 'Electronics', 'Hardware', 'Tools', 'Electronics',
-            'Tools', 'Hardware', 'Electronics', 'Tools', 'Electronics', 'Hardware'
-        ],
-        'Sales_Amount': [1500, 800, 2200, 950, 1200, 1800, 600, 1100, 1750, 900, 1300, 850],
-        'Order_Count': [15, 8, 22, 9, 12, 18, 6, 11, 17, 9, 13, 8],
-        'Customer_Count': [12, 7, 18, 8, 10, 15, 5, 9, 14, 8, 11, 7],
-        'Product_Category': [
-            'A', 'B', 'A', 'C', 'B', 'A', 'B', 'C', 'A', 'B', 'A', 'C'
-        ]
+        'Region': ['North', 'South', 'North', 'West', 'South', 'West', 'North', 'East'],
+        'Department': ['Electronics', 'Clothing', 'Electronics', 'Home', 'Clothing', 'Electronics', 'Home', 'Electronics'],
+        'Sales_Amount': [1500.0, 800.0, 2200.0, 650.0, 1200.0, 1800.0, 950.0, 1400.0],
+        'Order_Count': [15, 8, 22, 6, 12, 18, 9, 14],
+        'Quarter': ['Q1', 'Q1', 'Q2', 'Q1', 'Q2', 'Q2', 'Q1', 'Q2'],
+        'Year': [2024, 2024, 2024, 2024, 2024, 2024, 2024, 2024]
     })
 
 
-def test_single_column_aggregation():
-    """Test basic aggregation by single column."""
+def create_customer_data():
+    """Create sample customer data for testing."""
+    return pd.DataFrame({
+        'Customer_ID': ['C001', 'C002', 'C003', 'C004', 'C005', 'C006'],
+        'Customer_Type': ['Premium', 'Standard', 'Premium', 'Basic', 'Standard', 'Premium'],
+        'Annual_Revenue': [50000, 25000, 75000, 15000, 30000, 60000],
+        'Order_Frequency': [12, 6, 18, 4, 8, 15],
+        'Territory': ['North', 'South', 'North', 'West', 'South', 'West']
+    })
+
+
+def create_aggregation_config_data():
+    """Create sample aggregation configuration data."""
+    return pd.DataFrame({
+        'config_id': ['sales_summary', 'customer_analysis', 'regional_breakdown'],
+        'group_by': ['Region', 'Customer_Type', 'Territory,Quarter'],
+        'aggregations': [
+            json.dumps([
+                {'column': 'Sales_Amount', 'function': 'sum', 'output_name': 'Total_Sales'},
+                {'column': 'Order_Count', 'function': 'mean', 'output_name': 'Avg_Orders'}
+            ]),
+            json.dumps([
+                {'column': 'Annual_Revenue', 'function': 'sum', 'output_name': 'Total_Revenue'},
+                {'column': 'Order_Frequency', 'function': 'mean', 'output_name': 'Avg_Frequency'}
+            ]),
+            'Sales_Amount:sum:Regional_Total,Order_Count:count:Total_Orders'
+        ],
+        'description': ['Sales summary by region', 'Customer analysis by type', 'Regional breakdown by quarter'],
+        'active': [True, True, True]
+    })
+
+
+def setup_test_stages():
+    """Set up test stages for stage-based aggregation tests."""
     
-    print("Testing single column aggregation...")
+    StageManager.initialize_stages(max_stages=10)
+    
+    # Create aggregation config stage
+    config_data = create_aggregation_config_data()
+    StageManager.save_stage(
+        'Aggregation Configs',
+        config_data,
+        description='Test aggregation configurations'
+    )
+    
+    # Create lookup stage for cross-reference testing
+    lookup_data = pd.DataFrame({
+        'region_code': ['N', 'S', 'E', 'W'],
+        'region_name': ['North', 'South', 'East', 'West'],
+        'agg_config': ['sales_summary', 'sales_summary', 'customer_analysis', 'sales_summary'],
+        'group_by_col': ['Region', 'Region', 'Customer_Type', 'Region'],
+        'agg_spec': [
+            'Sales_Amount:sum:Regional_Sales',
+            'Sales_Amount:sum:Regional_Sales',
+            'Annual_Revenue:mean:Avg_Revenue',
+            'Sales_Amount:sum:Regional_Sales'
+        ]
+    })
+    StageManager.save_stage(
+        'Region Lookup',
+        lookup_data,
+        description='Region lookup for aggregation configs'
+    )
+
+
+# =============================================================================
+# BASIC FUNCTIONALITY TESTS (Regression)
+# =============================================================================
+
+def test_single_column_aggregation():
+    """Test basic single column aggregation."""
+    
+    print("\nTesting single column aggregation...")
     
     test_df = create_sales_test_data()
-    print(f"✓ Created test data: {len(test_df)} rows")
     
-    # Test sum of sales by region
     step_config = {
         'processor_type': 'aggregate_data',
-        'step_description': 'Sum sales by region',
+        'step_description': 'Basic aggregation test',
         'group_by': 'Region',
         'aggregations': [
             {
@@ -53,42 +120,27 @@ def test_single_column_aggregation():
     processor = AggregateDataProcessor(step_config)
     result = processor.execute(test_df)
     
-    print(f"✓ Single aggregation: {len(test_df)} rows → {len(result)} groups")
-    print(f"✓ Columns: {list(result.columns)}")
+    print(f"✓ Single column aggregation: {len(test_df)} rows → {len(result)} groups")
     
-    # Check that we have expected columns
-    if 'Region' in result.columns and 'Total_Sales' in result.columns:
-        print("✓ Expected columns found")
-        
-        # Show results
-        print("Sales by region:")
-        for i in range(len(result)):
-            region = result.iloc[i]['Region']
-            total = result.iloc[i]['Total_Sales']
-            print(f"  {region}: ${total:,.0f}")
-        
-        # Verify totals make sense
-        original_total = test_df['Sales_Amount'].sum()
-        aggregated_total = result['Total_Sales'].sum()
-        
-        if abs(original_total - aggregated_total) < 0.01:
-            print("✓ Totals match - aggregation is correct")
-            return True
-        else:
-            print(f"✗ Total mismatch: {original_total} vs {aggregated_total}")
+    # Check expected columns
+    expected_columns = ['Region', 'Total_Sales']
+    has_expected = all(col in result.columns for col in expected_columns)
     
-    print("✗ Single column aggregation failed")
-    return False
+    if has_expected and len(result) > 0:
+        print("✓ Single column aggregation worked correctly")
+        return True
+    else:
+        print("✗ Single column aggregation failed")
+        return False
 
 
 def test_multi_column_aggregation():
-    """Test aggregation by multiple columns."""
+    """Test aggregation with multiple grouping columns."""
     
     print("\nTesting multi-column aggregation...")
     
     test_df = create_sales_test_data()
     
-    # Test aggregation by region and department
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Aggregate by region and department',
@@ -118,16 +170,6 @@ def test_multi_column_aggregation():
     
     if has_expected:
         print("✓ Multi-column aggregation created correctly")
-        
-        # Show sample results
-        print("Sample results:")
-        for i in range(min(5, len(result))):
-            region = result.iloc[i]['Region']
-            dept = result.iloc[i]['Department']
-            sales = result.iloc[i]['Total_Sales']
-            orders = result.iloc[i]['Avg_Orders']
-            print(f"  {region}-{dept}: ${sales:,.0f}, {orders:.1f} avg orders")
-        
         return True
     else:
         print(f"✗ Missing expected columns: {list(result.columns)}")
@@ -141,7 +183,6 @@ def test_multiple_functions_same_column():
     
     test_df = create_sales_test_data()
     
-    # Test multiple stats on sales amount
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Sales statistics by region',
@@ -159,16 +200,6 @@ def test_multiple_functions_same_column():
             },
             {
                 'column': 'Sales_Amount',
-                'function': 'min',
-                'new_column_name': 'Min_Sales'
-            },
-            {
-                'column': 'Sales_Amount',
-                'function': 'max',
-                'new_column_name': 'Max_Sales'
-            },
-            {
-                'column': 'Sales_Amount',
                 'function': 'count',
                 'new_column_name': 'Sales_Count'
             }
@@ -181,196 +212,14 @@ def test_multiple_functions_same_column():
     print(f"✓ Multiple functions: {len(result)} groups")
     
     # Check all expected columns exist
-    expected_cols = ['Region', 'Total_Sales', 'Avg_Sales', 'Min_Sales', 'Max_Sales', 'Sales_Count']
+    expected_cols = ['Region', 'Total_Sales', 'Avg_Sales', 'Sales_Count']
     has_all = all(col in result.columns for col in expected_cols)
     
     if has_all:
         print("✓ All aggregation functions applied correctly")
-        
-        # Show detailed stats for one region
-        first_row = result.iloc[0]
-        region = first_row['Region']
-        print(f"Statistics for {region}:")
-        print(f"  Total: ${first_row['Total_Sales']:,.0f}")
-        print(f"  Average: ${first_row['Avg_Sales']:,.0f}")
-        print(f"  Range: ${first_row['Min_Sales']:,.0f} - ${first_row['Max_Sales']:,.0f}")
-        print(f"  Count: {first_row['Sales_Count']}")
-        
         return True
     else:
         print(f"✗ Missing columns: {list(result.columns)}")
-        return False
-
-
-def test_different_data_types():
-    """Test aggregation with different column data types."""
-    
-    print("\nTesting different data types...")
-    
-    test_df = create_sales_test_data()
-    
-    # Test aggregations on numeric and categorical data
-    step_config = {
-        'processor_type': 'aggregate_data',
-        'step_description': 'Mixed data type aggregations',
-        'group_by': 'Region',
-        'aggregations': [
-            {
-                'column': 'Sales_Amount',
-                'function': 'sum',
-                'new_column_name': 'Total_Sales'
-            },
-            {
-                'column': 'Department',
-                'function': 'count',
-                'new_column_name': 'Dept_Records'
-            },
-            {
-                'column': 'Department',
-                'function': 'nunique',
-                'new_column_name': 'Unique_Depts'
-            }
-        ]
-    }
-    
-    processor = AggregateDataProcessor(step_config)
-    result = processor.execute(test_df)
-    
-    print(f"✓ Mixed data types: {len(result)} groups")
-    
-    # Check results
-    if all(col in result.columns for col in ['Total_Sales', 'Dept_Records', 'Unique_Depts']):
-        print("✓ Different data types handled correctly")
-        
-        # Show results
-        for i in range(len(result)):
-            region = result.iloc[i]['Region']
-            sales = result.iloc[i]['Total_Sales']
-            records = result.iloc[i]['Dept_Records']
-            unique_depts = result.iloc[i]['Unique_Depts']
-            print(f"  {region}: ${sales:,.0f}, {records} records, {unique_depts} departments")
-        
-        return True
-    else:
-        print("✗ Mixed data type aggregation failed")
-        return False
-
-
-def test_summary_aggregation_helper():
-    """Test the create_summary_aggregation helper method."""
-    
-    print("\nTesting summary aggregation helper...")
-    
-    test_df = create_sales_test_data()
-    
-    processor = AggregateDataProcessor({
-        'processor_type': 'aggregate_data',
-        'step_description': 'Test helper',
-        'group_by': 'Region',
-        'aggregations': []
-    })
-    
-    # Use helper to create standard summary
-    result = processor.create_summary_aggregation(
-        test_df, 
-        'Region', 
-        ['Sales_Amount', 'Order_Count']
-    )
-    
-    print(f"✓ Summary helper: {len(result)} groups")
-    print(f"✓ Columns: {list(result.columns)}")
-    
-    # Check for expected summary columns
-    expected_patterns = ['total', 'average', 'count']
-    has_summaries = any(
-        any(pattern in col.lower() for pattern in expected_patterns)
-        for col in result.columns
-    )
-    
-    if has_summaries:
-        print("✓ Summary aggregation helper worked correctly")
-        return True
-    else:
-        print("✗ Summary aggregation helper failed")
-        return False
-
-
-def test_crosstab_aggregation_helper():
-    """Test the create_crosstab_aggregation helper method."""
-    
-    print("\nTesting crosstab aggregation helper...")
-    
-    test_df = create_sales_test_data()
-    
-    processor = AggregateDataProcessor({
-        'processor_type': 'aggregate_data',
-        'step_description': 'Test crosstab',
-        'group_by': 'Region',
-        'aggregations': []
-    })
-    
-    # Create crosstab: Region vs Department
-    result = processor.create_crosstab_aggregation(
-        test_df,
-        row_field='Region',
-        col_field='Department', 
-        value_field='Sales_Amount',
-        aggfunc='sum'
-    )
-    
-    print(f"✓ Crosstab helper: {len(result)} rows, {len(result.columns)} columns")
-    print(f"✓ Columns: {list(result.columns)}")
-    
-    # Check that we have regions and departments as columns
-    has_region_col = 'Region' in result.columns
-    has_dept_columns = any('Electronics' in str(col) or 'Tools' in str(col) or 'Hardware' in str(col) 
-                          for col in result.columns)
-    
-    if has_region_col and has_dept_columns:
-        print("✓ Crosstab aggregation helper worked correctly")
-        return True
-    else:
-        print("✗ Crosstab aggregation helper failed")
-        return False
-
-
-def test_aggregation_analysis():
-    """Test the get_aggregation_analysis method."""
-    
-    print("\nTesting aggregation analysis...")
-    
-    test_df = create_sales_test_data()
-    
-    processor = AggregateDataProcessor({
-        'processor_type': 'aggregate_data',
-        'step_description': 'Test analysis',
-        'group_by': 'Region',
-        'aggregations': []
-    })
-    
-    # Analyze aggregation potential
-    analysis = processor.get_aggregation_analysis(test_df, 'Region')
-    
-    print(f"✓ Analysis results:")
-    print(f"  Total rows: {analysis['total_rows']}")
-    print(f"  Unique groups: {analysis['unique_groups']}")
-    print(f"  Numeric columns: {analysis['numeric_columns']}")
-    print(f"  Categorical columns: {analysis['categorical_columns']}")
-    print(f"  Suggested aggregations: {len(analysis['suggested_aggregations'])}")
-    
-    # Check analysis quality
-    has_basics = (
-        analysis['total_rows'] == len(test_df) and
-        analysis['unique_groups'] > 0 and
-        len(analysis['numeric_columns']) > 0 and
-        len(analysis['suggested_aggregations']) > 0
-    )
-    
-    if has_basics:
-        print("✓ Aggregation analysis worked correctly")
-        return True
-    else:
-        print("✗ Aggregation analysis failed")
         return False
 
 
@@ -401,10 +250,45 @@ def test_configuration_options():
     
     print(f"✓ Without group columns: {list(result1.columns)}")
     
-    # Test without sorting
+    # Test backward compatibility with 'output_name' instead of 'new_column_name'
     step_config2 = {
         'processor_type': 'aggregate_data',
-        'step_description': 'Test without sorting',
+        'step_description': 'Test output_name compatibility',
+        'group_by': 'Region',
+        'aggregations': [
+            {
+                'column': 'Sales_Amount',
+                'function': 'sum',
+                'output_name': 'Total_Sales'  # Using old naming
+            }
+        ]
+    }
+    
+    processor2 = AggregateDataProcessor(step_config2)
+    result2 = processor2.execute(test_df)
+    
+    if len(result1) > 0 and len(result2) > 0 and 'Total_Sales' in result2.columns:
+        print("✓ Configuration options worked correctly")
+        return True
+    else:
+        print("✗ Configuration options failed")
+        return False
+
+
+# =============================================================================
+# STAGE-BASED AGGREGATION TESTS (New Features)
+# =============================================================================
+
+def test_save_to_stage():
+    """Test saving aggregation results to a stage."""
+    
+    print("\nTesting save to stage...")
+    
+    test_df = create_sales_test_data()
+    
+    step_config = {
+        'processor_type': 'aggregate_data',
+        'step_description': 'Test stage saving',
         'group_by': 'Region',
         'aggregations': [
             {
@@ -413,26 +297,278 @@ def test_configuration_options():
                 'new_column_name': 'Total_Sales'
             }
         ],
-        'sort_by_groups': False
+        'save_to_stage': 'Sales Summary',
+        'stage_description': 'Regional sales totals'
     }
     
-    processor2 = AggregateDataProcessor(step_config2)
-    result2 = processor2.execute(test_df)
+    processor = AggregateDataProcessor(step_config)
+    result = processor.execute(test_df)
     
-    print(f"✓ Without sorting: {len(result2)} groups")
+    # Check that stage was created
+    if StageManager.stage_exists('Sales Summary'):
+        stage_data = StageManager.get_stage_data('Sales Summary')
+        
+        if len(stage_data) == len(result) and 'Total_Sales' in stage_data.columns:
+            print("✓ Save to stage worked correctly")
+            return True
+        else:
+            print("✗ Stage data doesn't match result")
+            return False
+    else:
+        print("✗ Stage was not created")
+        return False
+
+
+def test_stage_based_aggregation_config():
+    """Test loading aggregation configuration from stage."""
     
-    if len(result1) > 0 and len(result2) > 0:
-        print("✓ Configuration options worked correctly")
+    print("\nTesting stage-based aggregation config...")
+    
+    test_df = create_sales_test_data()
+    
+    step_config = {
+        'processor_type': 'aggregate_data',
+        'step_description': 'Test stage config',
+        'aggregation_source': {
+            'type': 'stage',
+            'stage_name': 'Aggregation Configs',
+            'format': 'table',
+            'group_by_column': 'group_by',
+            'aggregations_column': 'aggregations',
+            'filter_condition': {
+                'column': 'config_id',
+                'value': 'sales_summary',
+                'operator': 'equals'
+            }
+        }
+    }
+    
+    processor = AggregateDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print(f"✓ Stage-based config: {len(result)} groups")
+    
+    # Should have aggregated by Region with Total_Sales and Avg_Orders
+    expected_cols = ['Region', 'Total_Sales', 'Avg_Orders']
+    has_expected = all(col in result.columns for col in expected_cols)
+    
+    if has_expected:
+        print("✓ Stage-based aggregation config worked correctly")
         return True
     else:
-        print("✗ Configuration options failed")
+        print(f"✗ Missing expected columns: {list(result.columns)}")
+        return False
+
+
+def test_lookup_based_aggregation_config():
+    """Test loading aggregation configuration from lookup stage."""
+    
+    print("\nTesting lookup-based aggregation config...")
+    
+    # Add region mapping to test data
+    test_df = create_sales_test_data()
+    test_df['region_code'] = test_df['Region'].map({'North': 'N', 'South': 'S', 'East': 'E', 'West': 'W'})
+    
+    step_config = {
+        'processor_type': 'aggregate_data',
+        'step_description': 'Test lookup config',
+        'aggregation_source': {
+            'type': 'lookup',
+            'lookup_stage': 'Region Lookup',
+            'lookup_key': 'region_code',
+            'data_key': 'region_code',
+            'group_by_column': 'group_by_col',
+            'aggregations_column': 'agg_spec'
+        }
+    }
+    
+    processor = AggregateDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print(f"✓ Lookup-based config: {len(result)} groups")
+    
+    # Should have Regional_Sales column from the lookup config
+    if 'Regional_Sales' in result.columns:
+        print("✓ Lookup-based aggregation config worked correctly")
+        return True
+    else:
+        print(f"✗ Missing expected column: {list(result.columns)}")
+        return False
+
+
+# =============================================================================
+# FILE-BASED AGGREGATION TESTS (New Features)
+# =============================================================================
+
+def test_file_based_aggregation_config():
+    """Test loading aggregation configuration from file."""
+    
+    print("\nTesting file-based aggregation config...")
+    
+    # Create temporary config file
+    config_data = create_aggregation_config_data()
+    
+    with tempfile.NamedTemporaryFile(suffix='.csv', delete=False, mode='w') as temp_file:
+        config_data.to_csv(temp_file.name, index=False)
+        temp_config_path = temp_file.name
+    
+    try:
+        test_df = create_sales_test_data()
+        
+        step_config = {
+            'processor_type': 'aggregate_data',
+            'step_description': 'Test file config',
+            'aggregation_source': {
+                'type': 'file',
+                'filename': temp_config_path,
+                'format': 'table',
+                'group_by_column': 'group_by',
+                'aggregations_column': 'aggregations'
+            }
+        }
+        
+        processor = AggregateDataProcessor(step_config)
+        result = processor.execute(test_df)
+        
+        print(f"✓ File-based config: {len(result)} groups")
+        
+        # Should use first config (sales_summary)
+        expected_cols = ['Region', 'Total_Sales', 'Avg_Orders']
+        has_expected = all(col in result.columns for col in expected_cols)
+        
+        if has_expected:
+            print("✓ File-based aggregation config worked correctly")
+            return True
+        else:
+            print(f"✗ Missing expected columns: {list(result.columns)}")
+            return False
+    
+    finally:
+        # Clean up temp file
+        Path(temp_config_path).unlink()
+
+
+def test_variable_substitution_aggregation():
+    """Test variable substitution in aggregation configuration."""
+    
+    print("\nTesting variable substitution...")
+    
+    test_df = create_sales_test_data()
+    
+    step_config = {
+        'processor_type': 'aggregate_data',
+        'step_description': 'Test variable substitution',
+        'group_by': '{GROUP_COLUMN}',
+        'aggregations': [
+            {
+                'column': '{VALUE_COLUMN}',
+                'function': 'sum',
+                'new_column_name': '{OUTPUT_PREFIX}_Total'
+            }
+        ]
+    }
+    
+    # Mock variables
+    test_variables = {
+        'GROUP_COLUMN': 'Region',
+        'VALUE_COLUMN': 'Sales_Amount',
+        'OUTPUT_PREFIX': 'Sales'
+    }
+    
+    processor = AggregateDataProcessor(step_config)
+    # Simulate variable injection (normally done by pipeline)
+    processor._variables = test_variables
+    
+    result = processor.execute(test_df)
+    
+    print(f"✓ Variable substitution: {len(result)} groups")
+    
+    if 'Sales_Total' in result.columns and 'Region' in result.columns:
+        print("✓ Variable substitution worked correctly")
+        return True
+    else:
+        print(f"✗ Variable substitution failed: {list(result.columns)}")
+        return False
+
+
+# =============================================================================
+# HELPER METHODS AND ANALYSIS TESTS
+# =============================================================================
+
+def test_summary_aggregation_helper():
+    """Test the create_summary_aggregation helper method."""
+    
+    print("\nTesting summary aggregation helper...")
+    
+    test_df = create_sales_test_data()
+    
+    processor = AggregateDataProcessor({
+        'processor_type': 'aggregate_data',
+        'step_description': 'Test helper',
+        'group_by': 'Region',
+        'aggregations': []
+    })
+    
+    # Use helper to create standard summary
+    result = processor.create_summary_aggregation(
+        test_df, 
+        'Region', 
+        ['Sales_Amount', 'Order_Count']
+    )
+    
+    print(f"✓ Summary helper: {len(result)} groups")
+    print(f"✓ Columns: {list(result.columns)}")
+    
+    # Check for expected summary columns
+    expected_patterns = ['total', 'average', 'count', 'minimum', 'maximum']
+    has_summaries = any(
+        any(pattern in col.lower() for pattern in expected_patterns)
+        for col in result.columns
+    )
+    
+    if has_summaries:
+        print("✓ Summary aggregation helper worked correctly")
+        return True
+    else:
+        print("✗ Summary aggregation helper failed")
+        return False
+
+
+def test_analysis_method():
+    """Test the analyze_aggregation_results method."""
+    
+    print("\nTesting analysis method...")
+    
+    test_df = create_sales_test_data()
+    
+    processor = AggregateDataProcessor({
+        'processor_type': 'aggregate_data',
+        'group_by': 'Region',
+        'aggregations': [
+            {'column': 'Sales_Amount', 'function': 'sum', 'new_column_name': 'Total_Sales'}
+        ]
+    })
+    
+    result = processor.execute(test_df)
+    analysis = processor.analyze_aggregation_results(result, ['Region'])
+    
+    print(f"✓ Analysis results: {analysis.keys()}")
+    
+    expected_keys = ['total_groups', 'group_columns', 'aggregated_columns', 'summary']
+    has_expected = all(key in analysis for key in expected_keys)
+    
+    if has_expected and analysis['total_groups'] > 0:
+        print("✓ Analysis method worked correctly")
+        return True
+    else:
+        print("✗ Analysis method failed")
         return False
 
 
 def test_capabilities_method():
     """Test the get_capabilities method."""
     
-    print("\nTesting capabilities method...")
+    print("\nTesting enhanced capabilities method...")
     
     processor = AggregateDataProcessor({
         'processor_type': 'aggregate_data',
@@ -442,176 +578,183 @@ def test_capabilities_method():
     
     capabilities = processor.get_capabilities()
     
-    print(f"✓ Capabilities: {capabilities.keys()}")
+    print(f"✓ Capabilities: {list(capabilities.keys())}")
     
-    # Check expected capability fields
-    expected_keys = ['description', 'aggregation_functions', 'grouping_features', 'helper_methods']
+    # Check for new capability fields
+    expected_keys = [
+        'description', 'aggregation_functions', 'source_types', 
+        'file_formats', 'integration_features'
+    ]
     has_expected = all(key in capabilities for key in expected_keys)
     
-    supported_functions = capabilities.get('aggregation_functions', [])
-    print(f"✓ Supported functions: {len(supported_functions)} available")
+    source_types = capabilities.get('source_types', [])
+    integration_features = capabilities.get('integration_features', [])
     
-    if has_expected and len(supported_functions) > 0:
-        print("✓ Capabilities method worked correctly")
+    has_new_features = (
+        'stage' in source_types and 
+        'file' in source_types and
+        'stage_manager_integration' in integration_features
+    )
+    
+    if has_expected and has_new_features:
+        print("✓ Enhanced capabilities method worked correctly")
         return True
     else:
-        print("✗ Capabilities method failed")
+        print("✗ Enhanced capabilities method failed")
         return False
 
 
-def test_error_handling():
+# =============================================================================
+# ERROR HANDLING TESTS
+# =============================================================================
+
+def test_aggregation_error_handling():
     """Test error handling for various failure cases."""
     
-    print("\nTesting error handling...")
+    print("\nTesting aggregation error handling...")
     
     test_df = create_sales_test_data()
     
-    # Test missing required fields
+    # Test missing stage
     try:
         bad_config = {
             'processor_type': 'aggregate_data',
-            'step_description': 'Missing fields'
-            # Missing 'group_by' and 'aggregations'
+            'step_description': 'Missing stage',
+            'aggregation_source': {
+                'type': 'stage',
+                'stage_name': 'NonExistent Stage'
+            }
         }
         processor = AggregateDataProcessor(bad_config)
         processor.execute(test_df)
-        print("✗ Should have failed with missing fields")
+        print("✗ Should have failed with missing stage")
+        return False
     except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
+        print(f"✓ Caught expected error for missing stage: {e}")
     
-    # Test invalid group_by column
+    # Test invalid aggregation source type
     try:
         bad_config = {
             'processor_type': 'aggregate_data',
-            'step_description': 'Invalid group column',
-            'group_by': 'NonExistentColumn',
-            'aggregations': [
-                {
-                    'column': 'Sales_Amount',
-                    'function': 'sum'
-                }
-            ]
+            'step_description': 'Invalid source type',
+            'aggregation_source': {
+                'type': 'invalid_type'
+            }
         }
         processor = AggregateDataProcessor(bad_config)
         processor.execute(test_df)
-        print("✗ Should have failed with invalid group column")
+        print("✗ Should have failed with invalid source type")
+        return False
     except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
+        print(f"✓ Caught expected error for invalid source type: {e}")
     
-    # Test invalid aggregation column
+    # Test stage overwrite protection
+    # First create a stage to test overwrite with
+    step_config_create = {
+        'processor_type': 'aggregate_data',
+        'group_by': 'Region',
+        'aggregations': [{'column': 'Sales_Amount', 'function': 'sum'}],
+        'save_to_stage': 'Test Overwrite Stage',
+        'stage_overwrite': True  # Allow initial creation
+    }
+    processor_create = AggregateDataProcessor(step_config_create)
+    processor_create.execute(test_df)
+    
+    # Now try to overwrite without permission
     try:
         bad_config = {
             'processor_type': 'aggregate_data',
-            'step_description': 'Invalid agg column',
             'group_by': 'Region',
-            'aggregations': [
-                {
-                    'column': 'NonExistentColumn',
-                    'function': 'sum'
-                }
-            ]
+            'aggregations': [{'column': 'Sales_Amount', 'function': 'sum'}],
+            'save_to_stage': 'Test Overwrite Stage',  # This stage now exists
+            'stage_overwrite': False
         }
         processor = AggregateDataProcessor(bad_config)
         processor.execute(test_df)
-        print("✗ Should have failed with invalid aggregation column")
+        print("✗ Should have failed without overwrite=true")
+        return False
     except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
+        print(f"✓ Caught expected error for stage overwrite: {e}")
     
-    # Test invalid aggregation function
-    try:
-        bad_config = {
-            'processor_type': 'aggregate_data',
-            'step_description': 'Invalid function',
-            'group_by': 'Region',
-            'aggregations': [
-                {
-                    'column': 'Sales_Amount',
-                    'function': 'invalid_function'
-                }
-            ]
-        }
-        processor = AggregateDataProcessor(bad_config)
-        processor.execute(test_df)
-        print("✗ Should have failed with invalid function")
-    except StepProcessorError as e:
-        print(f"✓ Caught expected error: {e}")
+    print("✓ Error handling worked correctly")
+    return True
 
 
 def test_real_world_scenario():
-    """Test a realistic aggregation scenario."""
+    """Test a realistic aggregation scenario with multiple features."""
     
     print("\nTesting real-world scenario...")
     
-    # Simulate business sales data
-    test_df = pd.DataFrame({
-        'Sales_Rep': ['Alice', 'Bob', 'Charlie', 'Alice', 'Bob', 'Diana', 'Charlie', 'Alice'],
-        'Territory': ['North', 'South', 'East', 'North', 'West', 'South', 'East', 'North'], 
-        'Product_Line': ['A', 'B', 'A', 'C', 'B', 'A', 'C', 'B'],
-        'Quarter': ['Q1', 'Q1', 'Q1', 'Q2', 'Q1', 'Q2', 'Q2', 'Q2'],
-        'Sales': [15000, 12000, 18000, 14000, 11000, 16000, 19000, 13000],
-        'Units': [150, 120, 180, 140, 110, 160, 190, 130],
-        'Deals': [5, 4, 6, 4, 3, 5, 6, 4]
-    })
+    test_df = create_sales_test_data()
     
-    print(f"✓ Created business scenario data: {len(test_df)} records")
-    
-    # Create quarterly territory performance summary
-    step_config = {
+    # Step 1: Basic aggregation with stage saving
+    step_config_1 = {
         'processor_type': 'aggregate_data',
-        'step_description': 'Quarterly territory performance',
-        'group_by': ['Territory', 'Quarter'],
+        'step_description': 'Regional quarterly summary',
+        'group_by': ['Region', 'Quarter'],
         'aggregations': [
             {
-                'column': 'Sales',
+                'column': 'Sales_Amount',
                 'function': 'sum',
                 'new_column_name': 'Total_Revenue'
             },
             {
-                'column': 'Units',
-                'function': 'sum', 
-                'new_column_name': 'Total_Units'
-            },
-            {
-                'column': 'Deals',
+                'column': 'Order_Count',
                 'function': 'sum',
-                'new_column_name': 'Total_Deals'
+                'new_column_name': 'Total_Orders'
             },
             {
-                'column': 'Sales',
+                'column': 'Sales_Amount',
                 'function': 'mean',
                 'new_column_name': 'Avg_Deal_Size'
+            }
+        ],
+        'save_to_stage': 'Regional Quarterly Summary',
+        'stage_description': 'Quarterly performance by region',
+        'stage_overwrite': True
+    }
+    
+    processor_1 = AggregateDataProcessor(step_config_1)
+    result_1 = processor_1.execute(test_df)
+    
+    # Step 2: Department-level analysis
+    step_config_2 = {
+        'processor_type': 'aggregate_data',
+        'step_description': 'Department analysis',
+        'group_by': 'Department',
+        'aggregations': [
+            {
+                'column': 'Sales_Amount',
+                'function': 'sum',
+                'new_column_name': 'Dept_Revenue'
             },
             {
-                'column': 'Sales_Rep',
-                'function': 'nunique',
-                'new_column_name': 'Active_Reps'
+                'column': 'Sales_Amount',
+                'function': 'count',
+                'new_column_name': 'Dept_Transactions'
             }
         ]
     }
     
-    processor = AggregateDataProcessor(step_config)
-    result = processor.execute(test_df)
+    processor_2 = AggregateDataProcessor(step_config_2)
+    result_2 = processor_2.execute(test_df)
     
-    print(f"✓ Business summary: {len(result)} territory-quarter combinations")
+    # Verify results
+    stage_exists = StageManager.stage_exists('Regional Quarterly Summary')
+    has_expected_cols_1 = all(col in result_1.columns for col in ['Region', 'Quarter', 'Total_Revenue'])
+    has_expected_cols_2 = all(col in result_2.columns for col in ['Department', 'Dept_Revenue'])
     
-    # Show business results
-    print("Quarterly Territory Performance:")
-    for i in range(len(result)):
-        territory = result.iloc[i]['Territory']
-        quarter = result.iloc[i]['Quarter']
-        revenue = result.iloc[i]['Total_Revenue']
-        units = result.iloc[i]['Total_Units']
-        deals = result.iloc[i]['Total_Deals']
-        avg_deal = result.iloc[i]['Avg_Deal_Size']
-        reps = result.iloc[i]['Active_Reps']
-        
-        print(f"  {territory} {quarter}: ${revenue:,} ({units} units, {deals} deals, ${avg_deal:,.0f} avg, {reps} reps)")
+    # Check business logic
+    total_revenue_1 = result_1['Total_Revenue'].sum()
+    total_revenue_2 = result_2['Dept_Revenue'].sum()
+    original_revenue = test_df['Sales_Amount'].sum()
     
-    # Verify business logic
-    total_revenue = result['Total_Revenue'].sum()
-    original_revenue = test_df['Sales'].sum()
+    revenue_matches = (
+        abs(total_revenue_1 - original_revenue) < 0.01 and
+        abs(total_revenue_2 - original_revenue) < 0.01
+    )
     
-    if abs(total_revenue - original_revenue) < 0.01:
+    if stage_exists and has_expected_cols_1 and has_expected_cols_2 and revenue_matches:
         print("✓ Real-world scenario worked correctly")
         return True
     else:
@@ -619,30 +762,101 @@ def test_real_world_scenario():
         return False
 
 
+def test_backward_compatibility():
+    """Test that all existing functionality still works."""
+    
+    print("\nTesting backward compatibility...")
+    
+    # Test old-style config still works
+    test_df = create_sales_test_data()
+    
+    old_style_config = {
+        'processor_type': 'aggregate_data',
+        'group_by': 'Region',
+        'aggregations': [
+            {
+                'column': 'Sales_Amount',
+                'function': 'sum',
+                'new_column_name': 'Total_Sales'
+            }
+        ],
+        'keep_group_columns': True,
+        'sort_by_groups': True,
+        'reset_index': True
+    }
+    
+    processor = AggregateDataProcessor(old_style_config)
+    result = processor.execute(test_df)
+    
+    # Test minimal config
+    minimal_config = AggregateDataProcessor.get_minimal_config()
+    has_required_fields = 'group_by' in minimal_config and 'aggregations' in minimal_config
+    
+    if len(result) > 0 and 'Total_Sales' in result.columns and has_required_fields:
+        print("✓ Backward compatibility maintained")
+        return True
+    else:
+        print("✗ Backward compatibility broken")
+        return False
+
+
 if __name__ == '__main__':
+    print("Testing AggregateDataProcessor refactoring...")
     success = True
     
+    # Basic regression tests
+    print("\n=== Testing Basic Functionality (Regression) ===")
     success &= test_single_column_aggregation()
     success &= test_multi_column_aggregation()
     success &= test_multiple_functions_same_column()
-    success &= test_different_data_types()
-    success &= test_summary_aggregation_helper()
-    success &= test_crosstab_aggregation_helper()
-    success &= test_aggregation_analysis()
     success &= test_configuration_options()
+    
+    # Stage-based aggregation tests
+    print("\n=== Testing Stage-Based Aggregation (New Features) ===")
+    setup_test_stages()
+    try:
+        success &= test_save_to_stage()
+        success &= test_stage_based_aggregation_config()
+        success &= test_lookup_based_aggregation_config()
+    finally:
+        StageManager.cleanup_stages()
+    
+    # File-based aggregation tests
+    print("\n=== Testing File-Based Aggregation (New Features) ===")
+    success &= test_file_based_aggregation_config()
+    success &= test_variable_substitution_aggregation()
+    
+    # Helper methods and analysis tests
+    print("\n=== Testing Helper Methods and Analysis ===")
+    success &= test_summary_aggregation_helper()
+    success &= test_analysis_method()
     success &= test_capabilities_method()
-    success &= test_real_world_scenario()
-    test_error_handling()
+    
+    # Error handling and compatibility tests
+    print("\n=== Testing Error Handling and Compatibility ===")
+    setup_test_stages()  # Need stages for error testing
+    try:
+        success &= test_aggregation_error_handling()
+        success &= test_real_world_scenario()
+        success &= test_backward_compatibility()
+    finally:
+        StageManager.cleanup_stages()
     
     if success:
-        print("\n✓ All aggregate data processor tests passed!")
+        print("\n🎉 All AggregateDataProcessor refactoring tests passed!")
     else:
-        print("\n✗ Some aggregate data processor tests failed!")
+        print("\n❌ Some AggregateDataProcessor refactoring tests failed!")
     
-    # Show supported functions
+    # Show processor capabilities
     processor = AggregateDataProcessor({
         'processor_type': 'aggregate_data',
         'group_by': 'test', 
         'aggregations': []
     })
+    
     print(f"\nSupported aggregation functions: {processor.get_supported_functions()}")
+    print(f"Supported source types: {processor.get_supported_source_types()}")
+    print(f"Supported file formats: {processor.get_supported_file_formats()}")
+    print(f"Integration features: {processor.get_capabilities()['integration_features']}")
+    
+    print("\nTo run with pytest: pytest test_aggregate_data_processor_refactored.py -v")

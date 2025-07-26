@@ -1,7 +1,7 @@
 """
-Export file step processor for Excel automation recipes.
+Export file step processor for Excel automation recipes - REFACTORED VERSION.
 
-Handles exporting data to various file formats with multi-sheet support and variable substitution.
+Handles exporting data to various file formats using existing ExcelWriter infrastructure.
 """
 
 import pandas as pd
@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class ExportFileProcessor(BaseStepProcessor):
     Processor for exporting data to files in various formats.
     
     Supports single and multi-sheet Excel files, CSV, TSV formats with 
-    variable substitution and flexible data source options.
+    variable substitution and uses existing ExcelWriter infrastructure.
     """
     
     @classmethod
@@ -69,20 +70,23 @@ class ExportFileProcessor(BaseStepProcessor):
             # Determine export format
             export_format = self._determine_format(final_output_file, format_type)
             
-            # Create backup if requested
-            if create_backup:
-                self._create_backup_if_exists(final_output_file)
+            # Initialize ExcelWriter for backup and Excel operations
+            excel_writer = ExcelWriter()
             
-            # Export the file
+            # Create backup if requested and file exists
+            if create_backup and Path(final_output_file).exists():
+                excel_writer.create_backup(final_output_file)
+            
+            # Export the file using appropriate method
             if export_format == 'csv':
                 self._export_csv(data, final_output_file)
             elif export_format == 'tsv':
                 self._export_tsv(data, final_output_file)
             elif export_format in ['xlsx', 'xls']:
                 if sheets:
-                    self._export_multi_sheet_excel(data, final_output_file, sheets)
+                    self._export_multi_sheet_excel(data, final_output_file, sheets, excel_writer)
                 else:
-                    self._export_single_sheet_excel(data, final_output_file)
+                    self._export_single_sheet_excel(data, final_output_file, excel_writer)
             else:
                 raise StepProcessorError(f"Unsupported export format: {export_format}")
             
@@ -95,6 +99,8 @@ class ExportFileProcessor(BaseStepProcessor):
             # Return original data unchanged
             return data
             
+        except ExcelWriterError as e:
+            raise StepProcessorError(f"Excel export error in step '{self.step_name}': {e}")
         except Exception as e:
             if isinstance(e, StepProcessorError):
                 raise
@@ -206,20 +212,6 @@ class ExportFileProcessor(BaseStepProcessor):
         
         return format_map.get(extension, 'xlsx')  # Default to xlsx
     
-    def _create_backup_if_exists(self, filename: str) -> None:
-        """
-        Create backup of existing file if it exists.
-        
-        Args:
-            filename: File to backup
-        """
-        file_path = Path(filename)
-        if file_path.exists():
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_path = file_path.with_suffix(f'.backup_{timestamp}{file_path.suffix}')
-            file_path.rename(backup_path)
-            logger.info(f"Created backup: {backup_path}")
-    
     def _export_csv(self, data: pd.DataFrame, filename: str) -> None:
         """Export data as CSV file."""
         data.to_csv(filename, index=False)
@@ -230,49 +222,47 @@ class ExportFileProcessor(BaseStepProcessor):
         data.to_csv(filename, sep='\t', index=False)
         logger.debug(f"Exported TSV: {filename}")
     
-    def _export_single_sheet_excel(self, data: pd.DataFrame, filename: str) -> None:
-        """Export data as single-sheet Excel file."""
+    def _export_single_sheet_excel(self, data: pd.DataFrame, filename: str, excel_writer: ExcelWriter) -> None:
+        """Export data as single-sheet Excel file using ExcelWriter."""
         sheet_name = self.get_config_value('sheet_name', 'Data')
         
-        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            data.to_excel(writer, sheet_name=sheet_name, index=False)
-        
-        logger.debug(f"Exported single-sheet Excel: {filename}")
+        try:
+            excel_writer.write_file(
+                df=data,
+                output_path=filename,
+                sheet_name=sheet_name,
+                index=False
+            )
+            logger.debug(f"Exported single-sheet Excel: {filename}")
+        except ExcelWriterError as e:
+            raise StepProcessorError(f"Failed to export single-sheet Excel: {e}")
     
-    def _export_multi_sheet_excel(self, data: pd.DataFrame, filename: str, sheets: list) -> None:
+    def _export_multi_sheet_excel(self, data: pd.DataFrame, filename: str, sheets: list, excel_writer: ExcelWriter) -> None:
         """
-        Export data as multi-sheet Excel file.
+        Export data as multi-sheet Excel file using ExcelWriter.
         
         Args:
             data: Current pipeline data
             filename: Output filename
             sheets: List of sheet configurations
+            excel_writer: ExcelWriter instance
         """
-        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            active_sheet_set = False
-            
-            for sheet_config in sheets:
-                sheet_name = sheet_config['sheet_name']
-                data_source = sheet_config.get('data_source', 'current')
-                is_active = sheet_config.get('active', False)
-                
-                # Get data for this sheet
-                sheet_data = self._get_sheet_data(data, data_source)
-                
-                # Export to sheet
-                sheet_data.to_excel(writer, sheet_name=sheet_name, index=False)
-                
-                # Set active sheet
-                if is_active and not active_sheet_set:
-                    writer.book.active = writer.book[sheet_name]
-                    active_sheet_set = True
-            
-            # If no sheet was explicitly set as active, make the first one active
-            if not active_sheet_set and sheets:
-                first_sheet_name = sheets[0]['sheet_name']
-                writer.book.active = writer.book[first_sheet_name]
+        # Build data dictionary for multi-sheet export
+        data_dict = {}
         
-        logger.debug(f"Exported multi-sheet Excel: {filename} ({len(sheets)} sheets)")
+        for sheet_config in sheets:
+            sheet_name = sheet_config['sheet_name']
+            data_source = sheet_config.get('data_source', 'current')
+            
+            # Get data for this sheet
+            sheet_data = self._get_sheet_data(data, data_source)
+            data_dict[sheet_name] = sheet_data
+        
+        try:
+            excel_writer.write_multiple_sheets(data_dict, filename)
+            logger.debug(f"Exported multi-sheet Excel: {filename} ({len(sheets)} sheets)")
+        except ExcelWriterError as e:
+            raise StepProcessorError(f"Failed to export multi-sheet Excel: {e}")
     
     def _get_sheet_data(self, current_data: pd.DataFrame, data_source: str) -> pd.DataFrame:
         """
@@ -322,7 +312,7 @@ class ExportFileProcessor(BaseStepProcessor):
             'data_sources': self.get_supported_data_sources(),
             'export_features': [
                 'multi_sheet_excel', 'single_sheet_excel', 'csv_export', 'tsv_export',
-                'variable_substitution', 'backup_creation', 'active_sheet_control'
+                'variable_substitution', 'backup_creation', 'uses_excel_writer_infrastructure'
             ],
             'file_features': [
                 'automatic_format_detection', 'explicit_format_override', 

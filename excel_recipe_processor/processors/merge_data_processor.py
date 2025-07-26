@@ -10,7 +10,9 @@ import logging
 from typing import Any
 from pathlib import Path
 
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,20 +26,18 @@ class MergeDataProcessor(BaseStepProcessor):
     specification and column naming conflicts.
     """
     
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
             'merge_source': {
-                'type': 'dictionary',
-                'data': {
-                    'key1': {'value_col': 'test_value1'},
-                    'key2': {'value_col': 'test_value2'}
-                }
+                'type': 'stage',
+                'stage_name': 'test_stage'
             },
             'left_key': 'test_column',
             'right_key': 'key_column'
         }
-    
+
     def execute(self, data: Any) -> pd.DataFrame:
         """
         Execute the merge operation on the provided DataFrame.
@@ -98,7 +98,7 @@ class MergeDataProcessor(BaseStepProcessor):
                 raise StepProcessorError(f"Error during merge in step '{self.step_name}': {e}")
     
     def _validate_merge_config(self, df: pd.DataFrame, merge_source: dict, 
-                              left_key: str, right_key: str, join_type: str) -> None:
+                                left_key: str, right_key: str, join_type: str) -> None:
         """
         Validate merge configuration parameters.
         
@@ -117,7 +117,7 @@ class MergeDataProcessor(BaseStepProcessor):
             raise StepProcessorError("'merge_source' must specify a 'type'")
         
         source_type = merge_source['type']
-        valid_types = ['excel', 'csv', 'dictionary']
+        valid_types = ['excel', 'csv', 'dictionary', 'stage']
         if source_type not in valid_types:
             raise StepProcessorError(f"merge_source type '{source_type}' not supported. Valid types: {valid_types}")
         
@@ -157,6 +157,8 @@ class MergeDataProcessor(BaseStepProcessor):
             return self._load_csv_source(merge_source)
         elif source_type == 'dictionary':
             return self._load_dictionary_source(merge_source)
+        elif source_type == 'stage':
+            return self._load_stage_source(merge_source)
         else:
             raise StepProcessorError(f"Unsupported merge source type: {source_type}")
     
@@ -216,6 +218,26 @@ class MergeDataProcessor(BaseStepProcessor):
             return df
         except Exception as e:
             raise StepProcessorError(f"Error creating DataFrame from dictionary: {e}")
+    
+    def _load_stage_source(self, merge_source: dict) -> pd.DataFrame:
+        """Load data from a saved stage."""
+        if 'stage_name' not in merge_source:
+            raise StepProcessorError("Stage merge source requires 'stage_name' field")
+        
+        stage_name = merge_source['stage_name']
+        
+        if not StageManager.stage_exists(stage_name):
+            available_stages = list(StageManager.list_stages().keys())
+            raise StepProcessorError(
+                f"Merge stage '{stage_name}' not found. Available stages: {available_stages}"
+            )
+        
+        try:
+            stage_data = StageManager.get_stage_data(stage_name)
+            logger.debug(f"Loaded merge data from stage '{stage_name}': {len(stage_data)} rows")
+            return stage_data
+        except StageError as e:
+            raise StepProcessorError(f"Error loading merge data from stage '{stage_name}': {e}")
     
     def _validate_merge_keys(self, left_df: pd.DataFrame, right_df: pd.DataFrame,
                             left_key: str, right_key: str) -> None:
@@ -358,7 +380,7 @@ class MergeDataProcessor(BaseStepProcessor):
         Returns:
             List of supported source type strings
         """
-        return ['excel', 'csv', 'dictionary']
+        return ['excel', 'csv', 'dictionary', 'stage']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
@@ -368,12 +390,17 @@ class MergeDataProcessor(BaseStepProcessor):
             'data_sources': self.get_supported_source_types(),
             'merge_features': [
                 'external_file_merging', 'multiple_join_types', 'key_column_specification',
-                'column_conflict_handling', 'duplicate_key_removal', 'column_prefixing'
+                'column_conflict_handling', 'duplicate_key_removal', 'column_prefixing',
+                'stage_based_merging'
             ],
-            'file_formats': ['xlsx', 'xls', 'csv', 'dictionary'],
+            'stage_integration': [
+                'cross_stage_merging', 'reusable_reference_data', 'dynamic_merge_sources'
+            ],
+            'file_formats': ['xlsx', 'xls', 'csv', 'dictionary', 'stage'],
             'examples': {
                 'excel_lookup': "Merge with product catalog from Excel file",
                 'csv_enrichment': "Add customer data from CSV export", 
-                'dictionary_mapping': "Add category mappings from configuration"
+                'dictionary_mapping': "Add category mappings from configuration",
+                'stage_merge': "Merge with data from previously created stage"
             }
         }

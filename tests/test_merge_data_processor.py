@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import tempfile
 
+from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.processors.base_processor import StepProcessorError
 from excel_recipe_processor.processors.merge_data_processor import MergeDataProcessor
 
@@ -483,6 +484,116 @@ def test_merge_statistics():
         return False
 
 
+def test_stage_merge():
+    """Test merging with stage data source."""
+    
+    print("\nTesting stage merge...")
+    
+    # Initialize StageManager for testing
+    StageManager.initialize_stages(max_stages=5)
+    
+    try:
+        orders_df = create_sample_orders_data()
+        customer_df = create_sample_customer_data()
+        
+        # Save customer data as a stage first
+        StageManager.save_stage(
+            stage_name="Test Customer Data",
+            data=customer_df,
+            description="Customer data for merge testing"
+        )
+        
+        # Test stage merge
+        step_config = {
+            'processor_type': 'merge_data',
+            'step_description': 'Merge with customer stage',
+            'merge_source': {
+                'type': 'stage',
+                'stage_name': 'Test Customer Data'
+            },
+            'left_key': 'Customer_ID',
+            'right_key': 'Customer_ID',
+            'join_type': 'left'
+        }
+        
+        processor = MergeDataProcessor(step_config)
+        result = processor.execute(orders_df)
+        
+        print(f"✓ Stage merge result: {len(result)} rows, {len(result.columns)} columns")
+        
+        # Check that customer data was merged
+        has_customer_name = 'Customer_Name' in result.columns
+        has_region = 'Region' in result.columns
+        
+        if has_customer_name and has_region:
+            print("✓ Stage merge worked correctly")
+            return True
+        else:
+            print("✗ Stage merge failed")
+            return False
+            
+    finally:
+        # Clean up stages
+        StageManager.cleanup_stages()
+
+
+def test_stage_merge_errors():
+    """Test error handling for stage merge failures."""
+    
+    print("\nTesting stage merge error handling...")
+    
+    # Initialize StageManager for testing
+    StageManager.initialize_stages(max_stages=5)
+    
+    try:
+        test_df = create_sample_orders_data()
+        
+        # Test missing stage
+        try:
+            bad_config = {
+                'processor_type': 'merge_data',
+                'step_description': 'Missing stage',
+                'merge_source': {
+                    'type': 'stage',
+                    'stage_name': 'NonExistent Stage'
+                },
+                'left_key': 'Customer_ID',
+                'right_key': 'Customer_ID'
+            }
+            processor = MergeDataProcessor(bad_config)
+            processor.execute(test_df)
+            print("✗ Should have failed with missing stage")
+            return False
+        except StepProcessorError as e:
+            print(f"✓ Caught expected error for missing stage: {e}")
+        
+        # Test missing stage_name field
+        try:
+            bad_config = {
+                'processor_type': 'merge_data',
+                'step_description': 'Missing stage_name',
+                'merge_source': {
+                    'type': 'stage'
+                    # Missing stage_name
+                },
+                'left_key': 'Customer_ID',
+                'right_key': 'Customer_ID'
+            }
+            processor = MergeDataProcessor(bad_config)
+            processor.execute(test_df)
+            print("✗ Should have failed with missing stage_name")
+            return False
+        except StepProcessorError as e:
+            print(f"✓ Caught expected error for missing stage_name: {e}")
+        
+        print("✓ Stage merge error handling worked correctly")
+        return True
+        
+    finally:
+        # Clean up stages
+        StageManager.cleanup_stages()
+
+
 if __name__ == '__main__':
     success = True
     
@@ -493,6 +604,8 @@ if __name__ == '__main__':
     success &= test_column_conflict_handling()
     success &= test_real_world_scenario()
     success &= test_merge_statistics()
+    success &= test_stage_merge()
+    success &= test_stage_merge_errors()
     test_error_handling()
     
     if success:

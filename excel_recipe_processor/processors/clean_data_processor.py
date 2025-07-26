@@ -364,10 +364,19 @@ class CleanDataProcessor(BaseStepProcessor):
         
         if method == 'value':
             df[column] = df[column].fillna(fill_value)
+
+        # Produces FutureWarning for fillna(method=)
+        # elif method == 'forward':
+        #     df[column] = df[column].fillna(method='ffill')
+        # elif method == 'backward':
+        #     df[column] = df[column].fillna(method='bfill')
+
+        # Prevents FutureWarning for fillna(method=)
         elif method == 'forward':
-            df[column] = df[column].fillna(method='ffill')
+            df[column] = df[column].ffill()
         elif method == 'backward':
-            df[column] = df[column].fillna(method='bfill')
+            df[column] = df[column].bfill()
+
         else:
             raise StepProcessorError(f"Unknown fill method: {method}. Use 'value', 'forward', or 'backward'")
         

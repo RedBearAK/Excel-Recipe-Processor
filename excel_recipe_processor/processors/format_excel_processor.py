@@ -17,6 +17,7 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
 
+from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
 
 
@@ -134,9 +135,27 @@ class FormatExcelProcessor(BaseStepProcessor):
         Returns:
             Filename with variables substituted
         """
-        # TODO: Access pipeline's variable substitution system
-        # For now, return as-is since formatting typically happens after export
-        return filename
+        # Get custom variables from processor config
+        custom_variables = self.get_config_value('variables', {})
+        
+        # Create variable substitution instance
+        # Note: We don't have input_path/recipe_path context, but we can still
+        # handle custom variables and date/time substitution
+        variable_sub = VariableSubstitution(
+            input_path=None,
+            recipe_path=None, 
+            custom_variables=custom_variables
+        )
+        
+        # Apply substitution
+        try:
+            substituted = variable_sub.substitute(filename)
+            if substituted != filename:
+                logger.debug(f"Variable substitution: {filename} → {substituted}")
+            return substituted
+        except Exception as e:
+            logger.warning(f"Variable substitution failed for '{filename}': {e}")
+            return filename
     
     def _format_excel_file(self, filename: str, formatting: dict) -> int:
         """

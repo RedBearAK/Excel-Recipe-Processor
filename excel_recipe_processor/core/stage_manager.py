@@ -21,17 +21,23 @@ class StageError(Exception):
 
 class StageManager:
     """
-    Manages named data stages during recipe execution.
+    Static utility class for managing data stages.
+    
+    DO NOT INSTANTIATE - Use StageManager.method_name() directly.
     
     Uses class variables to maintain shared state across all usage.
     All public methods are class methods for clean global access.
     """
     
     # Shared state across all usage
-    _current_stages: dict = {}              # dict[str, pd.DataFrame]
-    _stage_metadata: dict = {}              # dict[str, dict]  
-    _stage_usage: dict = {}                 # dict[str, int]
-    _max_stages: int = 10                   # Configurable limit
+    _current_stages: dict   = {}                # dict[str, pd.DataFrame]
+    _stage_metadata: dict   = {}                # dict[str, dict]  
+    _stage_usage: dict      = {}                # dict[str, int]
+    _max_stages: int        = 25                # Configurable limit
+    
+    def __new__(cls):
+        raise TypeError(f"{cls.__name__} is a static utility class. "
+                        f"Use {cls.__name__}.method_name() directly.")
     
     # =============================================================================
     # PUBLIC API - What processors call

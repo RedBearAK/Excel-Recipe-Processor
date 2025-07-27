@@ -138,7 +138,7 @@ class ExcelPipeline:
     
     def execute_recipe(self) -> pd.DataFrame:
         """
-        Execute all recipe steps with enhanced processor integration and detailed stage management.
+        Execute all recipe steps with enhanced processor integration.
         
         Returns:
             Final processed DataFrame
@@ -155,10 +155,6 @@ class ExcelPipeline:
         steps = self.recipe_loader.get_steps()
         logger.info(f"Executing recipe with {len(steps)} steps")
         
-        # Initialize stage manager for enhanced intermediate data handling
-        stage_manager = StageManager()
-        stage_manager.save_stage("initial_data", self.current_data)
-        
         try:
             for i, step in enumerate(steps, 1):
                 step_name = step.get(step_desc, f"Step {i}")
@@ -171,11 +167,8 @@ class ExcelPipeline:
                 
                 # Execute step
                 self.current_data = processor.execute(self.current_data)
-                
-                # Save intermediate stage
-                stage_manager.save_stage(f"step_{i}_{step_type}", self.current_data)
-                
                 self.steps_executed += 1
+
                 logger.debug(f"Step {i} completed: {len(self.current_data)} rows, {len(self.current_data.columns)} columns")
             
             logger.info(f"Recipe execution completed successfully: {self.steps_executed} steps executed")

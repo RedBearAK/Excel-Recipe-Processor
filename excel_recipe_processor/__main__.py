@@ -26,6 +26,12 @@ Examples:
   # Process specific sheet with verbose logging
   python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet "Sheet2" --verbose
   
+  # External override variables
+  python -m excel_recipe_processor data.xlsx --config recipe.yaml --var batch_id=A47 --var region=west
+  
+  # Mixed approach (some variables from CLI, others prompted)
+  python -m excel_recipe_processor data.xlsx --config recipe.yaml --var batch_id=A47
+  
   # List available processors (basic)
   python -m excel_recipe_processor --list-capabilities
   
@@ -98,6 +104,15 @@ Examples:
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose output and debug logging'
+    )
+    
+    # Variable overrides
+    parser.add_argument(
+        '--var',
+        action='append',
+        dest='variable_overrides',
+        metavar='NAME=VALUE',
+        help='Override external variable (repeatable). Example: --var batch_id=A47 --var region=west'
     )
     
     # System information

@@ -2,7 +2,8 @@
 Pipeline orchestrator for Excel automation recipes.
 
 Coordinates loading recipes, reading files, executing steps, and saving results
-with enhanced FileReader/FileWriter integration and comprehensive variable substitution.
+with enhanced FileReader/FileWriter integration, comprehensive variable substitution,
+and external variable support.
 """
 
 import pandas as pd
@@ -10,9 +11,9 @@ import logging
 
 from pathlib import Path
 
-from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.processors.base_processor import registry, StepProcessorError
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
@@ -39,6 +40,7 @@ class ExcelPipeline:
     - Comprehensive variable substitution across all operations
     - StageManager coordination for intermediate data storage
     - Processor variable injection for dynamic configurations
+    - External variable support with CLI overrides and interactive prompts
     """
     
     def __init__(self):
@@ -55,6 +57,7 @@ class ExcelPipeline:
         self._input_path                = None
         self._recipe_path               = None
         self._custom_variables          = {}
+        self._external_variables        = {}
 
     def load_recipe(self, recipe_path) -> dict:
         """
@@ -82,6 +85,11 @@ class ExcelPipeline:
             # Log variable information
             if self._custom_variables:
                 logger.info(f"Found {len(self._custom_variables)} custom variables in recipe")
+            
+            # Log external variable requirements
+            external_vars = self.recipe_loader.get_required_external_vars()
+            if external_vars:
+                logger.info(f"Recipe requires {len(external_vars)} external variables")
             
             return self.recipe_data
         except (RecipeValidationError, FileNotFoundError) as e:
@@ -141,97 +149,52 @@ class ExcelPipeline:
         if self.recipe_data is None:
             raise PipelineError("No recipe loaded. Call load_recipe() first.")
         
-        if self.current_data is None:
+        if self.input_data is None:
             raise PipelineError("No input data loaded. Call load_input_file() first.")
         
-        # Initialize StageManager for the pipeline run
-        max_stages = self.recipe_loader.get_settings().get('max_stages', 10)
-        StageManager.initialize_stages(max_stages)
-        
         steps = self.recipe_loader.get_steps()
-        total_steps = len(steps)
+        logger.info(f"Executing recipe with {len(steps)} steps")
         
-        logger.info(f"Starting recipe execution: {total_steps} steps")
-        
-        self.steps_executed = 0
+        # Initialize stage manager for enhanced intermediate data handling
+        stage_manager = StageManager()
+        stage_manager.save_stage("initial_data", self.current_data)
         
         try:
-            # Ensure variable substitution is initialized
-            self._initialize_variable_substitution()
-            
-            for i, step_config in enumerate(steps):
-                step_number = i + 1
-                step_name = step_config.get(step_desc, f'Step {step_number}')
-                step_type = step_config.get(proc_type, 'unknown')
+            for i, step in enumerate(steps, 1):
+                step_name = step.get(step_desc, f"Step {i}")
+                step_type = step[proc_type]
                 
-                try:
-                    logger.info(f"Executing step {step_number}/{total_steps}: {step_name} ({step_type})")
-                    
-                    # Create processor with enhanced integration
-                    processor = self._create_processor(step_config)
-                    
-                    # Inject variables into processor for dynamic configurations
-                    self._inject_variables_into_processor(processor)
-                    
-                    # Execute step
-                    self.current_data = processor.execute(self.current_data)
-                    
-                    # Guard clause: ensure we still have a DataFrame
-                    if not isinstance(self.current_data, pd.DataFrame):
-                        raise PipelineError(f"Step {step_number} did not return a DataFrame")
-                    
-                    self.steps_executed += 1
-                    
-                    logger.info(f"Completed step {step_number}: {len(self.current_data)} rows remaining")
-                    
-                except Exception as e:
-                    logger.error(f"Failed at step {step_number} ({step_name}): {e}")
-                    raise PipelineError(f"Step {step_number} failed: {e}")
+                logger.info(f"Executing step {i}/{len(steps)}: {step_name} ({step_type})")
+                
+                # Create processor with variable injection
+                processor = self._create_processor(step)
+                
+                # Execute step
+                self.current_data = processor.execute(self.current_data)
+                
+                # Save intermediate stage
+                stage_manager.save_stage(f"step_{i}_{step_type}", self.current_data)
+                
+                self.steps_executed += 1
+                logger.debug(f"Step {i} completed: {len(self.current_data)} rows, {len(self.current_data.columns)} columns")
             
-            # Check for unused stages
-            unused_stages = StageManager.get_unused_stages()
-            if unused_stages:
-                stage_list = StageManager.list_stages()
-                for stage_name in unused_stages:
-                    stage_info = stage_list.get(stage_name, {})
-                    created_step = stage_info.get('step_name', 'unknown')
-                    logger.warning(
-                        f"Recipe completed with unused stage: '{stage_name}' "
-                        f"(created in '{created_step}', never used)"
-                    )
-            
-            # Log stage summary
-            stage_summary = StageManager.get_stage_summary()
-            if stage_summary['total_stages'] > 0:
-                logger.info(
-                    f"Stage summary: {stage_summary['total_stages']} stages created, "
-                    f"{stage_summary['unused_stages']} unused, "
-                    f"~{stage_summary['total_memory_mb']:.1f}MB used"
-                )
-            
-            logger.info(f"Recipe execution complete: {self.steps_executed}/{total_steps} steps executed")
+            logger.info(f"Recipe execution completed successfully: {self.steps_executed} steps executed")
             return self.current_data
             
-        except Exception as e:
-            if isinstance(e, PipelineError):
-                raise
-            else:
-                raise PipelineError(f"Recipe execution failed: {e}")
-        
-        finally:
-            # Cleanup stages unless configured to keep them
-            cleanup_stages = self.recipe_loader.get_settings().get('cleanup_stages', True)
-            if cleanup_stages:
-                StageManager.cleanup_stages()
-                logger.debug("Cleaned up pipeline stages")
+        except (StepProcessorError, StageError) as e:
+            logger.error(f"Step execution failed at step {self.steps_executed + 1}: {e}")
+            raise PipelineError(f"Recipe execution failed: {e}")
     
-    def save_result(self, output_path, sheet_name='ProcessedData') -> None:
+    def save_result(self, output_path, sheet_name='ProcessedData') -> str:
         """
-        Save result using FileWriter with variable substitution.
+        Save processed data using FileWriter with variable substitution.
         
         Args:
-            output_path: Path to output file (supports variable substitution)
+            output_path: Path for output file (supports variable substitution)
             sheet_name: Sheet name for output
+            
+        Returns:
+            Final output file path (with variables substituted)
             
         Raises:
             PipelineError: If saving fails
@@ -240,37 +203,29 @@ class ExcelPipeline:
             raise PipelineError("No data to save. Execute recipe first.")
         
         try:
-            # Ensure variable substitution is initialized
-            self._initialize_variable_substitution()
-            
             # Apply variable substitution to output path
             substituted_output_path = self.variable_substitution.substitute(str(output_path))
             if substituted_output_path != str(output_path):
                 logger.info(f"Substituted variables in output filename: {output_path} → {substituted_output_path}")
             
-            # Apply variable substitution to sheet name
-            substituted_sheet_name = self.variable_substitution.substitute(str(sheet_name))
-            if substituted_sheet_name != str(sheet_name):
-                logger.info(f"Substituted variables in sheet name: {sheet_name} → {substituted_sheet_name}")
-            
             # Use FileWriter for enhanced file handling
-            FileWriter.write_file(
+            final_path = FileWriter.write_file(
                 self.current_data,
                 substituted_output_path,
                 variables=self._get_current_variables(),
-                sheet_name=substituted_sheet_name,
-                create_backup=self.recipe_loader.get_settings().get('create_backup', False)
+                sheet_name=sheet_name
             )
             
-            logger.info(f"Saved result to: {substituted_output_path} ({len(self.current_data)} rows)")
+            logger.info(f"Saved result to: {final_path}")
+            return final_path
             
         except FileWriterError as e:
             raise PipelineError(f"Failed to save result: {e}")
     
     def run_complete_pipeline(self, recipe_path, input_path, output_path, 
-                            input_sheet=0, output_sheet='ProcessedData'):
+                            input_sheet=0, output_sheet='ProcessedData') -> pd.DataFrame:
         """
-        Run complete pipeline with enhanced variable substitution and file handling.
+        Run the complete pipeline: load recipe, load input, execute, and save.
         
         Args:
             recipe_path: Path to recipe file
@@ -310,10 +265,15 @@ class ExcelPipeline:
     def _initialize_variable_substitution(self) -> None:
         """Initialize or update variable substitution with current context."""
         
+        # Combine all variable sources
+        all_variables = {}
+        all_variables.update(self._custom_variables)  # Recipe variables
+        all_variables.update(self._external_variables)  # External variables
+        
         self.variable_substitution = VariableSubstitution(
             input_path=self._input_path,
             recipe_path=self._recipe_path,
-            custom_variables=self._custom_variables
+            custom_variables=all_variables
         )
     
     def _get_current_variables(self) -> dict:
@@ -322,7 +282,11 @@ class ExcelPipeline:
         if self.variable_substitution:
             return self.variable_substitution.get_available_variables()
         else:
-            return self._custom_variables
+            # Fallback: combine variables manually
+            all_variables = {}
+            all_variables.update(self._custom_variables)
+            all_variables.update(self._external_variables)
+            return all_variables
     
     def _inject_variables_into_processor(self, processor) -> None:
         """Inject variables into processor for dynamic configurations."""
@@ -342,88 +306,26 @@ class ExcelPipeline:
             step_config: Step configuration dictionary
             
         Returns:
-            Initialized processor instance
+            Configured processor instance
             
         Raises:
             PipelineError: If processor creation fails
         """
-        # Guard clause
-        if not isinstance(step_config, dict):
-            raise PipelineError("Step configuration must be a dictionary")
-        
-        if proc_type not in step_config:
-            raise PipelineError(f"Step configuration missing {proc_type} field")
-        
         try:
-            return registry.create_processor(step_config)
-        except StepProcessorError as e:
-            raise PipelineError(f"Failed to create processor: {e}")
+            processor = registry.create_processor(step_config)
+            
+            # Inject variables for dynamic configurations
+            self._inject_variables_into_processor(processor)
+            
+            return processor
+            
+        except Exception as e:
+            step_type = step_config.get(proc_type, 'unknown')
+            raise PipelineError(f"Failed to create processor '{step_type}': {e}")
     
-    def get_pipeline_summary(self) -> dict:
+    def _create_backup_file(self, file_path) -> Path:
         """
-        Get comprehensive pipeline summary including stage and variable information.
-        
-        Returns:
-            Dictionary with pipeline summary information
-        """
-        summary = {
-            'recipe_loaded': self.recipe_data is not None,
-            'input_loaded': self.input_data is not None,
-            'steps_executed': self.steps_executed,
-        }
-        
-        if self.recipe_data:
-            summary['total_steps'] = len(self.recipe_loader.get_steps())
-            summary['recipe_settings'] = self.recipe_loader.get_settings()
-        
-        if self.input_data is not None:
-            summary['input_rows'] = len(self.input_data)
-            summary['input_columns'] = len(self.input_data.columns)
-        
-        if self.current_data is not None:
-            summary['current_rows'] = len(self.current_data)
-            summary['current_columns'] = len(self.current_data.columns)
-        
-        # Add stage information
-        summary['stages'] = StageManager.get_stage_summary()
-        
-        # Enhanced: Add detailed information for refactored version
-        summary['recipe_info'] = {}
-        summary['variable_info'] = {}
-        summary['stage_info'] = {}
-        
-        # Recipe information
-        if self.recipe_data:
-            summary['recipe_info'] = {
-                'total_steps': len(self.recipe_data.get('recipe', [])),
-                'settings': self.recipe_loader.get_settings(),
-                'recipe_path': str(self._recipe_path) if self._recipe_path else None
-            }
-        
-        # Variable information  
-        if self.variable_substitution:
-            summary['variable_info'] = {
-                'available_variables': self.variable_substitution.get_available_variables(),
-                'custom_variables_count': len(self._custom_variables),
-                'input_path': str(self._input_path) if self._input_path else None
-            }
-        
-        # Stage information
-        try:
-            stage_list = StageManager.list_stages()
-            summary['stage_info'] = {
-                'active_stages': len(stage_list),
-                'stage_names': list(stage_list.keys()),
-                'max_stages': StageManager._max_stages
-            }
-        except:
-            summary['stage_info'] = {'active_stages': 0, 'stage_names': [], 'max_stages': 0}
-        
-        return summary
-    
-    def create_backup(self, file_path) -> Path:
-        """
-        Create a backup of a file before processing.
+        Create a backup of an existing file.
         
         Args:
             file_path: Path to file to backup
@@ -458,7 +360,11 @@ class ExcelPipeline:
         if self.variable_substitution:
             return self.variable_substitution.get_available_variables()
         else:
-            return self._custom_variables.copy()
+            # Fallback: combine variables manually
+            all_variables = {}
+            all_variables.update(self._custom_variables)
+            all_variables.update(self._external_variables)
+            return all_variables
     
     def add_custom_variable(self, name: str, value: str) -> None:
         """
@@ -468,13 +374,27 @@ class ExcelPipeline:
             name: Variable name
             value: Variable value
         """
-        self._custom_variables[name] = value
+        # Store in external variables (higher priority than recipe variables)
+        self._external_variables[name] = value
         
         # Update variable substitution if initialized
         if self.variable_substitution:
             self.variable_substitution.add_custom_variable(name, value)
         
-        logger.debug(f"Added custom variable: {name} = {value}")
+        logger.debug(f"Added external variable: {name} = {value}")
+    
+    def add_external_variables(self, variables: dict) -> None:
+        """
+        Add multiple external variables to the pipeline context.
+        
+        Args:
+            variables: Dictionary of variable name-value pairs
+        """
+        for name, value in variables.items():
+            self.add_custom_variable(name, value)
+        
+        if variables:
+            logger.info(f"Added {len(variables)} external variables")
     
     def validate_variable_templates(self, templates: list) -> dict:
         """
@@ -516,31 +436,20 @@ class ExcelPipeline:
     
     def cleanup_pipeline(self) -> None:
         """Clean up pipeline resources and stages."""
-        
-        try:
-            StageManager.cleanup_stages()
-            logger.debug("Cleaned up pipeline stages")
-        except:
-            pass  # Stages may not be initialized
-        
-        # Reset pipeline state
+        self.recipe_data = None
+        self.input_data = None
         self.current_data = None
         self.steps_executed = 0
+        self.variable_substitution = None
+        self._custom_variables.clear()
+        self._external_variables.clear()
         
-        logger.debug("Pipeline cleanup completed")
-    
-    def __str__(self) -> str:
-        """String representation of the pipeline."""
-        recipe_name = self._recipe_path.name if self._recipe_path else 'No recipe'
-        input_name = self._input_path.name if self._input_path else 'No input'
-        return f"ExcelPipeline(recipe='{recipe_name}', input='{input_name}', steps_executed={self.steps_executed})"
-    
-    def __repr__(self) -> str:
-        """Developer representation of the pipeline."""
-        return (f"ExcelPipeline(recipe_loaded={self.recipe_data is not None}, "
-                f"input_loaded={self.input_data is not None}, "
-                f"steps_executed={self.steps_executed})")
+        logger.debug("Pipeline resources cleaned up")
 
+
+# =============================================================================
+# MODULE-LEVEL CONVENIENCE FUNCTIONS
+# =============================================================================
 
 def get_system_capabilities() -> dict:
     """
@@ -630,9 +539,12 @@ from excel_recipe_processor.processors.aggregate_data_processor         import A
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
+from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
 from excel_recipe_processor.processors.fill_data_processor              import FillDataProcessor
 from excel_recipe_processor.processors.filter_data_processor            import FilterDataProcessor
+from excel_recipe_processor.processors.format_excel_processor           import FormatExcelProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
+from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
 from excel_recipe_processor.processors.load_stage_processor             import LoadStageProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
@@ -653,9 +565,12 @@ def register_standard_processors():
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
+    registry.register('export_file',                    ExportFileProcessor                 )
     registry.register('fill_data',                      FillDataProcessor                   )
     registry.register('filter_data',                    FilterDataProcessor                 )
+    registry.register('format_excel',                   FormatExcelProcessor                )
     registry.register('group_data',                     GroupDataProcessor                  )
+    registry.register('import_file',                    ImportFileProcessor                 )
     registry.register('load_stage',                     LoadStageProcessor                  )
     registry.register('lookup_data',                    LookupDataProcessor                 )
     registry.register('merge_data',                     MergeDataProcessor                  )

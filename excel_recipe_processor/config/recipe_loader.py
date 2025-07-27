@@ -1,15 +1,18 @@
 """
 Recipe configuration loader for Excel automation recipes.
 
-This module handles loading and basic validation of YAML/JSON recipe files.
+This module handles loading and basic validation of YAML/JSON recipe files,
+including support for required external variables.
 """
 
 import json
-import logging
-from pathlib import Path
-from typing import Any, Optional
-
 import yaml
+import logging
+
+from pathlib import Path
+
+from excel_recipe_processor.core.interactive_variables import validate_external_variable_config
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +29,13 @@ class RecipeLoader:
     Loads and validates Excel processing recipe files.
     
     Supports both YAML and JSON formats. Provides basic validation
-    of recipe structure and step definitions.
+    of recipe structure and step definitions, including external variables.
     """
     
     def __init__(self):
         """Initialize the recipe loader."""
-        self.recipe_data: Optional[dict[str, Any]] = None
-        self.recipe_path: Optional[Path] = None
+        self.recipe_data = None
+        self.recipe_path = None
     
     def load_file(self, recipe_path) -> dict:
         """
@@ -136,62 +139,66 @@ class RecipeLoader:
         Validate the loaded recipe structure.
         
         Raises:
-            RecipeValidationError: If validation fails
+            RecipeValidationError: If the recipe structure is invalid
         """
+        # Guard clause: recipe_data must be a dictionary
         if not isinstance(self.recipe_data, dict):
-            raise RecipeValidationError("Recipe must be a dictionary/object at root level")
+            raise RecipeValidationError("Recipe must be a dictionary (YAML object or JSON object)")
         
-        # Check for required 'recipe' key
+        # Guard clause: recipe must have a 'recipe' key with steps
         if 'recipe' not in self.recipe_data:
-            raise RecipeValidationError("Recipe must contain a 'recipe' key with list of steps")
+            raise RecipeValidationError("Recipe must contain a 'recipe' section with processing steps")
         
-        steps = self.recipe_data['recipe']
-        if not isinstance(steps, list):
-            raise RecipeValidationError("Recipe 'recipe' value must be a list of steps")
+        if not isinstance(self.recipe_data['recipe'], list):
+            raise RecipeValidationError("Recipe 'recipe' section must be a list of steps")
         
-        if len(steps) == 0:
-            raise RecipeValidationError("Recipe must contain at least one step")
+        if len(self.recipe_data['recipe']) == 0:
+            raise RecipeValidationError("Recipe must contain at least one processing step")
         
         # Validate each step
-        for i, step in enumerate(steps):
+        for i, step in enumerate(self.recipe_data['recipe'], 1):
             self._validate_step(step, i)
         
         # Validate settings if present
         if 'settings' in self.recipe_data:
             self._validate_settings(self.recipe_data['settings'])
+        
+        logger.debug("Recipe structure validation completed successfully")
     
-    def _validate_step(self, step, step_index: int) -> None:
+    def _validate_step(self, step: dict, step_number: int) -> None:
         """
         Validate a single recipe step.
         
         Args:
             step: Step dictionary to validate
-            step_index: Zero-based index of the step for error reporting
+            step_number: Step number for error messages
         """
         # Guard clause: step must be a dictionary
         if not isinstance(step, dict):
-            raise RecipeValidationError(f"Step {step_index + 1} must be a dictionary")
+            raise RecipeValidationError(f"Step {step_number} must be a dictionary")
         
-        # Required fields
-        if 'processor_type' not in step:
-            raise RecipeValidationError(f"Step {step_index + 1} missing required '{proc_type}' field")
+        # Guard clause: step must have processor_type
+        if proc_type not in step:
+            raise RecipeValidationError(
+                f"Step {step_number} missing required field '{proc_type}'"
+            )
         
-        step_type = step[proc_type]
-        # Guard clause: type must be a non-empty string
-        if not isinstance(step_type, str) or not step_type.strip():
-            raise RecipeValidationError(f"Step {step_index + 1} {proc_type} must be a non-empty string")
+        if not isinstance(step[proc_type], str):
+            raise RecipeValidationError(
+                f"Step {step_number} field '{proc_type}' must be a string"
+            )
         
-        # Optional but recommended fields
-        if step_desc in step:
-            # Guard clause: name must be a string if present
-            if not isinstance(step[step_desc], str):
-                raise RecipeValidationError(f"Step {step_index + 1} {step_desc} must be a string")
+        # step_description is optional but if present must be a string
+        if step_desc in step and not isinstance(step[step_desc], str):
+            raise RecipeValidationError(
+                f"Step {step_number} field '{step_desc}' must be a string"
+            )
         
-        logger.debug(f"Step {step_index + 1} validated: {step_type}")
+        logger.debug(f"Step {step_number} validation passed")
     
-    def _validate_settings(self, settings) -> None:
+    def _validate_settings(self, settings: dict) -> None:
         """
-        Validate recipe settings section.
+        Validate recipe settings including external variables.
         
         Args:
             settings: Settings dictionary to validate
@@ -209,7 +216,37 @@ class RecipeLoader:
             if not isinstance(settings['create_backup'], bool):
                 raise RecipeValidationError("Setting 'create_backup' must be boolean")
         
+        if 'variables' in settings:
+            if not isinstance(settings['variables'], dict):
+                raise RecipeValidationError("Setting 'variables' must be a dictionary")
+        
+        # Validate external variables if present
+        if 'required_external_vars' in settings:
+            self._validate_external_variables(settings['required_external_vars'])
+        
         logger.debug("Settings validated successfully")
+    
+    def _validate_external_variables(self, external_vars: dict) -> None:
+        """
+        Validate required external variables configuration.
+        
+        Args:
+            external_vars: External variables dictionary to validate
+        """
+        if not isinstance(external_vars, dict):
+            raise RecipeValidationError("required_external_vars must be a dictionary")
+        
+        for var_name, var_config in external_vars.items():
+            if not isinstance(var_name, str):
+                raise RecipeValidationError("External variable names must be strings")
+            
+            # Use the validation function from interactive_variables
+            try:
+                validate_external_variable_config(var_name, var_config)
+            except Exception as e:
+                raise RecipeValidationError(f"External variable validation failed: {e}")
+        
+        logger.debug(f"Validated {len(external_vars)} external variables")
     
     def get_steps(self) -> list:
         """
@@ -250,7 +287,23 @@ class RecipeLoader:
         
         return settings
     
-    def get_step_by_name(self, step_desc_arg: str) -> Optional[dict]:
+    def get_required_external_vars(self) -> dict:
+        """
+        Get required external variables configuration.
+        
+        Returns:
+            Dictionary of required external variables (empty if none defined)
+        """
+        settings = self.get_settings()
+        external_vars = settings.get('required_external_vars', {})
+        
+        # Guard clause: ensure external_vars is a dict
+        if not isinstance(external_vars, dict):
+            return {}
+        
+        return external_vars
+    
+    def get_step_by_name(self, step_desc_arg: str):
         """
         Find a step by its name.
         
@@ -275,10 +328,10 @@ class RecipeLoader:
         Get all steps of a specific type.
         
         Args:
-            step_type: Type of steps to find
+            step_type: Processor type to filter by
             
         Returns:
-            List of matching step dictionaries
+            List of steps with matching processor type
         """
         # Guard clause: step_type must be a string
         if not isinstance(step_type, str):
@@ -286,7 +339,7 @@ class RecipeLoader:
         
         matching_steps = []
         for step in self.get_steps():
-            # Guard clause: each step should be a dict with type
+            # Guard clause: each step should be a dict
             if isinstance(step, dict) and step.get(proc_type) == step_type:
                 matching_steps.append(step)
         
@@ -294,10 +347,10 @@ class RecipeLoader:
     
     def summary(self) -> str:
         """
-        Get a human-readable summary of the loaded recipe.
+        Get a summary of the loaded recipe.
         
         Returns:
-            Summary string
+            Human-readable summary string
         """
         # Guard clause: recipe must be loaded
         if self.recipe_data is None:
@@ -305,35 +358,14 @@ class RecipeLoader:
         
         steps = self.get_steps()
         settings = self.get_settings()
+        external_vars = self.get_required_external_vars()
         
-        # Guard clause: ensure steps is actually a list
-        if not isinstance(steps, list):
-            return "Recipe data is corrupted"
+        summary_parts = [f"{len(steps)} processing steps"]
         
-        summary_lines = [
-            f"Recipe Summary:",
-            f"  Steps: {len(steps)}",
-        ]
+        if settings:
+            summary_parts.append(f"{len(settings)} settings")
         
-        # Step type counts
-        step_types = {}
-        for step in steps:
-            # Guard clause: ensure each step is a dict with type
-            if isinstance(step, dict) and proc_type in step:
-                step_type = step[proc_type]
-                if isinstance(step_type, str):
-                    step_types[step_type] = step_types.get(step_type, 0) + 1
+        if external_vars:
+            summary_parts.append(f"{len(external_vars)} external variables")
         
-        if step_types:
-            summary_lines.append("  Step types:")
-            for step_type, count in sorted(step_types.items()):
-                summary_lines.append(f"    {step_type}: {count}")
-        
-        # Guard clause: ensure settings is a dict
-        if isinstance(settings, dict) and settings:
-            summary_lines.append(f"  Settings: {len(settings)} configured")
-        
-        if self.recipe_path:
-            summary_lines.append(f"  Source: {self.recipe_path}")
-        
-        return "\n".join(summary_lines)
+        return ", ".join(summary_parts)

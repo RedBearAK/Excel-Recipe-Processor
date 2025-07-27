@@ -1,0 +1,124 @@
+# Example Recipe with Interactive External Variables
+# This recipe demonstrates the new external variable system for flexible file processing
+
+settings:
+  # Define external variables that will be requested from user
+  required_external_vars:
+    batch_id:
+      description: "Batch identifier for related files (e.g., A47, B23, C91)"
+      example: "A47, B23, C91"
+      validation: "^[A-Z]\\d+$"
+      # No default_value - this is required and must be provided
+      
+    processing_date:
+      description: "Date pattern used in source files (YYYYMMDD format)"
+      example: "20250719"
+      validation: "^\\d{8}$"
+      default_value: "{date}"  # Dynamic default using current date
+      allow_empty: false       # User cannot override to empty
+      
+    region:
+      description: "Geographic region for processing"
+      example: "west, east, central"
+      choices: ["west", "east", "central"]  # Constrained choices
+      default_value: "west"    # Static default
+      
+    output_suffix:
+      description: "Optional suffix for output files"
+      example: "_final, _draft, _v2, or leave empty"
+      default_value: ""        # Empty string default - explicitly allows empty
+      # allow_empty is implicitly true when default_value is ""
+      
+    department:
+      description: "Department code for file organization"
+      example: "SALES, FINANCE, HR"
+      validation: "^[A-Z]+$"
+      default_value: "SALES"
+      allow_empty: false       # Cannot be left empty
+
+  # Static variables (defined in recipe)
+  variables:
+    file_prefix: "batch_report"
+    version: "v2.1"
+  
+  # Output filename using both static and external variables
+  output_filename: "{file_prefix}_{batch_id}_{processing_date}_{region}{output_suffix}.xlsx"
+
+recipe:
+  # Step 1: Import the main batch data file
+  - step_description: "Import batch orders file"
+    processor_type: "import_file"
+    file_path: "data/batch_{batch_id}_orders_{processing_date}.xlsx"
+    sheet_name: 0
+  
+  # Step 2: Filter by region
+  - step_description: "Filter orders by region"
+    processor_type: "filter_data"
+    filters:
+      - column: "Region"
+        condition: "equals"
+        value: "{region}"
+  
+  # Step 3: Lookup customer data from separate file
+  - step_description: "Add customer information"
+    processor_type: "lookup_data"
+    lookup_source: "data/batch_{batch_id}_customers.csv"
+    lookup_key: "Customer_ID"
+    source_key: "Customer_ID"
+    lookup_columns: ["Customer_Name", "Credit_Rating", "Department"]
+  
+  # Step 4: Filter by department if not SALES
+  - step_description: "Filter by department (conditional)"
+    processor_type: "filter_data"
+    filters:
+      - column: "Department"
+        condition: "equals"
+        value: "{department}"
+    # This step will use the department variable
+  
+  # Step 5: Add summary calculations
+  - step_description: "Calculate order totals"
+    processor_type: "add_calculated_column"
+    new_column: "Order_Total"
+    formula: "Quantity * Unit_Price"
+  
+  # Step 6: Create summary by region
+  - step_description: "Summarize by customer"
+    processor_type: "group_data"
+    group_by: ["Customer_Name", "Region"]
+    aggregations:
+      Order_Total: "sum"
+      Quantity: "sum"
+  
+  # Step 7: Sort results
+  - step_description: "Sort by order total (descending)"
+    processor_type: "sort_data"
+    sort_columns:
+      - column: "Order_Total"
+        ascending: false
+
+# Usage Examples:
+#
+# 1. Automated mode (all variables via CLI):
+#    python -m excel_recipe_processor data.xlsx --config this_recipe.yaml \
+#      --var batch_id=A47 --var processing_date=20250719 --var region=east --var department=FINANCE
+#
+# 2. Interactive mode (prompts for missing variables):
+#    python -m excel_recipe_processor data.xlsx --config this_recipe.yaml
+#    # Will prompt: batch_id (required), processing_date (default: today), 
+#    #              region (default: west), output_suffix (default: empty), department (default: SALES)
+#
+# 3. Mixed mode (some CLI, some interactive):
+#    python -m excel_recipe_processor data.xlsx --config this_recipe.yaml --var batch_id=A47
+#    # Will prompt for remaining variables
+#
+# Expected file structure:
+# data/
+#   ├── batch_A47_orders_20250719.xlsx     # Main orders file
+#   ├── batch_A47_customers.csv            # Customer lookup file
+#   └── ...
+#
+# Output filename examples:
+# - batch_report_A47_20250719_west.xlsx            (no suffix)
+# - batch_report_A47_20250719_east_final.xlsx      (with suffix)
+# - batch_report_B23_20250720_central_draft.xlsx   (different batch/date)

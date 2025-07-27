@@ -429,6 +429,139 @@ def list_system_capabilities_yaml() -> int:
 
 def list_system_capabilities_detailed_yaml() -> int:
     """Show detailed capabilities with YAML listings - hybrid format."""
+    
+    def print_wrapped_description(description: str) -> None:
+        """Print processor description with proper wrapping."""
+        if len(description) > 60:
+            wrapped_desc = textwrap.fill(description, width=76, 
+                                        initial_indent="   📝 Description: ", 
+                                        subsequent_indent="                    ")
+            print(wrapped_desc)
+        else:
+            print(f"   📝 Description: {description}")
+    
+    def print_wrapped_yaml_line(line: str) -> None:
+        """Print a YAML line with intelligent wrapping."""
+        indented_line = f"      {line}"
+        
+        if len(indented_line) <= 78:
+            print(indented_line)
+            return
+        
+        # Handle long key: value pairs
+        if ': ' in line and not line.strip().startswith('-'):
+            parts = line.split(': ', 1)
+            if len(parts) == 2:
+                key_part = f"      {parts[0]}: "
+                value_part = parts[1]
+                
+                if len(key_part) + len(value_part) > 78:
+                    print(key_part)
+                    wrapped_value = textwrap.fill(value_part, width=72, 
+                                                initial_indent="        ", 
+                                                subsequent_indent="        ")
+                    print(wrapped_value)
+                else:
+                    print(indented_line)
+            else:
+                print(indented_line)
+        else:
+            # For list items and other content, preserve YAML structure
+            print(indented_line)
+    
+    def print_processor_info(processor_type: str, info: dict) -> None:
+        """Print detailed information for a single processor."""
+        print(f"\n📋 {processor_type.upper().replace('_', ' ')} PROCESSOR")
+        print("-" * 60)
+        
+        if 'error' in info:
+            print(f"   ❌ Error: {info['error']}")
+            return
+        
+        # Description with text wrapping
+        if 'description' in info:
+            print_wrapped_description(info['description'])
+        
+        # Feature summary
+        print_feature_summary(info)
+        
+        # YAML capabilities
+        print_yaml_capabilities(info)
+    
+    def print_feature_summary(info: dict) -> None:
+        """Print feature summary counts."""
+        feature_keys = [
+            'supported_actions', 'calculation_types', 'supported_conditions',
+            'lookup_features', 'pivot_features', 'rename_types', 'supported_options',
+            'filter_operations', 'grouping_features', 'transformation_features'
+        ]
+        
+        for key in feature_keys:
+            if key in info:
+                count = len(info[key]) if isinstance(info[key], list) else 'N/A'
+                key_name = key.replace('_', ' ').title()
+                print(f"      {key_name}: {count}")
+    
+    def print_yaml_capabilities(info: dict) -> None:
+        """Print YAML capabilities section."""
+        feature_keys = [
+            'supported_actions', 'calculation_types', 'supported_conditions',
+            'lookup_features', 'pivot_features', 'rename_types', 'supported_options',
+            'filter_operations', 'grouping_features', 'transformation_features'
+        ]
+        
+        yaml_data = {}
+        
+        # Collect feature data
+        for key in feature_keys:
+            if key in info and isinstance(info[key], list) and info[key]:
+                yaml_data[key] = info[key]
+        
+        # Add other important fields
+        for key in ['join_types', 'data_sources', 'case_conversions', 'examples']:
+            if key in info and isinstance(info[key], (list, dict)) and info[key]:
+                yaml_data[key] = info[key]
+        
+        if not yaml_data:
+            print(f"   ℹ️  No detailed capabilities available")
+            return
+        
+        print()  # Add blank line before YAML section
+        print(f"   🔧 Full Capabilities (YAML):")
+        
+        yaml_output = yaml.dump(yaml_data, default_flow_style=False, sort_keys=True, indent=2)
+        for line in yaml_output.split('\n'):
+            if line.strip():
+                print_wrapped_yaml_line(line)
+    
+    def print_system_overview(system: dict) -> None:
+        """Print system overview with wrapping."""
+        print(f"\n📊 System Overview:")
+        
+        description = system['description']
+        if len(description) > 60:
+            wrapped_desc = textwrap.fill(description, width=76, 
+                                        initial_indent="   ", 
+                                        subsequent_indent="   ")
+            print(f"   Description:")
+            print(wrapped_desc)
+        else:
+            print(f"   Description: {description}")
+        
+        print(f"   Total Processors: {system['total_processors']}")
+        
+        # Wrap processor types list
+        types_list = ', '.join(sorted(system['processor_types']))
+        if len(types_list) > 60:
+            wrapped_types = textwrap.fill(types_list, width=76, 
+                                        initial_indent="   ", 
+                                        subsequent_indent="   ")
+            print(f"   Available Types:")
+            print(wrapped_types)
+        else:
+            print(f"   Available Types: {types_list}")
+    
+    # Main function body
     try:
         import yaml
         import textwrap
@@ -439,86 +572,17 @@ def list_system_capabilities_detailed_yaml() -> int:
         
         capabilities = get_system_capabilities()
         
-        # System Overview (formatted)
-        system = capabilities['system_info']
-        print(f"\n📊 System Overview:")
+        # System overview
+        print_system_overview(capabilities['system_info'])
         
-        # Wrap the description if it's too long
-        description = system['description']
-        if len(description) > 60:
-            wrapped_desc = textwrap.fill(description, width=76, initial_indent="   ", subsequent_indent="   ")
-            print(f"   Description:")
-            print(wrapped_desc)
-        else:
-            print(f"   Description: {description}")
-        
-        print(f"   Total Processors: {system['total_processors']}")
-        
-        # Wrap the available types list to 80 characters
-        types_list = ', '.join(sorted(system['processor_types']))
-        if len(types_list) > 60:
-            wrapped_types = textwrap.fill(types_list, width=76, initial_indent="   ", subsequent_indent="   ")
-            print(f"   Available Types:")
-            print(wrapped_types)
-        else:
-            print(f"   Available Types: {types_list}")
-        
-        # Detailed capabilities for each processor with YAML structure
+        # Processor details
         print(f"\n🚀 DETAILED PROCESSOR CAPABILITIES:")
         print("=" * 80)
         
         for processor_type, info in capabilities['processors'].items():
-            print(f"\n📋 {processor_type.upper().replace('_', ' ')} PROCESSOR")
-            print("-" * 60)
-            
-            if 'error' in info:
-                print(f"   ❌ Error: {info['error']}")
-                continue
-            
-            # Description
-            if 'description' in info:
-                print(f"   📝 Description: {info['description']}")
-            
-            # Main features/capabilities summary
-            feature_keys = [
-                'supported_actions', 'calculation_types', 'supported_conditions',
-                'lookup_features', 'pivot_features', 'rename_types', 'supported_options',
-                'filter_operations', 'grouping_features', 'transformation_features'
-            ]
-            
-            for key in feature_keys:
-                if key in info:
-                    if isinstance(info[key], list):
-                        count = len(info[key])
-                    else:
-                        count = 'N/A'
-                    key_name = key.replace('_', ' ').title()
-                    print(f"      {key_name}: {count}")
-            
-            # YAML listing of actual capabilities
-            yaml_data = {}
-            for key in feature_keys:
-                if key in info and isinstance(info[key], list) and info[key]:
-                    yaml_data[key] = info[key]
-            
-            # Add other important fields
-            for key in ['join_types', 'data_sources', 'case_conversions', 'examples']:
-                if key in info:
-                    if isinstance(info[key], (list, dict)) and info[key]:
-                        yaml_data[key] = info[key]
-            
-            if yaml_data:
-                print()  # Add blank line before YAML section
-                print(f"   🔧 Full Capabilities (YAML):")
-                yaml_output = yaml.dump(yaml_data, default_flow_style=False, sort_keys=True, indent=2)
-                # Indent the YAML output and ensure it fits within 80 characters
-                for line in yaml_output.split('\n'):
-                    if line.strip():
-                        indented_line = f"      {line}"
-                        print(indented_line)
-            else:
-                print(f"   ℹ️  No detailed capabilities available")
+            print_processor_info(processor_type, info)
         
+        # Footer
         print(f"\n💡 This format combines structured overview with complete YAML capability")
         print(f"    listings for each processor.")
         print(f"📝 Use --yaml for pure YAML output or --detailed for formatted text only.")

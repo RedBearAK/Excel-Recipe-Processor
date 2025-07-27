@@ -121,21 +121,19 @@ def process_excel_file(input_file: str, recipe_file: str, output_file = None,
                         input_sheet = 0, output_sheet: str = 'ProcessedData', 
                         verbose: bool = False) -> int:
     """
-    Process an Excel file using a recipe with interactive variable support.
+    Process an Excel file using a recipe.
     
     Args:
         input_file: Path to input Excel file
         recipe_file: Path to YAML recipe file
-        output_file: Path for output file (optional, can be specified in recipe)
-        input_sheet: Sheet to read from input file
-        output_sheet: Sheet name for output
-        verbose: Whether to show detailed error information
+        output_file: Path to output Excel file (optional)
+        input_sheet: Sheet name or index to process
+        output_sheet: Name for the output sheet
+        verbose: Enable verbose logging
         
     Returns:
-        Exit code (0 for success, non-zero for error)
+        Exit code (0 for success, 1 for error)
     """
-    cli_variables = _current_cli_variables or {}
-    
     try:
         # Validate input files exist
         input_path = Path(input_file)
@@ -171,14 +169,14 @@ def process_excel_file(input_file: str, recipe_file: str, output_file = None,
                 
                 # Collect variables interactively
                 prompt = InteractiveVariablePrompt(var_sub)
-                external_variables = prompt.collect_variables(required_external_vars, cli_variables)
+                external_variables = prompt.collect_variables(required_external_vars, _current_cli_variables)
                 
                 logger.info(f"Collected {len(external_variables)} external variables")
                 
             except InteractiveVariableError as e:
                 print(f"Error collecting variables: {e}")
                 return 1
-        elif cli_variables:
+        elif _current_cli_variables:
             # No external variables required, but CLI variables provided
             logger.warning("CLI variables provided but recipe doesn't require external variables")
             print("Warning: Recipe doesn't require external variables but --var arguments were provided")
@@ -187,50 +185,40 @@ def process_excel_file(input_file: str, recipe_file: str, output_file = None,
         for name, value in external_variables.items():
             pipeline.add_custom_variable(name, value)
         
-        # Determine output file
-        if output_file:
-            final_output = output_file
-            logger.info(f"Output will be saved to: {output_file}")
-        else:
-            # Let the pipeline determine output from recipe settings
-            final_output = None
-            logger.info("Output filename will be determined from recipe settings")
+        # Load input file and execute recipe
+        pipeline.load_input_file(input_path, sheet_name=input_sheet)
+        result = pipeline.execute_recipe()
         
-        # Run the complete pipeline
-        if final_output:
-            result = pipeline.run_complete_pipeline(
-                recipe_path=recipe_path,
-                input_path=input_path,
-                output_path=final_output,
-                input_sheet=input_sheet,
-                output_sheet=output_sheet
-            )
+        # Handle output based on what's available
+        output_saved = False
+        
+        if output_file:
+            # CLI output file specified - use it
+            pipeline.save_result(output_file, sheet_name=output_sheet)
+            logger.info(f"Results saved to: {output_file}")
+            output_saved = True
         else:
-            # Load recipe first to get output filename
+            # Check if recipe has output_filename setting
             settings = pipeline.recipe_loader.get_settings()
-            
-            if 'output_filename' not in settings:
-                print("Error: No output filename specified in recipe or command line")
-                return 1
-            
-            final_output = settings['output_filename']
-            
-            result = pipeline.run_complete_pipeline(
-                recipe_path=recipe_path,
-                input_path=input_path,
-                output_path=final_output,
-                input_sheet=input_sheet,
-                output_sheet=output_sheet
-            )
+            if 'output_filename' in settings:
+                recipe_output = settings['output_filename']
+                pipeline.save_result(recipe_output, sheet_name=output_sheet)
+                
+                # Show resolved filename with variable substitution
+                final_output_resolved = pipeline.substitute_template(recipe_output)
+                logger.info(f"Results saved to: {final_output_resolved}")
+                output_saved = True
         
         # Report results
         if result is not None:
             print(f"✓ Processing completed successfully")
             print(f"  - Processed {len(result)} rows with {len(result.columns)} columns")
             
-            # Show final output path (with variable substitution applied)
-            final_output_resolved = pipeline.substitute_template(str(final_output))
-            print(f"  - Output saved to: {final_output_resolved}")
+            if output_saved:
+                print(f"  - Data saved to output file")
+            else:
+                print(f"  - No output file specified (data processed in memory)")
+                print(f"  - Use export_file processor step(s) or --output argument to save results")
             
             return 0
         else:
@@ -240,11 +228,8 @@ def process_excel_file(input_file: str, recipe_file: str, output_file = None,
     except PipelineError as e:
         print(f"Pipeline error: {e}")
         return 1
-    except FileNotFoundError as e:
-        print(f"File error: {e}")
-        return 1
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"Error processing file: {e}")
         if verbose:
             import traceback
             traceback.print_exc()

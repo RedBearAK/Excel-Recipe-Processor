@@ -1,3 +1,5 @@
+"""Main functionality for excel_recipe_processor package."""
+
 import sys
 import logging
 
@@ -10,10 +12,17 @@ from excel_recipe_processor.core.pipeline import (
     get_system_capabilities
 )
 from excel_recipe_processor.config.recipe_loader import RecipeLoader
-
+from excel_recipe_processor.core.interactive_variables import (
+    InteractiveVariablePrompt,
+    InteractiveVariableError,
+    parse_cli_variables
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# Global variable for CLI variables (temporary storage)
+_current_cli_variables = {}
 
 
 def run_main(args: Namespace) -> int:
@@ -77,7 +86,19 @@ def run_main(args: Namespace) -> int:
             print("Use --help for usage information")
             return 1
         
-        # Process the files
+        # Parse CLI variable overrides
+        cli_variables = {}
+        if hasattr(args, 'variable_overrides') and args.variable_overrides:
+            try:
+                cli_variables = parse_cli_variables(args.variable_overrides)
+                if cli_variables:
+                    logger.info(f"Parsed {len(cli_variables)} variable overrides from CLI")
+            except InteractiveVariableError as e:
+                print(f"Error parsing variable overrides: {e}")
+                return 1
+        
+        # Process the files with CLI variables passed via a wrapper
+        _current_cli_variables = cli_variables  # Store globally for process_excel_file
         return process_excel_file(
             input_file=args.input_file,
             recipe_file=args.config,
@@ -100,19 +121,21 @@ def process_excel_file(input_file: str, recipe_file: str, output_file = None,
                         input_sheet = 0, output_sheet: str = 'ProcessedData', 
                         verbose: bool = False) -> int:
     """
-    Process an Excel file using a recipe.
+    Process an Excel file using a recipe with interactive variable support.
     
     Args:
         input_file: Path to input Excel file
         recipe_file: Path to YAML recipe file
-        output_file: Path to output Excel file (optional)
-        input_sheet: Sheet name or index to process
-        output_sheet: Name for the output sheet
-        verbose: Enable verbose logging
+        output_file: Path for output file (optional, can be specified in recipe)
+        input_sheet: Sheet to read from input file
+        output_sheet: Sheet name for output
+        verbose: Whether to show detailed error information
         
     Returns:
-        Exit code (0 for success, 1 for error)
+        Exit code (0 for success, non-zero for error)
     """
+    cli_variables = _current_cli_variables or {}
+    
     try:
         # Validate input files exist
         input_path = Path(input_file)
@@ -126,96 +149,105 @@ def process_excel_file(input_file: str, recipe_file: str, output_file = None,
             print(f"Error: Recipe file not found: {recipe_file}")
             return 1
         
-        # Create and run pipeline
+        logger.info(f"Processing: {input_file}")
+        logger.info(f"Using recipe: {recipe_file}")
+        
+        # Initialize pipeline
         pipeline = ExcelPipeline()
         
-        # Run the complete pipeline
-        result = pipeline.run_complete_pipeline(
-            recipe_path=recipe_file,
-            input_path=input_file,
-            output_path=output_file,
-            input_sheet=input_sheet,
-            output_sheet=output_sheet
-        )
+        # Load recipe to check for required external variables
+        pipeline.load_recipe(recipe_path)
+        required_external_vars = pipeline.recipe_loader.get_required_external_vars()
         
-        logger.info(f"Processing completed successfully")
+        # Collect external variables if needed
+        external_variables = {}
+        if required_external_vars:
+            logger.info(f"Recipe requires {len(required_external_vars)} external variables")
+            
+            try:
+                # Create variable substitution for resolving defaults
+                from excel_recipe_processor.core.variable_substitution import VariableSubstitution
+                var_sub = VariableSubstitution(input_path, recipe_path)
+                
+                # Collect variables interactively
+                prompt = InteractiveVariablePrompt(var_sub)
+                external_variables = prompt.collect_variables(required_external_vars, cli_variables)
+                
+                logger.info(f"Collected {len(external_variables)} external variables")
+                
+            except InteractiveVariableError as e:
+                print(f"Error collecting variables: {e}")
+                return 1
+        elif cli_variables:
+            # No external variables required, but CLI variables provided
+            logger.warning("CLI variables provided but recipe doesn't require external variables")
+            print("Warning: Recipe doesn't require external variables but --var arguments were provided")
+        
+        # Add external variables to pipeline
+        for name, value in external_variables.items():
+            pipeline.add_custom_variable(name, value)
+        
+        # Determine output file
         if output_file:
-            logger.info(f"Results saved to: {output_file}")
+            final_output = output_file
+            logger.info(f"Output will be saved to: {output_file}")
+        else:
+            # Let the pipeline determine output from recipe settings
+            final_output = None
+            logger.info("Output filename will be determined from recipe settings")
         
-        return 0
+        # Run the complete pipeline
+        if final_output:
+            result = pipeline.run_complete_pipeline(
+                recipe_path=recipe_path,
+                input_path=input_path,
+                output_path=final_output,
+                input_sheet=input_sheet,
+                output_sheet=output_sheet
+            )
+        else:
+            # Load recipe first to get output filename
+            settings = pipeline.recipe_loader.get_settings()
+            
+            if 'output_filename' not in settings:
+                print("Error: No output filename specified in recipe or command line")
+                return 1
+            
+            final_output = settings['output_filename']
+            
+            result = pipeline.run_complete_pipeline(
+                recipe_path=recipe_path,
+                input_path=input_path,
+                output_path=final_output,
+                input_sheet=input_sheet,
+                output_sheet=output_sheet
+            )
         
+        # Report results
+        if result is not None:
+            print(f"✓ Processing completed successfully")
+            print(f"  - Processed {len(result)} rows with {len(result.columns)} columns")
+            
+            # Show final output path (with variable substitution applied)
+            final_output_resolved = pipeline.substitute_template(str(final_output))
+            print(f"  - Output saved to: {final_output_resolved}")
+            
+            return 0
+        else:
+            print("✗ Processing failed: No result data")
+            return 1
+            
     except PipelineError as e:
         print(f"Pipeline error: {e}")
         return 1
+    except FileNotFoundError as e:
+        print(f"File error: {e}")
+        return 1
     except Exception as e:
-        print(f"Error processing file: {e}")
+        print(f"Unexpected error: {e}")
         if verbose:
             import traceback
             traceback.print_exc()
-        return 1
-
-
-def validate_recipe_file(recipe_file: str) -> int:
-    """
-    Validate a recipe file.
-    
-    Args:
-        recipe_file: Path to YAML recipe file
-        
-    Returns:
-        Exit code (0 for valid, 1 for invalid)
-    """
-    try:
-        print(f"Validating recipe: {recipe_file}")
-        print("=" * 50)
-        
-        recipe_path = Path(recipe_file)
-        if not recipe_path.exists():
-            print(f"Error: Recipe file not found: {recipe_file}")
-            return 1
-        
-        # Try to load and validate the recipe
-        loader = RecipeLoader()
-        recipe_data = loader.load_file(recipe_file)
-        
-        print("✅ Recipe syntax is valid")
-        
-        # Get steps and check processor availability
-        steps = loader.get_steps()
-        print(f"📋 Recipe contains {len(steps)} steps")
-        
-        # Import registry to check processor availability
-        from excel_recipe_processor.processors.base_processor import registry
-        available_types = registry.get_registered_types()
-        
-        valid_steps = 0
-        for i, step in enumerate(steps, 1):
-            step_type = step.get('processor_type', 'unknown')
-            step_name = step.get('step_description', f'Step {i}')
-            
-            if step_type in available_types:
-                print(f"   ✅ Step {i}: {step_name} ({step_type})")
-                valid_steps += 1
-            else:
-                print(f"   ❌ Step {i}: {step_name} ({step_type}) - PROCESSOR NOT AVAILABLE")
-        
-        print(f"\n📊 Validation Results:")
-        print(f"   Valid Steps: {valid_steps}/{len(steps)}")
-        print(f"   Compatibility: {valid_steps/len(steps)*100:.1f}%")
-        
-        if valid_steps == len(steps):
-            print(f"   🎉 Recipe is fully supported and ready to run!")
-            return 0
-        else:
-            print(f"   ⚠️  Recipe has unsupported processors")
-            return 1
-            
-    except Exception as e:
-        print(f"❌ Recipe validation failed: {e}")
-        return 1
-            
-    except Exception as e:
-        print(f"Error validating recipe: {e}")
         return 1
 
 
@@ -229,12 +261,7 @@ def get_version() -> str:
 
 
 def list_system_capabilities() -> int:
-    """
-    List basic system capabilities.
-    
-    Returns:
-        Exit code (always 0)
-    """
+    """List basic system capabilities."""
     try:
         print("Excel Recipe Processor - System Capabilities")
         print("=" * 50)
@@ -269,52 +296,8 @@ def list_system_capabilities() -> int:
         return 1
 
 
-def list_system_capabilities_json() -> int:
-    """
-    Output system capabilities as JSON.
-    
-    Returns:
-        Exit code (always 0)
-    """
-    try:
-        import json
-        capabilities = get_system_capabilities()
-        print(json.dumps(capabilities, indent=2))
-        return 0
-        
-    except Exception as e:
-        print(f"Error generating JSON capabilities: {e}")
-        return 1
-
-
-def list_system_capabilities_yaml() -> int:
-    """
-    Output system capabilities as YAML.
-    
-    Returns:
-        Exit code (always 0)
-    """
-    try:
-        import yaml
-        capabilities = get_system_capabilities()
-        print(yaml.dump(capabilities, default_flow_style=False, sort_keys=True, indent=2))
-        return 0
-        
-    except ImportError:
-        print("Error: PyYAML is required for YAML output. Install with: pip install PyYAML")
-        return 1
-    except Exception as e:
-        print(f"Error generating YAML capabilities: {e}")
-        return 1
-
-
 def list_system_capabilities_detailed() -> int:
-    """
-    List detailed capabilities for each processor.
-    
-    Returns:
-        Exit code (always 0)
-    """
+    """List detailed capabilities for each processor."""
     try:
         print("=" * 80)
         print("🏭 EXCEL RECIPE PROCESSOR - DETAILED CAPABILITIES REPORT")
@@ -415,13 +398,37 @@ def list_system_capabilities_detailed() -> int:
         return 1
 
 
+def list_system_capabilities_json() -> int:
+    """List system capabilities in JSON format."""
+    try:
+        import json
+        capabilities = get_system_capabilities()
+        print(json.dumps(capabilities, indent=2))
+        return 0
+        
+    except Exception as e:
+        print(f"Error listing JSON capabilities: {e}")
+        return 1
+
+
+def list_system_capabilities_yaml() -> int:
+    """Output system capabilities as YAML."""
+    try:
+        import yaml
+        capabilities = get_system_capabilities()
+        print(yaml.dump(capabilities, default_flow_style=False, sort_keys=True, indent=2))
+        return 0
+        
+    except ImportError:
+        print("Error: PyYAML is required for YAML output. Install with: pip install PyYAML")
+        return 1
+    except Exception as e:
+        print(f"Error generating YAML capabilities: {e}")
+        return 1
+
+
 def list_system_capabilities_detailed_yaml() -> int:
-    """
-    Show detailed capabilities with YAML listings - hybrid format.
-    
-    Returns:
-        Exit code (always 0)
-    """
+    """Show detailed capabilities with YAML listings - hybrid format."""
     try:
         import yaml
         import textwrap
@@ -468,32 +475,23 @@ def list_system_capabilities_detailed_yaml() -> int:
                 print(f"   ❌ Error: {info['error']}")
                 continue
             
-            # Basic info with text wrapping
+            # Description
             if 'description' in info:
-                description = info['description']
-                if len(description) > 60:
-                    wrapped_desc = textwrap.fill(description, width=76, initial_indent="   ", subsequent_indent="   ")
-                    print(f"   📝 Description:")
-                    print(wrapped_desc)
-                else:
-                    print(f"   📝 Description: {description}")
+                print(f"   📝 Description: {info['description']}")
             
-            # Show key capabilities as summary counts
-            capability_counts = {}
+            # Main features/capabilities summary
             feature_keys = [
                 'supported_actions', 'calculation_types', 'supported_conditions',
                 'lookup_features', 'pivot_features', 'rename_types', 'supported_options',
-                'filter_operations', 'grouping_features', 'transformation_features',
-                'aggregation_functions', 'helper_methods', 'special_methods'
+                'filter_operations', 'grouping_features', 'transformation_features'
             ]
             
             for key in feature_keys:
-                if key in info and isinstance(info[key], list):
-                    capability_counts[key] = len(info[key])
-            
-            if capability_counts:
-                print(f"   📊 Capability Summary:")
-                for key, count in capability_counts.items():
+                if key in info:
+                    if isinstance(info[key], list):
+                        count = len(info[key])
+                    else:
+                        count = 'N/A'
                     key_name = key.replace('_', ' ').title()
                     print(f"      {key_name}: {count}")
             
@@ -517,12 +515,10 @@ def list_system_capabilities_detailed_yaml() -> int:
                 for line in yaml_output.split('\n'):
                     if line.strip():
                         indented_line = f"      {line}"
-                        # If line is too long, we'll let YAML handle it since it's structured data
                         print(indented_line)
             else:
                 print(f"   ℹ️  No detailed capabilities available")
         
-        # Wrap the final informational messages
         print(f"\n💡 This format combines structured overview with complete YAML capability")
         print(f"    listings for each processor.")
         print(f"📝 Use --yaml for pure YAML output or --detailed for formatted text only.")
@@ -538,90 +534,76 @@ def list_system_capabilities_detailed_yaml() -> int:
 
 
 def list_system_capabilities_matrix() -> int:
-    """
-    Print a feature matrix showing what each processor can do.
-    
-    Returns:
-        Exit code (always 0)
-    """
+    """Print a feature matrix showing what each processor can do."""
     try:
+        print("Excel Recipe Processor - Feature Matrix")
+        print("=" * 50)
+        
         capabilities = get_system_capabilities()
+        processors = capabilities.get('processors', {})
         
-        print("=" * 80)
-        print("🏭 EXCEL RECIPE PROCESSOR - FEATURE MATRIX")
-        print("=" * 80)
-        
-        print(f"\n📈 FEATURE MATRIX:")
-        print("=" * 120)
-        
-        # Collect all unique features across processors
-        all_features = set()
-        processor_features = {}
-        
-        for processor_type, info in capabilities['processors'].items():
-            features = set()
-            
-            # Extract features from different capability fields
-            for key in ['supported_actions', 'calculation_types', 'filter_operations', 
-                        'lookup_features', 'pivot_features', 'grouping_features']:
+        # Get all unique capabilities
+        all_capabilities = set()
+        for info in processors.values():
+            # Collect various capability types
+            for key in ['supported_actions', 'calculation_types', 'supported_conditions',
+                       'lookup_features', 'pivot_features', 'filter_operations']:
                 if key in info and isinstance(info[key], list):
-                    features.update(info[key])
-            
-            processor_features[processor_type] = features
-            all_features.update(features)
+                    all_capabilities.update(info[key])
         
-        # Sort features
-        sorted_features = sorted(all_features)
+        all_capabilities = sorted(list(all_capabilities))
         
-        if not sorted_features:
-            print("No features found in capabilities data")
+        if not all_capabilities:
+            print("No detailed capabilities available for matrix display")
             return 0
         
-        print(f"Legend: ✅ = Supported, ❌ = Not Supported\n")
+        # Print header
+        print(f"{'Processor':<20} " + " ".join(f"{cap[:8]:<8}" for cap in all_capabilities))
+        print("-" * (20 + len(all_capabilities) * 9))
         
-        # Print header with better spacing
-        processors = list(capabilities['processors'].keys())
-        header_names = []
-        
-        for proc in processors:
-            if len(proc) <= 15:
-                header_names.append(proc[:15])
-            else:
-                # Smart abbreviation
-                parts = proc.split('_')
-                if len(parts) == 2:
-                    header_names.append(f"{parts[0][:7]}_{parts[1][:6]}")
-                elif len(parts) >= 3:
-                    header_names.append(f"{parts[0][:5]}_{parts[1][:3]}_{parts[2][:3]}")
-                else:
-                    header_names.append(proc[:15])
-        
-        # Calculate dynamic column width
-        col_width = max(15, max(len(name) for name in header_names) if header_names else 15)
-        
-        header = f"{'Feature':<30} " + " ".join(f"{name:<{col_width}}" for name in header_names)
-        print(header)
-        print("-" * len(header))
-        
-        # Print feature matrix (show first 25 features)
-        for feature in sorted_features[:25]:
-            feature_name = feature[:29]  # Truncate long feature names
-            row = f"{feature_name:<30} "
+        # Print matrix
+        for proc_type, info in processors.items():
+            if 'error' in info:
+                continue
+                
+            proc_caps = set()
+            # Collect capabilities from all sources
+            for key in ['supported_actions', 'calculation_types', 'supported_conditions',
+                       'lookup_features', 'pivot_features', 'filter_operations']:
+                if key in info and isinstance(info[key], list):
+                    proc_caps.update(info[key])
             
-            for processor_type in processors:
-                has_feature = feature in processor_features.get(processor_type, set())
-                symbol = "✅" + " " * (col_width - 1) if has_feature else "❌" + " " * (col_width - 1)
-                row += symbol
+            row = f"{proc_type[:19]:<20} "
+            
+            for cap in all_capabilities:
+                marker = "✓" if cap in proc_caps else "·"
+                row += f"{marker:<8} "
             
             print(row)
         
-        if len(sorted_features) > 25:
-            print(f"\n... and {len(sorted_features) - 25} more features")
-        
-        print(f"\n💡 Total unique features across all processors: {len(sorted_features)}")
-        print(f"📊 Matrix shows top 25 features across {len(processors)} processors")
         return 0
         
     except Exception as e:
-        print(f"Error generating feature matrix: {e}")
+        print(f"Error listing matrix capabilities: {e}")
+        return 1
+
+
+def validate_recipe_file(recipe_file: str) -> int:
+    """Validate a recipe file."""
+    try:
+        loader = RecipeLoader()
+        loader.load_file(recipe_file)
+        
+        print(f"✓ Recipe validation successful: {recipe_file}")
+        print(f"  {loader.summary()}")
+        
+        # Check for external variables
+        external_vars = loader.get_required_external_vars()
+        if external_vars:
+            print(f"  External variables required: {', '.join(external_vars.keys())}")
+        
+        return 0
+        
+    except Exception as e:
+        print(f"✗ Recipe validation failed: {e}")
         return 1

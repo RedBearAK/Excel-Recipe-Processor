@@ -282,6 +282,8 @@ def test_configuration_options():
 def test_save_to_stage():
     """Test saving aggregation results to a stage."""
     
+    setup_test_stages()
+
     print("\nTesting save to stage...")
     
     test_df = create_sales_test_data()
@@ -322,6 +324,8 @@ def test_save_to_stage():
 def test_stage_based_aggregation_config():
     """Test loading aggregation configuration from stage."""
     
+    setup_test_stages()
+
     print("\nTesting stage-based aggregation config...")
     
     test_df = create_sales_test_data()
@@ -362,6 +366,8 @@ def test_stage_based_aggregation_config():
 
 def test_lookup_based_aggregation_config():
     """Test loading aggregation configuration from lookup stage."""
+    
+    setup_test_stages()
     
     print("\nTesting lookup-based aggregation config...")
     
@@ -611,6 +617,8 @@ def test_capabilities_method():
 def test_aggregation_error_handling():
     """Test error handling for various failure cases."""
     
+    setup_test_stages()
+
     print("\nTesting aggregation error handling...")
     
     test_df = create_sales_test_data()
@@ -683,6 +691,8 @@ def test_aggregation_error_handling():
 def test_real_world_scenario():
     """Test a realistic aggregation scenario with multiple features."""
     
+    setup_test_stages()
+
     print("\nTesting real-world scenario...")
     
     test_df = create_sales_test_data()
@@ -765,6 +775,8 @@ def test_real_world_scenario():
 def test_backward_compatibility():
     """Test that all existing functionality still works."""
     
+    setup_test_stages()
+
     print("\nTesting backward compatibility...")
     
     # Test old-style config still works

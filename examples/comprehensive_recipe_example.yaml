@@ -1,387 +1,463 @@
 # =============================================================================
 # COMPREHENSIVE EXCEL RECIPE PROCESSOR EXAMPLE
-# Demonstrates all known processor capabilities with practical examples
+# =============================================================================
+# This example showcases advanced features including StageManager integration,
+# variable substitution, multi-file operations, and complex data workflows.
+#
+# Scenario: Process quarterly sales data with multiple data sources,
+# create comprehensive reports with regional analysis and export to multiple 
+# formats.
 # =============================================================================
 
-# Recipe metadata and settings
 settings:
-  output_filename: "{YY}{MMDD}_ComprehensiveExample_{timestamp}.xlsx"
-  create_backup: true
-  description: "Complete demonstration of all Excel Recipe Processor capabilities"
-  variables:
-    report_type: "comprehensive_demo"
-    processing_date: "{date}"
-
-# Processing steps sequence - showcasing all processors
-recipe:
-
-  # ==========================================================================
-  # 1. DATA CLEANING - Remove invisible characters and normalize data
-  # ==========================================================================
+  # Dynamic filename with current date (DEPRECATED - use export_file instead)
+  # This is kept for backward compatibility but export_file processor is 
+  # preferred
+  output_filename: "Q{quarter}_{YY}_ComprehensiveReport_{timestamp}.xlsx"
   
-  - step_description: "Clean invisible Unicode characters from SQL export"
-    processor_type: "clean_data"
-    rules:
-      # Remove invisible characters that break exact filtering
-      - column: "Product Origin"
-        action: "normalize_whitespace"
-      - column: "Component"
-        action: "normalize_whitespace"
-      - column: "Major Species"
-        action: "normalize_whitespace"
-      - column: "Carrier"
-        action: "normalize_whitespace"
+  # Custom variables for this workflow
+  variables:
+    quarter: "Q4"
+    report_year: "2024" 
+    analysis_type: "comprehensive"
+    
+    # Nested variable example - variables can reference other variables!
+    # These are resolved in order, so earlier variables can be used in later ones
+    period_code: "{report_year}_{quarter}"
+    full_report_name: "{analysis_type}_{period_code}_analysis"
+    archive_path: "archive/{report_year}/{quarter}"
+    
+  # Processing options
+  create_backup: true # Create .backup files before overwriting 
+                      # (applies to ALL file operations)
 
-  - step_description: "Standardize text case and clean data types"
-    processor_type: "clean_data"
-    rules:
-      # Text case normalization
-      - column: "Component"
-        action: "uppercase"
-      - column: "Major Species"
-        action: "uppercase"
-      - column: "Product Origin"
-        action: "title_case"
-      - column: "Customer Name"
-        action: "title_case"
+recipe:
+  # =============================================================================
+  # STAGE 1: IMPORT AND PREPARE REFERENCE DATA
+  # =============================================================================
+  
+  # Import customer master data and save to stage for reuse
+  - step_description: "Import customer master data with current date"
+    processor_type: "import_file"
+    input_file: "reference/customer_master_{date:YYYYMMDD}.xlsx"
+    sheet: "Customer Data"
+    save_to_stage: "Customer Master"
+    stage_description: "Customer reference data with tiers and regions"
+    
+  # Import product catalog and save to stage
+  - step_description: "Import product catalog from CSV"
+    processor_type: "import_file"
+    input_file: "reference/product_catalog.csv"
+    encoding: "utf-8"
+    save_to_stage: "Product Catalog"
+    stage_description: "Complete product information and pricing"
+    
+  # Create approved customers list as inline stage
+  - step_description: "Create approved customers stage for filtering"
+    processor_type: "create_stage"
+    stage_name: "Approved Customers"
+    description: "High-value customers approved for special promotions"
+    data:
+      format: "list"
+      column: "Customer_ID"
+      values: ["CUST001", "CUST003", "CUST007", "CUST012", "CUST018", "CUST025"]
       
-      # Fix numeric columns
-      - column: "Price"
-        action: "fix_numeric"
-        fill_na: 0.0
-      - column: "Quantity"
-        action: "fix_numeric"
-        fill_na: 1
-      
-      # Fix date columns
-      - column: "Order Date"
-        action: "fix_dates"
-        format: "%Y-%m-%d"
-      
-      # Remove special characters from product codes
-      - column: "Product Code"
-        action: "remove_special_chars"
-        pattern: "[^A-Za-z0-9-]"
-        replacement: ""
+  # Create regional groupings as stage data
+  - step_description: "Create regional grouping definitions"
+    processor_type: "create_stage"
+    stage_name: "Regional Groups"
+    description: "State to region mapping for analysis"
+    data:
+      format: "table"
+      columns: ["State", "Region", "Zone"]
+      rows:
+        - ["CA", "West", "Pacific"]
+        - ["NV", "West", "Pacific"] 
+        - ["OR", "West", "Pacific"]
+        - ["WA", "West", "Pacific"]
+        - ["NY", "East", "Atlantic"]
+        - ["NJ", "East", "Atlantic"]
+        - ["CT", "East", "Atlantic"]
+        - ["TX", "South", "Central"]
+        - ["FL", "South", "Atlantic"]
+        - ["GA", "South", "Atlantic"]
+        
+  # Debug example showing nested variable resolution
+  - step_description: "Debug nested variables"
+    processor_type: "debug_breakpoint"
+    message: >
+      Variables resolved: quarter={quarter}, 
+      period_code={period_code}, 
+      full_report_name={full_report_name}
+    show_summary: false
 
-  - step_description: "Conditional data replacement (van report style)"
-    processor_type: "clean_data"
+  # =============================================================================
+  # STAGE 2: MAIN DATA PROCESSING
+  # =============================================================================
+  
+  # Clean and standardize main data
+  - step_description: "Clean main sales data"
+    processor_type: "clean_data" 
     rules:
-      # Replace FLESH with CANS only for canned products
-      - column: "Component"
+      - column: "Customer_Name"
+        action: "normalize_whitespace"
+      - column: "Product_Name"
         action: "replace"
         old_value: "FLESH"
         new_value: "CANS"
-        condition_column: "Product Name"
+        condition_column: "Product_Type"
         condition: "contains"
         condition_value: "Canned"
-        case_sensitive: false
-      
-      # Standardize status values using mapping
-      - column: "Order Status"
-        action: "standardize_values"
-        mapping:
-          "active": "Active"
-          "ACTIVE": "Active"
-          "pending": "Pending"
-          "cancelled": "Cancelled"
-          "complete": "Completed"
-
-  # ==========================================================================
-  # 2. COLUMN OPERATIONS - Split, rename, and add calculated columns
-  # ==========================================================================
-  
-  - step_description: "Split full names into first and last names"
-    processor_type: "split_column"
-    source_column: "Customer Name"
-    split_type: "delimiter"
-    delimiter: " "
-    new_columns: ["First Name", "Last Name"]
-    max_splits: 1
-    remove_original: false
-    fill_missing: ""
-
-  - step_description: "Split product codes into category and item"
-    processor_type: "split_column"
-    source_column: "Product Code"
-    split_type: "regex"
-    pattern: "([A-Z]+)-([0-9]+)"
-    new_columns: ["Product Category", "Product Number"]
-    remove_original: false
-
-  - step_description: "Add calculated columns for business metrics"
-    processor_type: "add_calculated_column"
-    new_column: "Total Value"
-    calculation:
-      type: "expression"
-      expression: "Price * Quantity"
-      
-  - step_description: "Add conditional priority column"
-    processor_type: "add_calculated_column"
-    new_column: "Priority Level"
-    calculation:
-      type: "conditional"
-      conditions:
-        - condition: "Total Value > 1000"
-          value: "High"
-        - condition: "Total Value > 500"
-          value: "Medium"
-        - condition: "Total Value <= 500"
-          value: "Low"
-      default_value: "Unknown"
-
-  - step_description: "Add concatenated description column"
-    processor_type: "add_calculated_column"
-    new_column: "Full Description"
-    calculation:
-      type: "concat"
-      columns: ["Product Category", "Major Species", "Component"]
-      separator: " - "
-
-  - step_description: "Rename columns for better presentation"
-    processor_type: "rename_columns"
-    rename_type: "mapping"
-    mapping:
-      "Product Origin": "Origin Location"
-      "Van Number": "Container ID"
-      "Major Species": "Species Type"
-      "Total Value": "Order Value ($)"
-
-  # ==========================================================================
-  # 3. DATA ENRICHMENT - Lookup operations
-  # ==========================================================================
-  
-  - step_description: "Enrich data with region information using lookup"
-    processor_type: "lookup_data"
-    lookup_source:
-      type: "dictionary"
-      data:
-        "Cordova": {"Region": "PWS", "State": "Alaska", "Zone": "Coastal"}
-        "Naknek": {"Region": "Bristol Bay", "State": "Alaska", "Zone": "Inland"}
-        "Dillingham": {"Region": "Bristol Bay", "State": "Alaska", "Zone": "Inland"}
-        "False Pass": {"Region": "Bristol Bay", "State": "Alaska", "Zone": "Coastal"}
-        "Kodiak": {"Region": "Kodiak", "State": "Alaska", "Zone": "Island"}
-        "Seward": {"Region": "PWS", "State": "Alaska", "Zone": "Coastal"}
-        "Craig": {"Region": "SE", "State": "Alaska", "Zone": "Island"}
-        "Ketchikan": {"Region": "SE", "State": "Alaska", "Zone": "Coastal"}
-    lookup_key: "Origin Location"
-    source_key: "Origin Location"
-    lookup_columns: ["Region", "State", "Zone"]
-    join_type: "left"
-    default_values:
-      "Region": "Unknown"
-      "State": "Unknown"
-      "Zone": "Unknown"
-
-  # ==========================================================================
-  # 4. DATA FILTERING - Remove unwanted records
-  # ==========================================================================
-  
-  - step_description: "Filter for active salmon records (van report style)"
+      - column: "Order_Date"
+        action: "normalize_dates"
+        date_format: "%Y-%m-%d"
+        
+  # Filter for approved customers using stage
+  - step_description: "Filter for approved customers only"
     processor_type: "filter_data"
     filters:
-      # Exclude CANS component
-      - column: "Component"
-        condition: "not_equals"
-        value: "CANS"
-      
-      # Include only SALMON species
-      - column: "Species Type"
-        condition: "contains"
-        value: "SALMON"
-      
-      # Include only recent orders
-      - column: "Order Date"
+      - column: "Customer_ID"
+        condition: "in_stage"
+        stage_name: "Approved Customers"
+        stage_column: "Customer_ID"
+      - column: "Order_Amount"
         condition: "greater_than"
-        value: "2024-01-01"
+        value: 1000
+      - column: "Order_Status" 
+        condition: "equals"
+        value: "Completed"
+        
+  # Lookup customer information from stage
+  - step_description: "Enrich with customer master data"
+    processor_type: "lookup_data"
+    lookup_source:
+      type: "stage"
+      stage_name: "Customer Master"
+    lookup_key: "Customer_ID"
+    source_key: "Customer_ID"
+    lookup_columns: [
+      "Customer_Name", 
+      "Customer_Tier", 
+      "State", 
+      "Region", 
+      "Annual_Revenue"
+    ]
+    join_type: "left"
+    handle_duplicates: "first"
+    
+  # Lookup product information from stage
+  - step_description: "Add product details from catalog"
+    processor_type: "lookup_data"
+    lookup_source:
+      type: "stage"
+      stage_name: "Product Catalog"
+    lookup_key: "Product_Code"
+    source_key: "Product_Code"
+    lookup_columns: ["Product_Name", "Category", "Unit_Price", "Supplier"]
+    column_prefix: "Product_"
+    default_value: "Unknown"
+    
+  # Group states into regions using stage data
+  - step_description: "Group states into regions"
+    processor_type: "group_data"
+    source_column: "State"
+    groups_source:
+      type: "stage"
+      stage_name: "Regional Groups"
+      format: "long"
+      value_column: "State"
+      group_column: "Region"
+    new_column: "Sales_Region"
+    unmatched_action: "assign_value"
+    unmatched_value: "Other"
+    
+  # Add calculated columns for analysis
+  - step_description: "Calculate order metrics"
+    processor_type: "add_calculated_column"
+    new_column: "Order_Value"
+    calculation:
+      type: "arithmetic"
+      operation: "multiply"
+      columns: ["Quantity", "Product_Unit_Price"]
       
-      # Include only active orders
-      - column: "Order Status"
-        condition: "in_list"
-        value: ["Active", "Pending", "Completed"]
+  - step_description: "Calculate profit margin"
+    processor_type: "add_calculated_column"
+    new_column: "Profit_Margin"
+    calculation:
+      type: "arithmetic"
+      operation: "subtract"
+      columns: ["Order_Value", "Cost_Basis"]
+      then:
+        operation: "divide"
+        by_column: "Order_Value"
+        
+  # Save processed data to stage for later use
+  - step_description: "Save enriched sales data"
+    processor_type: "save_stage"
+    stage_name: "Enriched Sales Data"
+    description: "Complete sales data with customer and product details"
+
+  # =============================================================================
+  # STAGE 3: AGGREGATION AND ANALYSIS
+  # =============================================================================
+  
+  # Create summary by region and customer tier
+  - step_description: "Aggregate by region and tier"
+    processor_type: "aggregate_data"
+    group_by: ["Sales_Region", "Customer_Tier"]
+    aggregations:
+      - column: "Order_Value"
+        function: "sum"
+        new_column_name: "Total_Revenue"
+      - column: "Order_Value"
+        function: "mean"
+        new_column_name: "Avg_Order_Value"
+      - column: "Customer_ID"
+        function: "nunique"
+        new_column_name: "Unique_Customers"
+      - column: "Order_ID"
+        function: "count"
+        new_column_name: "Total_Orders"
+    reset_index: true
+    sort_by_groups: true
+    
+  # Save regional summary to stage
+  - step_description: "Save regional summary"
+    processor_type: "save_stage"
+    stage_name: "Regional Summary"
+    description: "Revenue and metrics by region and customer tier"
+    
+  # Load original enriched data back for product analysis
+  - step_description: "Load enriched data for product analysis"
+    processor_type: "load_stage"
+    stage_name: "Enriched Sales Data"
+    confirm_replace: true
+    
+  # Create product performance summary
+  - step_description: "Analyze product performance"
+    processor_type: "aggregate_data"
+    group_by: ["Category", "Product_Name"]
+    aggregations:
+      - column: "Order_Value"
+        function: "sum"
+        new_column_name: "Product_Revenue"
+      - column: "Quantity"
+        function: "sum"
+        new_column_name: "Units_Sold"
+      - column: "Profit_Margin"
+        function: "mean"
+        new_column_name: "Avg_Margin"
+    reset_index: true
+    
+  # Save product analysis to stage
+  - step_description: "Save product analysis"
+    processor_type: "save_stage"
+    stage_name: "Product Performance"
+    description: "Product sales performance and profitability analysis"
+
+  # =============================================================================
+  # STAGE 4: ADVANCED ANALYTICS
+  # =============================================================================
+  
+  # Import external benchmarking data for comparison
+  - step_description: "Import industry benchmarks"
+    processor_type: "import_file"
+    input_file: "benchmarks/industry_benchmarks_{report_year}.xlsx"
+    sheet: "Q{quarter} Benchmarks"
+    save_to_stage: "Industry Benchmarks"
+    stage_description: "Industry performance benchmarks for comparison"
+    
+  # Load regional summary for benchmarking
+  - step_description: "Load regional summary for benchmarking"
+    processor_type: "load_stage"
+    stage_name: "Regional Summary"
+    confirm_replace: true
+    
+  # Merge with industry benchmarks
+  - step_description: "Compare with industry benchmarks"
+    processor_type: "merge_data"
+    merge_source:
+      type: "stage"
+      stage_name: "Industry Benchmarks"
+    left_key: "Sales_Region"
+    right_key: "Region"
+    join_type: "left"
+    column_prefix: "Benchmark_"
+    
+  # Calculate performance vs benchmarks
+  - step_description: "Calculate performance vs industry"
+    processor_type: "add_calculated_column"
+    new_column: "Revenue_vs_Benchmark"
+    calculation:
+      type: "arithmetic"
+      operation: "divide"
+      columns: ["Total_Revenue", "Benchmark_Revenue"]
       
-      # Exclude low-value orders
-      - column: "Order Value ($)"
+  - step_description: "Calculate customer efficiency vs industry"
+    processor_type: "add_calculated_column"
+    new_column: "Customer_Efficiency"
+    calculation:
+      type: "arithmetic"
+      operation: "divide"
+      columns: ["Total_Revenue", "Unique_Customers"]
+      then:
+        operation: "divide"
+        by_column: "Benchmark_Revenue_Per_Customer"
+
+  # =============================================================================
+  # STAGE 5: EXPORT AND REPORTING
+  # =============================================================================
+  
+  # Export main comprehensive report with multiple sheets
+  - step_description: "Export comprehensive Excel report"
+    processor_type: "export_file"
+    output_file: "reports/{full_report_name}_{YY}{MMDD}.xlsx"  # Nested variable
+    create_backup: true
+    sheets:
+      - sheet_name: "Executive Summary"
+        data_source: "current"  # Current benchmark comparison data
+      - sheet_name: "Regional Analysis"
+        data_source: "Regional Summary"
+      - sheet_name: "Product Performance"
+        data_source: "Product Performance"
+      - sheet_name: "Customer Details"
+        data_source: "Enriched Sales Data"
+        
+  # Export to archive location using nested variables
+  - step_description: "Archive results with nested variable paths"
+    processor_type: "export_file"
+    output_file: "{archive_path}/final_results_{timestamp}.xlsx"
+    data_source: "current"
+    
+  # Export regional data as CSV for external systems
+  - step_description: "Export regional summary as CSV"
+    processor_type: "export_file"
+    output_file: "exports/regional_summary_{timestamp}.csv"
+    data_source: "Regional Summary"
+    encoding: "utf-8"
+    
+  # Export product data for supplier sharing
+  - step_description: "Export product performance for suppliers"
+    processor_type: "load_stage"
+    stage_name: "Product Performance"
+    confirm_replace: true
+    
+  - step_description: "Filter top products for supplier report"
+    processor_type: "filter_data"
+    filters:
+      - column: "Product_Revenue"
+        condition: "greater_than"
+        value: 50000
+      - column: "Units_Sold"
         condition: "greater_than"
         value: 100
-
-  # ==========================================================================
-  # 5. DATA GROUPING - Categorize values
-  # ==========================================================================
-  
-  - step_description: "Group origins into regional categories"
-    processor_type: "group_data"
-    source_column: "Origin Location"
-    target_column: "Regional Group"
-    groups:
-      "Bristol Bay Region":
-        - "Dillingham"
-        - "False Pass"
-        - "Naknek"
-        - "Naknek West"
-        - "Wood River"
-      "Kodiak Region":
-        - "Kodiak"
-        - "Kodiak West"
-      "Prince William Sound":
-        - "Cordova"
-        - "Seward"
-        - "Valdez"
-      "Southeast Alaska":
-        - "Craig"
-        - "Ketchikan"
-        - "Petersburg"
-        - "Sitka"
-    unmatched_action: "keep_original"
-    case_sensitive: false
-
-  # ==========================================================================
-  # 6. DATA SORTING - Order records logically
-  # ==========================================================================
-  
-  - step_description: "Sort data by region, date, and value"
-    processor_type: "sort_data"
-    columns: ["Regional Group", "Order Date", "Order Value ($)"]
-    ascending: [true, false, false]  # Region A-Z, Date newest first, Value highest first
-    na_position: "last"
-
-  # ==========================================================================
-  # 7. DATA AGGREGATION - Create summary statistics
-  # ==========================================================================
-  
-  - step_description: "Create regional summary statistics"
-    processor_type: "aggregate_data"
-    group_by: ["Regional Group", "Species Type"]
-    aggregations:
-      - column: "Order Value ($)"
-        function: "sum"
-        new_column_name: "Total Regional Value"
-      - column: "Order Value ($)"
-        function: "mean"
-        new_column_name: "Average Order Value"
-      - column: "Container ID"
-        function: "nunique"
-        new_column_name: "Unique Containers"
-      - column: "Customer Name"
-        function: "nunique"
-        new_column_name: "Unique Customers"
-      - column: "Order Date"
-        function: "count"
-        new_column_name: "Total Orders"
-    keep_group_columns: true
-    sort_by_groups: true
-
-  # ==========================================================================
-  # 8. PIVOT TABLES - Create cross-tabulations
-  # ==========================================================================
-  
-  - step_description: "Create carrier-by-region pivot table (van report style)"
-    processor_type: "pivot_table"
-    index: ["Regional Group", "Origin Location"]
-    columns: ["Carrier"]
-    values: ["Container ID"]
-    aggfunc: "nunique"
-    fill_value: 0
-    margins: true
-    margins_name: "Grand Total"
-    dropna: true
-
-  # ==========================================================================
-  # 9. DEBUGGING - Save intermediate results
-  # ==========================================================================
-  
-  - step_description: "Debug checkpoint - save pivot table results"
-    processor_type: "debug_breakpoint"
-    message: "Pivot table created - verify carrier distribution by region"
-    output_path: "./debug_outputs/"
-    filename_prefix: "pivot_results"
-    include_timestamp: true
-    show_sample: true
-    sample_rows: 10
-
-  # ==========================================================================
-  # 10. FINAL CLEANUP - Prepare for output
-  # ==========================================================================
-  
-  - step_description: "Final column renaming for presentation"
-    processor_type: "rename_columns"
-    rename_type: "transform"
-    transformation: "title_case"
+        
+  - step_description: "Export top products to Excel"
+    processor_type: "export_file"
+    output_file: "supplier_reports/top_products_{YY}Q{quarter}.xlsx"
+    sheet_name: "Top Products {quarter} {report_year}"
     
-  - step_description: "Remove temporary debugging columns"
-    processor_type: "clean_data"
-    rules:
-      - column: "temp_calculation"
-        action: "fill_empty"
-        fill_value: "N/A"
-        method: "value"
-
-  # ==========================================================================
-  # 11. ADVANCED EXAMPLES - Show complex capabilities
-  # ==========================================================================
+  # =============================================================================
+  # STAGE 6: AUDIT AND DEBUG EXPORTS
+  # =============================================================================
   
-  # Example of complex regex replacement
-  - step_description: "Advanced regex cleaning for product codes"
-    processor_type: "clean_data"
-    rules:
-      - column: "Container ID"
-        action: "regex_replace"
-        pattern: "([A-Z]{4})\\s*([0-9]+)"
-        replacement: "\\1-\\2"
+  # Export all stages for audit purposes
+  - step_description: "Export stage audit report"
+    processor_type: "export_file"
+    output_file: "audit/stage_audit_{timestamp}.xlsx"
+    sheets:
+      - sheet_name: "Customer Master"
+        data_source: "Customer Master"
+      - sheet_name: "Product Catalog"
+        data_source: "Product Catalog" 
+      - sheet_name: "Approved Customers"
+        data_source: "Approved Customers"
+      - sheet_name: "Regional Groups"
+        data_source: "Regional Groups"
+      - sheet_name: "Industry Benchmarks"
+        data_source: "Industry Benchmarks"
+        
+  # Debug example showing nested variable resolution
+  - step_description: "Debug nested variables"
+    processor_type: "debug_breakpoint"
+    message: >
+      Variables resolved: quarter={quarter}, 
+      period_code={period_code}, 
+      full_report_name={full_report_name}
+    show_summary: false
 
-  # Example of multiple conditional replacements
-  - step_description: "Complex conditional standardization"
-    processor_type: "clean_data"
-    rules:
-      - column: "Priority Level"
-        action: "replace"
-        old_value: "High"
-        new_value: "PRIORITY"
-        condition_column: "Order Value ($)"
-        condition: "greater_than"
-        condition_value: 2000
-      
-      - column: "Priority Level"
-        action: "replace"
-        old_value: "Low"
-        new_value: "STANDARD"
-        condition_column: "Regional Group"
-        condition: "not_equals"
-        condition_value: "Bristol Bay Region"
-
-  # Example of custom sort with specific order
-  - step_description: "Custom regional sort order"
-    processor_type: "sort_data"
-    columns: ["Regional Group"]
-    custom_orders:
-      "Regional Group": ["Bristol Bay Region", "Kodiak Region", "Prince William Sound", "Southeast Alaska"]
-    ascending: true
-
-  # Example of advanced calculated column with date operations
-  - step_description: "Add days since order calculation"
-    processor_type: "add_calculated_column"
-    new_column: "Days Since Order"
-    calculation:
-      type: "date"
-      operation: "days_difference"
-      from_column: "Order Date"
-      to_date: "today"
+  # Create final debug checkpoint
+  - step_description: "Final processing checkpoint"
+    processor_type: "debug_breakpoint"
+    message: "Processing complete - all stages available for review"
+    save_current_data: true
+    stage_name: "Final Results"
+    show_summary: true
 
 # =============================================================================
-# FEATURE SHOWCASE SUMMARY:
+# KEY FEATURES DEMONSTRATED:
+# =============================================================================
 # 
-# This recipe demonstrates:
-# ✅ All 11 processor types
-# ✅ Variable substitution in settings
-# ✅ Conditional operations
-# ✅ Multiple data types (text, numeric, dates)
-# ✅ Complex filtering and grouping
-# ✅ Data enrichment with lookups
-# ✅ Pivot table creation with hierarchies
-# ✅ Debug checkpoints for troubleshooting
-# ✅ Advanced regex operations
-# ✅ Custom sorting and aggregations
-# ✅ Column transformations and calculations
-# 
-# Usage: python -m excel_recipe_processor input.xlsx --config comprehensive_example.yaml
+# 1. STAGEMANAGER INTEGRATION:
+#    - create_stage: Create inline reference data
+#    - save_stage: Save processed data for reuse
+#    - load_stage: Reload data from stages
+#    - Stage-based lookups, merges, filters, and grouping
+#
+# 2. VARIABLE SUBSTITUTION:
+#    - Dynamic filenames with dates: {YY}{MMDD}, {timestamp}
+#    - Custom variables: {quarter}, {report_year}
+#    - Date formatting: {date:YYYYMMDD}
+#    - Multiple contexts: import files, export files, sheet names
+#
+# 3. MULTI-FILE OPERATIONS:
+#    - import_file: Import from Excel/CSV with stage saving
+#    - export_file: Export to multiple formats and sheets
+#    - Variable substitution in all file paths
+#
+# 4. ADVANCED DATA FLOWS:
+#    - Stage-based filtering with in_stage conditions
+#    - Stage-based lookups for data enrichment
+#    - Stage-based grouping with external definitions
+#    - Stage-based merging for benchmarking
+#
+# 5. COMPLEX EXPORTS:
+#    - Multi-sheet Excel exports from different stages
+#    - CSV exports with encoding control
+#    - Backup creation for data safety
+#    - Mixed data sources in single workbook
+#
+# 6. WORKFLOW MANAGEMENT:
+#    - Reference data preparation
+#    - Main data processing
+#    - Advanced analytics
+#    - Multiple export formats
+#    - Audit trail creation
+#
+# 6. ADVANCED VARIABLE FEATURES:
+#    - Nested variables: Variables can reference other variables
+#      * period_code: "{report_year}_{quarter}" becomes "2024_Q4"
+#      * full_report_name: "{analysis_type}_{period_code}_analysis" becomes 
+#         "comprehensive_2024_Q4_analysis"
+#      * Variables are resolved in definition order
+#
+# 7. SETTINGS BEHAVIOR:
+#    - cleanup_stages: IRRELEVANT (no multi-recipe sessions exist, 
+#       process always exits)
+#    - create_backup: true = ALL file operations create .backup files 
+#       before overwrite  
+#    - output_filename: DEPRECATED (use export_file instead) but still 
+#       functional
+#
+# 8. STAGE DEBUGGING:
+#    - Stages are in-memory only and lost when process exits after recipe 
+#       completion
+#    - For debugging, export stages to files using export_file processor
+#    - debug_breakpoint with save_current_data writes to files, not memory 
+#       persistence
+#
+# This recipe demonstrates a production-ready workflow that processes
+# quarterly sales data through multiple stages, creates comprehensive
+# analysis with external benchmarking, and exports results in multiple
+# formats for different stakeholders.
 # =============================================================================

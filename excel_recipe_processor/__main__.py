@@ -35,6 +35,12 @@ Examples:
   # Export capabilities as JSON
   python -m excel_recipe_processor --list-capabilities --json
   
+  # Export capabilities as YAML
+  python -m excel_recipe_processor --list-capabilities --yaml
+  
+  # Show detailed capabilities with YAML listings
+  python -m excel_recipe_processor --list-capabilities --detailed-yaml
+  
   # Show feature comparison matrix
   python -m excel_recipe_processor --list-capabilities --matrix
   
@@ -53,6 +59,7 @@ Examples:
     parser.add_argument(
         'input_file',
         nargs='?',
+        metavar='INPUT.xlsx',
         help='Excel file to process (.xlsx, .xls)'
     )
     
@@ -110,6 +117,18 @@ Examples:
         '--json',
         action='store_true',
         help='Output capabilities as JSON (use with --list-capabilities)'
+    )
+
+    parser.add_argument(
+        '--yaml',
+        action='store_true',
+        help='Output capabilities as YAML (use with --list-capabilities)'
+    )
+
+    parser.add_argument(
+        '--detailed-yaml',
+        action='store_true',
+        help='Show detailed capabilities with YAML listings (use with --list-capabilities)'
     )
 
     parser.add_argument(

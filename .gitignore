@@ -85,3 +85,5 @@ tests/current_capabilities.json
 tests/current_directory_structure.txt
 tests/current_capabilities_simple.txt
 tests/current_capabilities_detailed.txt
+current_capabilities.yaml
+current_capabilities_detailed_yaml.txt

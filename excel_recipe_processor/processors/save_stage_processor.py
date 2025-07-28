@@ -68,3 +68,8 @@ class SaveStageProcessor(BaseStepProcessor):
                 'branching': "Save data before trying different processing paths"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the save_stage processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('save_stage')

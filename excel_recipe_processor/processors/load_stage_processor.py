@@ -74,3 +74,8 @@ class LoadStageProcessor(BaseStepProcessor):
                 'comparison': "Load reference data for comparison"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the load_stage processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('load_stage')

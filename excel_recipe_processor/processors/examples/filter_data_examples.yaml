@@ -5,7 +5,8 @@ basic_example:
   yaml: |
     # Filter data to keep only rows matching condition
     
-    - # OPT - Human-readable description of what this step does
+    -       # OPT - Human-readable description of what this step does
+      # Default value: "Unnamed filter_data step"
       step_description: "Filter for active customers only"
       # REQ - Must be "filter_data" for this processor type
       processor_type: "filter_data"
@@ -26,7 +27,8 @@ multiple_filters_example:
   yaml: |
     # Apply multiple filters - all must be true (AND logic)
     
-    - # OPT - Step description
+    -       # OPT - Step description
+      # Default value: "Unnamed filter_data step"
       step_description: "Filter for high-value active customers"
       # REQ - Processor type
       processor_type: "filter_data"
@@ -54,88 +56,47 @@ multiple_filters_example:
           # REQ - List membership condition
           condition: "in_list"
           # REQ - List of acceptable values
-          value: ["West Coast", "East Coast", "Central"]
+          value: ["North", "South", "East", "West"]
 
 text_filtering_example:
-  description: "Text-based filtering with contains and exclusions"
+  description: "Text-based filtering with contains and not_contains conditions"
   yaml: |
-    # Filter based on text content and exclusions
+    # Filter based on text content in columns
     
-    - # OPT - Step description
-      step_description: "Filter for specific product types, exclude test data"
+    -       # OPT - Step description
+      # Default value: "Unnamed filter_data step"
+      step_description: "Filter products containing salmon, exclude canned items"
       # REQ - Processor type
       processor_type: "filter_data"
-      # REQ - Filters list
+      # REQ - Text-based filters
       filters:
-        # Include products containing "Premium"
-        - # REQ - Column for text search
-          column: "Product_Name"
+        # Include products containing "SALMON"
+        - # REQ - Product description column
+          column: "Product_Description"
           # REQ - Text contains condition (case-sensitive)
           condition: "contains"
           # REQ - Text to search for
-          value: "Premium"
+          value: "SALMON"
         
-        # Exclude test/demo products
-        - # REQ - Column to check
-          column: "Product_Name"
+        # Exclude canned products
+        - # REQ - Product type column
+          column: "Product_Type"
           # REQ - Text does not contain condition
           condition: "not_contains"
           # REQ - Text to exclude
-          value: "TEST"
-        
-        # Exclude cancelled items
-        - # REQ - Column to filter
-          column: "Status"
-          # REQ - Not equal condition
-          condition: "not_equals"
-          # REQ - Value to exclude
-          value: "Cancelled"
-
-numeric_filtering_example:
-  description: "Numeric comparisons and ranges"
-  yaml: |
-    # Filter using numeric comparisons and date ranges
-    
-    - # OPT - Step description
-      step_description: "Filter for recent high-value orders"
-      # REQ - Processor type
-      processor_type: "filter_data"
-      # REQ - Filters list
-      filters:
-        # Orders above $500
-        - # REQ - Numeric column
-          column: "Order_Amount"
-          # REQ - Greater than comparison
-          condition: "greater_than"
-          # REQ - Numeric threshold
-          value: 500
-        
-        # Orders from this year or later
-        - # REQ - Date column
-          column: "Order_Date"
-          # REQ - Greater than or equal comparison
-          condition: "greater_equal"
-          # REQ - Date value (string format)
-          value: "2024-01-01"
-        
-        # Quantity not zero
-        - # REQ - Numeric column
-          column: "Quantity"
-          # REQ - Greater than comparison
-          condition: "greater_than"
-          # REQ - Minimum value
-          value: 0
+          value: "CANNED"
 
 empty_null_filtering_example:
   description: "Filter based on empty or null values"
   yaml: |
     # Filter to remove or keep rows with empty/null values
     
-    - # OPT - Step description
+    -       # OPT - Step description
+      # Default value: "Unnamed filter_data step"
       step_description: "Remove incomplete records"
       # REQ - Processor type
       processor_type: "filter_data"
-      # REQ - Filters list
+      # REQ - Filters for empty/null checking
       filters:
         # Must have customer name
         - # REQ - Column to check
@@ -146,247 +107,63 @@ empty_null_filtering_example:
         # Must have email address
         - # REQ - Column to check
           column: "Email"
-          # REQ - Not empty condition
+          # REQ - Not empty condition (no value parameter needed)
           condition: "not_empty"
-        
-        # Remove rows where notes field is empty (keep only rows with notes)
-        - # REQ - Column to check
-          column: "Notes"
-          # REQ - Not empty condition
-          condition: "not_empty"
-
-list_membership_example:
-  description: "Filter using list inclusion and exclusion"
-  yaml: |
-    # Filter based on whether values are in specific lists
-    
-    - # OPT - Step description
-      step_description: "Filter for approved regions, exclude test accounts"
-      # REQ - Processor type
-      processor_type: "filter_data"
-      # REQ - Filters list
-      filters:
-        # Must be in approved regions
-        - # REQ - Column to check
-          column: "Region"
-          # REQ - Value must be in list condition
-          condition: "in_list"
-          # REQ - List of acceptable values
-          value: ["North", "South", "East", "West", "Central"]
-        
-        # Exclude test account types
-        - # REQ - Column to check
-          column: "Account_Type"
-          # REQ - Value must not be in list condition
-          condition: "not_in_list"
-          # REQ - List of values to exclude
-          value: ["TEST", "DEMO", "TRIAL", "SANDBOX"]
-        
-        # Include only specific product categories
-        - # REQ - Column to check
-          column: "Category"
-          # REQ - Value must be in list condition
-          condition: "in_list"
-          # REQ - Allowed categories
-          value: ["Electronics", "Books", "Clothing"]
-
-complex_business_logic_example:
-  description: "Complex business filtering combining multiple criteria"
-  yaml: |
-    # Complex business logic filtering for sales analysis
-    
-    - # OPT - Step description
-      step_description: "Filter for analysis-ready sales records"
-      # REQ - Processor type
-      processor_type: "filter_data"
-      # REQ - Filters list with complex business rules
-      filters:
-        # Valid date range (this year)
-        - # REQ - Date column
-          column: "Sale_Date"
-          # REQ - Greater than or equal
-          condition: "greater_equal"
-          # REQ - Start of current year
-          value: "2024-01-01"
-        
-        # Not future dates
-        - # REQ - Date column
-          column: "Sale_Date"
-          # REQ - Less than or equal
-          condition: "less_equal"
-          # REQ - Today's date or reasonable end date
-          value: "2024-12-31"
-        
-        # Valid sale amounts (positive, reasonable)
-        - # REQ - Amount column
-          column: "Sale_Amount"
-          # REQ - Greater than zero
-          condition: "greater_than"
-          # REQ - Minimum valid amount
-          value: 0
-        
-        # Reasonable maximum (exclude obvious errors)
-        - # REQ - Amount column
-          column: "Sale_Amount"
-          # REQ - Less than maximum
-          condition: "less_than"
-          # REQ - Maximum reasonable amount
-          value: 100000
-        
-        # Exclude refunded/cancelled transactions
-        - # REQ - Status column
-          column: "Transaction_Status"
-          # REQ - Not in excluded list
-          condition: "not_in_list"
-          # REQ - Statuses to exclude
-          value: ["REFUNDED", "CANCELLED", "FAILED", "PENDING"]
-        
-        # Must have customer information
-        - # REQ - Customer column
-          column: "Customer_ID"
-          # REQ - Not empty
-          condition: "not_empty"
-        
-        # Exclude test transactions
-        - # REQ - Notes or customer name column
-          column: "Customer_Name"
-          # REQ - Does not contain test indicators
-          condition: "not_contains"
-          # REQ - Test indicator text
-          value: "TEST"
 
 parameter_details:
   filters:
-    type: "list[object]"
+    type: list
     required: true
-    description: "List of filter conditions to apply (all conditions use AND logic)"
-    schema:
-      column:
-        type: string
-        required: true
-        description: "Name of the column to filter on"
-      condition:
-        type: string
-        required: true
-        description: "Type of condition to apply"
-        options:
-          - "equals"
-          - "not_equals"
-          - "contains"
-          - "not_contains"
-          - "greater_than"
-          - "less_than"
-          - "greater_equal"
-          - "less_equal"
-          - "is_empty"
-          - "not_empty"
-          - "in_list"
-          - "not_in_list"
-      value:
-        type: "any"
-        required: false
-        description: "Value to compare against (not needed for is_empty/not_empty conditions)"
-        examples:
-          - "Active"
-          - 100
-          - "2024-01-01"
-          - ["Option1", "Option2", "Option3"]
+    description: "List of filter conditions to apply to the DataFrame"
+    structure: "Each filter is a dictionary with column, condition, and value (if needed)"
+    logic: "All filters use AND logic - all conditions must be true for a row to be kept"
+  
+  filter_structure:
+    column:
+      type: string
+      required: true
+      description: "Name of the column to filter on"
+      examples: ["Status", "Product_Name", "Price", "Region"]
+    
+    condition:
+      type: string
+      required: true
+      description: "Type of comparison to perform"
+      options:
+        - "equals"
+        - "not_equals" 
+        - "contains"
+        - "not_contains"
+        - "greater_than"
+        - "less_than"
+        - "greater_equal"
+        - "less_equal"
+        - "is_empty"
+        - "not_empty"
+        - "in_list"
+        - "not_in_list"
+    
+    value:
+      type: any
+      required: "conditional"
+      description: "Value to compare against (not needed for is_empty/not_empty)"
+      examples: 
+        - '"Active"'
+        - '100'
+        - '["North", "South"]'
+        - '"2024-01-01"'
 
-condition_reference:
-  equals:
-    description: "Exact match comparison"
-    value_type: "any"
-    examples:
-      - 'value: "Active"'
-      - 'value: 100'
-      - 'value: "2024-01-01"'
-  
-  not_equals:
-    description: "Not equal comparison"
-    value_type: "any"
-    examples:
-      - 'value: "Cancelled"'
-      - 'value: 0'
-  
-  contains:
-    description: "Text contains substring (case-sensitive)"
-    value_type: "string"
-    examples:
-      - 'value: "Premium"'
-      - 'value: "@gmail.com"'
-  
-  not_contains:
-    description: "Text does not contain substring (case-sensitive)"
-    value_type: "string"
-    examples:
-      - 'value: "TEST"'
-      - 'value: "DEMO"'
-  
-  greater_than:
-    description: "Numeric or date greater than comparison"
-    value_type: "number or date string"
-    examples:
-      - 'value: 100'
-      - 'value: "2024-01-01"'
-  
-  less_than:
-    description: "Numeric or date less than comparison"
-    value_type: "number or date string"
-    examples:
-      - 'value: 1000'
-      - 'value: "2024-12-31"'
-  
-  greater_equal:
-    description: "Numeric or date greater than or equal comparison"
-    value_type: "number or date string"
-    examples:
-      - 'value: 0'
-      - 'value: "2024-01-01"'
-  
-  less_equal:
-    description: "Numeric or date less than or equal comparison"
-    value_type: "number or date string"
-    examples:
-      - 'value: 999'
-      - 'value: "2024-12-31"'
-  
-  is_empty:
-    description: "Check if value is null or empty (no value parameter needed)"
-    value_type: "none"
-    examples:
-      - "# No value parameter needed"
-  
-  not_empty:
-    description: "Check if value is not null and not empty (no value parameter needed)"
-    value_type: "none"
-    examples:
-      - "# No value parameter needed"
-  
-  in_list:
-    description: "Value must be in the provided list"
-    value_type: "list"
-    examples:
-      - 'value: ["Active", "Pending", "Processing"]'
-      - 'value: ["North", "South", "East", "West"]'
-  
-  not_in_list:
-    description: "Value must not be in the provided list"
-    value_type: "list"
-    examples:
-      - 'value: ["Cancelled", "Refunded", "Failed"]'
-      - 'value: ["TEST", "DEMO", "TRIAL"]'
-
-integration_notes:
-  case_sensitivity: "Text conditions (contains, not_contains) are case-sensitive by default"
-  filter_logic: "Multiple filters use AND logic - all conditions must be true"
-  data_types: "Numeric conditions work with numeric data; clean data first if needed"
-  performance: "Apply most selective filters first for better performance"
-  stage_integration: "Can be combined with stage-based data and other processors"
+filter_logic_notes:
+  and_logic: "Multiple filters are combined with AND logic - all must be true"
+  case_sensitivity: "Text conditions (contains, not_contains) are case-sensitive"
+  data_types: "Numeric conditions work with numeric columns, date conditions with date strings"
+  empty_values: "is_empty and not_empty conditions don't require a value parameter"
+  list_conditions: "in_list and not_in_list require value to be a list"
 
 common_use_cases:
-  data_quality: "Remove incomplete or invalid records"
-  business_rules: "Apply business logic to filter relevant data"
-  date_ranges: "Filter for specific time periods"
-  category_filtering: "Include/exclude specific categories or regions"
-  value_thresholds: "Filter based on numeric thresholds or ranges"
-  text_patterns: "Include/exclude based on text content"
+  data_quality: "Remove rows with missing required fields"
+  business_rules: "Apply business logic to include/exclude records"
+  date_ranges: "Filter for specific time periods using date comparisons"
+  category_filtering: "Include/exclude specific categories or types"
+  numeric_thresholds: "Filter based on value ranges or minimums"
+  text_patterns: "Include/exclude based on text content or patterns"

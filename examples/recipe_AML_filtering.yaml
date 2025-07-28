@@ -1,0 +1,55 @@
+# Shipment Filtering Recipe
+# Import retain/discard lists and filter target data accordingly
+
+settings:
+  # output_filename: "filtered_shipments_{date}.xlsx"
+  create_backup: true
+  description: "Filter shipments using retain/discard lists"
+
+recipe:
+  # Step 1: Import the "Retain" sheet and save to stage
+  - step_description: "Import retain list from first file"
+    processor_type: "import_file"
+    input_file: "PLACEHOLDER_LISTS_FILE.xlsx"
+    sheet: "Retain"
+    save_to_stage: "Retain List"
+    stage_description: "List of shipment descriptions to retain"
+    stage_overwrite: true
+
+  # Step 2: Import the "Discard" sheet and save to stage  
+  - step_description: "Import discard list from first file"
+    processor_type: "import_file"
+    input_file: "PLACEHOLDER_LISTS_FILE.xlsx"
+    sheet: "Discard"
+    save_to_stage: "Discard List"
+    stage_description: "List of shipment descriptions to discard"
+    stage_overwrite: true
+
+  # Step 3: Import the target file that needs filtering
+  - step_description: "Import target shipment data for filtering"
+    processor_type: "import_file"
+    input_file: "PLACEHOLDER_TARGET_FILE.xlsx"
+
+  # Step 4: Filter to keep only rows where "Shipment Description" is in the Retain list
+  - step_description: "Keep only shipments that are in the retain list"
+    processor_type: "filter_data"
+    filters:
+      - column: "Shipment Description"
+        condition: "in_stage"
+        stage_name: "Retain List"
+        stage_column: "Shipment Description"
+
+  # Step 5: Filter to remove rows where "Shipment Description" is in the Discard list
+  - step_description: "Remove shipments that are in the discard list"
+    processor_type: "filter_data"
+    filters:
+      - column: "Shipment Description"
+        condition: "not_in_stage"
+        stage_name: "Discard List"
+        stage_column: "Shipment Description"
+
+  # Step 6: Export the final filtered results
+  - step_description: "Export filtered shipment data"
+    processor_type: "export_file"
+    output_file: "filtered_shipments_{date}.xlsx"
+    create_backup: true

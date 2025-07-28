@@ -1,0 +1,114 @@
+description: "Save current DataFrame as a named stage for later use in the pipeline"
+
+basic_example:
+  description: "Simple stage save with minimal configuration"
+  yaml: |
+    # Save current data as a named stage for later retrieval
+    
+    - # OPT - Human-readable description of what this step does
+      step_description: "Save processed customer data as backup"
+      # REQ - Must be "save_stage" for this processor type
+      processor_type: "save_stage"
+      # REQ - Unique name for this stage (can be any descriptive string)
+      # Valid examples: "Customer Master Data", "Processed Orders", "Daily Import"
+      stage_name: "Customer Backup"
+
+advanced_example:
+  description: "Stage save with overwrite protection and custom description"
+  yaml: |
+    # Save data with overwrite protection and detailed description
+    
+    - # OPT - Step description
+      step_description: "Save filtered sales data with overwrite protection"
+      # REQ - Processor type
+      processor_type: "save_stage"
+      # REQ - Stage name (can contain spaces and special characters)
+      # Stage names are case-sensitive and must be exact for later loading
+      stage_name: "Q4 Sales Filtered"
+      # OPT - Allow overwriting existing stage with same name
+      # Default value: false
+      # If false and stage exists, will raise error
+      overwrite: true
+      # OPT - Custom description for the saved stage
+      # Default value: auto-generated description
+      # Used for stage management and documentation
+      description: "Q4 sales data filtered for active customers only"
+
+workflow_checkpoint_example:
+  description: "Creating checkpoints in multi-step data processing workflow"
+  yaml: |
+    # Save intermediate results as checkpoints during complex processing
+    
+    - # OPT - Step description
+      step_description: "Create checkpoint after data cleaning"
+      # REQ - Processor type
+      processor_type: "save_stage"
+      # REQ - Descriptive stage name for workflow tracking
+      stage_name: "Post-Cleaning Checkpoint"
+      # OPT - Enable overwrite for iterative development
+      # Default value: false
+      overwrite: true
+      # OPT - Detailed description for team collaboration
+      description: "Customer data after cleaning and validation - ready for filtering"
+
+branching_scenario_example:
+  description: "Save data before trying different processing approaches"
+  yaml: |
+    # Save original data before experimental processing
+    
+    - # OPT - Step description
+      step_description: "Save original data before trying different aggregation methods"
+      # REQ - Processor type
+      processor_type: "save_stage"
+      # REQ - Clear stage name indicating purpose
+      stage_name: "Pre-Aggregation Original"
+      # OPT - Prevent accidental overwrite of important checkpoint
+      # Default value: false
+      overwrite: false
+      # OPT - Document the branching point
+      description: "Original customer transaction data before testing different aggregation approaches"
+
+parameter_details:
+  stage_name:
+    type: string
+    required: true
+    description: "Unique identifier for the saved stage - can be any descriptive text"
+    examples: 
+      - "Customer Master Data"
+      - "Processed Orders Q4"
+      - "Daily Import 2024-12-15"
+      - "Pre-Filter Backup"
+    notes: "Stage names are case-sensitive and used exactly for load_stage operations"
+  
+  overwrite:
+    type: boolean
+    required: false
+    default: false
+    description: "Whether to overwrite existing stage with same name"
+    examples: [true, false]
+    safety_note: "When false, will raise error if stage already exists"
+  
+  description:
+    type: string
+    required: false
+    default: "auto-generated based on step context"
+    description: "Human-readable description of what this stage contains"
+    examples:
+      - "Customer data after initial cleaning"
+      - "Sales records filtered for active accounts"
+      - "Original import before any processing"
+    usage: "Helps with stage management and team collaboration"
+
+stage_management_notes:
+  stage_limits: "System enforces maximum number of concurrent stages to prevent memory issues"
+  memory_usage: "Each saved stage creates a complete copy of the DataFrame in memory"
+  stage_isolation: "Saved stages are independent - modifying current data doesn't affect saved stages"
+  usage_tracking: "System tracks when stages are created and accessed for debugging"
+  cleanup: "Stages persist for the duration of the pipeline execution"
+
+common_use_cases:
+  backup_before_processing: "Save original data before any modifications"
+  workflow_checkpoints: "Create save points during complex multi-step processing"
+  branching_experiments: "Save data before trying different processing approaches"
+  intermediate_results: "Preserve intermediate calculations for later analysis"
+  debugging_snapshots: "Save data at various points for troubleshooting"

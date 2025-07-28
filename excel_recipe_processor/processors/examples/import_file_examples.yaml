@@ -1,0 +1,248 @@
+description: "Import data from external files with automatic format detection and optional stage saving"
+
+basic_example:
+  description: "Simple file import replacing current pipeline data"
+  yaml: |
+    # Import Excel file and replace current pipeline data
+    
+    - # OPT - Human-readable description of what this step does
+      step_description: "Import customer data from Excel file"
+      # REQ - Must be "import_file" for this processor type
+      processor_type: "import_file"
+      # REQ - Path to file to import with variable substitution support
+      # Variable examples: {date}, {timestamp}, {company}, {batch_id}
+      input_file: "data/customer_data.xlsx"
+
+excel_with_sheet_example:
+  description: "Import specific sheet from Excel file"
+  yaml: |
+    # Import specific sheet from multi-sheet Excel file
+    
+    - # OPT - Step description
+      step_description: "Import quarterly sales from specific sheet"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Excel file path
+      input_file: "reports/quarterly_sales.xlsx"
+      # OPT - Sheet name or index to import
+      # Can be sheet name (string) or sheet index (integer, 0-based)
+      # Default value: 0 (first sheet)
+      sheet: "Q4 Sales Data"
+
+csv_import_example:
+  description: "Import CSV file with custom encoding and separator"
+  yaml: |
+    # Import CSV file with custom formatting options
+    
+    - # OPT - Step description
+      step_description: "Import CSV data with custom separator"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - CSV file path
+      input_file: "exports/system_data.csv"
+      # OPT - Text encoding for CSV/TSV files (ignored for Excel files)
+      # Valid examples: "utf-8", "latin1", "cp1252", "ascii"
+      # Default value: "utf-8"
+      encoding: "utf-8"
+      # OPT - Column separator for CSV files
+      # Valid examples: ",", ";", "|", "\t"
+      # Default value: ","
+      separator: ";"
+
+variable_substitution_example:
+  description: "Import with dynamic file paths using variables"
+  yaml: |
+    # Import file with variable substitution in path
+    
+    - # OPT - Step description
+      step_description: "Import daily data using date variables"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - File path with variable substitution
+      # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
+      # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
+      # Variable examples: department="sales", batch_id="B001"
+      input_file: "daily_data/{department}_{YYYY}{MM}{DD}.xlsx"
+      # OPT - Import specific sheet by index
+      sheet: 0
+
+stage_saving_example:
+  description: "Import file and save to named stage for later use"
+  yaml: |
+    # Import file and save to stage for use by other processors
+    
+    - # OPT - Step description
+      step_description: "Import and save customer master data"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Input file path
+      input_file: "master_data/customers.xlsx"
+      # OPT - Stage name to save imported data to
+      # If provided, data will be saved to this named stage
+      save_to_stage: "Customer Master Data"
+      # OPT - Description for the saved stage
+      # Default: "Imported from {input_file}"
+      stage_description: "Master customer data imported from Excel file"
+      # OPT - Whether to overwrite existing stage with same name
+      # Default value: false
+      stage_overwrite: true
+
+format_override_example:
+  description: "Explicit format specification overriding auto-detection"
+  yaml: |
+    # Override automatic format detection
+    
+    - # OPT - Step description
+      step_description: "Import file with explicit format override"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Input file path
+      input_file: "data/export.txt"
+      # OPT - Explicit format override (usually auto-detected from extension)
+      # Valid values: "excel", "csv", "tsv"
+      # Auto-detection: .xlsx/.xls = excel, .csv = csv, .tsv/.txt = tsv
+      format: "tsv"
+      # OPT - Custom encoding for text files
+      encoding: "latin1"
+
+multi_stage_workflow_example:
+  description: "Import multiple files saving each to different stages"
+  yaml: |
+    # Import multiple files in sequence, each to its own stage
+    
+    # Import customer data
+    - # OPT - Step description
+      step_description: "Import customer master data"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Customer data file
+      input_file: "master/customers.xlsx"
+      # OPT - Save to customer stage
+      save_to_stage: "Customer Data"
+      # OPT - Stage description
+      stage_description: "Master customer information"
+
+    # Import product data (this step replaces pipeline data with products)
+    - # OPT - Step description
+      step_description: "Import product catalog"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Product data file
+      input_file: "master/products.xlsx"
+      # OPT - Save to product stage
+      save_to_stage: "Product Catalog"
+      # OPT - Stage description
+      stage_description: "Complete product catalog with pricing"
+
+    # Import sales data (final import becomes current pipeline data)
+    - # OPT - Step description
+      step_description: "Import sales transactions"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Sales data file
+      input_file: "transactions/sales_{date}.xlsx"
+      # OPT - Save to sales stage for later reference
+      save_to_stage: "Sales Transactions"
+
+parameter_details:
+  input_file:
+    type: string
+    required: true
+    description: "Path to file to import with optional variable substitution"
+    examples:
+      - "data.xlsx"
+      - "files/customers.csv"
+      - "reports/{date}.xlsx"
+      - "{department}_data_{timestamp}.csv"
+    variable_support: true
+    supported_extensions:
+      - ".xlsx"
+      - ".xls" 
+      - ".xlsm"
+      - ".csv"
+      - ".tsv"
+      - ".txt"
+
+  sheet:
+    type: "string or integer"
+    required: false
+    default: 0
+    description: "Sheet to import from Excel files (ignored for CSV/TSV)"
+    examples:
+      - 0
+      - 1
+      - "Sheet1"
+      - "Sales Data"
+      - "Q4 Results"
+
+  encoding:
+    type: string
+    required: false
+    default: "utf-8"
+    description: "Text encoding for CSV/TSV files (ignored for Excel files)"
+    common_values:
+      - "utf-8"
+      - "latin1"
+      - "cp1252"
+      - "ascii"
+      - "iso-8859-1"
+
+  separator:
+    type: string
+    required: false
+    default: ","
+    description: "Column separator for CSV files (ignored for Excel and TSV)"
+    common_values:
+      - ","
+      - ";"
+      - "|"
+      - "\\t"
+
+  format:
+    type: string
+    required: false
+    description: "Explicit format override (usually auto-detected from file extension)"
+    options:
+      - "excel"
+      - "csv"
+      - "tsv"
+    auto_detection: "Based on file extension: .xlsx/.xls = excel, .csv = csv, .tsv/.txt = tsv"
+
+  save_to_stage:
+    type: string
+    required: false
+    description: "Stage name to save imported data to for later use by other processors"
+    examples:
+      - "Customer Master Data"
+      - "Product Catalog"
+      - "Raw Import Data"
+
+  stage_overwrite:
+    type: boolean
+    required: false
+    default: false
+    description: "Whether to overwrite existing stage with the same name"
+
+  stage_description:
+    type: string
+    required: false
+    description: "Optional description for the saved stage"
+    default: "Imported from {input_file}"
+    examples:
+      - "Master customer data from CRM system"
+      - "Daily sales transactions"
+      - "Product catalog with current pricing"
+
+integration_notes:
+  file_reader: "Uses FileReader infrastructure for consistent file handling across formats"
+  stage_manager: "Can save imported data to named stages for use by other processors"
+  variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings"
+  pipeline_flow: "Replaces current pipeline data with imported data (use stages to preserve multiple datasets)"
+  format_detection: "Automatically detects file format from extension unless explicitly overridden"
+
+common_use_cases:
+  data_replacement: "Replace current pipeline data with imported file"
+  stage_population: "Import multiple files to different stages for later processing"
+  dynamic_imports: "Import files with variable paths based on dates or parameters"
+  format_conversion: "Import CSV/TSV data for processing in Excel-like operations"
+  multi_source_workflows: "Import reference data to stages while processing main data in pipeline"

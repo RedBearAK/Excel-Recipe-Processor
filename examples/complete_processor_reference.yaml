@@ -1,0 +1,425 @@
+# =============================================================================
+# COMPLETE EXCEL RECIPE PROCESSOR REFERENCE
+# =============================================================================
+# This file demonstrates EVERY processor (all 20) with complete syntax examples.
+# Copy and modify any section for your own recipes.
+# 
+# Items marked with "# optional" can be omitted
+# Items marked with "# required" must be included
+# Items marked with "# example values" show typical usage
+# =============================================================================
+
+settings:
+  # Modern approach: Use export_file processors instead of output_filename
+  variables:
+    date_suffix: "{YY}{MMDD}"
+    company: "AcmeCorp"
+  create_backup: true  # optional - creates .backup files before overwriting
+
+recipe:
+
+  # =============================================================================
+  # FILE I/O PROCESSORS - Import, Export, and Formatting
+  # =============================================================================
+  
+  # Import data from external files (Excel, CSV, etc.)
+  - step_description: "Import customer data from Excel file"
+    processor_type: "import_file"
+    input_file: "data/customers_{date_suffix}.xlsx"  # required - supports variables
+    sheet: "Customer List"  # optional - sheet name or index, default: 0
+    encoding: "utf-8"  # optional - for CSV files
+    save_to_stage: "Raw Customers"  # optional - save imported data to stage
+    stage_description: "Original customer data before processing"  # optional
+  
+  # Export data to files with multiple sheets and formatting
+  - step_description: "Export processed data to multi-sheet Excel file"
+    processor_type: "export_file"
+    file_path: "reports/{company}_Report_{date_suffix}.xlsx"  # required - supports variables
+    file_format: "excel"  # optional - excel, csv, json, default: excel
+    sheets:  # optional for excel, required for multi-sheet
+      - sheet_name: "Summary Data"  # required
+        data_source: "current"  # optional - current, stage_name, default: current
+        active: true  # optional - make this the active sheet, default: false
+        description: "Main summary report"  # optional
+      - sheet_name: "Raw Data"  # required
+        stage_name: "Raw Customers"  # optional - use saved stage data
+        active: false  # optional
+    encoding: "utf-8"  # optional - for CSV export
+    create_backup: true  # optional - override global backup setting
+  
+  # Format Excel files with styling and layout
+  - step_description: "Apply professional formatting to Excel output"
+    processor_type: "format_excel"
+    target_file: "reports/{company}_Report_{date_suffix}.xlsx"  # required
+    formatting:  # required
+      auto_fit_columns: true  # optional - auto-size columns to content
+      freeze_panes:  # optional - freeze header rows/columns
+        row: 1  # optional - freeze above this row
+        column: 2  # optional - freeze left of this column
+      header_style:  # optional - style for header row
+        bold: true  # optional
+        background_color: "#E6F3FF"  # optional - hex color code
+        font_size: 12  # optional
+      max_column_width: 50  # optional - prevent extremely wide columns
+      min_column_width: 8   # optional - ensure minimum readability
+
+  # =============================================================================
+  # DATA CLEANING PROCESSORS - Fix and Standardize Data
+  # =============================================================================
+  
+  # Clean and standardize messy data
+  - step_description: "Clean and standardize customer data"
+    processor_type: "clean_data"
+    rules:  # required - list of cleaning operations
+      # Remove invisible characters that break filtering
+      - column: "Customer_Name"  # required
+        action: "remove_invisible_chars"  # required
+      
+      # Standardize whitespace and case
+      - column: "Customer_Name"  # required
+        action: "strip_whitespace"  # required
+      - column: "Customer_Name"  # required
+        action: "title_case"  # required
+      
+      # Fix numeric data
+      - column: "Revenue"  # required
+        action: "fix_numeric"  # required
+      
+      # Conditional replacement (business rules)
+      - column: "Status"  # required
+        action: "replace"  # required
+        old_value: "INACTIVE"  # required for replace action
+        new_value: "CANCELLED"  # required for replace action
+        condition_column: "Last_Order_Date"  # optional - column to check condition
+        condition: "less_than"  # optional - condition type
+        condition_value: "2023-01-01"  # optional - condition value
+        case_sensitive: false  # optional - default: true
+      
+      # Regex-based cleaning
+      - column: "Phone"  # required
+        action: "regex_replace"  # required
+        pattern: "[^0-9]"  # required - regex pattern
+        replacement: ""  # required - replacement text
+      
+      # Standardize values using mapping
+      - column: "Region"  # required
+        action: "standardize_values"  # required
+        mapping:  # required for standardize_values
+          "WEST": "West Coast"
+          "EAST": "East Coast"
+          "CENTRAL": "Central"
+          "SOUTH": "Southern"
+  
+  # Fill missing or empty values
+  - step_description: "Fill missing values with defaults"
+    processor_type: "fill_data"
+    fill_rules:  # required
+      - column: "Region"  # required
+        fill_method: "value"  # required - value, forward, backward, interpolate
+        fill_value: "Unknown"  # required for fill_method: value
+      - column: "Last_Order_Amount"  # required
+        fill_method: "forward"  # required - use previous value
+        limit: 3  # optional - max consecutive fills
+      - column: "Credit_Score"  # required
+        fill_method: "interpolate"  # required - mathematical interpolation
+        method: "linear"  # optional - interpolation method
+
+  # =============================================================================
+  # DATA FILTERING AND SELECTION PROCESSORS
+  # =============================================================================
+  
+  # Filter rows based on conditions
+  - step_description: "Filter for active high-value customers"
+    processor_type: "filter_data"
+    filters:  # required - list of filter conditions
+      - column: "Status"  # required
+        condition: "equals"  # required - equals, not_equals, contains, etc.
+        value: "ACTIVE"  # required
+        case_sensitive: false  # optional - default: true
+      
+      - column: "Revenue"  # required
+        condition: "greater_than"  # required
+        value: 50000  # required
+      
+      - column: "Region"  # required
+        condition: "in_list"  # required
+        value: ["West Coast", "East Coast"]  # required - list for in_list condition
+      
+      - column: "Customer_Name"  # required
+        condition: "not_contains"  # required
+        value: "TEST"  # required
+        case_sensitive: false  # optional
+    
+    filter_logic: "AND"  # optional - AND, OR, default: AND
+
+  # =============================================================================
+  # DATA TRANSFORMATION PROCESSORS - Reshape and Calculate
+  # =============================================================================
+  
+  # Add calculated columns
+  - step_description: "Calculate customer metrics"
+    processor_type: "add_calculated_column"
+    new_column: "Revenue_Per_Employee"  # required
+    calculation_type: "expression"  # required - expression, concat, conditional, etc.
+    expression: "Revenue / Employee_Count"  # required for expression type
+    data_type: "float"  # optional - int, float, string, default: float
+    
+  # Alternative calculated column examples:
+  - step_description: "Create customer tier based on revenue"
+    processor_type: "add_calculated_column"
+    new_column: "Customer_Tier"  # required
+    calculation_type: "conditional"  # required
+    conditions:  # required for conditional type
+      - condition: "Revenue >= 100000"  # required
+        value: "Premium"  # required
+      - condition: "Revenue >= 50000"  # required
+        value: "Gold"  # required
+      - condition: "Revenue >= 10000"  # required
+        value: "Silver"  # required
+      - default_value: "Bronze"  # optional - default if no conditions match
+  
+  # Split single column into multiple columns
+  - step_description: "Split full name into first and last name"
+    processor_type: "split_column"
+    source_column: "Full_Name"  # required
+    split_type: "delimiter"  # required - delimiter, regex, fixed_width
+    delimiter: " "  # required for delimiter type
+    new_columns: ["First_Name", "Last_Name"]  # required
+    max_splits: 1  # optional - limit number of splits
+    keep_original: false  # optional - keep original column, default: true
+
+  # Group data into categories
+  - step_description: "Group cities into regions"
+    processor_type: "group_data"
+    source_column: "City"  # required
+    target_column: "Metro_Area"  # required - new column name
+    groups:  # required - mapping of group names to values
+      "San Francisco Bay Area":
+        - "San Francisco"
+        - "Oakland"
+        - "San Jose"
+        - "Palo Alto"
+      "Greater Los Angeles":
+        - "Los Angeles"
+        - "Pasadena"
+        - "Long Beach"
+        - "Anaheim"
+      "Seattle Metro":
+        - "Seattle"
+        - "Bellevue"
+        - "Tacoma"
+    unmatched_action: "keep_original"  # optional - keep_original, assign_default, drop
+    default_group: "Other"  # optional - used with assign_default action
+    case_sensitive: false  # optional - default: true
+
+  # =============================================================================
+  # DATA AGGREGATION AND ANALYSIS PROCESSORS
+  # =============================================================================
+  
+  # Create pivot tables for cross-tabulation
+  - step_description: "Create revenue analysis by region and tier"
+    processor_type: "pivot_table"
+    index: ["Region", "Customer_Tier"]  # required - row grouping columns
+    columns: ["Quarter"]  # optional - column grouping, can be list or single
+    values: ["Revenue", "Order_Count"]  # required - columns to aggregate
+    aggfunc: "sum"  # optional - sum, mean, count, min, max, default: sum
+    fill_value: 0  # optional - value for empty cells, default: NaN
+    margins: true  # optional - add total rows/columns, default: false
+    margins_name: "Total"  # optional - name for margin labels, default: "All"
+    dropna: true  # optional - exclude NaN from grouping, default: true
+    observed: false  # optional - for categorical data, default: false
+  
+  # Aggregate data with grouping
+  - step_description: "Calculate summary statistics by region"
+    processor_type: "aggregate_data"
+    group_by: ["Region", "Customer_Tier"]  # required - grouping columns
+    aggregations:  # required - columns and functions to aggregate
+      Revenue:  # column name
+        - "sum"  # aggregation function
+        - "mean"  # can have multiple functions per column
+        - "count"
+      Order_Count:
+        - "sum"
+        - "max"
+      Customer_Name:
+        - "count"  # count of non-null values
+    rename_columns:  # optional - rename aggregated columns
+      "Revenue_sum": "Total_Revenue"
+      "Revenue_mean": "Average_Revenue"
+      "Order_Count_sum": "Total_Orders"
+    reset_index: true  # optional - flatten grouped result, default: true
+
+  # Add subtotals to grouped data
+  - step_description: "Add subtotals for regional analysis"
+    processor_type: "add_subtotals"
+    group_columns: ["Region"]  # required - columns to group by for subtotals
+    sum_columns: ["Revenue", "Order_Count"]  # required - columns to sum
+    subtotal_label: "Regional Total"  # optional - label for subtotal rows
+    grand_total: true  # optional - add grand total at end, default: false
+    grand_total_label: "Company Total"  # optional - label for grand total
+
+  # =============================================================================
+  # DATA INTEGRATION PROCESSORS - Combine and Enrich Data
+  # =============================================================================
+  
+  # Lookup data from external sources
+  - step_description: "Enrich customers with territory information"
+    processor_type: "lookup_data"
+    lookup_source: "reference/territories.xlsx"  # required - file path or stage name
+    lookup_key: "Region_Code"  # required - column in lookup data
+    source_key: "Region"  # required - column in current data
+    lookup_columns: ["Territory_Manager", "Sales_Target", "Commission_Rate"]  # required
+    join_type: "left"  # optional - left, right, inner, outer, default: left
+    missing_value_action: "keep_null"  # optional - keep_null, drop_row, fill_value
+    fill_value: "Unknown"  # optional - used with fill_value action
+    case_sensitive: false  # optional - for key matching, default: true
+  
+  # Merge data from multiple sources
+  - step_description: "Merge customer data with order history"
+    processor_type: "merge_data"
+    merge_source: "orders_summary"  # required - stage name or file path
+    left_on: "Customer_ID"  # required - join column in current data
+    right_on: "Customer_ID"  # required - join column in merge source
+    how: "inner"  # optional - left, right, inner, outer, default: left
+    suffixes: ["_customer", "_orders"]  # optional - suffix for duplicate columns
+    validate: "one_to_one"  # optional - one_to_one, one_to_many, many_to_one
+    indicator: false  # optional - add merge indicator column, default: false
+
+  # =============================================================================
+  # DATA ORGANIZATION PROCESSORS - Sort and Rename
+  # =============================================================================
+  
+  # Sort data by multiple columns
+  - step_description: "Sort customers by revenue and region"
+    processor_type: "sort_data"
+    columns:  # required - can be list of names or list of objects
+      - column: "Revenue"  # required
+        ascending: false  # optional - default: true
+      - column: "Region"  # required
+        ascending: true  # optional
+      - column: "Customer_Name"  # can also be just column name (defaults to ascending)
+    na_position: "last"  # optional - first, last, default: last
+    kind: "quicksort"  # optional - quicksort, mergesort, heapsort, stable
+    ignore_index: false  # optional - reset index after sorting, default: false
+  
+  # Rename columns for better presentation
+  - step_description: "Standardize column names for final report"
+    processor_type: "rename_columns"
+    rename_type: "mapping"  # required - mapping, pattern, transform
+    mapping:  # required for mapping type
+      "Customer_Name": "Customer Name"
+      "Customer_Tier": "Tier"
+      "Revenue_Per_Employee": "Revenue per Employee"
+      "Territory_Manager": "Territory Manager"
+      "Total_Revenue": "Total Revenue ($)"
+    
+  # Alternative pattern-based renaming:
+  - step_description: "Clean up column names with patterns"
+    processor_type: "rename_columns"
+    rename_type: "pattern"  # required
+    pattern: "_"  # required - pattern to find
+    replacement: " "  # required - replacement text
+    case_conversion: "title"  # optional - lower, upper, title
+
+  # =============================================================================
+  # STAGE MANAGEMENT PROCESSORS - Save and Load Intermediate Data
+  # =============================================================================
+  
+  # Save current data to a named stage
+  - step_description: "Save processed customer data for later use"
+    processor_type: "save_stage"
+    stage_name: "Processed Customers"  # required
+    description: "Customer data after cleaning and enrichment"  # optional
+    overwrite: true  # optional - overwrite existing stage, default: false
+  
+  # Load data from a previously saved stage
+  - step_description: "Load reference data from saved stage"
+    processor_type: "load_stage"
+    stage_name: "Raw Customers"  # required
+    merge_with_current: false  # optional - merge with current data, default: false
+    merge_how: "outer"  # optional - how to merge if merge_with_current: true
+  
+  # Create a stage with inline data
+  - step_description: "Create lookup table for status codes"
+    processor_type: "create_stage"
+    stage_name: "Status Codes"  # required
+    description: "Status code lookup table"  # optional
+    data:  # required
+      format: "table"  # required - table, list
+      columns: ["Code", "Description", "Active"]  # required for table format
+      rows:  # required for table format
+        - ["A", "Active", true]
+        - ["I", "Inactive", false]
+        - ["P", "Pending", true]
+        - ["C", "Cancelled", false]
+
+  # =============================================================================
+  # DEBUGGING AND DEVELOPMENT PROCESSORS
+  # =============================================================================
+  
+  # Add debug checkpoints to inspect data during development
+  - step_description: "Debug checkpoint: verify data after cleaning"
+    processor_type: "debug_breakpoint"
+    message: "Check customer data after cleaning and enrichment"  # optional
+    output_path: "./debug_outputs/"  # optional - where to save debug files
+    filename_prefix: "customers_cleaned"  # optional - prefix for debug files
+    include_timestamp: true  # optional - add timestamp to filename, default: true
+    show_sample: true  # optional - display sample in console, default: true
+    sample_rows: 10  # optional - number of sample rows to show, default: 5
+    save_current_data: true  # optional - save data to file, default: true
+    show_columns: true  # optional - display column information, default: true
+    show_dtypes: true  # optional - display data types, default: true
+
+# =============================================================================
+# COMPLETE SETTINGS REFERENCE
+# =============================================================================
+# Additional settings options available:
+
+# settings:
+#   # File output (deprecated - use export_file instead)
+#   output_filename: "results_{date}.xlsx"  # optional
+#   
+#   # Backup management
+#   create_backup: true  # optional - create .backup files before overwriting
+#   
+#   # Variable definitions
+#   variables:  # optional - custom variables for substitution
+#     department: "sales"
+#     quarter: "Q4"
+#     nested_var: "{department}_{quarter}"  # variables can reference other variables
+#   
+#   # External variable requirements (interactive prompting)
+#   required_external_vars:  # optional - prompt user for variables
+#     batch_id:
+#       description: "Batch identifier for processing"  # required
+#       example: "B001, B002"  # optional
+#       default_value: "B001"  # optional
+#       validation: "^B\\d{3}$"  # optional - regex pattern
+#       choices: ["B001", "B002", "B003"]  # optional - restrict to list
+#       allow_empty: false  # optional - allow empty values, default: true
+#   
+#   # Processing options
+#   cleanup_stages: true  # optional - clean up stages after processing, default: true
+#   description: "Customer analysis workflow"  # optional - recipe description
+
+# =============================================================================
+# USAGE NOTES
+# =============================================================================
+# 
+# 1. COPY ANY SECTION: Each processor example is complete and self-contained
+# 2. MODIFY FOR YOUR DATA: Change column names, file paths, and values
+# 3. COMBINE AS NEEDED: Mix and match processors for your workflow
+# 4. USE STAGES: Save intermediate results with save_stage for complex workflows
+# 5. DEBUG OFTEN: Add debug_breakpoint steps during development
+# 6. TEST INCREMENTALLY: Comment out later steps while developing early ones
+# 
+# EXAMPLE WORKFLOW:
+# 1. import_file → Load raw data
+# 2. clean_data → Fix data quality issues  
+# 3. filter_data → Remove unwanted rows
+# 4. lookup_data → Enrich with reference data
+# 5. add_calculated_column → Create new metrics
+# 6. pivot_table → Summarize for analysis
+# 7. export_file → Save results
+# 
+# =============================================================================

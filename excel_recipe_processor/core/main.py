@@ -58,6 +58,16 @@ def run_main(args: Namespace) -> int:
             else:
                 return list_system_capabilities()  # Basic format
         
+        # NEW: Handle usage examples command
+        if hasattr(args, 'get_usage_examples') and args.get_usage_examples is not None:
+            processor_name = args.get_usage_examples
+            format_type = getattr(args, 'format_examples', 'yaml')
+            
+            if processor_name == 'all':
+                return get_usage_examples_all(format_type)
+            else:
+                return get_usage_examples_single(processor_name, format_type)
+        
         if hasattr(args, 'validate_recipe') and args.validate_recipe:
             return validate_recipe_file(args.validate_recipe)
         
@@ -596,7 +606,7 @@ def list_system_capabilities_matrix() -> int:
         for info in processors.values():
             # Collect various capability types
             for key in ['supported_actions', 'calculation_types', 'supported_conditions',
-                       'lookup_features', 'pivot_features', 'filter_operations']:
+                        'lookup_features', 'pivot_features', 'filter_operations']:
                 if key in info and isinstance(info[key], list):
                     all_capabilities.update(info[key])
         
@@ -618,7 +628,7 @@ def list_system_capabilities_matrix() -> int:
             proc_caps = set()
             # Collect capabilities from all sources
             for key in ['supported_actions', 'calculation_types', 'supported_conditions',
-                       'lookup_features', 'pivot_features', 'filter_operations']:
+                        'lookup_features', 'pivot_features', 'filter_operations']:
                 if key in info and isinstance(info[key], list):
                     proc_caps.update(info[key])
             
@@ -634,6 +644,121 @@ def list_system_capabilities_matrix() -> int:
         
     except Exception as e:
         print(f"Error listing matrix capabilities: {e}")
+        return 1
+
+
+def get_usage_examples_single(processor_name: str, format_type: str) -> int:
+    """Get usage examples for a single processor."""
+    try:
+        from excel_recipe_processor.core.pipeline import get_processor_usage_examples
+        
+        examples = get_processor_usage_examples(processor_name)
+        
+        if examples is None:
+            print(f"❌ Processor '{processor_name}' not found.")
+            print("\nAvailable processors:")
+            from excel_recipe_processor.core.pipeline import get_system_capabilities
+            capabilities = get_system_capabilities()
+            for proc_name in sorted(capabilities['processors'].keys()):
+                print(f"  - {proc_name}")
+            return 1
+        
+        if 'error' in examples:
+            print(f"❌ {processor_name}: {examples['error']}")
+            return 1
+        
+        # Format and display the examples
+        if format_type == 'yaml':
+            print(f"# Usage Examples for {processor_name} processor")
+            print("# Copy and modify these examples for your recipes")
+            print()
+            print(examples.get('formatted_yaml', 'No YAML examples available'))
+            
+        elif format_type == 'json':
+            import json
+            print(json.dumps(examples, indent=2))
+            
+        elif format_type == 'text':
+            print(f"Usage Examples for {processor_name}")
+            print("=" * 50)
+            print(examples.get('description', 'No description available'))
+            print()
+            print(examples.get('formatted_text', 'No text examples available'))
+        
+        return 0
+        
+    except ImportError as e:
+        print(f"❌ Error importing usage examples functionality: {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Error getting usage examples: {e}")
+        return 1
+
+
+def get_usage_examples_all(format_type: str) -> int:
+    """Get usage examples for all processors."""
+    try:
+        from excel_recipe_processor.core.pipeline import get_all_usage_examples
+        
+        all_examples = get_all_usage_examples()
+        
+        if format_type == 'yaml':
+            print("# Complete Usage Examples for All Processors")
+            print("# Excel Recipe Processor - Complete Reference")
+            print("# Copy and modify sections for your recipes")
+            print()
+            
+            # Show summary first
+            print("# Available Processors:")
+            for proc_name, examples in all_examples['processors'].items():
+                status = "✅" if 'error' not in examples else "❌"
+                print(f"#   {status} {proc_name}")
+            print()
+            
+            # Show examples for each processor
+            for proc_name, examples in all_examples['processors'].items():
+                print(f"# {'-' * 60}")
+                print(f"# {proc_name.upper()} PROCESSOR")
+                print(f"# {'-' * 60}")
+                
+                if 'error' in examples:
+                    print(f"# ❌ ERROR: {examples['error']}")
+                    print(f"# This processor needs get_usage_examples() method implementation")
+                else:
+                    print(examples.get('formatted_yaml', f'# No examples available for {proc_name}'))
+                print()
+            
+        elif format_type == 'json':
+            import json
+            print(json.dumps(all_examples, indent=2))
+            
+        elif format_type == 'text':
+            print("Usage Examples for All Processors")
+            print("=" * 50)
+            
+            # Show summary
+            print(f"Total processors: {all_examples['system_info']['total_processors']}")
+            print(f"With examples: {all_examples['system_info']['processors_with_examples']}")
+            print(f"Missing examples: {all_examples['system_info']['processors_missing_examples']}")
+            print()
+            
+            # Show each processor
+            for proc_name, examples in all_examples['processors'].items():
+                print(f"\n{proc_name}")
+                print("-" * len(proc_name))
+                
+                if 'error' in examples:
+                    print(f"❌ {examples['error']}")
+                else:
+                    print(examples.get('formatted_text', 'No text examples available'))
+        
+        return 0
+        
+    except ImportError as e:
+        print(f"❌ Error importing usage examples functionality: {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Error getting usage examples: {e}")
         return 1
 
 

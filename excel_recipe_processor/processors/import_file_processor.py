@@ -224,6 +224,11 @@ class ImportFileProcessor(BaseStepProcessor):
                 'format': 'Explicit format override (auto-detected by default)'
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the import_file processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('import_file')
 
 
 # Note: Other processors should use FileReader directly instead of ImportFileProcessor

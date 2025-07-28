@@ -306,7 +306,11 @@ class ExportFileProcessor(BaseStepProcessor):
                 'separator': 'Column separator for CSV files'
             }
         }
-
+    
+    # export_file_processor.py
+    def get_usage_examples(self) -> dict:
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('export_file')
 
 # Note: Other processors should use FileWriter directly for simple exports
 # Example: FileWriter.write_file(data, filename, variables, sheet_name, format)

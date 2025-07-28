@@ -476,3 +476,8 @@ class FilterDataProcessor(BaseStepProcessor):
                 'comparison_operator': 'Operator for stage value comparisons'
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the filter_data processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('filter_data')

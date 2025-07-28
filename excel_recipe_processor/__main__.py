@@ -50,6 +50,18 @@ Examples:
   # Show feature comparison matrix
   python -m excel_recipe_processor --list-capabilities --matrix
   
+  # Get usage examples for specific processor
+  python -m excel_recipe_processor --get-usage-examples export_file
+  
+  # Get usage examples for all processors
+  python -m excel_recipe_processor --get-usage-examples
+  
+  # Get usage examples in JSON format
+  python -m excel_recipe_processor --get-usage-examples export_file --format-examples json
+  
+  # Get all usage examples in text format
+  python -m excel_recipe_processor --get-usage-examples --format-examples text
+  
   # Validate a recipe file
   python -m excel_recipe_processor --validate-recipe recipe.yaml
         """
@@ -150,6 +162,22 @@ Examples:
         '--matrix',
         action='store_true',
         help='Show feature matrix (use with --list-capabilities)'
+    )
+
+    # Usage Examples
+    parser.add_argument(
+        '--get-usage-examples',
+        metavar='PROCESSOR_NAME',
+        nargs='?',
+        const='all',
+        help='Get complete usage examples for a processor (or all processors if no name given)'
+    )
+
+    parser.add_argument(
+        '--format-examples',
+        choices=['yaml', 'json', 'text'],
+        default='yaml',
+        help='Output format for usage examples (default: yaml)'
     )
 
     # Recipe validation

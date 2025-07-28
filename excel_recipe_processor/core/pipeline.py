@@ -525,6 +525,224 @@ def get_system_capabilities() -> dict:
         }
 
 
+def get_processor_usage_examples(processor_name: str) -> dict:
+    """
+    Get usage examples for a specific processor.
+    
+    Args:
+        processor_name: Name of the processor to get examples for
+        
+    Returns:
+        Dictionary with usage examples or error information
+    """
+    try:
+        from excel_recipe_processor.processors.base_processor import registry
+        
+        # Check if processor exists
+        if processor_name not in registry.get_registered_types():
+            return None
+        
+        # Get the processor class
+        processor_class = registry._processors.get(processor_name)
+        if processor_class is None:
+            return {'error': f'Could not get processor class for {processor_name}'}
+        
+        # Try to get minimal config and create instance
+        if not hasattr(processor_class, 'get_minimal_config'):
+            return {
+                'error': f'Processor class {processor_class.__name__} missing get_minimal_config() method. '
+                        f'Add this method to enable usage example discovery.'
+            }
+        
+        try:
+            minimal_config = processor_class.get_minimal_config()
+            minimal_config['processor_type'] = processor_name
+            minimal_config['step_description'] = f'Usage examples for {processor_name}'
+            
+            # Create processor instance
+            processor = registry.create_processor(minimal_config)
+            
+            # Check for get_usage_examples method
+            if not hasattr(processor, 'get_usage_examples'):
+                return {
+                    'error': f'Processor {processor_class.__name__} missing get_usage_examples() method. '
+                            f'Add this method to provide complete usage examples.',
+                    'status': 'method_missing'
+                }
+            
+            # Get the usage examples
+            usage_examples = processor.get_usage_examples()
+            
+            # Format the examples for different output types
+            formatted_examples = _format_usage_examples(processor_name, usage_examples)
+            
+            return {
+                'processor_name': processor_name,
+                'status': 'available',
+                'examples': usage_examples,
+                'formatted_yaml': formatted_examples['yaml'],
+                'formatted_text': formatted_examples['text'],
+                'formatted_json': formatted_examples['json']
+            }
+            
+        except Exception as e:
+            return {
+                'error': f'Could not get usage examples: {str(e)}',
+                'status': 'error'
+            }
+            
+    except Exception as e:
+        return {
+            'error': f'Unexpected error getting usage examples for {processor_name}: {str(e)}',
+            'status': 'error'
+        }
+
+
+def get_all_usage_examples() -> dict:
+    """
+    Get usage examples for all processors.
+    
+    Returns:
+        Dictionary with usage examples for all processors and system info
+    """
+    try:
+        from excel_recipe_processor.processors.base_processor import registry
+        
+        processor_types = registry.get_registered_types()
+        
+        examples_data = {
+            'system_info': {
+                'description': 'Complete usage examples for Excel Recipe Processor',
+                'total_processors': len(processor_types),
+                'processors_with_examples': 0,
+                'processors_missing_examples': 0,
+                'processors_with_errors': 0
+            },
+            'processors': {}
+        }
+        
+        # Get examples for each processor
+        for processor_type in sorted(processor_types):
+            examples = get_processor_usage_examples(processor_type)
+            
+            if examples is None:
+                # This shouldn't happen if processor is registered
+                examples = {'error': 'Processor not found'}
+                examples_data['system_info']['processors_with_errors'] += 1
+            elif 'error' in examples:
+                if examples.get('status') == 'method_missing':
+                    examples_data['system_info']['processors_missing_examples'] += 1
+                else:
+                    examples_data['system_info']['processors_with_errors'] += 1
+            else:
+                examples_data['system_info']['processors_with_examples'] += 1
+            
+            examples_data['processors'][processor_type] = examples
+        
+        return examples_data
+        
+    except Exception as e:
+        return {
+            'system_info': {
+                'error': f'Failed to get usage examples: {str(e)}',
+                'total_processors': 0,
+                'processors_with_examples': 0,
+                'processors_missing_examples': 0,
+                'processors_with_errors': 0
+            },
+            'processors': {}
+        }
+
+
+def _format_usage_examples(processor_name: str, usage_examples: dict) -> dict:
+    """
+    Format usage examples for different output types.
+    
+    Args:
+        processor_name: Name of the processor
+        usage_examples: Raw usage examples from processor
+        
+    Returns:
+        Dictionary with formatted examples for yaml, text, and json
+    """
+    formatted = {
+        'yaml': '',
+        'text': '',
+        'json': usage_examples
+    }
+    
+    try:
+        # Format YAML output
+        yaml_lines = []
+        yaml_lines.append(f"# {processor_name} processor usage examples")
+        yaml_lines.append("")
+        
+        if 'description' in usage_examples:
+            yaml_lines.append(f"# {usage_examples['description']}")
+            yaml_lines.append("")
+        
+        # Add basic example
+        if 'basic_example' in usage_examples:
+            yaml_lines.append("# Basic usage:")
+            if 'description' in usage_examples['basic_example']:
+                yaml_lines.append(f"# {usage_examples['basic_example']['description']}")
+            yaml_lines.append("")
+            yaml_lines.append(usage_examples['basic_example'].get('yaml', '# No YAML example provided'))
+            yaml_lines.append("")
+        
+        # Add advanced example
+        if 'advanced_example' in usage_examples:
+            yaml_lines.append("# Advanced usage:")
+            if 'description' in usage_examples['advanced_example']:
+                yaml_lines.append(f"# {usage_examples['advanced_example']['description']}")
+            yaml_lines.append("")
+            yaml_lines.append(usage_examples['advanced_example'].get('yaml', '# No YAML example provided'))
+            yaml_lines.append("")
+        
+        # Add additional examples
+        for key, example in usage_examples.items():
+            if key not in ['description', 'basic_example', 'advanced_example', 'parameter_details'] and isinstance(example, dict):
+                if 'yaml' in example:
+                    yaml_lines.append(f"# {key.replace('_', ' ').title()}:")
+                    if 'description' in example:
+                        yaml_lines.append(f"# {example['description']}")
+                    yaml_lines.append("")
+                    yaml_lines.append(example['yaml'])
+                    yaml_lines.append("")
+        
+        formatted['yaml'] = '\n'.join(yaml_lines)
+        
+        # Format text output
+        text_lines = []
+        text_lines.append(f"Processor: {processor_name}")
+        
+        if 'description' in usage_examples:
+            text_lines.append(f"Description: {usage_examples['description']}")
+        
+        text_lines.append("")
+        text_lines.append("Available Examples:")
+        
+        for key, example in usage_examples.items():
+            if isinstance(example, dict) and 'description' in example:
+                text_lines.append(f"  - {key}: {example['description']}")
+        
+        # Add parameter details if available
+        if 'parameter_details' in usage_examples:
+            text_lines.append("")
+            text_lines.append("Parameters:")
+            for param, details in usage_examples['parameter_details'].items():
+                required = "required" if details.get('required', False) else "optional"
+                text_lines.append(f"  - {param} ({required}): {details.get('description', 'No description')}")
+        
+        formatted['text'] = '\n'.join(text_lines)
+        
+    except Exception as e:
+        formatted['yaml'] = f"# Error formatting examples: {e}"
+        formatted['text'] = f"Error formatting examples: {e}"
+    
+    return formatted
+
+
 # Import processor classes
 from excel_recipe_processor.processors.add_calculated_column_processor  import AddCalculatedColumnProcessor
 from excel_recipe_processor.processors.add_subtotals_processor          import AddSubtotalsProcessor

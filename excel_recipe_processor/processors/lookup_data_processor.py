@@ -250,7 +250,7 @@ class LookupDataProcessor(BaseStepProcessor):
             )
         
         try:
-            lookup_data = StageManager.get_stage_data(stage_name)
+            lookup_data = StageManager.load_stage(stage_name)
             logger.debug(f"Loaded lookup data from stage '{stage_name}': {len(lookup_data)} rows")
             return lookup_data
             

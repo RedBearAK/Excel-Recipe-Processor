@@ -56,7 +56,7 @@ class SliceDataProcessor(BaseStepProcessor):
         
         if source_stage:
             try:
-                data = StageManager.get_stage_data(source_stage)
+                data = StageManager.load_stage(source_stage)
                 logger.debug(f"Loaded data from stage '{source_stage}' for slicing")
             except StageError as e:
                 raise StepProcessorError(f"Error loading source stage '{source_stage}': {e}")

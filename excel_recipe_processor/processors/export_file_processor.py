@@ -207,7 +207,7 @@ class ExportFileProcessor(BaseStepProcessor):
         else:
             # Assume it's a stage name
             try:
-                stage_data = StageManager.get_stage_data(data_source)
+                stage_data = StageManager.load_stage(data_source)
                 logger.debug(f"Retrieved data from stage '{data_source}': {stage_data.shape}")
                 return stage_data
             except StageError as e:

@@ -159,7 +159,7 @@ def test_import_with_stage_saving():
                 print("✓ Stage was created successfully")
                 
                 # Verify stage contains correct data
-                stage_data = StageManager.get_stage_data('Imported Product Data')
+                stage_data = StageManager.load_stage('Imported Product Data')
                 
                 if (len(stage_data) == len(result) and 
                     list(stage_data.columns) == list(result.columns)):

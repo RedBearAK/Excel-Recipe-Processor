@@ -308,7 +308,7 @@ def test_save_to_stage():
     
     # Check that stage was created
     if StageManager.stage_exists('Sales Summary'):
-        stage_data = StageManager.get_stage_data('Sales Summary')
+        stage_data = StageManager.load_stage('Sales Summary')
         
         if len(stage_data) == len(result) and 'Total_Sales' in stage_data.columns:
             print("✓ Save to stage worked correctly")

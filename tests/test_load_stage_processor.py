@@ -321,7 +321,7 @@ def test_data_isolation():
         result.loc[0, 'Customer_Name'] = 'MODIFIED'
         
         # Check that stage data was not affected
-        stage_data = StageManager.get_stage_data('Isolation Test')
+        stage_data = StageManager.load_stage('Isolation Test')
         
         if stage_data.loc[0, 'Customer_Name'] != 'MODIFIED':
             print("✓ Data isolation worked correctly")

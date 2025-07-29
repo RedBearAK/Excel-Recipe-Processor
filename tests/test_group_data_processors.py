@@ -508,7 +508,7 @@ def test_save_to_stage():
         len(result) == len(van_data)):
         
         # Verify stage contains correct data
-        stage_data = StageManager.get_stage_data('Grouped Van Data')
+        stage_data = StageManager.load_stage('Grouped Van Data')
         
         if (len(stage_data) == len(result) and
             'Product_Origin_Group' in stage_data.columns):

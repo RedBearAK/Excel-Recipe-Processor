@@ -279,7 +279,7 @@ class FilterDataProcessor(BaseStepProcessor):
         
         try:
             # Get stage data
-            stage_data = StageManager.get_stage_data(stage_name)
+            stage_data = StageManager.load_stage(stage_name)
             
             # Check if stage column exists
             if stage_column not in stage_data.columns:
@@ -350,7 +350,7 @@ class FilterDataProcessor(BaseStepProcessor):
         
         try:
             # Get stage data
-            stage_data = StageManager.get_stage_data(stage_name)
+            stage_data = StageManager.load_stage(stage_name)
             
             # Validate columns exist
             if key_column not in df.columns:

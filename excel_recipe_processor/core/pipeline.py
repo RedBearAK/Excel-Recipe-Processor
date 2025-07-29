@@ -748,6 +748,7 @@ from excel_recipe_processor.processors.add_calculated_column_processor  import A
 from excel_recipe_processor.processors.add_subtotals_processor          import AddSubtotalsProcessor
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
+from excel_recipe_processor.processors.combine_data_processor           import CombineDataProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
 from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
@@ -762,6 +763,7 @@ from excel_recipe_processor.processors.merge_data_processor             import M
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
 from excel_recipe_processor.processors.rename_columns_processor         import RenameColumnsProcessor
 from excel_recipe_processor.processors.save_stage_processor             import SaveStageProcessor
+from excel_recipe_processor.processors.slice_data_processor             import SliceDataProcessor
 from excel_recipe_processor.processors.sort_data_processor              import SortDataProcessor
 from excel_recipe_processor.processors.split_column_processor           import SplitColumnProcessor
 
@@ -774,6 +776,7 @@ def register_standard_processors():
     registry.register('add_subtotals',                  AddSubtotalsProcessor               )
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
+    registry.register('combine_data',                   CombineDataProcessor                )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
     registry.register('export_file',                    ExportFileProcessor                 )
@@ -788,6 +791,7 @@ def register_standard_processors():
     registry.register('pivot_table',                    PivotTableProcessor                 )
     registry.register('rename_columns',                 RenameColumnsProcessor              )
     registry.register('save_stage',                     SaveStageProcessor                  )
+    registry.register('slice_data',                     SliceDataProcessor                  )
     registry.register('sort_data',                      SortDataProcessor                   )
     registry.register('split_column',                   SplitColumnProcessor                )
     

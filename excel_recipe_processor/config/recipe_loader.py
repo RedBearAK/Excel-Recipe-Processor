@@ -369,3 +369,8 @@ class RecipeLoader:
             summary_parts.append(f"{len(external_vars)} external variables")
         
         return ", ".join(summary_parts)
+    
+    def get_settings_examples(self) -> dict:
+        """Get complete usage examples for recipe settings section."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_settings_examples
+        return load_settings_examples()

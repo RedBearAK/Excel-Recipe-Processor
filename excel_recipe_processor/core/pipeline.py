@@ -525,6 +525,162 @@ def get_system_capabilities() -> dict:
         }
 
 
+def get_settings_usage_examples() -> dict:
+    """
+    Get usage examples for recipe settings section.
+    
+    Returns:
+        Dictionary with settings usage examples or error information
+    """
+    try:
+        # Try to load from external YAML file first
+        from excel_recipe_processor.utils.processor_examples_loader import load_settings_examples
+        
+        examples = load_settings_examples()
+        
+        if 'error' not in examples:
+            # Format the examples for different output types
+            formatted_examples = _format_settings_examples(examples)
+            
+            return {
+                'status': 'available',
+                'examples': examples,
+                'formatted_yaml': formatted_examples['yaml'],
+                'formatted_text': formatted_examples['text'],
+                'formatted_json': formatted_examples['json']
+            }
+        else:
+            # If external YAML file doesn't exist, try fallback method
+            from excel_recipe_processor.config.recipe_loader import RecipeLoader
+            
+            recipe_loader = RecipeLoader()
+            if hasattr(recipe_loader, 'get_settings_examples'):
+                fallback_examples = recipe_loader.get_settings_examples()
+                formatted_examples = _format_settings_examples(fallback_examples)
+                
+                return {
+                    'status': 'available',
+                    'source': 'fallback_method',
+                    'examples': fallback_examples,
+                    'formatted_yaml': formatted_examples['yaml'],
+                    'formatted_text': formatted_examples['text'],
+                    'formatted_json': formatted_examples['json']
+                }
+            else:
+                return {
+                    'error': f'Settings examples not available. {examples["error"]}',
+                    'status': 'not_available',
+                    'suggestion': 'Create config/examples/recipe_settings_examples.yaml file'
+                }
+                
+    except Exception as e:
+        return {
+            'error': f'Unexpected error getting settings examples: {str(e)}',
+            'status': 'error'
+        }
+
+
+def _format_settings_examples(settings_examples: dict) -> dict:
+    """
+    Format settings examples for different output types.
+    
+    Args:
+        settings_examples: Raw settings examples from YAML file
+        
+    Returns:
+        Dictionary with formatted examples for yaml, text, and json
+    """
+    formatted = {
+        'yaml': '',
+        'text': '',
+        'json': settings_examples
+    }
+    
+    try:
+        # Format YAML output
+        yaml_lines = []
+        yaml_lines.append("# Recipe Settings Usage Examples")
+        yaml_lines.append("# Settings section configures recipe behavior")
+        yaml_lines.append("")
+        
+        if 'description' in settings_examples:
+            yaml_lines.append(f"# {settings_examples['description']}")
+            yaml_lines.append("")
+        
+        # Add basic example
+        if 'basic_example' in settings_examples:
+            yaml_lines.append("# Basic settings:")
+            if 'description' in settings_examples['basic_example']:
+                yaml_lines.append(f"# {settings_examples['basic_example']['description']}")
+            yaml_lines.append("")
+            yaml_lines.append(settings_examples['basic_example'].get('yaml', '# No YAML example provided'))
+            yaml_lines.append("")
+        
+        # Add variables example
+        if 'variables_example' in settings_examples:
+            yaml_lines.append("# Settings with custom variables:")
+            if 'description' in settings_examples['variables_example']:
+                yaml_lines.append(f"# {settings_examples['variables_example']['description']}")
+            yaml_lines.append("")
+            yaml_lines.append(settings_examples['variables_example'].get('yaml', '# No YAML example provided'))
+            yaml_lines.append("")
+        
+        # Add comprehensive example
+        if 'comprehensive_example' in settings_examples:
+            yaml_lines.append("# Complete settings configuration:")
+            if 'description' in settings_examples['comprehensive_example']:
+                yaml_lines.append(f"# {settings_examples['comprehensive_example']['description']}")
+            yaml_lines.append("")
+            yaml_lines.append(settings_examples['comprehensive_example'].get('yaml', '# No YAML example provided'))
+            yaml_lines.append("")
+        
+        # Add additional examples
+        for key, example in settings_examples.items():
+            if key not in ['description', 'basic_example', 'variables_example', 'comprehensive_example', 'parameter_details'] and isinstance(example, dict):
+                if 'yaml' in example:
+                    yaml_lines.append(f"# {key.replace('_', ' ').title()}:")
+                    if 'description' in example:
+                        yaml_lines.append(f"# {example['description']}")
+                    yaml_lines.append("")
+                    yaml_lines.append(example['yaml'])
+                    yaml_lines.append("")
+        
+        formatted['yaml'] = '\n'.join(yaml_lines)
+        
+        # Format text output
+        text_lines = []
+        text_lines.append("Recipe Settings Configuration")
+        text_lines.append("")
+        
+        if 'description' in settings_examples:
+            text_lines.append(settings_examples['description'])
+            text_lines.append("")
+        
+        # Add parameter details
+        if 'parameter_details' in settings_examples:
+            text_lines.append("Available Parameters:")
+            text_lines.append("")
+            
+            for param_name, details in settings_examples['parameter_details'].items():
+                if isinstance(details, dict):
+                    text_lines.append(f"  {param_name}:")
+                    text_lines.append(f"    Type: {details.get('type', 'unknown')}")
+                    text_lines.append(f"    Required: {details.get('required', 'unknown')}")
+                    if 'default' in details:
+                        text_lines.append(f"    Default: {details['default']}")
+                    if 'description' in details:
+                        text_lines.append(f"    Description: {details['description']}")
+                    text_lines.append("")
+        
+        formatted['text'] = '\n'.join(text_lines)
+        
+    except Exception as e:
+        formatted['yaml'] = f"# Error formatting settings examples: {e}"
+        formatted['text'] = f"Error formatting settings examples: {e}"
+    
+    return formatted
+
+
 def get_processor_usage_examples(processor_name: str) -> dict:
     """
     Get usage examples for a specific processor.

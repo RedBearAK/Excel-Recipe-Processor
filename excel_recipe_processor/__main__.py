@@ -9,13 +9,7 @@ import argparse
 from excel_recipe_processor._version import __version__, __description__
 
 
-def main():
-    """Main entry point for the excel_recipe_processor package."""
-    parser = argparse.ArgumentParser(
-        description=f"{__description__}\n\nProcess Excel files using YAML recipes for automated data transformation.",
-        prog="python -m excel_recipe_processor",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-epilog="""
+epilog_for_argparse="""
 Examples:
   # Process Excel file with recipe
   python -m excel_recipe_processor data.xlsx --config recipe.yaml
@@ -50,10 +44,19 @@ Examples:
   # Show feature comparison matrix
   python -m excel_recipe_processor --list-capabilities --matrix
   
+  # Get recipe settings examples
+  python -m excel_recipe_processor --get-settings-examples
+  
+  # Get recipe settings examples in JSON format
+  python -m excel_recipe_processor --get-settings-examples --format-examples json
+  
   # Get usage examples for specific processor
   python -m excel_recipe_processor --get-usage-examples export_file
   
-  # Get usage examples for all processors
+  # Get recipe settings via processor examples command
+  python -m excel_recipe_processor --get-usage-examples settings
+  
+  # Get usage examples for all processors (includes settings first)
   python -m excel_recipe_processor --get-usage-examples
   
   # Get usage examples in JSON format
@@ -64,7 +67,16 @@ Examples:
   
   # Validate a recipe file
   python -m excel_recipe_processor --validate-recipe recipe.yaml
-        """
+"""
+
+
+def main():
+    """Main entry point for the excel_recipe_processor package."""
+    parser = argparse.ArgumentParser(
+        description=f"{__description__}\n\nProcess Excel files using YAML recipes for automated data transformation.",
+        prog="python -m excel_recipe_processor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=epilog_for_argparse
     )
     
     parser.add_argument(
@@ -170,7 +182,14 @@ Examples:
         metavar='PROCESSOR_NAME',
         nargs='?',
         const='all',
-        help='Get complete usage examples for a processor (or all processors if no name given)'
+        help=('Get complete usage examples for a processor (or all '
+                'processors if no name given). Use "settings" to get recipe settings examples.')
+    )
+
+    parser.add_argument(
+        '--get-settings-examples',
+        action='store_true',
+        help='Get complete usage examples for recipe settings section'
     )
 
     parser.add_argument(

@@ -58,12 +58,19 @@ def run_main(args: Namespace) -> int:
             else:
                 return list_system_capabilities()  # Basic format
         
+        # NEW: Handle settings examples command
+        if hasattr(args, 'get_settings_examples') and args.get_settings_examples:
+            format_type = getattr(args, 'format_examples', 'yaml')
+            return get_settings_examples(format_type)
+        
         # NEW: Handle usage examples command
         if hasattr(args, 'get_usage_examples') and args.get_usage_examples is not None:
             processor_name = args.get_usage_examples
             format_type = getattr(args, 'format_examples', 'yaml')
             
-            if processor_name == 'all':
+            if processor_name == 'settings':
+                return get_settings_examples(format_type)
+            elif processor_name == 'all':
                 return get_usage_examples_all(format_type)
             else:
                 return get_usage_examples_single(processor_name, format_type)
@@ -647,6 +654,45 @@ def list_system_capabilities_matrix() -> int:
         return 1
 
 
+def get_settings_examples(format_type: str) -> int:
+    """Get usage examples for recipe settings section."""
+    try:
+        from excel_recipe_processor.core.pipeline import get_settings_usage_examples
+        
+        examples = get_settings_usage_examples()
+        
+        if 'error' in examples:
+            print(f"❌ Settings examples error: {examples['error']}")
+            return 1
+        
+        # Format and display the examples
+        if format_type == 'yaml':
+            print("# Recipe Settings Usage Examples")
+            print("# Copy and modify these examples for your recipes")
+            print()
+            print(examples.get('formatted_yaml', 'No YAML examples available'))
+            
+        elif format_type == 'json':
+            import json
+            print(json.dumps(examples, indent=2))
+            
+        elif format_type == 'text':
+            print("Recipe Settings Usage Examples")
+            print("=" * 50)
+            print(examples.get('description', 'No description available'))
+            print()
+            print(examples.get('formatted_text', 'No text examples available'))
+        
+        return 0
+        
+    except ImportError as e:
+        print(f"❌ Error importing settings examples functionality: {e}")
+        return 1
+    except Exception as e:
+        print(f"❌ Error getting settings examples: {e}")
+        return 1
+
+
 def get_usage_examples_single(processor_name: str, format_type: str) -> int:
     """Get usage examples for a single processor."""
     try:
@@ -661,6 +707,8 @@ def get_usage_examples_single(processor_name: str, format_type: str) -> int:
             capabilities = get_system_capabilities()
             for proc_name in sorted(capabilities['processors'].keys()):
                 print(f"  - {proc_name}")
+            print("\nOther options:")
+            print("  - settings")
             return 1
         
         if 'error' in examples:
@@ -695,20 +743,41 @@ def get_usage_examples_single(processor_name: str, format_type: str) -> int:
         return 1
 
 
+
 def get_usage_examples_all(format_type: str) -> int:
-    """Get usage examples for all processors."""
+    """Get usage examples for all processors and settings."""
     try:
-        from excel_recipe_processor.core.pipeline import get_all_usage_examples
+        from excel_recipe_processor.core.pipeline import get_all_usage_examples, get_settings_usage_examples
         
+        # Get settings examples first
+        settings_examples = get_settings_usage_examples()
+        
+        # Get all processor examples
         all_examples = get_all_usage_examples()
         
         if format_type == 'yaml':
-            print("# Complete Usage Examples for All Processors")
-            print("# Excel Recipe Processor - Complete Reference")
+            print("# Complete Usage Examples for Excel Recipe Processor")
             print("# Copy and modify sections for your recipes")
             print()
             
-            # Show summary first
+            # Settings examples first (most important)
+            print("# " + "=" * 60)
+            print("# RECIPE SETTINGS")
+            print("# " + "=" * 60)
+            print("# Settings section comes first in every recipe")
+            print()
+            if 'error' not in settings_examples:
+                print(settings_examples.get('formatted_yaml', '# No settings examples available'))
+            else:
+                print(f"# ❌ ERROR: {settings_examples['error']}")
+            print()
+            
+            # Show processor summary
+            print("# " + "=" * 60)
+            print("# AVAILABLE PROCESSORS")
+            print("# " + "=" * 60)
+            print("# Processing steps for the recipe section")
+            print()
             print("# Available Processors:")
             for proc_name, examples in all_examples['processors'].items():
                 status = "✅" if 'error' not in examples else "❌"
@@ -730,13 +799,28 @@ def get_usage_examples_all(format_type: str) -> int:
             
         elif format_type == 'json':
             import json
-            print(json.dumps(all_examples, indent=2))
+            # Combine settings and processor examples
+            combined = {
+                'settings': settings_examples,
+                'processors': all_examples
+            }
+            print(json.dumps(combined, indent=2))
             
         elif format_type == 'text':
-            print("Usage Examples for All Processors")
-            print("=" * 50)
+            print("Complete Usage Examples for Excel Recipe Processor")
+            print("=" * 60)
             
-            # Show summary
+            # Settings summary
+            print("\nRECIPE SETTINGS")
+            print("-" * 20)
+            if 'error' not in settings_examples:
+                print(settings_examples.get('description', 'Recipe settings configuration'))
+            else:
+                print(f"❌ {settings_examples['error']}")
+            
+            # Processor summary
+            print(f"\nPROCESSOR SUMMARY")
+            print("-" * 20)
             print(f"Total processors: {all_examples['system_info']['total_processors']}")
             print(f"With examples: {all_examples['system_info']['processors_with_examples']}")
             print(f"Missing examples: {all_examples['system_info']['processors_missing_examples']}")

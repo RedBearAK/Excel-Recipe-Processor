@@ -131,7 +131,7 @@ def _validate_examples_structure(processor_name: str, examples_data: dict[str, A
     
     # Check for at least one example
     example_keys = [key for key in examples_data.keys() 
-                   if key.endswith('_example') and isinstance(examples_data[key], dict)]
+                    if key.endswith('_example') and isinstance(examples_data[key], dict)]
     
     if not example_keys:
         return {
@@ -278,3 +278,165 @@ def validate_example_file(processor_name: str) -> dict[str, Any]:
         'examples_count': len([k for k in examples_data.keys() if k.endswith('_example')]),
         'has_parameter_details': 'parameter_details' in examples_data
     }
+
+
+def load_settings_examples() -> dict[str, Any]:
+    """
+    Load usage examples for recipe settings section from external YAML file.
+    
+    Returns:
+        Dictionary with settings usage examples or error information
+        
+    Example:
+        >>> examples = load_settings_examples()
+        >>> if 'error' not in examples:
+        ...     print(examples['description'])
+    """
+    try:
+        import yaml
+    except ImportError:
+        return {
+            'error': 'PyYAML package required for loading settings examples. '
+                    'Install with: pip install PyYAML',
+            'status': 'missing_dependency'
+        }
+    
+    try:
+        # Get path to settings examples file
+        # Navigate from utils/ to config/examples/
+        current_file = Path(__file__)
+        examples_dir = current_file.parent.parent / 'config' / 'examples'
+        example_file = examples_dir / 'recipe_settings_examples.yaml'
+        
+        if not example_file.exists():
+            return {
+                'error': f'Settings examples file not found. '
+                        f'Create config/examples/recipe_settings_examples.yaml to add examples.',
+                'status': 'file_missing',
+                'expected_path': str(example_file)
+            }
+        
+        # Load and parse YAML file
+        with open(example_file, 'r', encoding='utf-8') as f:
+            examples_data = yaml.safe_load(f)
+        
+        if not examples_data:
+            return {
+                'error': f'Settings examples file is empty or invalid.',
+                'status': 'file_empty',
+                'file_path': str(example_file)
+            }
+        
+        # Validate basic structure
+        validation_result = _validate_settings_examples_structure(examples_data)
+        if validation_result['valid']:
+            return examples_data
+        else:
+            return {
+                'error': f'Invalid structure in recipe_settings_examples.yaml: {validation_result["error"]}',
+                'status': 'invalid_structure',
+                'file_path': str(example_file)
+            }
+        
+    except yaml.YAMLError as e:
+        return {
+            'error': f'YAML syntax error in recipe_settings_examples.yaml: {e}',
+            'status': 'yaml_error',
+            'file_path': str(example_file) if 'example_file' in locals() else 'unknown'
+        }
+    except FileNotFoundError:
+        return {
+            'error': f'Settings examples file not found. '
+                    f'Create config/examples/recipe_settings_examples.yaml to add examples.',
+            'status': 'file_missing'
+        }
+    except PermissionError:
+        return {
+            'error': f'Permission denied reading recipe_settings_examples.yaml. '
+                    f'Check file permissions.',
+            'status': 'permission_error'
+        }
+    except Exception as e:
+        return {
+            'error': f'Unexpected error loading settings examples: {e}',
+            'status': 'error'
+        }
+
+
+def _validate_settings_examples_structure(examples_data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Validate that the settings examples data has the expected structure.
+    
+    Args:
+        examples_data: Loaded YAML data to validate
+        
+    Returns:
+        Dictionary with validation results
+    """
+    if not isinstance(examples_data, dict):
+        return {
+            'valid': False,
+            'error': 'Root level must be a dictionary'
+        }
+    
+    # Check for required top-level keys
+    required_keys = ['description']
+    missing_keys = [key for key in required_keys if key not in examples_data]
+    if missing_keys:
+        return {
+            'valid': False,
+            'error': f'Missing required keys: {missing_keys}'
+        }
+    
+    # Check that description is a string
+    if not isinstance(examples_data['description'], str):
+        return {
+            'valid': False,
+            'error': 'Description must be a string'
+        }
+    
+    # Check for at least one example
+    example_keys = [key for key in examples_data.keys() 
+                    if key.endswith('_example') and isinstance(examples_data[key], dict)]
+    
+    if not example_keys:
+        return {
+            'valid': False,
+            'error': 'Must contain at least one example (key ending with "_example")'
+        }
+    
+    # Validate each example structure
+    for example_key in example_keys:
+        example = examples_data[example_key]
+        
+        if 'description' not in example:
+            return {
+                'valid': False,
+                'error': f'Example "{example_key}" missing required "description" field'
+            }
+        
+        if 'yaml' not in example:
+            return {
+                'valid': False,
+                'error': f'Example "{example_key}" missing required "yaml" field'
+            }
+        
+        if not isinstance(example['yaml'], str):
+            return {
+                'valid': False,
+                'error': f'Example "{example_key}" yaml field must be a string'
+            }
+    
+    return {'valid': True}
+
+
+def get_settings_examples_file_path() -> Path:
+    """
+    Get the expected path to the settings examples file.
+    
+    Returns:
+        Path object pointing to the settings examples file
+    """
+    current_file = Path(__file__)
+    examples_dir = current_file.parent.parent / 'config' / 'examples'
+    return examples_dir / 'recipe_settings_examples.yaml'

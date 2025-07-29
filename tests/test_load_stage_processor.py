@@ -33,7 +33,7 @@ def test_basic_load_functionality():
     
     print("Testing basic load functionality...")
     
-    StageManager.initialize_stages(max_stages=10)
+    StageManager.initialize_stages(max_stages=25)
     
     try:
         test_df = create_sample_data()

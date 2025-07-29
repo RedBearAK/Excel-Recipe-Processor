@@ -37,10 +37,7 @@ class LoadStageProcessor(BaseStepProcessor):
         
         try:
             # ✅ Call module function with proper error handling
-            stage_data = StageManager.load_stage(
-                stage_name=stage_name,
-                step_name=self.step_name
-            )
+            stage_data = StageManager.load_stage(stage_name=stage_name)
             
             # Log the replacement
             logger.warning(

@@ -1,0 +1,300 @@
+# Usage Examples for combine_data processor
+# Shows how to combine multiple DataFrames from stages and current data
+
+description: |
+  The combine_data processor combines multiple DataFrames from various sources including
+  saved stages and current pipeline data. Perfect for assembling complex reports from
+  processed data sections.
+
+basic_vertical_stacking_example:
+  description: "Combine DataFrames by stacking rows vertically"
+  yaml: |
+    # Stack multiple data sections on top of each other
+    
+    - # OPT - Step description
+      step_description: "Combine processed data sections"
+      # REQ - Processor type
+      processor_type: "combine_data"
+      # REQ - Type of combination operation
+      combine_type: "vertical_stack"
+      # REQ - Sequential list of data sources
+      data_sources:
+        # Load from saved stage
+        - insert_from_stage: "Processed Data"
+        # Load from another saved stage
+        - insert_from_stage: "Summary Data"
+      # OPT - Save combined result to new stage
+      save_to_stage: "Final Report"
+
+vertical_with_blank_rows_example:
+  description: "Stack DataFrames with blank rows for visual separation"
+  yaml: |
+    # Combine sections with spacing for better readability
+    
+    - # OPT - Step description
+      step_description: "Assemble report with spacing"
+      # REQ - Processor type
+      processor_type: "combine_data"
+      # REQ - Vertical stacking
+      combine_type: "vertical_stack"
+      # REQ - Sequential sources with blank row insertions
+      data_sources:
+        - insert_from_stage: "File Metadata"
+        - insert_blank_rows: 2
+        - insert_from_stage: "Clean Data"
+        - insert_blank_rows: 2
+        - insert_from_stage: "Summary Statistics"
+      # OPT - Save spaced report
+      save_to_stage: "Spaced Report"
+
+horizontal_concatenation_example:
+  description: "Combine DataFrames by placing columns side by side"
+  yaml: |
+    # Place related data sections side by side
+    
+    - # OPT - Step description
+      step_description: "Create side-by-side comparison"
+      # REQ - Processor type
+      processor_type: "combine_data"
+      # REQ - Horizontal combination
+      combine_type: "horizontal_concat"
+      # REQ - Sequential sources with blank column insertion
+      data_sources:
+        - insert_from_stage: "Current Year Data"
+        - insert_blank_cols: 1
+        - insert_from_stage: "Previous Year Data"
+      # OPT - Save comparison report
+      save_to_stage: "Year Comparison"
+
+current_data_integration_example:
+  description: "Combine saved stages with current pipeline data"
+  yaml: |
+    # Mix stage data with current processing results
+    
+    - # OPT - Step description
+      step_description: "Combine metadata with current results"
+      # REQ - Processor type
+      processor_type: "combine_data"
+      # REQ - Vertical stacking
+      combine_type: "vertical_stack"
+      # REQ - Mix of stage and current data with spacing
+      data_sources:
+        # Use saved metadata from earlier step
+        - insert_from_stage: "Report Header"
+        - insert_blank_rows: 1
+        # Use current pipeline data
+        - insert_from_stage: current_dataframe
+        - insert_blank_rows: 1
+        # Add footer from another stage
+        - insert_from_stage: "Report Footer"
+
+column_mismatch_handling_example:
+  description: "Handle DataFrames with different column structures"
+  yaml: |
+    # Combine data with mismatched columns
+    
+    - # OPT - Step description
+      step_description: "Combine different data structures"
+      # REQ - Processor type
+      processor_type: "combine_data"
+      # REQ - Vertical stacking
+      combine_type: "vertical_stack"
+      # REQ - Sources with different columns
+      data_sources:
+        - insert_from_stage: "Product Data"     # Has: Product_ID, Name, Price
+        - insert_from_stage: "Customer Data"    # Has: Customer_ID, Name, Region
+      # OPT - Allow column mismatches (fills missing with NaN)
+      ignore_column_mismatch: true
+      # OPT - Save mixed data
+      save_to_stage: "Mixed Report"
+
+complex_report_assembly_example:
+  description: "Complete workflow for assembling complex reports"
+  yaml: |
+    # Real-world example: assemble comprehensive report
+    
+    # Step 1: Import and slice raw file
+    - step_description: "Import raw Excel file"
+      processor_type: "import_file"
+      input_file: "monthly_data.xlsx"
+      reading_options:
+        header: null
+      save_to_stage: "Raw File"
+    
+    # Step 2: Extract different sections
+    - step_description: "Extract report title"
+      processor_type: "slice_data"
+      source_stage: "Raw File"
+      slice_type: "row_range"
+      start_row: 1
+      end_row: 2
+      save_to_stage: "Report Title"
+    
+    - step_description: "Extract data section"
+      processor_type: "slice_data"
+      source_stage: "Raw File"
+      slice_type: "row_range"
+      start_row: 4
+      slice_result_contains_headers: true
+      save_to_stage: "Raw Data"
+    
+    # Step 3: Process the data
+    - step_description: "Load and filter data"
+      processor_type: "load_stage"
+      stage_name: "Raw Data"
+    
+    - step_description: "Filter active products"
+      processor_type: "filter_data"
+      filters:
+        - column: "Status"
+          condition: "equals"
+          value: "Active"
+      save_to_stage: "Filtered Data"
+    
+    - step_description: "Create summary statistics"
+      processor_type: "aggregate_data"
+      aggregations:
+        Revenue: "sum"
+        Units: "sum"
+        Product_Count: "count"
+      save_to_stage: "Summary Stats"
+    
+    # Step 4: Assemble final report
+    - step_description: "Combine all sections into final report"
+      processor_type: "combine_data"
+      combine_type: "vertical_stack"
+      data_sources:
+        - insert_from_stage: "Report Title"
+        - insert_blank_rows: 1
+        - insert_from_stage: "Filtered Data"
+        - insert_blank_rows: 1
+        - insert_from_stage: "Summary Stats"
+      save_to_stage: "Complete Report"
+    
+    # Step 5: Export final report
+    - step_description: "Export comprehensive report"
+      processor_type: "export_file"
+      source_stage: "Complete Report"
+      output_file: "processed_report_{date}.xlsx"
+
+multi_sheet_preparation_example:
+  description: "Prepare data for multi-sheet Excel export"
+  yaml: |
+    # Combine different analyses for multi-sheet export
+    
+    - step_description: "Combine regional data horizontally"
+      processor_type: "combine_data"
+      combine_type: "horizontal_concat"
+      data_sources:
+        - insert_from_stage: "West Region"
+        - insert_blank_cols: 1
+        - insert_from_stage: "East Region"
+        - insert_blank_cols: 1
+        - insert_from_stage: "Central Region"
+      save_to_stage: "Regional Comparison"
+    
+    - step_description: "Stack quarterly data vertically"
+      processor_type: "combine_data"
+      combine_type: "vertical_stack"
+      data_sources:
+        - insert_from_stage: "Q1 Results"
+        - insert_blank_rows: 1
+        - insert_from_stage: "Q2 Results"
+        - insert_blank_rows: 1
+        - insert_from_stage: "Q3 Results"
+        - insert_blank_rows: 1
+        - insert_from_stage: "Q4 Results"
+      save_to_stage: "Annual Results"
+    
+    # Later: export both to different sheets
+    - step_description: "Export multi-sheet analysis"
+      processor_type: "export_file"
+      output_file: "annual_analysis.xlsx"
+      sheets:
+        - sheet_name: "Regional Comparison"
+          data_source: "Regional Comparison"
+        - sheet_name: "Quarterly Results"
+          data_source: "Annual Results"
+
+parameter_details:
+  combine_type:
+    type: string
+    required: true
+    description: "Type of combination operation to perform"
+    values: ["vertical_stack", "horizontal_concat"]
+    details:
+      vertical_stack: "Stack DataFrames on top of each other (combine rows)"
+      horizontal_concat: "Place DataFrames side by side (combine columns)"
+  
+  data_sources:
+    type: list
+    required: true
+    description: "Sequential list of data source operations to perform in order"
+    minimum_length: 1
+    operations:
+      insert_from_stage: "Load data from a saved stage or current_dataframe"
+      insert_blank_rows: "Insert N blank rows (vertical_stack only)"
+      insert_blank_cols: "Insert N blank columns (horizontal_concat only)"
+    examples:
+      - "data_sources: [{'insert_from_stage': 'Data1'}, {'insert_blank_rows': 2}, {'insert_from_stage': 'Data2'}]"
+      - "data_sources: [{'insert_from_stage': 'Header'}, {'insert_from_stage': 'current_dataframe'}]"
+  
+  ignore_column_mismatch:
+    type: boolean
+    required: false
+    description: "Allow combining DataFrames with different columns (default: false)"
+    default: false
+    applies_to: "vertical_stack only"
+    behavior: "Missing columns filled with NaN values"
+
+data_source_operations:
+  insert_from_stage:
+    format: "{'insert_from_stage': 'stage_name'}"
+    description: "Load data from a previously saved stage or current pipeline data"
+    special_value: "current_dataframe refers to data flowing through the pipeline"
+    examples:
+      - "{'insert_from_stage': 'Processed Data'}"
+      - "{'insert_from_stage': 'current_dataframe'}"
+  
+  insert_blank_rows:
+    format: "{'insert_blank_rows': N}"
+    description: "Insert N blank rows at this position"
+    applies_to: "vertical_stack only"
+    examples:
+      - "{'insert_blank_rows': 1}"
+      - "{'insert_blank_rows': 3}"
+  
+  insert_blank_cols:
+    format: "{'insert_blank_cols': N}"
+    description: "Insert N blank columns at this position"
+    applies_to: "horizontal_concat only"
+    examples:
+      - "{'insert_blank_cols': 1}"
+      - "{'insert_blank_cols': 2}"
+
+combination_behavior:
+  vertical_stack:
+    description: "Combines DataFrames by stacking rows on top of each other"
+    column_handling: "All DataFrames must have same columns unless ignore_column_mismatch is true"
+    index_handling: "Creates new continuous index starting from 0"
+    blank_rows: "Can insert blank rows between each DataFrame"
+  
+  horizontal_concat:
+    description: "Combines DataFrames by placing columns side by side"
+    row_handling: "All DataFrames must have same number of rows"
+    column_handling: "Column names preserved, duplicates get suffixes (_x, _y, etc.)"
+    blank_columns: "Can insert blank columns between each DataFrame"
+
+common_use_cases:
+  metadata_assembly: "Combine report headers, data, and footers into complete document"
+  section_spacing: "Add visual separation between different data sections"
+  side_by_side_analysis: "Place related datasets next to each other for comparison"
+  multi_source_reports: "Combine data from different processing stages"
+  template_filling: "Insert processed data into report templates"
+
+integration_notes:
+  stage_manager: "Data sources must exist as saved stages or pipeline will fail"
+  pipeline_flow: "current_dataframe refers to whatever is flowing through the pipeline at this step"
+  export_preparation: "Combined data can be saved to stages for later multi-sheet export"
+  sequential_processing: "Data sources are processed in order, allowing precise control over spacing"
+  memory_efficiency: "Large DataFrames are copied, consider memory usage with many sources"

@@ -233,7 +233,7 @@ class MergeDataProcessor(BaseStepProcessor):
         try:
             # Use get_stage_data instead of load_stage to avoid incrementing usage counter
             # since this is an access operation, not a load operation
-            stage_data = StageManager.get_stage_data(stage_name)
+            stage_data = StageManager.load_stage(stage_name)
             logger.debug(f"Loaded merge data from stage '{stage_name}': {stage_data.shape}")
             return stage_data
             

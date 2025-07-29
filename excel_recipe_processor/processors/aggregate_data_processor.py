@@ -197,7 +197,7 @@ class AggregateDataProcessor(BaseStepProcessor):
             )
         
         try:
-            config_data = StageManager.get_stage_data(stage_name)
+            config_data = StageManager.load_stage(stage_name)
             
             # Apply filter if specified
             if filter_condition:
@@ -243,7 +243,7 @@ class AggregateDataProcessor(BaseStepProcessor):
             )
         
         try:
-            lookup_data = StageManager.get_stage_data(lookup_stage)
+            lookup_data = StageManager.load_stage(lookup_stage)
             
             # Apply filter if specified
             if filter_condition:

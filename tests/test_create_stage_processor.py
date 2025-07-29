@@ -55,7 +55,7 @@ def test_list_format_creation():
             return False
         
         # Check stage data
-        stage_data = StageManager.get_stage_data('Approved Customers')
+        stage_data = StageManager.load_stage('Approved Customers')
         expected_values = ['CUST001', 'CUST002', 'CUST003', 'CUST004']
         
         if list(stage_data['Customer_ID']) == expected_values:
@@ -104,7 +104,7 @@ def test_table_format_creation():
             return False
         
         # Check stage data structure
-        stage_data = StageManager.get_stage_data('Customer Tiers')
+        stage_data = StageManager.load_stage('Customer Tiers')
         expected_columns = ['Customer_ID', 'Customer_Name', 'Tier']
         
         if list(stage_data.columns) == expected_columns and len(stage_data) == 3:
@@ -155,7 +155,7 @@ def test_dictionary_format_creation():
             return False
         
         # Check stage data
-        stage_data = StageManager.get_stage_data('Region Mapping')
+        stage_data = StageManager.load_stage('Region Mapping')
         expected_columns = ['State', 'Region']
         
         if (list(stage_data.columns) == expected_columns and 
@@ -354,7 +354,7 @@ def test_overwrite_behavior():
         processor.execute(test_df)
         
         # Verify initial stage
-        stage_data = StageManager.get_stage_data('Test Overwrite')
+        stage_data = StageManager.load_stage('Test Overwrite')
         if len(stage_data) != 3:
             print("✗ Initial stage creation failed")
             return False
@@ -375,7 +375,7 @@ def test_overwrite_behavior():
         processor.execute(test_df)
         
         # Verify stage was overwritten
-        stage_data = StageManager.get_stage_data('Test Overwrite')
+        stage_data = StageManager.load_stage('Test Overwrite')
         if len(stage_data) == 4 and 'X' in stage_data['Items'].values:
             print("✓ Overwrite behavior worked correctly")
             return True

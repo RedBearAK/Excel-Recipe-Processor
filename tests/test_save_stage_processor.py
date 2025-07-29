@@ -50,7 +50,7 @@ def test_basic_save_functionality():
             return False
         
         # Check saved data integrity
-        saved_data = StageManager.get_stage_data('Customer Master Data')
+        saved_data = StageManager.load_stage('Customer Master Data')
         if saved_data.equals(test_df):
             print("✓ Basic save functionality worked correctly")
             return True
@@ -87,7 +87,7 @@ def test_overwrite_behavior():
         processor.execute(test_df1)
         
         # Verify initial save
-        saved_data = StageManager.get_stage_data('Test Overwrite Stage')
+        saved_data = StageManager.load_stage('Test Overwrite Stage')
         if not saved_data.equals(test_df1):
             print("✗ Initial save failed")
             return False
@@ -108,7 +108,7 @@ def test_overwrite_behavior():
         processor.execute(test_df2)
         
         # Verify stage was overwritten
-        saved_data = StageManager.get_stage_data('Test Overwrite Stage')
+        saved_data = StageManager.load_stage('Test Overwrite Stage')
         if saved_data.equals(test_df2):
             print("✓ Overwrite behavior worked correctly")
             return True
@@ -367,7 +367,7 @@ def test_data_isolation():
         test_df.loc[0, 'Customer_Name'] = 'MODIFIED'
         
         # Check that saved data was not affected
-        saved_data = StageManager.get_stage_data('Isolation Test')
+        saved_data = StageManager.load_stage('Isolation Test')
         
         if saved_data.loc[0, 'Customer_Name'] != 'MODIFIED':
             print("✓ Data isolation worked correctly")

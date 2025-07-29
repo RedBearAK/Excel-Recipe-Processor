@@ -198,7 +198,7 @@ class GroupDataProcessor(BaseStepProcessor):
             )
         
         try:
-            stage_data = StageManager.get_stage_data(stage_name)
+            stage_data = StageManager.load_stage(stage_name)
             
             if format_type == 'wide':
                 # Each column represents a group, values are the items in that group
@@ -340,7 +340,7 @@ class GroupDataProcessor(BaseStepProcessor):
             )
         
         try:
-            lookup_data = StageManager.get_stage_data(lookup_stage)
+            lookup_data = StageManager.load_stage(lookup_stage)
             
             # Apply filter if specified
             if filter_condition:

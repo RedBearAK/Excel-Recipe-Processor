@@ -95,7 +95,7 @@ class StageManager:
         )
     
     @classmethod
-    def load_stage(cls, stage_name: str, step_name: str = '') -> pd.DataFrame:
+    def load_stage(cls, stage_name: str) -> pd.DataFrame:
         """
         Load data from a named stage.
         
@@ -128,30 +128,6 @@ class StageManager:
         )
         
         return stage_data
-    
-    @classmethod
-    def get_stage_data(cls, stage_name: str) -> pd.DataFrame:
-        """
-        Get stage data without incrementing usage counter.
-        
-        Used by merge operations and lookups.
-        
-        Args:
-            stage_name: Name of stage to get
-            
-        Returns:
-            DataFrame from the stage
-            
-        Raises:
-            StageError: If stage not found
-        """
-        if stage_name not in cls._current_stages:
-            available_stages = list(cls._current_stages.keys())
-            raise StageError(
-                f"Stage '{stage_name}' not found. Available stages: {available_stages}"
-            )
-        
-        return cls._current_stages[stage_name].copy()
     
     @classmethod
     def list_stages(cls) -> dict:

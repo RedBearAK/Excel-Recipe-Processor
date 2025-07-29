@@ -501,3 +501,7 @@ class CleanDataProcessor(BaseStepProcessor):
                 'standardize': "Map various status values to standard terms"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('clean_data')

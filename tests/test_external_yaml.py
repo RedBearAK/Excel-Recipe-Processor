@@ -24,7 +24,7 @@ def test_yaml_file_exists():
     print("🔍 Testing YAML file existence...")
     
     # Check if examples directory exists
-    examples_dir = Path(project_root, "excel_recipe_processor/processors/examples")
+    examples_dir = Path(project_root, "excel_recipe_processor/processors/_examples")
     
     if not examples_dir.exists():
         print(f"❌ Examples directory not found: {examples_dir}")
@@ -47,7 +47,7 @@ def test_yaml_syntax():
     try:
         import yaml
         yaml_file = Path(project_root,
-                            "excel_recipe_processor/processors/examples/export_file_examples.yaml")
+                            "excel_recipe_processor/processors/_examples/export_file_examples.yaml")
         
         with open(yaml_file, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
@@ -145,7 +145,7 @@ def test_formatting_quality():
     
     try:
         yaml_file = Path(project_root,
-                            "excel_recipe_processor/processors/examples/export_file_examples.yaml")
+                            "excel_recipe_processor/processors/_examples/export_file_examples.yaml")
         with open(yaml_file, 'r', encoding='utf-8') as f:
             content = f.read()
         

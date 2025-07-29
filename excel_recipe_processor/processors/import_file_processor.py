@@ -27,7 +27,8 @@ class ImportFileProcessor(BaseStepProcessor):
     @classmethod
     def get_minimal_config(cls):
         return {
-            'input_file': 'test_data.xlsx'
+            'input_file': 'test_data.xlsx',
+            'replace_current_data': True  # Required parameter - must be explicit
             # Optional: 'save_to_stage': 'Imported Customer Data'
         }
     
@@ -36,22 +37,21 @@ class ImportFileProcessor(BaseStepProcessor):
         Execute the import operation, optionally saving to a named stage.
         
         Args:
-            data: Input pandas DataFrame (will be replaced with imported data)
+            data: Input pandas DataFrame (will be replaced with imported data if replace_current_data=True)
             
         Returns:
-            DataFrame with imported file contents
+            DataFrame with imported file contents or original data
             
         Raises:
             StepProcessorError: If import operation fails
         """
         self.log_step_start()
         
-        # Note: We don't validate input data since we're replacing it entirely
-        
         # Validate required configuration
-        self.validate_required_fields(['input_file'])
+        self.validate_required_fields(['input_file', 'replace_current_data'])
         
         input_file = self.get_config_value('input_file')
+        replace_current_data = self.get_config_value('replace_current_data')
         sheet = self.get_config_value('sheet', 0)
         encoding = self.get_config_value('encoding', 'utf-8')
         separator = self.get_config_value('separator', ',')
@@ -59,6 +59,12 @@ class ImportFileProcessor(BaseStepProcessor):
         save_to_stage = self.get_config_value('save_to_stage', None)
         stage_overwrite = self.get_config_value('stage_overwrite', False)
         stage_description = self.get_config_value('stage_description', '')
+        
+        # Safety check - require explicit confirmation to replace current data
+        if not replace_current_data:
+            raise StepProcessorError(
+                "'replace_current_data' must be set to true to acknowledge that current pipeline data will be replaced"
+            )
         
         # Get custom variables from pipeline if available
         variables = self._get_pipeline_variables()
@@ -90,6 +96,12 @@ class ImportFileProcessor(BaseStepProcessor):
                     logger.info(f"Saved imported data to stage '{save_to_stage}'")
                 except StageError as e:
                     raise StepProcessorError(f"Error saving to stage '{save_to_stage}': {e}")
+            
+            # Log the replacement warning (same as load_stage does)
+            logger.warning(
+                f"Replacing current data ({len(data)} rows) "
+                f"with imported data from '{input_file}' ({len(imported_data)} rows)"
+            )
             
             # Log import results
             imported_rows = len(imported_data)

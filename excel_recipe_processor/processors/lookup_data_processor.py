@@ -633,3 +633,7 @@ class LookupDataProcessor(BaseStepProcessor):
                 'default_value': 'Default value for missing lookups'
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('lookup_data')

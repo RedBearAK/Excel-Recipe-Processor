@@ -1,0 +1,444 @@
+description: "Enrich data with VLOOKUP/XLOOKUP-style operations from multiple sources including files, stages, and inline dictionaries"
+
+basic_example:
+  description: "Simple VLOOKUP-style data enrichment using inline dictionary"
+  yaml: |
+    # Basic customer data enrichment similar to Excel VLOOKUP
+    
+    - # OPT - Human-readable description of what this step does
+      step_description: "Add customer details to order data"
+      # REQ - Must be "lookup_data" for this processor type
+      processor_type: "lookup_data"
+      # REQ - Source of lookup data (dictionary, file, or stage)
+      lookup_source:
+        # Dictionary-style inline data (like small reference tables)
+        "CUST001": {"Customer_Name": "Acme Corp", "Region": "West Coast"}
+        "CUST002": {"Customer_Name": "Beta Industries", "Region": "East Coast"}
+        "CUST003": {"Customer_Name": "Gamma LLC", "Region": "Central"}
+      # REQ - Column name in the lookup data to match against
+      lookup_key: "Customer_ID"
+      # REQ - Column name in your main data to match with lookup_key
+      source_key: "Customer_ID"
+      # REQ - List of columns to retrieve from lookup data
+      # Only these columns will be added to your main data
+      lookup_columns: ["Customer_Name", "Region"]
+
+advanced_example:
+  description: "Complex lookup with file source, join types, and error handling"
+  yaml: |
+    # Advanced lookup from Excel file with comprehensive options
+    
+    - # OPT - Step description
+      step_description: "Enrich orders with detailed customer and regional data"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - External file as lookup source
+      # Can be .xlsx, .csv, .tsv files with optional variable substitution
+      lookup_source: "reference_data/customers_{YYYY}{MM}.xlsx"
+      # OPT - Specific sheet name or index in Excel file
+      # Default value: 0 (first sheet)
+      lookup_sheet: "Customer_Master"
+      # REQ - Key column in the lookup file
+      lookup_key: "Customer_ID"
+      # REQ - Key column in your main data
+      source_key: "Cust_Code"
+      # REQ - Columns to add from lookup data
+      lookup_columns: ["Customer_Name", "Industry", "Credit_Rating", "Sales_Rep"]
+      # OPT - Type of join operation
+      # Valid values: "left", "right", "inner", "outer"
+      # Default value: "left"
+      join_type: "left"
+      # OPT - How to handle duplicate keys in lookup data
+      # Valid values: "first", "last", "error"
+      # Default value: "first"
+      handle_duplicates: "first"
+      # OPT - Whether key matching is case sensitive
+      # Default value: true
+      case_sensitive: false
+      # OPT - Default values for columns when no match found
+      default_values:
+        "Customer_Name": "Unknown Customer"
+        "Industry": "Unclassified"
+        "Credit_Rating": "D"
+        "Sales_Rep": "Unassigned"
+
+file_lookup_example:
+  description: "Lookup data from external CSV and Excel files"
+  yaml: |
+    # Load reference data from external files
+    
+    - # OPT - Step description
+      step_description: "Add product information from master catalog"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - External CSV file path (can include variables)
+      # Built-in variables: {date}, {YYYY}, {MM}, {DD}, {timestamp}
+      # Custom variables: {department}, {batch_id} from recipe settings or CLI
+      lookup_source: "catalogs/product_master_{department}.csv"
+      # REQ - Key column in CSV file
+      lookup_key: "SKU"
+      # REQ - Key column in main data
+      source_key: "Product_Code"
+      # REQ - Product details to add
+      lookup_columns: ["Product_Name", "Category", "Unit_Cost", "Supplier"]
+      # OPT - Join type determines which rows to keep
+      # "left": keep all main data rows, add lookup data where available
+      # "inner": only keep rows that have matches in both datasets
+      # "outer": keep all rows from both datasets
+      # Default value: "left"
+      join_type: "left"
+      # OPT - Encoding for CSV files (ignored for Excel files)
+      # Default value: "utf-8"
+      encoding: "utf-8"
+
+inline_dictionary_example:
+  description: "Use structured inline data for small reference tables"
+  yaml: |
+    # Inline lookup data for small, stable reference information
+    
+    - # OPT - Step description
+      step_description: "Add regional information to shipping data"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Structured inline lookup data
+      lookup_source:
+        # OPT - Explicit type declaration for clarity
+        type: "inline"
+        # REQ - List of lookup records
+        data:
+          - {"State_Code": "CA", "Region": "West", "Tax_Rate": 0.0875, "Shipping_Zone": 1}
+          - {"State_Code": "TX", "Region": "Central", "Tax_Rate": 0.0625, "Shipping_Zone": 2}
+          - {"State_Code": "NY", "Region": "East", "Tax_Rate": 0.08, "Shipping_Zone": 3}
+          - {"State_Code": "FL", "Region": "Southeast", "Tax_Rate": 0.06, "Shipping_Zone": 3}
+      # REQ - Key column in lookup data
+      lookup_key: "State_Code"
+      # REQ - Key column in main data
+      source_key: "State"
+      # REQ - Regional details to add
+      lookup_columns: ["Region", "Tax_Rate", "Shipping_Zone"]
+
+stage_lookup_example:
+  description: "Lookup data from previously saved processing stages"
+  yaml: |
+    # Use data from a previously saved stage as lookup source
+    
+    - # OPT - Step description
+      step_description: "Enrich orders with processed customer segment data"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Stage-based lookup source
+      lookup_source:
+        # REQ - Source type specification
+        type: "stage"
+        # REQ - Name of previously saved stage
+        # Must match exactly what was saved with save_stage processor
+        stage_name: "Customer_Segmentation_Results"
+      # REQ - Key column in the saved stage data
+      lookup_key: "Customer_ID"
+      # REQ - Key column in current pipeline data
+      source_key: "Customer_ID"
+      # REQ - Segmentation data to add
+      lookup_columns: ["Customer_Segment", "Lifetime_Value", "Risk_Score", "Next_Best_Action"]
+      # OPT - Inner join to only keep customers that went through segmentation
+      # Default value: "left"
+      join_type: "inner"
+
+case_insensitive_example:
+  description: "Handle inconsistent case in lookup keys"
+  yaml: |
+    # Flexible matching for data with inconsistent capitalization
+    
+    - # OPT - Step description
+      step_description: "Match customers despite case differences"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Customer reference file
+      lookup_source: "customer_reference.xlsx"
+      # REQ - Key column in reference file
+      lookup_key: "Customer_Code"
+      # REQ - Key column in main data (may have different case)
+      source_key: "Cust_Code"
+      # REQ - Customer details to retrieve
+      lookup_columns: ["Customer_Name", "Account_Manager"]
+      # REQ - Enable case-insensitive matching
+      # Matches: "CUST001" = "cust001" = "Cust001"
+      # Default value: true
+      case_sensitive: false
+      # OPT - Handle missing matches
+      default_values:
+        "Customer_Name": "Name Not Found"
+        "Account_Manager": "TBD"
+
+duplicate_handling_example:
+  description: "Control how duplicate lookup keys are handled"
+  yaml: |
+    # Manage lookup data with duplicate keys
+    
+    - # OPT - Step description
+      step_description: "Add latest product pricing with duplicate handling"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Price list file (may have multiple entries per product)
+      lookup_source: "price_lists/current_pricing.csv"
+      # REQ - Product key in price list
+      lookup_key: "Product_SKU"
+      # REQ - Product key in main data
+      source_key: "SKU"
+      # REQ - Pricing information to add
+      lookup_columns: ["Current_Price", "Effective_Date", "Price_Tier"]
+      # REQ - Duplicate handling strategy
+      # "first": use first occurrence of duplicate key
+      # "last": use last occurrence of duplicate key (latest update)
+      # "error": stop processing if duplicates found
+      # Default value: "first"
+      handle_duplicates: "last"
+
+column_naming_example:
+  description: "Add prefixes and suffixes to lookup columns"
+  yaml: |
+    # Customize lookup column names to avoid conflicts
+    
+    - # OPT - Step description
+      step_description: "Add customer reference data with prefixed names"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Customer master data
+      lookup_source: "customer_master.xlsx"
+      # REQ - Customer key in lookup data
+      lookup_key: "Customer_ID"
+      # REQ - Customer key in main data
+      source_key: "Customer_ID"
+      # REQ - Customer details to retrieve
+      lookup_columns: ["Name", "Type", "Status", "Region"]
+      # OPT - Prefix to add to all lookup column names
+      # Result: "Customer_Name", "Customer_Type", "Customer_Status", "Customer_Region"
+      # Default value: ""
+      prefix: "Customer_"
+      # OPT - Suffix to add to all lookup column names
+      # Combined with prefix: "Customer_Name_Ref", "Customer_Type_Ref", etc.
+      # Default value: ""
+      suffix: "_Ref"
+
+multi_column_lookup_example:
+  description: "Lookup using multiple columns as composite keys"
+  yaml: |
+    # Use combination of columns for unique identification
+    
+    - # OPT - Step description
+      step_description: "Add regional pricing using product and region combination"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Regional pricing table
+      lookup_source: "pricing/regional_pricing.xlsx"
+      # REQ - Composite key columns in lookup data (order matters)
+      lookup_key: ["Product_Code", "Sales_Region"]
+      # REQ - Composite key columns in main data (must match order)
+      source_key: ["SKU", "Region"]
+      # REQ - Regional pricing data to add
+      lookup_columns: ["Regional_Price", "Currency", "Discount_Rate"]
+      # OPT - Handle cases where regional pricing may not exist
+      default_values:
+        "Regional_Price": 0.0
+        "Currency": "USD"
+        "Discount_Rate": 0.0
+
+chained_lookups_example:
+  description: "Chain multiple lookups to build comprehensive data"
+  yaml: |
+    # First lookup: Add customer tier information
+    
+    - # OPT - First lookup step
+      step_description: "Add customer tier from master data"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Customer master file
+      lookup_source: "reference/customer_master.xlsx"
+      # REQ - Customer key
+      lookup_key: "Customer_ID"
+      # REQ - Main data customer key
+      source_key: "Customer_ID"
+      # REQ - Customer tier information
+      lookup_columns: ["Customer_Tier", "Industry_Code"]
+    
+    # Second lookup: Add tier-specific benefits
+    - # OPT - Second lookup step using results from first
+      step_description: "Add tier benefits based on customer tier"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Tier benefits reference
+      lookup_source:
+        type: "inline"
+        data:
+          - {"Tier": "Platinum", "Discount": 0.15, "Support": "24/7", "Free_Shipping": true}
+          - {"Tier": "Gold", "Discount": 0.10, "Support": "Business Hours", "Free_Shipping": true}
+          - {"Tier": "Silver", "Discount": 0.05, "Support": "Email", "Free_Shipping": false}
+          - {"Tier": "Bronze", "Discount": 0.02, "Support": "Self-Service", "Free_Shipping": false}
+      # REQ - Tier column from lookup data
+      lookup_key: "Tier"
+      # REQ - Customer tier from previous lookup
+      source_key: "Customer_Tier"
+      # REQ - Tier benefits to add
+      lookup_columns: ["Discount", "Support", "Free_Shipping"]
+
+van_report_geographic_example:
+  description: "Alaska van report geographic enrichment pattern"
+  yaml: |
+    # Enrich van data with Alaska regional information
+    
+    - # OPT - Step description
+      step_description: "Add Alaska regional details to origin locations"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Alaska location reference data
+      lookup_source:
+        type: "inline"
+        data:
+          - {"Location": "Cordova", "Region": "Prince William Sound", "Zone": "Coastal", "Processing_Hub": "Anchorage"}
+          - {"Location": "Naknek", "Region": "Bristol Bay Region", "Zone": "Inland", "Processing_Hub": "Anchorage"}
+          - {"Location": "Dillingham", "Region": "Bristol Bay Region", "Zone": "Inland", "Processing_Hub": "Anchorage"}
+          - {"Location": "Kodiak", "Region": "Kodiak Region", "Zone": "Island", "Processing_Hub": "Kodiak"}
+          - {"Location": "Seward", "Region": "Prince William Sound", "Zone": "Coastal", "Processing_Hub": "Anchorage"}
+          - {"Location": "Sitka", "Region": "Southeast Alaska", "Zone": "Island", "Processing_Hub": "Juneau"}
+          - {"Location": "Petersburg", "Region": "Southeast Alaska", "Zone": "Coastal", "Processing_Hub": "Juneau"}
+      # REQ - Location key in reference data
+      lookup_key: "Location"
+      # REQ - Product origin column in van data
+      source_key: "Product Origin"
+      # REQ - Regional details to add
+      lookup_columns: ["Region", "Zone", "Processing_Hub"]
+      # OPT - Left join to keep all van records
+      # Default value: "left"
+      join_type: "left"
+      # OPT - Handle unknown locations
+      default_values:
+        "Region": "Unknown Region"
+        "Zone": "Unspecified"
+        "Processing_Hub": "TBD"
+
+validation_lookup_example:
+  description: "Use inner join for data validation and filtering"
+  yaml: |
+    # Validate and filter data using lookup as a filter
+    
+    - # OPT - Step description
+      step_description: "Keep only valid customers from approved list"
+      # REQ - Processor type
+      processor_type: "lookup_data"
+      # REQ - Approved customer list
+      lookup_source: "validation/approved_customers.csv"
+      # REQ - Customer ID in validation list
+      lookup_key: "Customer_ID"
+      # REQ - Customer ID in transaction data
+      source_key: "Customer_ID"
+      # REQ - Validation information to add
+      lookup_columns: ["Approval_Status", "Approval_Date", "Credit_Verified"]
+      # REQ - Inner join filters out non-approved customers
+      # Only customers in the approved list will remain in the data
+      join_type: "inner"
+
+parameter_details:
+  lookup_source:
+    type: any
+    required: true
+    description: "Source of lookup data - can be file path, stage configuration, or inline data"
+    formats: ["string (file path)", "dict (stage/inline config)", "dataframe (programmatic)"]
+    examples: ["customers.xlsx", "{'type': 'stage', 'stage_name': 'Customer_Data'}", "{'CA': {'Region': 'West'}}"]
+  
+  lookup_key:
+    type: string_or_list
+    required: true
+    description: "Column name(s) in lookup data to match against - can be single column or list for composite keys"
+    examples: ["Customer_ID", "Product_SKU", ["Product_Code", "Region"]]
+  
+  source_key:
+    type: string_or_list
+    required: true
+    description: "Column name(s) in main data to match with lookup_key - must match structure of lookup_key"
+    examples: ["Cust_ID", "SKU", ["Product", "Sales_Region"]]
+  
+  lookup_columns:
+    type: list
+    required: true
+    description: "List of columns to retrieve from lookup data and add to main data"
+    examples: [["Customer_Name", "Region"], ["Price", "Category", "Supplier"]]
+  
+  lookup_sheet:
+    type: string_or_int
+    required: false
+    default: "0"
+    context: "Used when lookup_source is an Excel file"
+    description: "Sheet name or index to read from Excel file"
+    examples: ["Customer_Master", "Products", 0, 1]
+  
+  join_type:
+    type: string
+    required: false
+    default: "left"
+    description: "Type of join operation to perform between main data and lookup data"
+    valid_values: ["left", "right", "inner", "outer"]
+    details:
+      left: "Keep all main data rows, add lookup data where available"
+      right: "Keep all lookup data rows, add main data where available"
+      inner: "Only keep rows that have matches in both datasets"
+      outer: "Keep all rows from both main data and lookup data"
+  
+  handle_duplicates:
+    type: string
+    required: false
+    default: "first"
+    description: "Strategy for handling duplicate keys in lookup data"
+    valid_values: ["first", "last", "error"]
+    details:
+      first: "Use first occurrence of duplicate key"
+      last: "Use last occurrence of duplicate key"
+      error: "Stop processing if duplicate keys are found"
+  
+  case_sensitive:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether key matching should be case sensitive"
+    examples: ["true: 'CUST001' != 'cust001'", "false: 'CUST001' == 'cust001'"]
+  
+  default_values:
+    type: dict
+    required: false
+    description: "Dictionary of default values to use when lookup doesn't find a match"
+    structure: "Keys are column names from lookup_columns, values are defaults"
+    examples: ["{'Customer_Name': 'Unknown', 'Region': 'Unassigned'}"]
+  
+  prefix:
+    type: string
+    required: false
+    default: ""
+    description: "Prefix to add to all lookup column names to avoid conflicts"
+    examples: ["Customer_", "Ref_", "Lookup_"]
+  
+  suffix:
+    type: string
+    required: false
+    default: ""
+    description: "Suffix to add to all lookup column names to avoid conflicts"
+    examples: ["_Ref", "_Info", "_Data"]
+  
+  encoding:
+    type: string
+    required: false
+    default: "utf-8"
+    context: "Used when lookup_source is a CSV/TSV file"
+    description: "Text encoding for CSV files - ignored for Excel files"
+    examples: ["utf-8", "latin1", "cp1252"]
+  
+  lookup_source_type:
+    type: string
+    required: false
+    context: "Used in lookup_source dict configuration"
+    description: "Explicit type declaration for lookup source"
+    valid_values: ["file", "stage", "inline", "dataframe"]
+  
+  lookup_source_data:
+    type: any
+    required: true
+    context: "Required when lookup_source type is 'inline'"
+    description: "Inline lookup data - can be list of dicts or simple key-value mapping"
+    formats: ["list of dictionaries", "simple key-value mapping"]

@@ -1,17 +1,55 @@
 description: "Import data from external files with automatic format detection and optional stage saving"
 
 basic_example:
-  description: "Simple file import replacing current pipeline data"
+  description: "Simple file import with data replacement confirmation"
   yaml: |
     # Import Excel file and replace current pipeline data
     
-    - # OPT - Human-readable description of what this step does
-      step_description: "Import customer data from Excel file"
-      # REQ - Must be "import_file" for this processor type
+    - # OPT - Step description
+      step_description: "Import customer data from Excel"
+      # REQ - Processor type
       processor_type: "import_file"
-      # REQ - Path to file to import with variable substitution support
-      # Variable examples: {date}, {timestamp}, {company}, {batch_id}
-      input_file: "data/customer_data.xlsx"
+      # REQ - File path
+      input_file: "customer_data.xlsx"
+      # REQ - Explicit confirmation that current data will be replaced
+      # Must be true - safety mechanism to prevent accidental data loss
+      replace_current_data: true
+
+stage_saving_example:
+  description: "Import file and save to named stage for later use"
+  yaml: |
+    # Import file and save to stage for use by other processors
+    
+    - # OPT - Step description
+      step_description: "Import and save customer master data"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Input file path
+      input_file: "master_data/customers.xlsx"
+      # REQ - Acknowledge that current pipeline data will be replaced
+      replace_current_data: true
+      # OPT - Stage name to save imported data to
+      save_to_stage: "Customer Master Data"
+      # OPT - Description for the saved stage
+      stage_description: "Master customer data imported from Excel file"
+      # OPT - Whether to overwrite existing stage with same name
+      stage_overwrite: true
+
+stage_only_example:
+  description: "Import to stage without replacing current data"
+  yaml: |
+    # Import file to stage only, preserving current pipeline data
+    
+    - # OPT - Step description
+      step_description: "Import reference data to stage only"
+      # REQ - Processor type
+      processor_type: "import_file"
+      # REQ - Input file path
+      input_file: "reference/lookup_table.xlsx"
+      # REQ - Do not replace current data
+      replace_current_data: false
+      # REQ - Must save to stage if not replacing current data
+      save_to_stage: "Lookup Table"
 
 excel_with_sheet_example:
   description: "Import specific sheet from Excel file"
@@ -222,6 +260,16 @@ parameter_details:
     required: false
     default: false
     description: "Whether to overwrite existing stage with the same name"
+
+  replace_current_data:
+    type: boolean
+    required: true
+    description: "Explicit confirmation that current pipeline data will be replaced"
+    valid_values: [true]  # Currently only true is supported
+    safety_purpose: "Prevents accidental data loss by requiring explicit acknowledgment"
+    behavior: "When true, current pipeline data is completely replaced with imported data"
+    error_condition: "Will raise error if not set to true"
+    future_enhancement: "Could support false to import to stage only without replacing current data"
 
   stage_description:
     type: string

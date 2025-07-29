@@ -2,14 +2,14 @@
 Test the ImportFileProcessor functionality.
 """
 
-# import os
 import pandas as pd
 import tempfile
+
 from pathlib import Path
 
-from excel_recipe_processor.processors.import_file_processor import ImportFileProcessor
-from excel_recipe_processor.processors.base_processor import StepProcessorError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.processors.import_file_processor import ImportFileProcessor
 
 
 def create_sample_data():
@@ -70,7 +70,8 @@ def test_basic_import_excel():
         step_config = {
             'processor_type': 'import_file',
             'step_description': 'Test Excel import',
-            'input_file': test_files['excel']
+            'input_file': test_files['excel'],
+            'replace_current_data': True
         }
         
         processor = ImportFileProcessor(step_config)
@@ -108,7 +109,8 @@ def test_basic_import_csv():
         step_config = {
             'processor_type': 'import_file',
             'step_description': 'Test CSV import',
-            'input_file': test_files['csv']
+            'input_file': test_files['csv'],
+            'replace_current_data': True
         }
         
         processor = ImportFileProcessor(step_config)
@@ -145,7 +147,8 @@ def test_import_with_stage_saving():
                 'step_description': 'Test import with stage',
                 'input_file': test_files['excel'],
                 'save_to_stage': 'Imported Product Data',
-                'stage_description': 'Product catalog from Excel import'
+                'stage_description': 'Product catalog from Excel import',
+                'replace_current_data': True
             }
             
             processor = ImportFileProcessor(step_config)
@@ -205,7 +208,8 @@ def test_stage_overwrite_protection():
                 'processor_type': 'import_file',
                 'step_description': 'First import',
                 'input_file': test_files['excel'],
-                'save_to_stage': 'Test Stage'
+                'save_to_stage': 'Test Stage',
+                'replace_current_data': True
             }
             
             processor_1 = ImportFileProcessor(step_config_1)
@@ -218,8 +222,9 @@ def test_stage_overwrite_protection():
                 'processor_type': 'import_file',
                 'step_description': 'Second import',
                 'input_file': test_files['csv'],
-                'save_to_stage': 'Test Stage'  # Same name
+                'save_to_stage': 'Test Stage',  # Same name
                 # stage_overwrite: false (default)
+                'replace_current_data': True
             }
             
             processor_2 = ImportFileProcessor(step_config_2)
@@ -241,7 +246,8 @@ def test_stage_overwrite_protection():
                 'step_description': 'Third import',
                 'input_file': test_files['csv'],
                 'save_to_stage': 'Test Stage',
-                'stage_overwrite': True
+                'stage_overwrite': True,
+                'replace_current_data': True
             }
             
             processor_3 = ImportFileProcessor(step_config_3)
@@ -277,7 +283,8 @@ def test_variable_substitution():
         step_config = {
             'processor_type': 'import_file',
             'step_description': 'Test variable substitution',
-            'input_file': template_filename
+            'input_file': template_filename,
+            'replace_current_data': True
         }
         
         processor = ImportFileProcessor(step_config)
@@ -305,7 +312,8 @@ def test_explicit_format_override():
             'processor_type': 'import_file',
             'step_description': 'Test explicit format',
             'input_file': test_files['tsv'],
-            'format': 'tsv'  # Explicit format
+            'format': 'tsv',  # Explicit format
+            'replace_current_data': True
         }
         
         processor = ImportFileProcessor(step_config)
@@ -321,6 +329,43 @@ def test_explicit_format_override():
             return False
 
 
+def test_replace_current_data_safety():
+    """Test replace_current_data safety mechanism."""
+    
+    print("\nTesting replace_current_data safety...")
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_files = setup_test_files(temp_dir)
+        
+        # Try without replace_current_data (should fail)
+        step_config = {
+            'processor_type': 'import_file',
+            'input_file': test_files['excel']
+            # Testing for missing replace_current_data
+        }
+        
+        try:
+            processor = ImportFileProcessor(step_config)
+            processor.execute(create_sample_data())
+            print("✗ Should have failed without replace_current_data")
+            return False
+        except StepProcessorError as e:
+            print(f"✓ Correctly enforced replace_current_data requirement: {e}")
+        
+        # Try with replace_current_data=false (should fail)  
+        step_config['replace_current_data'] = False
+        
+        try:
+            processor = ImportFileProcessor(step_config)
+            processor.execute(create_sample_data())
+            print("✗ Should have failed with replace_current_data=false")
+            return False
+        except StepProcessorError as e:
+            print(f"✓ Correctly rejected replace_current_data=false: {e}")
+        
+        return True
+
+
 def test_error_handling():
     """Test error handling for various failure cases."""
     
@@ -330,7 +375,8 @@ def test_error_handling():
     try:
         step_config = {
             'processor_type': 'import_file',
-            'step_description': 'Missing input file test'
+            'step_description': 'Missing input file test',
+            'replace_current_data': True
             # Missing 'input_file'
         }
         processor = ImportFileProcessor(step_config)
@@ -345,7 +391,8 @@ def test_error_handling():
         step_config = {
             'processor_type': 'import_file',
             'step_description': 'Non-existent file test',
-            'input_file': '/nonexistent/path/file.xlsx'
+            'input_file': '/nonexistent/path/file.xlsx',
+            'replace_current_data': True
         }
         processor = ImportFileProcessor(step_config)
         processor.execute(create_sample_data())
@@ -363,7 +410,8 @@ def test_error_handling():
                 'processor_type': 'import_file',
                 'step_description': 'Invalid format test',
                 'input_file': test_files['excel'],
-                'format': 'invalid_format'
+                'format': 'invalid_format',
+                'replace_current_data': True
             }
             processor = ImportFileProcessor(step_config)
             processor.execute(create_sample_data())
@@ -382,7 +430,8 @@ def test_error_handling():
                 'processor_type': 'import_file',
                 'step_description': 'Invalid stage name test',
                 'input_file': test_files['excel'],
-                'save_to_stage': 'clean_data'  # Conflicts with processor name
+                'save_to_stage': 'clean_data',  # Conflicts with processor name
+                'replace_current_data': True
             }
             processor = ImportFileProcessor(step_config)
             processor.execute(create_sample_data())
@@ -415,7 +464,8 @@ def test_configuration_validation():
                 'processor_type': 'import_file',
                 'step_description': 'Invalid sheet test',
                 'input_file': test_files['excel'],
-                'sheet': ['invalid']  # Should be string or int
+                'sheet': ['invalid'],  # Should be string or int
+                'replace_current_data': True
             }
             processor = ImportFileProcessor(step_config)
             processor.execute(create_sample_data())
@@ -430,7 +480,8 @@ def test_configuration_validation():
                 'processor_type': 'import_file',
                 'step_description': 'Invalid encoding test',
                 'input_file': test_files['csv'],
-                'encoding': 123  # Should be string
+                'encoding': 123,  # Should be string
+                'replace_current_data': True
             }
             processor = ImportFileProcessor(step_config)
             processor.execute(create_sample_data())
@@ -451,7 +502,8 @@ def test_capabilities_info():
     step_config = {
         'processor_type': 'import_file',
         'step_description': 'Capabilities test',
-        'input_file': 'dummy.xlsx'
+        'input_file': 'dummy.xlsx',
+        'replace_current_data': True
     }
     
     processor = ImportFileProcessor(step_config)
@@ -491,6 +543,7 @@ if __name__ == '__main__':
     success &= test_stage_overwrite_protection()
     success &= test_variable_substitution()
     success &= test_explicit_format_override()
+    success &= test_replace_current_data_safety()
     success &= test_error_handling()
     success &= test_configuration_validation()
     success &= test_capabilities_info()

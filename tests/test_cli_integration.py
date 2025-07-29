@@ -343,6 +343,409 @@ def test_var_argument_basic_functionality():
         return False
 
 
+def test_cli_get_settings_examples():
+    """Test that --get-settings-examples works."""
+    print("Testing CLI get settings examples...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--get-settings-examples'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            print(f"✗ Get settings examples failed with return code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            return False
+        
+        output = result.stdout
+        
+        # Check for expected content
+        expected_content = [
+            'settings:',
+            'Recipe Settings Usage Examples',
+            'description:',
+            'create_backup:'
+        ]
+        
+        for content in expected_content:
+            if content not in output:
+                print(f"✗ Settings examples output missing expected content: '{content}'")
+                return False
+        
+        print("✓ CLI get settings examples works")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI get settings examples test failed: {e}")
+        return False
+
+
+def test_cli_get_settings_examples_formats():
+    """Test settings examples in different formats."""
+    print("Testing CLI settings examples output formats...")
+    
+    formats = [
+        (['--get-settings-examples'], 'yaml'),
+        (['--get-settings-examples', '--format-examples', 'json'], 'json'),
+        (['--get-settings-examples', '--format-examples', 'text'], 'text'),
+    ]
+    
+    for args, format_name in formats:
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'excel_recipe_processor'] + args,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                print(f"✗ Settings examples format {format_name} failed with return code: {result.returncode}")
+                print(f"Error: {result.stderr}")
+                return False
+            
+            output = result.stdout
+            
+            if len(output) == 0:
+                print(f"✗ Settings examples format {format_name} produced no output")
+                return False
+            
+            # Format-specific checks
+            if format_name == 'json':
+                if '"description":' not in output or '"examples":' not in output:
+                    print(f"✗ JSON format missing expected structure")
+                    return False
+            elif format_name == 'yaml':
+                if 'settings:' not in output:
+                    print(f"✗ YAML format missing settings section")
+                    return False
+            elif format_name == 'text':
+                if 'Recipe Settings' not in output:
+                    print(f"✗ Text format missing expected header")
+                    return False
+            
+            print(f"  ✓ Settings examples format {format_name} works")
+            
+        except Exception as e:
+            print(f"✗ Settings examples format {format_name} test failed: {e}")
+            return False
+    
+    print("✓ All settings examples formats work")
+    return True
+
+
+def test_cli_get_usage_examples_settings():
+    """Test that --get-usage-examples settings works (backup method)."""
+    print("Testing CLI get usage examples with 'settings' as processor name...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--get-usage-examples', 'settings'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            print(f"✗ Get usage examples settings failed with return code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            return False
+        
+        output = result.stdout
+        
+        # Should have same content as --get-settings-examples
+        expected_content = [
+            'settings:',
+            'Recipe Settings Usage Examples',
+            'description:',
+            'create_backup:'
+        ]
+        
+        for content in expected_content:
+            if content not in output:
+                print(f"✗ Usage examples settings output missing expected content: '{content}'")
+                return False
+        
+        print("✓ CLI get usage examples with 'settings' works")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI get usage examples settings test failed: {e}")
+        return False
+
+
+def test_cli_get_usage_examples_all_includes_settings():
+    """Test that --get-usage-examples (all) includes settings first."""
+    print("Testing CLI get all usage examples includes settings first...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--get-usage-examples'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            print(f"✗ Get all usage examples failed with return code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            return False
+        
+        output = result.stdout
+        lines = output.split('\n')
+        
+        # Check that settings appears before processors
+        settings_line = -1
+        processors_line = -1
+        
+        for i, line in enumerate(lines):
+            if 'RECIPE SETTINGS' in line:
+                settings_line = i
+            if 'PROCESSOR' in line and 'RECIPE SETTINGS' not in line:
+                if processors_line == -1:  # First processor mention
+                    processors_line = i
+        
+        if settings_line == -1:
+            print("✗ Settings section not found in all usage examples")
+            return False
+            
+        if processors_line == -1:
+            print("✗ Processor sections not found in all usage examples")
+            return False
+            
+        if settings_line >= processors_line:
+            print("✗ Settings should appear before processors in output")
+            return False
+        
+        print("✓ CLI get all usage examples includes settings first")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI get all usage examples test failed: {e}")
+        return False
+
+
+def test_cli_help_includes_new_options():
+    """Test that --help includes the new settings examples options."""
+    print("Testing CLI help includes new settings options...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--help'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            print(f"✗ Help command failed with return code: {result.returncode}")
+            return False
+        
+        help_text = result.stdout
+        
+        # Check for new arguments
+        expected_options = [
+            '--get-settings-examples',
+            '--get-usage-examples',
+            '--format-examples',
+            'recipe settings examples'
+        ]
+        
+        # Special check for the settings instruction (more flexible)
+        settings_instruction_found = False
+        if 'Use "settings"' in help_text or "Use 'settings'" in help_text:
+            settings_instruction_found = True
+        
+        for option in expected_options:
+            if option not in help_text:
+                print(f"✗ Help text missing expected option: '{option}'")
+                return False
+        
+        # Check the settings instruction separately
+        if not settings_instruction_found:
+            print("✗ Help text missing settings instruction")
+            print("Looking for: 'Use \"settings\"' or similar")
+            return False
+        
+        # Check for updated examples in epilog
+        expected_examples = [
+            '--get-settings-examples',
+            '--get-usage-examples settings',
+            'Get recipe settings examples'
+        ]
+        
+        for example in expected_examples:
+            if example not in help_text:
+                print(f"✗ Help text missing expected example: '{example}'")
+                return False
+        
+        print("✓ CLI help includes new settings options")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI help settings options test failed: {e}")
+        return False
+
+
+def test_cli_settings_examples_error_handling():
+    """Test error handling when settings examples are not available."""
+    print("Testing CLI settings examples error handling...")
+    
+    # This test is tricky because it depends on the file existing or not
+    # We'll test that the command doesn't crash, even if it returns an error
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--get-settings-examples'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Command should not crash (return code could be 0 or 1)
+        if result.returncode not in [0, 1]:
+            print(f"✗ Settings examples command crashed with return code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            return False
+        
+        # Should have some output (either examples or error message)
+        if len(result.stdout) == 0 and len(result.stderr) == 0:
+            print("✗ Settings examples command produced no output")
+            return False
+        
+        # If it's an error, should be informative
+        if result.returncode == 1:
+            combined_output = result.stdout + result.stderr
+            if 'examples' not in combined_output.lower():
+                print("✗ Error message should mention examples")
+                return False
+        
+        print("✓ CLI settings examples error handling works")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI settings examples error handling test failed: {e}")
+        return False
+
+
+def test_cli_invalid_processor_with_settings_suggestion():
+    """Test that invalid processor names suggest 'settings' as option."""
+    print("Testing CLI invalid processor name with settings suggestion...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--get-usage-examples', 'nonexistent_processor'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Should fail for invalid processor
+        if result.returncode == 0:
+            print("✗ Should have failed for nonexistent processor")
+            return False
+        
+        output = result.stdout + result.stderr
+        
+        # Should suggest 'settings' as an option
+        if 'settings' not in output:
+            print("✗ Error message should suggest 'settings' as an option")
+            return False
+        
+        # Should list available processors
+        if 'Available processors:' not in output:
+            print("✗ Error message should list available processors")
+            return False
+        
+        print("✓ CLI invalid processor suggests settings option")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI invalid processor test failed: {e}")
+        return False
+
+
+def test_cli_format_examples_without_context():
+    """Test that --format-examples alone shows appropriate behavior."""
+    print("Testing CLI format-examples without context...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', '--format-examples', 'json'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # This should either show help (0) or give a reasonable error (1)
+        # Both are acceptable since --format-examples alone doesn't make sense
+        if result.returncode not in [0, 1]:
+            print(f"✗ Unexpected return code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            return False
+        
+        # Should have some output (either help or error message)
+        if len(result.stdout) == 0 and len(result.stderr) == 0:
+            print("✗ Should have some output (help or error)")
+            return False
+        
+        # If it shows help, that's fine
+        if result.returncode == 0 and 'usage:' in result.stdout.lower():
+            print("✓ CLI format-examples alone shows help")
+            return True
+        
+        # If it gives an error, that's also reasonable
+        if result.returncode == 1:
+            print("✓ CLI format-examples alone gives appropriate error")
+            return True
+        
+        # If return code is 0 but no help shown, that's unexpected
+        print("✗ Return code 0 but no help text shown")
+        print(f"Output: {result.stdout[:200]}...")
+        return False
+        
+    except Exception as e:
+        print(f"✗ CLI format-examples test failed: {e}")
+        return False
+
+
+def test_cli_settings_examples_with_invalid_format():
+    """Test settings examples with invalid format option."""
+    print("Testing CLI settings examples with invalid format...")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'excel_recipe_processor', 
+                '--get-settings-examples', '--format-examples', 'invalid_format'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Should fail with argument error
+        if result.returncode == 0:
+            print("✗ Should have failed with invalid format")
+            return False
+        
+        error_output = result.stderr
+        
+        # Should mention the invalid choice
+        if 'invalid choice' not in error_output.lower() and 'invalid_format' not in error_output:
+            print("✗ Error should mention invalid format choice")
+            print(f"Error output: {error_output}")
+            return False
+        
+        print("✓ CLI settings examples handles invalid format correctly")
+        return True
+        
+    except Exception as e:
+        print(f"✗ CLI invalid format test failed: {e}")
+        return False
+
+
 def main():
     """Run all CLI integration tests."""
     print("CLI Integration Tests for Excel Recipe Processor")
@@ -359,6 +762,17 @@ def main():
         test_import_main_module,
         test_cli_argument_conflicts,
         test_var_argument_basic_functionality,
+        # NEW: Settings examples functionality tests
+        test_cli_get_settings_examples,
+        test_cli_get_settings_examples_formats,
+        test_cli_get_usage_examples_settings,
+        test_cli_get_usage_examples_all_includes_settings,
+        test_cli_help_includes_new_options,
+        test_cli_settings_examples_error_handling,
+
+        test_cli_invalid_processor_with_settings_suggestion,
+        test_cli_format_examples_without_context,
+        test_cli_settings_examples_with_invalid_format,
     ]
     
     passed = 0
@@ -381,6 +795,7 @@ def main():
         print("✓ Command-line interface is working correctly")
         print("✓ No argument parsing conflicts detected")
         print("✓ New --var functionality is properly integrated")
+        print("✓ New settings examples functionality is working")
         return True
     else:
         print("❌ Some CLI integration tests failed!")

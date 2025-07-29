@@ -1,0 +1,139 @@
+description: "Recipe settings section configuration options for customizing pipeline behavior"
+
+basic_example:
+  description: "Simple settings with backup and description"
+  yaml: |
+    # Basic recipe settings configuration
+    
+    settings:
+      # OPT - Human-readable description of recipe purpose
+      # Default value: none
+      description: "Process customer data for monthly reporting"
+      # OPT - Create backup copies before processing
+      # Default value: false
+      create_backup: true
+
+variables_example:
+  description: "Custom variables for dynamic file naming and processing"
+  yaml: |
+    # Settings with custom variables for flexible processing
+    
+    settings:
+      # OPT - Recipe description
+      # Default value: none
+      description: "Quarterly sales processing with custom variables"
+      # OPT - Custom variables for use throughout recipe
+      # Default value: empty dictionary
+      variables:
+        # Custom variable for department
+        department: "sales"
+        # Custom variable for reporting period
+        quarter: "Q4"
+        # Custom variable for year
+        year: "2024"
+        # Custom variable for region
+        region: "west"
+      # OPT - Create backups before processing
+      # Default value: false
+      create_backup: true
+
+deprecated_settings_example:
+  description: "Example showing deprecated settings (avoid these)"
+  yaml: |
+    # DEPRECATED settings - use export_file processor instead
+    
+    settings:
+      # ❌ DEPRECATED - Use export_file processor step instead
+      # This setting is no longer recommended and may be removed
+      output_filename: "results_{date}.xlsx"
+      # OPT - Description still supported
+      description: "Example showing deprecated output_filename"
+      # OPT - Backup creation still supported
+      # Default value: false
+      create_backup: true
+
+comprehensive_example:
+  description: "All available settings options in one example"
+  yaml: |
+    # Complete settings section with all available options
+    
+    settings:
+      # OPT - Recipe description for documentation
+      # Default value: none
+      description: "Comprehensive data processing pipeline"
+      # OPT - Create backup files before overwriting
+      # Default value: false
+      create_backup: true
+      # OPT - Custom variables for dynamic configuration
+      # Default value: empty dictionary
+      variables:
+        # File naming variables
+        report_type: "monthly"
+        department: "finance"
+        batch_id: "B2024001"
+        # Processing variables
+        threshold_amount: "1000"
+        analysis_period: "2024-Q4"
+        # Environment variables
+        environment: "production"
+
+parameter_details:
+  description:
+    type: string
+    required: false
+    description: "Human-readable description of what this recipe does"
+    examples:
+      - "Process customer data for monthly reporting"
+      - "Quarterly sales analysis pipeline"
+      - "Daily inventory reconciliation"
+    usage: "Helps document recipe purpose for team collaboration"
+
+  create_backup:
+    type: boolean
+    required: false
+    default: false
+    description: "Create backup copies of files before overwriting"
+    examples: [true, false]
+    safety_note: "Recommended for production workflows to prevent data loss"
+
+  variables:
+    type: dict
+    required: false
+    default: "empty dictionary"
+    description: "Custom variables for use in file paths and processor configurations"
+    structure: "Dictionary of key-value pairs where both key and value are strings"
+    examples:
+      - 'department: "sales"'
+      - 'quarter: "Q4"'
+      - 'threshold: "1000"'
+    usage: "Variables can be referenced using {variable_name} syntax throughout the recipe"
+
+  output_filename:
+    type: string
+    required: false
+    deprecated: true
+    description: "DEPRECATED - Use export_file processor step instead"
+    deprecation_reason: "export_file processor provides more flexibility and control"
+    replacement: "Use processor_type: export_file with output_file parameter"
+    examples:
+      - 'output_file: "results_{date}.xlsx"'
+
+variable_substitution_notes:
+  built_in_variables: "Available without definition: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}"
+  custom_variables: "Defined in settings.variables section and used with {variable_name} syntax"
+  file_variables: "Automatically available: {input_filename}, {input_basename}, {recipe_filename}"
+  precedence: "External variables (CLI) override recipe variables override built-in variables"
+
+best_practices:
+  organization: "Use descriptive variable names that clearly indicate their purpose"
+  consistency: "Establish naming conventions for variables across recipes"
+  documentation: "Always include description to explain recipe purpose"
+  safety: "Use create_backup: true for production workflows"
+  migration: "Replace deprecated output_filename with export_file processor steps"
+
+common_use_cases:
+  dynamic_naming: "Use variables for date-based file naming in automated workflows"
+  environment_config: "Different variables for development vs production environments"
+  batch_processing: "Use batch_id or similar variables for processing identification"
+  multi_department: "Department-specific variables for shared recipe templates"
+  reporting_periods: "Quarter, month, or year variables for periodic reporting"

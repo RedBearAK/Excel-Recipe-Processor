@@ -1,0 +1,252 @@
+# Usage Examples for add_calculated_column processor
+# Copy and modify these examples for your recipes
+
+# add_calculated_column processor usage examples
+
+# Create new columns with calculated values using expressions, math operations, conditionals, and text manipulation
+
+# Basic usage:
+# Simple mathematical calculation using pandas-style expression
+
+# Create a total value column by multiplying price and quantity
+
+- # OPT - Human-readable description of what this step does
+  step_description: "Calculate total order value"
+  # REQ - Must be "add_calculated_column" for this processor type
+  processor_type: "add_calculated_column"
+  # REQ - Name of the new column to create
+  new_column: "Total_Value"
+  # OPT - Type of calculation to perform
+  # Valid values: "expression", "concat", "conditional", "math", "date", "text"
+  # Default value: "expression"
+  calculation_type: "expression"
+  # REQ - Calculation configuration dictionary
+  calculation:
+    # REQ - Pandas-style formula using column names
+    # Column references: Use exact column names from your data
+    # Valid operators: +, -, *, /, %, **, ==, !=, <, >, <=, >=
+    formula: "Price * Quantity"
+
+
+# Advanced usage:
+# Complex multi-type calculations showing all calculation types
+
+# Advanced example demonstrating various calculation types
+
+- # OPT - Step description
+  step_description: "Calculate complex business metrics with profit margin"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Gross_Revenue"
+  # OPT - Expression calculation type (default)
+  # Default value: "expression"
+  calculation_type: "expression"
+  # REQ - Complex expression calculation
+  calculation:
+    # REQ - Multi-column formula with arithmetic and functions
+    # Advanced syntax: supports pandas methods like .fillna(), .str.len()
+    # Conditional expressions: "value1 if condition else value2"
+    formula: "Price * Quantity * (1 + Tax_Rate) - Discount_Amount"
+  # OPT - Whether to overwrite existing column
+  # Default value: false
+  overwrite: false
+
+
+# String Concatenation Example:
+# Combine text columns with custom separator
+
+# Create full names or combined text fields
+
+- # OPT - Step description
+  step_description: "Create full customer name"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Full_Name"
+  # REQ - Concatenation calculation type
+  calculation_type: "concat"
+  # REQ - Concatenation configuration
+  calculation:
+    # REQ - List of columns to concatenate (minimum 2 columns required)
+    # Order matters: columns will be joined in the order specified
+    columns: ["First_Name", "Last_Name"]
+    # OPT - Text separator between concatenated values
+    # Valid examples: " ", "-", "_", " | ", ""
+    # Default value: ""
+    separator: " "
+
+
+# Conditional Logic Example:
+# If-then-else logic for categorizing data
+
+# Categorize customers based on order value
+
+- # OPT - Step description
+  step_description: "Categorize customers by order size"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Customer_Category"
+  # REQ - Conditional calculation type
+  calculation_type: "conditional"
+  # REQ - Conditional logic configuration
+  calculation:
+    # REQ - Column to evaluate for condition
+    condition_column: "Order_Value"
+    # REQ - Condition to test
+    # Valid conditions: "equals", "not_equals", "greater_than", "less_than", 
+    # "greater_equal", "less_equal", "contains", "not_contains", "is_null", "not_null"
+    condition: "greater_than"
+    # REQ - Value to compare against (not needed for is_null/not_null)
+    condition_value: 1000
+    # REQ - Value to assign if condition is true
+    value_if_true: "High Value"
+    # REQ - Value to assign if condition is false
+    value_if_false: "Standard"
+
+
+# Math Operations Example:
+# Specific mathematical operations between columns
+
+# Perform precise mathematical operations on numeric columns
+
+- # OPT - Step description
+  step_description: "Calculate profit margin"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Profit_Amount"
+  # REQ - Math calculation type
+  calculation_type: "math"
+  # REQ - Math operation configuration
+  calculation:
+    # REQ - Mathematical operation to perform
+    # Binary operations: "add", "subtract", "multiply", "divide"
+    # Aggregation operations: "sum", "mean", "min", "max"
+    operation: "subtract"
+    # REQ - First column for binary operations (Revenue - Cost = Profit)
+    column1: "Revenue"
+    # REQ - Second column for binary operations
+    column2: "Cost"
+
+
+# Aggregation Operations Example:
+# Multi-column aggregation operations (sum, mean, min, max)
+
+# Calculate aggregated values across multiple columns
+
+- # OPT - Step description
+  step_description: "Calculate total quarterly sales"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Annual_Sales"
+  # REQ - Math calculation type
+  calculation_type: "math"
+  # REQ - Aggregation configuration
+  calculation:
+    # REQ - Aggregation operation
+    # Valid aggregations: "sum", "mean", "min", "max"
+    operation: "sum"
+    # REQ - List of columns to aggregate (minimum 2 columns required)
+    # All columns must contain numeric data
+    columns: ["Q1_Sales", "Q2_Sales", "Q3_Sales", "Q4_Sales"]
+
+
+# Date Calculations Example:
+# Date arithmetic and time-based calculations
+
+# Calculate time differences between date columns
+
+- # OPT - Step description
+  step_description: "Calculate shipping duration in days"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Shipping_Days"
+  # REQ - Date calculation type
+  calculation_type: "date"
+  # REQ - Date operation configuration
+  calculation:
+    # REQ - Date operation to perform
+    # Available operations: "days_between"
+    operation: "days_between"
+    # REQ - Start date column (earlier date)
+    # Column must contain date/datetime values
+    start_date_column: "Order_Date"
+    # REQ - End date column (later date)
+    # Column must contain date/datetime values
+    end_date_column: "Ship_Date"
+
+
+# Text Operations Example:
+# Text manipulation and string analysis
+
+# Perform text operations on string columns
+
+- # OPT - Step description
+  step_description: "Calculate product name length"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Name_Length"
+  # REQ - Text calculation type
+  calculation_type: "text"
+  # REQ - Text operation configuration
+  calculation:
+    # REQ - Text operation to perform
+    # Available operations: "length"
+    operation: "length"
+    # REQ - Column to perform text operation on
+    # Column must contain string/text data
+    column: "Product_Name"
+
+
+# Overwrite Column Example:
+# Replace existing column with calculated values
+
+# Update existing column with modified values
+
+- # OPT - Step description
+  step_description: "Apply 10% price increase to existing prices"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - Existing column name to overwrite
+  new_column: "Price"
+  # OPT - Calculation type
+  # Default value: "expression"
+  calculation_type: "expression"
+  # REQ - Calculation to modify existing values
+  calculation:
+    # REQ - Formula referencing the same column being overwritten
+    # Self-reference: Use the column name in its own calculation
+    formula: "Price * 1.1"
+  # REQ - Must be true to overwrite existing column
+  # Default value: false
+  overwrite: true
+
+
+# Complex Expression Example:
+# Advanced pandas expressions with conditional logic and functions
+
+# Complex business logic using advanced pandas syntax
+
+- # OPT - Step description
+  step_description: "Calculate shipping cost with conditional rates"
+  # REQ - Processor type
+  processor_type: "add_calculated_column"
+  # REQ - New column name
+  new_column: "Shipping_Cost"
+  # OPT - Expression type for complex formulas
+  # Default value: "expression"
+  calculation_type: "expression"
+  # REQ - Advanced expression with conditional logic
+  calculation:
+    # REQ - Complex formula with inline conditionals
+    # Pandas conditional syntax: "value_if_true if condition else value_if_false"
+    # Method chaining: Column.str.method(), Column.fillna(), etc.
+    # Multiple conditions: Use parentheses for complex logic
+    formula: "Weight * 2.50 if Weight < 50 else Weight * 1.80"
+
+

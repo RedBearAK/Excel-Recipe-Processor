@@ -38,7 +38,7 @@ def load_processor_examples(processor_name: str) -> dict[str, Any]:
         # Get path to examples file
         # Navigate from utils/ back to processors/examples/
         current_file = Path(__file__)
-        examples_dir = current_file.parent.parent / 'processors' / 'examples'
+        examples_dir = current_file.parent.parent / 'processors' / '_examples'
         example_file = examples_dir / f'{processor_name}_examples.yaml'
         
         if not example_file.exists():
@@ -175,7 +175,7 @@ def get_examples_file_path(processor_name: str) -> Path:
         Path object pointing to the examples file
     """
     current_file = Path(__file__)
-    examples_dir = current_file.parent.parent / 'processors' / 'examples'
+    examples_dir = current_file.parent.parent / 'processors' / '_examples'
     return examples_dir / f'{processor_name}_examples.yaml'
 
 
@@ -188,7 +188,7 @@ def list_available_example_files() -> dict[str, Any]:
     """
     try:
         current_file = Path(__file__)
-        examples_dir = current_file.parent.parent / 'processors' / 'examples'
+        examples_dir = current_file.parent.parent / 'processors' / '_examples'
         
         if not examples_dir.exists():
             return {
@@ -305,7 +305,7 @@ def load_settings_examples() -> dict[str, Any]:
         # Get path to settings examples file
         # Navigate from utils/ to config/examples/
         current_file = Path(__file__)
-        examples_dir = current_file.parent.parent / 'config' / 'examples'
+        examples_dir = current_file.parent.parent / 'config' / '_examples'
         example_file = examples_dir / 'recipe_settings_examples.yaml'
         
         if not example_file.exists():
@@ -438,5 +438,5 @@ def get_settings_examples_file_path() -> Path:
         Path object pointing to the settings examples file
     """
     current_file = Path(__file__)
-    examples_dir = current_file.parent.parent / 'config' / 'examples'
+    examples_dir = current_file.parent.parent / 'config' / '_examples'
     return examples_dir / 'recipe_settings_examples.yaml'

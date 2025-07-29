@@ -43,7 +43,7 @@ def get_all_processors():
 def get_examples_directory():
     """Get path to the examples directory."""
     project_root = Path(__file__).parent.parent
-    return project_root / "excel_recipe_processor" / "processors" / "examples"
+    return project_root / "excel_recipe_processor" / "processors" / "_examples"
 
 
 def test_examples_directory_exists():

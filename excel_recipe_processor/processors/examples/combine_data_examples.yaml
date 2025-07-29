@@ -1,6 +1,8 @@
 # Enhanced Combine Data Processor Examples
 # Demonstrates desktop publishing workflows, enhanced column handling, and header retention
 
+description: "Combine multiple DataFrames from various sources including saved stages and current pipeline data with enhanced column handling, header retention, and smart defaults for desktop publishing workflows"
+
 basic_enhanced_example:
   description: "Basic combination with enhanced column handling"
   yaml: |
@@ -147,38 +149,6 @@ strict_column_matching_example:
       # OPT - Save consolidated data
       save_to_stage: "Quarterly Summary"
 
-mixed_policy_workflow_example:
-  description: "Multi-step workflow mixing different column policies"
-  yaml: |
-    # Combine different workflow phases with appropriate policies
-    
-    # Step 1: Combine structured data with strict validation
-    - step_description: "Consolidate quarterly data"
-      processor_type: "combine_data"
-      combine_type: "vertical_stack"
-      column_handling: "require_matching_columns"     # Strict for data consistency
-      data_sources:
-        - insert_from_stage: "Q1 Results"
-        - insert_from_stage: "Q2 Results" 
-        - insert_from_stage: "Q3 Results"
-      save_to_stage: "Consolidated Data"
-    
-    # Step 2: Add report formatting with flexible column handling
-    - step_description: "Add report headers and formatting"
-      processor_type: "combine_data"
-      combine_type: "vertical_stack"
-      column_handling: "allow_mismatched_columns"     # Flexible for document assembly
-      data_sources:
-        - insert_from_stage: "Report Header"
-          retain_column_names: true                   # Preserve header formatting
-        - insert_blank_rows: 2
-        - insert_from_stage: "Consolidated Data"
-          retain_column_names: false                  # Data only, no extra headers
-        - insert_blank_rows: 1
-        - insert_from_stage: "Report Footer"
-          retain_column_names: true                   # Preserve footer formatting
-      save_to_stage: "Final Report"
-
 current_data_integration_example:
   description: "Combine saved stages with current pipeline data using enhanced features"
   yaml: |
@@ -206,127 +176,130 @@ current_data_integration_example:
         - insert_from_stage: "Summary Stats"
           retain_column_names: true             # Preserve summary formatting
 
-complex_document_assembly_example:
-  description: "Enterprise-level document assembly with multiple formatting requirements"
-  yaml: |
-    # Complete workflow for complex business reports
-    
-    # Step 1: Prepare document header with company branding
-    - step_description: "Create document header section"
-      processor_type: "combine_data"
-      combine_type: "vertical_stack"
-      column_handling: "allow_mismatched_columns"
-      data_sources:
-        - insert_from_stage: "Company Logo"
-          retain_column_names: true
-        - insert_from_stage: "Report Title"
-          retain_column_names: true
-        - insert_from_stage: "Executive Summary"
-          retain_column_names: true
-      save_to_stage: "Document Header"
-    
-    # Step 2: Assemble main content with data sections
-    - step_description: "Combine analytical sections"
-      processor_type: "combine_data"
-      combine_type: "vertical_stack"
-      column_handling: "allow_mismatched_columns"
-      data_sources:
-        - insert_from_stage: "Document Header"
-          retain_column_names: false            # Already formatted
-        - insert_blank_rows: 3                  # Major section break
-        - insert_from_stage: "Performance Metrics"
-          retain_column_names: true             # Section with headers
-        - insert_blank_rows: 2
-        - insert_from_stage: "Financial Data"
-          retain_column_names: true             # Data table with headers
-        - insert_blank_rows: 2
-        - insert_from_stage: "Trend Analysis"
-          retain_column_names: true             # Analysis with headers
-        - insert_blank_rows: 3                  # Before footer
-        - insert_from_stage: "Legal Disclaimers"
-          retain_column_names: true             # Footer section
-      save_to_stage: "Complete Business Report"
-
-# Configuration Reference for Enhanced Features
-
-configuration_reference:
-  required_parameters:
-    combine_type:
-      type: string
-      required: true
-      options: ["vertical_stack", "horizontal_concat"]
-      description: "Method for combining DataFrames"
-    
-    column_handling:
-      type: string
-      required: true
-      options: ["require_matching_columns", "allow_mismatched_columns"]
-      description: "Global policy for handling column structure differences"
-      behavior:
-        require_matching_columns: "All DataFrames must have identical columns"
-        allow_mismatched_columns: "Allow different columns, missing filled with NaN"
-    
-    data_sources:
-      type: list
-      required: true
-      description: "Sequential list of data sources and formatting operations"
-      min_items: 1
-
-  optional_parameters:
-    retain_column_names:
-      type: boolean
-      required: false
-      scope: "per data source"
-      description: "Insert column headers as first data row before actual data"
-      smart_defaults:
-        require_matching_columns: false
-        allow_mismatched_columns: true
-      override: "Explicit setting overrides smart default"
-
-  data_source_operations:
-    insert_from_stage:
-      format: "{'insert_from_stage': 'stage_name'}"
-      description: "Load data from saved stage or current_dataframe"
-      special_values:
-        current_dataframe: "References data flowing through pipeline"
-      enhanced_options:
-        retain_column_names: "Control header retention for this source"
-    
-    insert_blank_rows:
-      format: "{'insert_blank_rows': N}"
-      description: "Insert N blank rows for visual spacing"
-      applies_to: "vertical_stack only"
-      validation: "Must be non-negative integer"
-    
-    insert_blank_cols:
-      format: "{'insert_blank_cols': N}"
-      description: "Insert N blank columns for visual separation"
-      applies_to: "horizontal_concat only"
-      validation: "Must be non-negative integer"
-
-  enhanced_features:
-    desktop_publishing:
-      description: "Combine title sections, headers, and data preserving visual meaning"
-      use_case: "Excel document assembly, report generation"
-      recommended_policy: "allow_mismatched_columns"
-    
+parameter_details:
+  combine_type:
+    type: string
+    required: true
+    description: "Type of combination operation to perform"
+    options: ["vertical_stack", "horizontal_concat"]
+    details:
+      vertical_stack: "Stack DataFrames on top of each other (combine rows)"
+      horizontal_concat: "Place DataFrames side by side (combine columns)"
+  
+  column_handling:
+    type: string
+    required: true
+    description: "Global policy for handling column structure differences"
+    options: ["require_matching_columns", "allow_mismatched_columns"]
+    default: "No default - must be explicitly specified"
+    behavior:
+      require_matching_columns: "All DataFrames must have identical columns"
+      allow_mismatched_columns: "Allow different columns, missing filled with NaN"
     smart_defaults:
-      description: "Automatically set retain_column_names based on column_handling policy"
-      logic:
-        require_matching_columns: "retain_column_names defaults to false (let pandas handle)"
-        allow_mismatched_columns: "retain_column_names defaults to true (preserve meaning)"
-      override: "Explicit retain_column_names setting always takes precedence"
-    
-    header_retention:
-      description: "Insert DataFrame column names as first data row"
-      purpose: "Preserve column meaning when combining different structures"
-      result: "Headers become visible data in final output"
+      require_matching_columns: "retain_column_names defaults to false"
+      allow_mismatched_columns: "retain_column_names defaults to true"
+  
+  data_sources:
+    type: list
+    required: true
+    description: "Sequential list of data sources and formatting operations"
+    minimum_length: 1
+    operations:
+      insert_from_stage: "Load data from saved stage or current_dataframe"
+      insert_blank_rows: "Insert N blank rows (vertical_stack only)"
+      insert_blank_cols: "Insert N blank columns (horizontal_concat only)"
+  
+  retain_column_names:
+    type: boolean
+    required: false
+    scope: "per data source"
+    description: "Insert column headers as first data row before actual data"
+    default: "Smart default based on column_handling policy"
+    purpose: "Preserve column meaning when combining different structures"
+    override: "Explicit setting always overrides smart default"
 
-  migration_notes:
-    from_legacy:
-      ignore_column_mismatch: "Replace with column_handling: 'allow_mismatched_columns'"
-      default_behavior: "Add required column_handling parameter to existing configurations"
-    
-    backward_compatibility:
-      breaking_changes: "column_handling is now required parameter"
-      new_features: "retain_column_names and smart defaults are additive"
+data_source_operations:
+  insert_from_stage:
+    format: "{'insert_from_stage': 'stage_name'}"
+    description: "Load data from saved stage or current_dataframe"
+    special_values:
+      current_dataframe: "References data flowing through pipeline"
+    enhanced_options:
+      retain_column_names: "Control header retention for this source"
+    examples:
+      - "{'insert_from_stage': 'Processed Data'}"
+      - "{'insert_from_stage': 'current_dataframe'}"
+  
+  insert_blank_rows:
+    format: "{'insert_blank_rows': N}"
+    description: "Insert N blank rows for visual spacing"
+    applies_to: "vertical_stack only"
+    validation: "Must be non-negative integer"
+    examples:
+      - "{'insert_blank_rows': 1}"
+      - "{'insert_blank_rows': 3}"
+  
+  insert_blank_cols:
+    format: "{'insert_blank_cols': N}"
+    description: "Insert N blank columns for visual separation"
+    applies_to: "horizontal_concat only"
+    validation: "Must be non-negative integer"
+    examples:
+      - "{'insert_blank_cols': 1}"
+      - "{'insert_blank_cols': 2}"
+
+enhanced_features:
+  desktop_publishing:
+    description: "Combine title sections, headers, and data preserving visual meaning"
+    use_case: "Excel document assembly, report generation"
+    recommended_policy: "allow_mismatched_columns"
+  
+  smart_defaults:
+    description: "Automatically set retain_column_names based on column_handling policy"
+    logic:
+      require_matching_columns: "retain_column_names defaults to false (let pandas handle)"
+      allow_mismatched_columns: "retain_column_names defaults to true (preserve meaning)"
+    override: "Explicit retain_column_names setting always takes precedence"
+  
+  header_retention:
+    description: "Insert DataFrame column names as first data row"
+    purpose: "Preserve column meaning when combining different structures"
+    result: "Headers become visible data in final output"
+
+combination_behavior:
+  vertical_stack:
+    description: "Combines DataFrames by stacking rows on top of each other"
+    column_handling: "Depends on column_handling policy setting"
+    index_handling: "Creates new continuous index starting from 0"
+    blank_rows: "Can insert blank rows between each DataFrame"
+  
+  horizontal_concat:
+    description: "Combines DataFrames by placing columns side by side"
+    row_handling: "All DataFrames must have same number of rows"
+    column_handling: "Column names preserved, duplicates get suffixes (_x, _y, etc.)"
+    blank_columns: "Can insert blank columns between each DataFrame"
+
+common_use_cases:
+  desktop_publishing: "Combine title sections, headers, and data preserving visual meaning"
+  metadata_assembly: "Combine report headers, data, and footers into complete document"
+  section_spacing: "Add visual separation between different data sections"
+  side_by_side_analysis: "Place related datasets next to each other for comparison"
+  multi_source_reports: "Combine data from different processing stages"
+  template_filling: "Insert processed data into report templates"
+
+integration_notes:
+  stage_manager: "Data sources must exist as saved stages or pipeline will fail"
+  pipeline_flow: "current_dataframe refers to whatever is flowing through the pipeline at this step"
+  export_preparation: "Combined data can be saved to stages for later multi-sheet export"
+  sequential_processing: "Data sources are processed in order, allowing precise control over spacing"
+  memory_efficiency: "Large DataFrames are copied, consider memory usage with many sources"
+  smart_defaults: "Automatic header retention based on column policy eliminates guesswork"
+
+migration_notes:
+  from_legacy:
+    ignore_column_mismatch: "Replace with column_handling: 'allow_mismatched_columns'"
+    default_behavior: "Add required column_handling parameter to existing configurations"
+  
+  backward_compatibility:
+    breaking_changes: "column_handling is now required parameter"
+    new_features: "retain_column_names and smart defaults are additive"

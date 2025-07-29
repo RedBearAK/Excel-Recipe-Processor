@@ -101,6 +101,7 @@ def test_yaml_files_existence():
         return False
     
     yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
     processor_names_with_yaml = {f.stem.replace('_examples', '') for f in yaml_files}
     
     has_yaml = []
@@ -140,6 +141,7 @@ def test_yaml_file_syntax():
     
     examples_dir = get_examples_directory()
     yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
         print("   ⚠️  No YAML files found")
@@ -195,6 +197,7 @@ def test_yaml_content_quality():
     
     examples_dir = get_examples_directory()
     yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
         print("   ⚠️  No YAML files to test")
@@ -243,6 +246,7 @@ def test_cli_integration():
     
     examples_dir = get_examples_directory()
     yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
         print("   ⚠️  No YAML files to test")
@@ -299,6 +303,8 @@ def test_processor_method_fallbacks():
     examples_dir = get_examples_directory()
     
     yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
+
     processors_with_yaml = {f.stem.replace('_examples', '') for f in yaml_files}
     
     processors_without_yaml = [p for p in processors if p not in processors_with_yaml]
@@ -390,6 +396,7 @@ def main():
         processors = get_all_processors()
         examples_dir = get_examples_directory()
         yaml_files = list(examples_dir.glob("*_examples.yaml"))
+        yaml_files.sort() # Make list come out in alphabetical order
         processors_with_yaml = {f.stem.replace('_examples', '') for f in yaml_files}
         missing_yaml = [p for p in processors if p not in processors_with_yaml]
         

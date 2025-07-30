@@ -1,0 +1,48 @@
+# Example template showing the new format for all processor example files
+# Use this as a template for updating other example files
+
+# Revision date: 2025-07-30
+
+settings:
+  description: "Brief description of what this recipe does"
+  
+  # Uncomment and customize as needed:
+  # variables:
+  #   region: "west"
+  #   min_amount: "1000"
+  #   output_prefix: "processed"
+  
+  # required_external_vars:
+  #   batch_id:
+  #     description: "Batch identifier for processing"
+  #     validation: "^[A-Z]\\d+$"
+  #     example: "A47, B23, C91"
+  #   region:
+  #     description: "Processing region"
+  #     choices: ["west", "east", "central"]
+  #     default_value: "west"
+  
+  stages:
+    - stage_name: "raw_data"
+      description: "Raw imported data"
+      protected: false
+    - stage_name: "processed_data"
+      description: "Final processed results"
+      protected: false
+
+recipe:
+  - step_description: "Import source data"
+    processor_type: "import_file"
+    input_file: "data.xlsx"
+    save_to_stage: "raw_data"
+  
+  - step_description: "Process the data"
+    processor_type: "filter_data"  # or whatever processor
+    source_stage: "raw_data"
+    save_to_stage: "processed_data"
+    # processor-specific parameters here
+  
+  - step_description: "Export results"
+    processor_type: "export_file"
+    source_stage: "processed_data"
+    output_file: "results.xlsx"

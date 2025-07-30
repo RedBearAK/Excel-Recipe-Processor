@@ -14,7 +14,7 @@ def debug_registration():
     
     # Import pipeline to trigger registration
     try:
-        from excel_recipe_processor.core.pipeline import ExcelPipeline
+        from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
         print(f"After pipeline import: {registry.get_registered_types()}")
     except Exception as e:
         print(f"Error importing pipeline: {e}")

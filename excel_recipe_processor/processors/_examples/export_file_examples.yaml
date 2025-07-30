@@ -1,250 +1,261 @@
-description: "Export data to files in various formats with multi-sheet and stage support"
+# Revision date: 2025-07-30
+
+description: "Export data to files in various formats with stage-based data sourcing and multi-sheet support"
 
 basic_example:
-  description: "Simple single-file export to Excel"
+  description: "Simple single-file export from a stage"
   yaml: |
-    # Export current pipeline data to a single Excel file
+    # Complete recipe with export from stage
     
-    - # OPT - Human-readable description of what this step does
-      step_description: "Export processed data to monthly report"
-      # REQ - Must be "export_file" for this processor type
-      processor_type: "export_file"
-      # REQ - Output file path with variable substitution support
-      # Variable examples: {date}, {timestamp}, {company}
-      output_file: "reports/monthly_report.xlsx"
-      # OPT - Sheet name for single-sheet export
-      # Default value: "Data"
-      sheet_name: "Monthly Data"
-      # OPT - Backup existing file before overwrite
-      # Default value: false
-      create_backup: true
+    settings:
+      stages:
+        - stage_name: "processed_data"
+          description: "Data ready for export"
+          protected: false
+    
+    recipe:
+      # Previous steps would populate 'processed_data' stage
+      - step_description: "Export processed data to monthly report"
+        # REQ - Must be "export_file" for this processor type
+        processor_type: "export_file"
+        # REQ - Stage to export data from (must be declared in settings.stages)
+        source_stage: "processed_data"
+        # REQ - Output file path with variable substitution support
+        # Variable examples: {date}, {timestamp}, {company}
+        output_file: "reports/monthly_report.xlsx"
+        # OPT - Sheet name for single-sheet export
+        # Default value: "Data"
+        sheet_name: "Monthly Data"
+        # OPT - Backup existing file before overwrite
+        # Default value: false
+        create_backup: true
 
-advanced_example:
-  description: "Multi-sheet export with stages and variable substitution"
+multi_sheet_example:
+  description: "Multi-sheet export with data from different stages"
   yaml: |
-    # Export data from multiple sources to a comprehensive Excel report
+    # Export data from multiple stages to comprehensive Excel report
     
-    - # OPT - Description of this processing step
-      step_description: "Export comprehensive quarterly report"
-      # REQ - Processor type identifier
-      processor_type: "export_file"
-      # REQ - Output file path with variable substitution
-      # Built-in variables: {company}, {quarter}, {date}, {timestamp}
-      # Custom variables: defined in recipe settings or CLI --var
-      output_file: "reports/{company}_Q{quarter}_{date}.xlsx"
-      # OPT - Backup existing file before overwrite
-      # Default value: false
-      create_backup: true
-      # OPT - List of sheet configurations for multi-sheet Excel export
-      # If omitted, exports current pipeline data to single sheet
-      sheets:
-        # First sheet configuration
-        - # REQ - Name of the Excel sheet tab
-          sheet_name: "Executive Summary"
-          # OPT - Data source for this sheet
-          # Valid values: "current", or any saved stage name
-          # Default value: "current"
-          data_source: "current"
-          # OPT - Make this the active sheet when file opens
-          # Default value: false
-          active: true
-        
-        # Second sheet configuration
-        - # REQ - Name of the Excel sheet tab
-          sheet_name: "Sales Details"
-          # OPT - Use data from named stage instead of current pipeline data
-          # Stage must exist or export will fail
-          data_source: "Sales Detail Stage"
-          # OPT - This sheet will not be the active sheet
-          # Default value: false
-          active: false
-        
-        # Third sheet configuration
-        - # REQ - Sheet name for regional analysis
-          sheet_name: "Regional Summary"
-          # OPT - Export data from "Regional Analysis" saved stage
-          data_source: "Regional Analysis"
-          # OPT - Not the active sheet
-          # Default value: false
-          active: false
+    settings:
+      variables:
+        company: "AcmeCorp"
+        quarter: "Q4"
+      stages:
+        - stage_name: "executive_summary"
+          description: "Executive summary data"
+          protected: false
+        - stage_name: "detailed_data"
+          description: "Detailed transaction data"
+          protected: false
+        - stage_name: "monthly_trends"
+          description: "Monthly trend analysis"
+          protected: false
+    
+    recipe:
+      # Previous steps would populate the stages
+      - step_description: "Export comprehensive quarterly report"
+        processor_type: "export_file"
+        # REQ - Output file path with variable substitution
+        # Built-in variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}
+        # Custom variables: defined in recipe settings or CLI --var
+        output_file: "reports/{company}_Q{quarter}_{date}.xlsx"
+        create_backup: true
+        # OPT - List of sheet configurations for multi-sheet Excel export
+        sheets:
+          # First sheet from executive summary stage
+          - sheet_name: "Executive Summary"
+            # REQ - Stage name must match exactly what was saved
+            data_source: "executive_summary"
+          
+          # Second sheet from detailed data stage
+          - sheet_name: "Detailed Data"
+            data_source: "detailed_data"
+          
+          # Third sheet from trends analysis
+          - sheet_name: "Monthly Trends"
+            data_source: "monthly_trends"
 
-csv_example:
-  description: "Export to CSV with custom encoding and separator"
+csv_export_example:
+  description: "Export to CSV with custom formatting options"
   yaml: |
-    # Export current data to CSV file with custom formatting
+    # Export stage data to CSV with custom options
     
-    - # OPT - Description for external system integration step
-      step_description: "Export data for external system integration"
-      # REQ - Processor type
-      processor_type: "export_file"
-      # REQ - CSV output file with timestamp variable substitution
-      output_file: "exports/system_data_{timestamp}.csv"
-      # OPT - Explicit format override (usually auto-detected from extension)
-      # Valid values: "excel", "csv", "tsv"
-      # Default: auto-detected from file extension
-      format: "csv"
-      # OPT - Text encoding for CSV files (ignored for Excel files)
-      # Valid examples: "utf-8", "latin1", "cp1252", "ascii"
-      # Default value: "utf-8"
-      encoding: "utf-8"
-      # OPT - Column separator for CSV files (ignored for Excel and TSV)
-      # Valid examples: ",", ";", "|", "\t"
-      # Default value: ","
-      separator: ";"
-      # OPT - Don't backup CSV files
-      # Default value: false
-      create_backup: false
+    settings:
+      stages:
+        - stage_name: "export_ready_data"
+          description: "Data formatted for CSV export"
+          protected: false
+    
+    recipe:
+      # Previous steps populate export_ready_data
+      - step_description: "Export data to CSV with custom separator"
+        processor_type: "export_file"
+        source_stage: "export_ready_data"
+        output_file: "exports/system_data.csv"
+        # OPT - Text encoding for CSV/TSV files (ignored for Excel files)
+        # Valid examples: "utf-8", "latin1", "cp1252", "ascii"
+        # Default value: "utf-8"
+        encoding: "utf-8"
+        # OPT - Column separator for CSV files (ignored for Excel and TSV)
+        # Valid examples: ",", ";", "|", "\t"
+        # Default value: ","
+        separator: ";"
+        # OPT - Don't backup CSV files
+        # Default value: false
+        create_backup: false
 
 variable_substitution_example:
   description: "Using built-in and custom variables in file paths"
   yaml: |
     # Export with dynamic file naming using various variable types
     
-    - # OPT - Step description
-      step_description: "Export with dynamic file naming"
-      # REQ - Processor type
-      processor_type: "export_file"
-      # REQ - Output file with multiple variable types
-      # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
-      # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
-      # Variable examples: department="sales", batch_id="B001"
-      output_file: "reports/{department}_{YYYY}{MM}{DD}_{batch_id}.xlsx"
-      # OPT - Create backup of existing files
-      # Default value: false
-      create_backup: true
-
-stage_integration_example:
-  description: "Export from multiple saved stages to single file"
-  yaml: |
-    # Export data from different processing stages
+    settings:
+      variables:
+        department: "sales"
+        batch_id: "B001"
+      stages:
+        - stage_name: "final_results"
+          description: "Final processed results ready for export"
+          protected: false
     
-    - # OPT - Step description
-      step_description: "Combine processed data from multiple stages"
-      # REQ - Processor type
-      processor_type: "export_file"
-      # REQ - Output file with date variable
-      output_file: "combined_analysis_{date}.xlsx"
-      # OPT - Multi-sheet configuration using different data sources
-      sheets:
-        # Export original imported data
-        - # REQ - Sheet name for raw customer data
-          sheet_name: "Raw Customer Data"
-          # OPT - Stage name must match exactly what was saved
-          # Use data from previously saved stage
-          data_source: "Customer Import Stage"
-        
-        # Export cleaned data
-        - # REQ - Sheet name for cleaned customers
-          sheet_name: "Cleaned Customers"
-          # OPT - Use data from cleaning stage
-          data_source: "Cleaned Customer Stage"
-        
-        # Export current pipeline data
-        - # REQ - Sheet name for final analysis
-          sheet_name: "Final Analysis"
-          # OPT - Use current pipeline data after all processing
-          # Default value: "current"
-          data_source: "current"
-          # OPT - Make this the active sheet when file opens
-          # Default value: false
-          active: true
+    recipe:
+      # Previous steps populate final_results
+      - step_description: "Export with dynamic file naming"
+        processor_type: "export_file"
+        source_stage: "final_results"
+        # REQ - Output file with multiple variable types
+        # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
+        # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
+        output_file: "reports/{department}_{YYYY}{MM}{DD}_{batch_id}.xlsx"
+        # OPT - Create backup of existing files
+        # Default value: false
+        create_backup: true
+
+complete_workflow_example:
+  description: "Complete workflow: import → process → export"
+  yaml: |
+    # Complete recipe showing import, processing, and export
+    
+    settings:
+      variables:
+        region: "west"
+        output_prefix: "processed"
+      stages:
+        - stage_name: "raw_data"
+          description: "Raw imported data"
+          protected: false
+        - stage_name: "filtered_data"
+          description: "Filtered data ready for export"
+          protected: false
+    
+    recipe:
+      # Step 1: Import data
+      - step_description: "Import raw sales data"
+        processor_type: "import_file"
+        input_file: "sales_data_{region}.xlsx"
+        save_to_stage: "raw_data"
+      
+      # Step 2: Process data
+      - step_description: "Filter for active customers"
+        processor_type: "filter_data"
+        source_stage: "raw_data"
+        save_to_stage: "filtered_data"
+        filters:
+          - column: "Status"
+            condition: "equals"
+            value: "Active"
+      
+      # Step 3: Export results
+      - step_description: "Export filtered results"
+        processor_type: "export_file"
+        source_stage: "filtered_data"
+        output_file: "output/{output_prefix}_{region}_{date}.xlsx"
+        create_backup: true
 
 parameter_details:
+  source_stage:
+    type: string
+    required: true
+    description: "Stage name to export data from (must be declared in settings.stages)"
+    examples:
+      - "processed_data"
+      - "Final Results"
+      - "customer_analysis"
+    note: "Stage must exist and contain data before export step"
+
   output_file:
     type: string
     required: true
-    description: "Output file path with optional variable substitution"
+    description: "Output file path with variable substitution support"
+    supports_variables: true
     examples:
-      - "simple.xlsx"
-      - "reports/monthly.xlsx"
-      - "output_{date}.xlsx"
-      - "{company}_Report_{timestamp}.csv"
-    variable_support: true
-    supported_extensions:
-      - ".xlsx"
-      - ".xls"
-      - ".csv"
-      - ".tsv"
-      - ".txt"
-  
-  sheets:
-    type: "list[object]"
-    required: false
-    description: "List of sheet configurations for multi-sheet Excel export"
-    applies_to: "Excel files only (ignored for CSV/TSV)"
-    schema:
-      sheet_name:
-        type: string
-        required: true
-        description: "Name of the Excel sheet tab"
-      data_source:
-        type: string
-        required: false
-        default: "current"
-        options:
-          - "current"
-          - "<stage_name>"
-        description: "Data source: 'current' for pipeline data, or stage name for saved stage data"
-      active:
-        type: boolean
-        required: false
-        default: false
-        description: "Whether this sheet should be the active sheet when file opens"
-  
+      - "reports/monthly_report.xlsx"
+      - "exports/data_{date}.csv"
+      - "{company}_{quarter}_results.xlsx"
+
   sheet_name:
     type: string
     required: false
     default: "Data"
     description: "Sheet name for single-sheet Excel export (ignored if sheets parameter is used)"
     applies_to: "Single-sheet Excel export only"
-  
-  format:
-    type: string
+
+  sheets:
+    type: list
     required: false
-    description: "Explicit format override (usually auto-detected from file extension)"
-    options:
-      - "excel"
-      - "csv"
-      - "tsv"
-    auto_detection: "Based on file extension: .xlsx/.xls = excel, .csv = csv, .tsv/.txt = tsv"
-  
+    description: "List of sheet configurations for multi-sheet Excel export"
+    sheet_config:
+      sheet_name:
+        type: string
+        required: true
+        description: "Name for the Excel sheet tab"
+      data_source:
+        type: string
+        required: true
+        description: "Stage name to export to this sheet"
+
   create_backup:
     type: boolean
     required: false
     default: false
     description: "Create backup copy of existing file before overwriting (.backup extension added)"
-  
+
   encoding:
     type: string
     required: false
     default: "utf-8"
     description: "Text encoding for CSV/TSV files (ignored for Excel files)"
-    common_values:
-      - "utf-8"
-      - "latin1"
-      - "cp1252"
-      - "ascii"
-  
+    common_values: ["utf-8", "latin1", "cp1252", "ascii"]
+
   separator:
     type: string
     required: false
     default: ","
     description: "Column separator for CSV files (ignored for Excel and TSV)"
-    common_values:
-      - ","
-      - ";"
-      - "|"
-      - "\\t"
+    common_values: [",", ";", "|", "\\t"]
+
+  format:
+    type: string
+    required: false
+    description: "Explicit format override (usually auto-detected from file extension)"
+    options: ["excel", "csv", "tsv"]
+    auto_detection: "Based on file extension: .xlsx/.xls = excel, .csv = csv, .tsv/.txt = tsv"
 
 integration_notes:
-  stage_manager: "Can export data from any saved stage using data_source parameter"
+  stage_manager: "All exported data must come from declared stages - no direct pipeline data access"
   variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings"
   file_writer: "Uses FileWriter infrastructure for consistent file handling across formats"
-  pipeline_flow: "Does not modify current pipeline data - acts as side-effect export operation"
+  pipeline_flow: "Pure stage-based - does not modify current pipeline data, only exports from stages"
+  multi_sheet_export: "Can combine data from multiple stages into single Excel workbook"
+
+stage_architecture_notes:
+  required_source: "All export operations must specify source_stage parameter"
+  stage_validation: "Source stage must be declared in settings.stages and contain data"
+  data_isolation: "Export operation does not affect stage data - stages remain unchanged"
+  workflow_design: "Plan stage names and export points when designing complex workflows"
 
 common_use_cases:
-  single_report: "Export final processed data to single Excel file"
-  multi_sheet_analysis: "Combine data from different processing stages into comprehensive report"
+  final_export: "Export final processed results to single Excel file"
+  multi_sheet_reports: "Combine data from different processing stages into comprehensive report"
   external_integration: "Export to CSV/TSV for integration with external systems"
-  backup_snapshots: "Export intermediate results at various processing stages"
-  variable_naming: "Dynamic file naming based on processing parameters and dates"
+  intermediate_exports: "Export stage data at various points for debugging or audit"
+  dynamic_naming: "Use variables for automated file naming in batch processing"

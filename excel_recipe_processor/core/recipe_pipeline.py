@@ -2,7 +2,7 @@
 Recipe-based pipeline orchestrator for data processing recipes.
 
 Handles loading recipes, validating stages, executing processing steps,
-and managing external variables with interactive prompting support.
+and managing external variables with friendly error reporting.
 """
 
 import pandas as pd
@@ -29,7 +29,7 @@ class RecipePipelineError(Exception):
 
 
 class RecipePipeline:
-    """Pure stage-based recipe orchestrator with variable support and interactive prompting."""
+    """Pure stage-based recipe orchestrator with variable support and friendly error reporting."""
     
     def __init__(self):
         self.recipe_loader = RecipeLoader()
@@ -44,11 +44,24 @@ class RecipePipeline:
         self._completion_report = None
     
     def load_recipe(self, recipe_path) -> dict:
-        """Load and validate recipe with stages and variables."""
+        """Load and validate recipe with friendly error reporting and helpful suggestions."""
         try:
             self._recipe_path = Path(recipe_path)
-            self.recipe_data = self.recipe_loader.load_recipe(recipe_path)
+            
+            # Load recipe with structure validation (this may raise RecipeValidationError)
+            try:
+                self.recipe_data = self.recipe_loader.load_file(recipe_path)
+            except RecipeValidationError as e:
+                # Convert validation errors to friendly pipeline errors
+                logger.error(f"❌ Recipe validation failed: {recipe_path}")
+                logger.error(str(e))
+                raise RecipePipelineError(f"Recipe validation failed: {e}")
+            
+        except FileNotFoundError:
+            logger.error(f"❌ Recipe file not found: {recipe_path}")
+            raise RecipePipelineError(f"Recipe file not found: {recipe_path}")
         except Exception as e:
+            logger.error(f"❌ Failed to load recipe: {e}")
             raise RecipePipelineError(f"Failed to load recipe: {e}")
         
         # Extract custom variables from recipe settings
@@ -58,19 +71,32 @@ class RecipePipeline:
         # Initialize variable substitution
         self._initialize_variable_substitution()
         
-        # Declare and validate stages
+        # Declare stages (this is always safe - just sets up the declarations)
         StageManager.declare_recipe_stages(self.recipe_data)
         
-        stage_errors = StageManager.validate_recipe_stages(self.recipe_data)
-        if stage_errors:
-            error_msg = "Recipe validation failed:\n" + "\n".join(f"  - {error}" for error in stage_errors)
-            raise RecipePipelineError(error_msg)
+        # Validate stages and show helpful warnings/suggestions
+        stage_validation = StageManager.validate_recipe_stages(self.recipe_data)
         
-        logger.info(f"Loaded recipe with {len(self.recipe_data.get('recipe', []))} steps")
+        # Log warnings about undeclared stages
+        for warning in stage_validation['warnings']:
+            logger.warning(f"⚠️  {warning}")
+        
+        # Show protection advice if there are undeclared stages
+        for issue in stage_validation['protection_issues']:
+            logger.info(f"💡 {issue}")
+        
+        # Show stage declaration suggestions if helpful
+        if stage_validation['has_undeclared'] and stage_validation['suggested_declarations']:
+            logger.info("💡 To enable stage protection and auto-completion, add these declarations:")
+            for line in stage_validation['suggested_declarations'].split('\n'):
+                if line.strip():
+                    logger.info(f"   {line}")
+        
+        logger.info(f"✓ Recipe loaded successfully: {len(self.recipe_data.get('recipe', []))} steps")
         
         # Log variable information
         if self._custom_variables:
-            logger.info(f"Found {len(self._custom_variables)} custom variables in recipe")
+            logger.info(f"📋 Found {len(self._custom_variables)} custom variables in recipe")
         
         return self.recipe_data
     
@@ -98,7 +124,7 @@ class RecipePipeline:
         if not required_external_vars:
             # No external variables required
             if cli_variables:
-                logger.warning("CLI variables provided but recipe doesn't require external variables")
+                logger.warning("⚠️ CLI variables provided but recipe doesn't require external variables")
                 # Use CLI variables anyway for flexibility
                 return cli_variables
             return {}
@@ -108,14 +134,15 @@ class RecipePipeline:
             prompt = InteractiveVariablePrompt(self.variable_substitution)
             external_variables = prompt.collect_variables(required_external_vars, cli_variables)
             
-            logger.info(f"Collected {len(external_variables)} external variables")
+            logger.info(f"✓ Collected {len(external_variables)} external variables")
             return external_variables
             
         except InteractiveVariableError as e:
+            logger.error(f"❌ Failed to collect external variables: {e}")
             raise RecipePipelineError(f"Failed to collect external variables: {e}")
     
     def execute_recipe(self) -> dict:
-        """Execute recipe steps and return completion report."""
+        """Execute recipe steps with friendly error reporting."""
         if not self.recipe_data:
             raise RecipePipelineError("No recipe loaded. Call load_recipe() first.")
         
@@ -123,7 +150,7 @@ class RecipePipeline:
         if not recipe_steps:
             raise RecipePipelineError("Recipe contains no steps")
         
-        logger.info(f"Executing {len(recipe_steps)} recipe steps")
+        logger.info(f"🚀 Executing {len(recipe_steps)} recipe steps")
         
         # Reset execution state
         self.steps_executed = 0
@@ -132,7 +159,7 @@ class RecipePipeline:
             step_desc = step_config.get('step_description', f'Step {step_index + 1}')
             processor_type = step_config.get('processor_type')
             
-            logger.info(f"Step {step_index + 1}: {step_desc}")
+            logger.info(f"📍 Step {step_index + 1}: {step_desc}")
             
             try:
                 # Create processor with variable injection
@@ -147,29 +174,53 @@ class RecipePipeline:
                     processor.execute_stage_to_stage()
                 
                 self.steps_executed += 1
+                logger.info(f"✅ Step {step_index + 1} completed successfully")
                 
+            except StageError as e:
+                # Stage-related errors with helpful context
+                logger.error(f"❌ Step {step_index + 1} failed - Stage error: {e}")
+                raise RecipePipelineError(f"Step {step_index + 1} failed: {e}")
+            except StepProcessorError as e:
+                # Processor configuration errors
+                logger.error(f"❌ Step {step_index + 1} failed - Configuration error: {e}")
+                raise RecipePipelineError(f"Step {step_index + 1} failed: {e}")
             except Exception as e:
-                logger.error(f"Step {step_index + 1} failed: {e}")
+                # Unexpected errors
+                logger.error(f"❌ Step {step_index + 1} failed - Unexpected error: {e}")
                 raise RecipePipelineError(f"Step {step_index + 1} failed: {e}")
         
         # Generate completion report
         self._completion_report = self._generate_completion_report()
+        logger.info(f"🎉 Recipe execution completed successfully: {self.steps_executed} steps")
+        
         return self._completion_report
     
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
-        """Load recipe, collect variables, and execute - returns completion report."""
-        # Load recipe
-        self.load_recipe(recipe_path)
-        
-        # Collect external variables
-        external_variables = self.collect_external_variables(cli_variables)
-        
-        # Add external variables to pipeline
-        for name, value in external_variables.items():
-            self.add_external_variable(name, value)
-        
-        # Execute recipe
-        return self.execute_recipe()
+        """Load recipe, collect variables, and execute with comprehensive error handling."""
+        try:
+            # Load recipe
+            logger.info(f"📖 Loading recipe: {recipe_path}")
+            self.load_recipe(recipe_path)
+            
+            # Collect external variables
+            logger.info("🔧 Processing external variables...")
+            external_variables = self.collect_external_variables(cli_variables)
+            
+            # Add external variables to pipeline
+            for name, value in external_variables.items():
+                self.add_external_variable(name, value)
+            
+            # Execute recipe
+            logger.info("⚡ Starting recipe execution...")
+            return self.execute_recipe()
+            
+        except RecipePipelineError:
+            # Re-raise pipeline errors as-is (they're already friendly)
+            raise
+        except Exception as e:
+            # Wrap unexpected errors in friendly pipeline error
+            logger.error(f"❌ Unexpected error during recipe execution: {e}")
+            raise RecipePipelineError(f"Unexpected error during recipe execution: {e}")
     
     def add_external_variable(self, name: str, value: str) -> None:
         """Add an external variable (e.g., from CLI or interactive prompt)."""
@@ -182,7 +233,7 @@ class RecipePipeline:
         if self.variable_substitution:
             self.variable_substitution.add_custom_variable(name, value)
         
-        logger.debug(f"Added external variable: {name} = {value}")
+        logger.debug(f"📝 Added external variable: {name} = {value}")
     
     def get_available_variables(self) -> dict:
         """Get dictionary of all available variables."""
@@ -223,7 +274,7 @@ class RecipePipeline:
         )
     
     def _create_processor(self, step_config: dict):
-        """Create processor with variable injection."""
+        """Create processor with variable injection and friendly error handling."""
         try:
             processor = registry.create_processor(step_config)
             
@@ -232,6 +283,16 @@ class RecipePipeline:
             
             return processor
             
+        except KeyError as e:
+            # Unknown processor type
+            step_type = step_config.get('processor_type', 'unknown')
+            available_types = registry.get_registered_types()
+            
+            error_msg = f"Unknown processor type: '{step_type}'"
+            if available_types:
+                error_msg += f"\n💡 Available types: {', '.join(sorted(available_types))}"
+            
+            raise RecipePipelineError(error_msg)
         except Exception as e:
             step_type = step_config.get('processor_type', 'unknown')
             raise RecipePipelineError(f"Failed to create processor '{step_type}': {e}")
@@ -245,7 +306,7 @@ class RecipePipeline:
         # Set variable substitution object for processors that need it
         processor.variable_substitution = self.variable_substitution
         
-        logger.debug(f"Injected variables into processor {processor.__class__.__name__}")
+        logger.debug(f"🔧 Injected variables into processor {processor.__class__.__name__}")
     
     def _generate_completion_report(self) -> dict:
         """Generate completion report with execution statistics."""
@@ -255,6 +316,7 @@ class RecipePipeline:
             
             # Enhance with pipeline-specific information
             completion_report = {
+                'execution_successful': True,
                 'steps_executed': self.steps_executed,
                 'recipe_path': str(self._recipe_path) if self._recipe_path else None,
                 'variables_used': {
@@ -263,16 +325,18 @@ class RecipePipeline:
                     'total_variables': len(self.get_available_variables())
                 },
                 'stages_created': stage_report.get('stages_created', []),
-                'final_stage_count': stage_report.get('final_stage_count', 0),
-                'execution_successful': True
+                'stages_declared': stage_report.get('stages_declared', 0),
+                'undeclared_stages_created': stage_report.get('undeclared_stages_created', []),
+                'final_stage_count': stage_report.get('stages_created', 0),
+                'total_memory_mb': stage_report.get('total_memory_mb', 0)
             }
             
             return completion_report
             
         except Exception as e:
-            logger.warning(f"Failed to generate complete completion report: {e}")
+            logger.warning(f"⚠️ Failed to generate complete completion report: {e}")
             return {
-                'steps_executed': self.steps_executed,
                 'execution_successful': True,
+                'steps_executed': self.steps_executed,
                 'report_generation_error': str(e)
             }

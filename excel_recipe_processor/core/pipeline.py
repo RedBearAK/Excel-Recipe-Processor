@@ -30,7 +30,7 @@ class PipelineError(Exception):
     pass
 
 
-class ExcelPipeline:
+class Excel_X_Pipeline:
     """
     Orchestrates the execution of Excel data processing recipes.
     

@@ -1,0 +1,1124 @@
+Testing concatenation calculations...
+✓ Created test data: 5 rows
+✓ Concatenation result: 5 rows, 8 columns
+✓ First concatenated ID: 'A001 - Widget A'
+✓ Concatenation worked correctly
+
+Testing mathematical calculations...
+✓ Math calculation: 5 rows
+✓ First total value: 1050.0 (expected: 1050.0)
+✓ Mathematical calculation worked correctly
+
+Testing conditional logic...
+✓ Conditional logic: 5 rows
+✓ High quantity items: 2
+✓ Low quantity items: 3
+✓ Conditional logic worked correctly
+
+Testing date calculations...
+✓ Date calculation: 5 rows
+✓ First shipping days: 5
+✓ Date calculation worked correctly
+
+Testing text operations...
+✓ Text operation: 5 rows
+✓ First name length: 8 (expected: 8)
+✓ Text operation worked correctly
+
+Testing aggregation operations...
+✓ Aggregation: 5 rows
+✓ First total score: 263 (expected: 263)
+✓ Aggregation operation worked correctly
+
+Testing expression calculations...
+✓ Expression calculation: 5 rows
+✓ First value per unit: 11.55 (expected: 11.55)
+✓ Expression calculation worked correctly
+
+Testing column overwrite...
+✓ Overwrite test: 5 rows
+✓ Overwritten price: 1050.0 (expected: 1050.0)
+✓ Column overwrite worked correctly
+
+Testing multiple calculations...
+✓ Multiple calculations: 5 rows, 9 columns
+✓ Both calculated columns created
+✓ First row: Total_Value=1050.0, Category='High Value'
+✓ Multiple calculations worked correctly
+
+Testing error handling...
+✓ Caught expected error: Step 'Missing fields' missing required fields: new_column, calculation
+✓ Caught expected error: Column 'Price' already exists. Set 'overwrite: true' to replace it.
+✓ Caught expected error: Column 'NonExistentColumn' not found for math operation
+
+✓ All add calculated column processor tests passed!
+
+Supported calculation types: ['expression', 'concat', 'conditional', 'math', 'date', 'text']
+Supported conditions: ['equals', 'greater_than', 'less_than', 'contains', 'is_null', 'not_null']
+Supported math operations: ['add', 'subtract', 'multiply', 'divide', 'sum', 'mean', 'min', 'max']
+Testing basic subtotals...
+✓ Created sales data: 8 rows
+✓ Result: 11 rows (original + subtotals)
+✓ Added 3 subtotal rows for 3 regions
+✓ Subtotal calculations are correct
+
+Testing hierarchical subtotals...
+✓ Created hierarchical data: 8 rows
+✓ Hierarchical result: 12 rows
+✓ Created hierarchical subtotals: 4 subtotal rows
+
+Testing aggregation functions...
+  ✓ sum function worked correctly
+  ✓ count function worked correctly
+  ✓ mean function worked correctly
+  ✓ min function worked correctly
+  ✓ max function worked correctly
+✓ All aggregation functions worked correctly
+
+Testing grand total preservation...
+✓ Created pivot result with grand total: 4 rows
+✓ Result with preserved totals: 7 rows
+✓ Grand totals preserved and subtotals added
+
+Testing positioning options...
+  Debug - after_group result:
+    0: Region='East', Sales=180
+    1: Region='East', Sales=120
+    2: Region='East', Sales=90
+    3: Region='After_Group Total: East', Sales=390
+    4: Region='West', Sales=100
+    5: Region='West', Sales=150
+    6: Region='West', Sales=200
+    7: Region='After_Group Total: West', Sales=450
+  ✓ after_group positioning worked correctly (2 subtotals)
+  Debug - before_group result:
+    0: Region='Before_Group Total: East', Sales=390
+    1: Region='East', Sales=180
+    2: Region='East', Sales=120
+    3: Region='East', Sales=90
+    4: Region='Before_Group Total: West', Sales=450
+    5: Region='West', Sales=100
+    6: Region='West', Sales=150
+    7: Region='West', Sales=200
+  ✓ before_group positioning worked correctly (2 subtotals)
+✓ All positioning options worked correctly
+
+Testing multiple columns with different functions...
+✓ Multi-function result: 11 rows
+✓ Multiple functions applied correctly
+
+Testing real-world scenario...
+✓ Created realistic sales report: 8 rows
+✓ Report with subtotals: 12 rows
+✓ Territory-level subtotals found: 4 (expected: 4)
+✓ Unique territories in data: 4
+✓ Unique divisions in data: 2
+✓ Real-world scenario worked correctly
+
+Testing utility functions...
+✓ SubtotalUtils.add_subtotals_to_dataframe worked correctly
+✓ SubtotalUtils.validate_subtotal_config worked correctly
+✓ SubtotalUtils.get_default_subtotal_config worked correctly
+
+Testing edge cases...
+✓ Single row test: 2 rows
+✓ Missing values test: 5 rows
+✓ Edge cases handled correctly
+
+Testing error handling...
+✓ Caught expected error: Step 'Missing group_by' missing required fields: group_by
+✓ Caught expected error: Group column 'NonExistentColumn' not found. Available columns: ['Region', 'Product', 'Sales', 'Quantity', 'Orders']
+✓ Caught expected error: Subtotal column 'NonExistentColumn' not found. Available columns: ['Region', 'Product', 'Sales', 'Quantity', 'Orders']
+✓ Caught expected error: Subtotal function 'invalid_function' not supported. Valid functions: ['sum', 'count', 'mean', 'min', 'max', 'nunique', 'std', 'var']
+✓ Caught expected error: Position 'invalid_position' not supported. Valid positions: ['before_group', 'after_group']
+
+✓ All add subtotals processor tests passed!
+
+Supported functions: ['sum', 'count', 'mean', 'min', 'max', 'nunique', 'std', 'var']
+Supported positions: ['before_group', 'after_group']
+Testing AggregateDataProcessor refactoring...
+
+=== Testing Basic Functionality (Regression) ===
+
+Testing single column aggregation...
+✓ Single column aggregation: 8 rows → 4 groups
+✓ Single column aggregation worked correctly
+
+Testing multi-column aggregation...
+✓ Multi-column aggregation: 8 rows → 6 groups
+✓ Multi-column aggregation created correctly
+
+Testing multiple functions on same column...
+✓ Multiple functions: 4 groups
+✓ All aggregation functions applied correctly
+
+Testing configuration options...
+✓ Without group columns: ['Total_Sales']
+✓ Configuration options worked correctly
+
+=== Testing Stage-Based Aggregation (New Features) ===
+
+Testing save to stage...
+✓ Save to stage worked correctly
+
+Testing stage-based aggregation config...
+✓ Stage-based config: 4 groups
+✓ Stage-based aggregation config worked correctly
+
+Testing lookup-based aggregation config...
+✓ Lookup-based config: 4 groups
+✓ Lookup-based aggregation config worked correctly
+
+=== Testing File-Based Aggregation (New Features) ===
+
+Testing file-based aggregation config...
+✓ File-based config: 4 groups
+✓ File-based aggregation config worked correctly
+
+Testing variable substitution...
+✓ Variable substitution: 4 groups
+✓ Variable substitution worked correctly
+
+=== Testing Helper Methods and Analysis ===
+
+Testing summary aggregation helper...
+✓ Summary helper: 4 groups
+✓ Columns: ['Region', 'Sales_Amount_count', 'Sales_Amount_total', 'Sales_Amount_average', 'Sales_Amount_minimum', 'Sales_Amount_maximum', 'Order_Count_count', 'Order_Count_total', 'Order_Count_average', 'Order_Count_minimum', 'Order_Count_maximum']
+✓ Summary aggregation helper worked correctly
+
+Testing analysis method...
+✓ Analysis results: dict_keys(['total_groups', 'group_columns', 'aggregated_columns', 'summary'])
+✓ Analysis method worked correctly
+
+Testing enhanced capabilities method...
+✓ Capabilities: ['description', 'aggregation_functions', 'source_types', 'file_formats', 'grouping_features', 'output_features', 'helper_methods', 'integration_features']
+✓ Enhanced capabilities method worked correctly
+
+=== Testing Error Handling and Compatibility ===
+
+Testing aggregation error handling...
+✓ Caught expected error for missing stage: Aggregation config stage 'NonExistent Stage' not found. Available stages: ['Aggregation Configs', 'Region Lookup']
+✓ Caught expected error for invalid source type: Unsupported aggregation_source type: invalid_type
+✓ Caught expected error for stage overwrite: Failed to save aggregation results to stage 'Test Overwrite Stage': Stage 'Test Overwrite Stage' already exists. Use overwrite=true to replace it.
+✓ Error handling worked correctly
+
+Testing real-world scenario...
+✓ Real-world scenario worked correctly
+
+Testing backward compatibility...
+✓ Backward compatibility maintained
+
+🎉 All AggregateDataProcessor refactoring tests passed!
+
+Supported aggregation functions: ['sum', 'mean', 'median', 'min', 'max', 'count', 'nunique', 'std', 'var', 'first', 'last', 'size', 'sem', 'mad', 'prod', 'quantile']
+Supported source types: ['inline', 'file', 'stage', 'lookup']
+Supported file formats: ['xlsx', 'csv', 'tsv']
+Integration features: ['stage_manager_integration', 'file_reader_integration', 'variable_substitution', 'configuration_from_external_sources']
+
+To run with pytest: pytest test_aggregate_data_processor_refactored.py -v
+Testing BaseStepProcessor...
+✓ Created processor: DummyProcessor(name='Test dummy step', processor_type='dummy_step')
+✓ Execution result: Processed: test data
+
+Testing StepProcessorRegistry...
+✓ Registered dummy processor
+✓ Created processor from registry: DummyProcessor(name='Test dummy step', processor_type='dummy_step')
+✓ Registry processor result: Processed: registry test data
+✓ Available step types: ['dummy_step']
+
+Testing error handling...
+✓ Caught expected error: Step configuration must be a dictionary
+✓ Caught expected error: Step configuration missing required 'processor_type' field
+✓ Caught expected error: Unknown step type: nonexistent_type. Available types: none
+
+✓ All tests passed!
+Testing replace operations...
+✓ Created messy test data: 5 rows
+Component column before replace: ['FLESH', 'flesh', 'FLESH', 'FLESH', 'FLESH']
+✓ Replace FLESH→CANS: 0 FLESH remaining, 4 CANS found, 1 lowercase flesh
+Component column after replace: ['CANS', 'flesh', 'CANS', 'CANS', 'CANS']
+✓ Case-sensitive replace worked correctly
+✓ Case-insensitive replace: 5 MEAT found
+
+Testing text transformations...
+✓ Cleaned product name: 'CANNED BEANS'
+✓ Lowercased status: 'active'
+✓ Text transformations worked correctly
+
+Testing numeric cleaning...
+✓ Price column dtype: float64
+✓ Sample prices: [10.5, 25.0, 15.75, 0.0, 12.0]
+✓ Numeric cleaning worked correctly
+
+Testing fill empty values...
+✓ Null products remaining: 0
+✓ Null quantities remaining: 0
+✓ Fill empty values worked correctly
+
+Testing regex operations...
+✓ Cleaned product (was 'CANNED CORN!'): 'CANNED CORN'
+✓ Regex operations worked correctly
+
+Testing value standardization...
+✓ Standardized statuses: ['Active', 'Cancelled', 'Pending']
+✓ Value standardization worked correctly
+
+Testing multiple cleaning rules...
+✓ Final product name: 'CANNED BEANS'
+✓ Final component: 'CANS'
+✓ Multiple rules applied correctly
+
+Testing conditional replacement...
+✓ Created van report test data: 5 rows
+Original data:
+  CANNED BEANS: FLESH
+  FRESH SALMON: FLESH
+  CANNED CORN: FLESH
+  DRIED FISH: FLESH
+  canned soup: FLESH
+
+After conditional replacement:
+  CANNED BEANS: CANS
+  FRESH SALMON: FLESH
+  CANNED CORN: CANS
+  DRIED FISH: FLESH
+  canned soup: CANS
+
+✓ Results: 3 CANS, 2 FLESH
+✓ Conditional replacement worked correctly
+
+Testing conditional replacement with equals...
+Test data:
+  Row 0: Status='Active', Notes='urgent'
+  Row 1: Status='Inactive', Notes='normal'
+  Row 2: Status='Active', Notes='urgent'
+  Row 3: Status='Pending', Notes='normal'
+  Row 4: Status='Active', Notes='urgent'
+After conditional replacement:
+  Row 0: Status='Active', Notes='PRIORITY'
+  Row 1: Status='Inactive', Notes='normal'
+  Row 2: Status='Active', Notes='PRIORITY'
+  Row 3: Status='Pending', Notes='normal'
+  Row 4: Status='Active', Notes='PRIORITY'
+✓ Priority notes: 3, Urgent remaining: 0
+✓ Conditional replacement with equals worked correctly
+
+Testing conditional replacement with numeric conditions...
+✓ Premium items: 2, Standard items: 3
+✓ Conditional replacement with numeric condition worked correctly
+
+Testing exact van report scenario...
+✓ Created exact van report scenario: 6 rows
+Before processing:
+  CANNED SALMON: FLESH
+  FRESH HALIBUT: FLESH
+  CANNED TUNA: FLESH
+  FROZEN COD: FLESH
+  CANNED SARDINES: FLESH
+  FRESH SALMON: FLESH
+
+After van report processing:
+  CANNED SALMON: CANS
+  FRESH HALIBUT: FLESH
+  CANNED TUNA: CANS
+  FROZEN COD: FLESH
+  CANNED SARDINES: CANS
+  FRESH SALMON: FLESH
+
+✓ Canned products with CANS: 3
+✓ Non-canned products with FLESH: 3
+✓ Van report exact scenario worked perfectly!
+
+Testing remove invisible characters...
+Before invisible char removal:
+  Component 0: 'CANS\u200b'
+  Component 1: 'FLESH\ufeff'
+  Component 2: 'CANS\xa0'
+  Component 3: '\u2000FLESH'
+  Component 4: 'CANS\u200c\u200d'
+After invisible char removal:
+  Component 0: 'CANS'
+  Component 1: 'FLESH'
+  Component 2: 'CANS'
+  Component 3: 'FLESH'
+  Component 4: 'CANS'
+✓ Invisible character removal worked correctly
+
+Testing normalize whitespace...
+Before whitespace normalization:
+  Row 0: Origin='  CORDOVA  ', Notes='Multiple   spaces   here'
+  Row 1: Origin='NAKNEK\u200b\u200c', Notes='Line\nbreak\rhere'
+  Row 2: Origin='DILLINGHAM\n\r', Notes='\u200bSome\u200ctext\ufeff'
+  Row 3: Origin='FALSE\xa0PASS', Notes='  Clean this up  '
+  Row 4: Origin='  KODIAK\t\t  ', Notes='Normal text'
+After whitespace normalization:
+  Row 0: Origin='CORDOVA', Notes='Multiple spaces here'
+  Row 1: Origin='NAKNEK', Notes='Line break here'
+  Row 2: Origin='DILLINGHAM', Notes='Sometext'
+  Row 3: Origin='FALSE PASS', Notes='Clean this up'
+  Row 4: Origin='KODIAK', Notes='Normal text'
+✓ Whitespace normalization worked correctly
+
+Testing invisible chars breaking filtering scenario...
+Before cleaning - simulating failed filters:
+  'CANS' exact matches: 0 (should be 0 due to invisible chars)
+  'SALMON' exact matches: 1 (should be 1)
+After cleaning - filters should work:
+  'CANS' exact matches: 2 (should be 2)
+  'SALMON' exact matches: 3 (should be 3)
+✓ Invisible chars filtering fix worked correctly
+
+Testing error handling...
+✓ Caught expected error: Step 'Missing rules' missing required fields: rules
+✓ Caught expected error: Error applying cleaning rule 1 in step 'Invalid column': Cleaning rule 1 column 'NonExistentColumn' not found. Available columns: ['Product_Name', 'Component', 'Price', 'Quantity', 'Date_Text', 'Status']
+✓ Caught expected error: Error applying cleaning rule 1 in step 'Invalid action': Cleaning rule 1 unknown action: 'invalid_action'. Available actions: replace, regex_replace, uppercase, lowercase, title_case, strip_whitespace, normalize_whitespace, remove_invisible_chars, remove_special_chars, fix_numeric, fix_dates, fill_empty, remove_duplicates, standardize_values
+
+Testing conditional replacement error handling...
+✓ Caught expected error: Error applying cleaning rule 1 in step 'Missing condition column': Cleaning rule 1 has partial conditional replacement config. Missing required fields: ['condition_column']. For conditional replacement, all of ['condition_column', 'condition', 'condition_value'] are required.
+✓ Caught expected error: Error applying cleaning rule 1 in step 'Incomplete conditional config': Cleaning rule 1 has partial conditional replacement config. Missing required fields: ['condition', 'condition_value']. For conditional replacement, all of ['condition_column', 'condition', 'condition_value'] are required.
+
+✓ All clean data processor tests passed!
+
+Supported actions: ['replace', 'regex_replace', 'uppercase', 'lowercase', 'title_case', 'strip_whitespace', 'normalize_whitespace', 'remove_invisible_chars', 'remove_special_chars', 'fix_numeric', 'fix_dates', 'fill_empty', 'remove_duplicates', 'standardize_values']
+Testing Enhanced CombineDataProcessor...
+
+Testing enhanced configuration validation...
+✓ Correctly caught missing column_handling
+✓ Correctly caught invalid column_handling
+✓ Correctly caught invalid retain_column_names type
+✓ Enhanced configuration validation tests passed
+
+Testing require_matching_columns policy...
+✓ Correctly caught column mismatch with require_matching_columns
+
+Testing allow_mismatched_columns policy...
+✓ Successfully combined mismatched columns: 6 total columns
+✓ Smart defaults correctly added headers: 8 rows
+
+Testing explicit retain_column_names setting...
+✓ Headers correctly retained as first data row
+✓ Correct total row count with header retention: 8 rows
+
+Testing smart defaults with allow_mismatched_columns...
+✓ Smart defaults correctly applied headers to both sections
+✓ Headers correctly preserved in both sections
+
+Testing smart defaults with require_matching_columns...
+✓ Smart defaults correctly omitted headers for matching columns
+✓ No headers inserted with require_matching_columns smart default
+
+Testing desktop publishing workflow...
+✓ Desktop publishing document assembled correctly
+✓ All document sections preserved with correct content
+
+Testing horizontal concatenation with header retention...
+✓ Horizontal concatenation with headers completed correctly
+✓ Correct column count for horizontal combination: 5
+
+Testing enhanced capabilities...
+✓ Column policies reported correctly
+✓ Desktop publishing example included
+
+🎉 All Enhanced CombineDataProcessor tests passed!
+
+To run with pytest: pytest test_enhanced_combine_data_processor.py -v
+Testing list format creation...
+✓ List format creation worked correctly
+
+Testing table format creation...
+✓ Table format creation worked correctly
+
+Testing dictionary format creation...
+✓ Dictionary format creation worked correctly
+
+Testing size limits and warnings...
+✓ Size limit validation worked correctly
+✓ Table size limit validation worked correctly
+
+Testing error handling...
+✓ Caught expected error for missing stage_name: Step 'Missing stage name' missing required fields: stage_name
+✓ Caught expected error for invalid format: Data format 'invalid_format' not supported. Valid formats: ['list', 'table', 'dictionary']
+✓ Caught expected error for reserved name: Failed to save stage 'current': Stage name 'current' is reserved. Please use a more descriptive name.
+✓ Caught expected error for mismatched table: Table row 1 has 2 values but 3 columns defined
+✓ Error handling worked correctly
+
+Testing overwrite behavior...
+✓ Correctly prevented overwrite: Failed to save stage 'Test Overwrite': Stage 'Test Overwrite' already exists. Use overwrite=true to replace it.
+✓ Overwrite behavior worked correctly
+
+Testing metadata tracking...
+✓ Metadata tracking worked correctly
+
+✓ All create stage processor tests passed!
+
+Supported formats: ['list', 'table', 'dictionary']
+Size limits: {'list_items': 100, 'table_rows': 200, 'dictionary_entries': 150, 'warning_thresholds': {'list_items': 75, 'table_rows': 150, 'dictionary_entries': 112}}
+📤 Testing ExportFileProcessor functionality...
+   Tests single/multi-sheet export, stage integration, variable substitution
+   Leverages FileWriter for file operations and StageManager for stage access
+
+Testing basic Excel export...
+Testing get_minimal_config...
+✓ get_minimal_config returned all required fields
+Testing constant fill single column...
+✓ Created test data with 5 rows
+Name column before fill: ['Alice', None, 'Charlie', 'David', None]
+Name column after fill: ['Alice', 'Unknown', 'Charlie', 'David', 'Unknown']
+✓ Nulls before: 2, after: 0
+✓ Constant fill single column worked correctly
+
+Testing constant fill multiple columns...
+✓ Created test data with 5 rows
+Before fill:
+  Name nulls: 2
+  City nulls: 2
+After fill:
+  Name nulls: 0
+  City nulls: 0
+Name column: ['Alice', 'Unknown', 'Charlie', 'David', 'Unknown']
+City column: ['New York', 'Boston', 'Unknown', 'Seattle', 'Unknown']
+✓ Constant fill multiple columns worked correctly
+
+Testing forward fill...
+Before forward fill: ['Alice', None, 'Charlie', 'David', None]
+After forward fill: ['Alice', 'Alice', 'Charlie', 'David', 'David']
+✓ Forward fill worked correctly
+
+Testing backward fill...
+Before backward fill: ['Alice', None, 'Charlie', 'David', None]
+After backward fill: ['Alice', 'Charlie', 'Charlie', 'David', None]
+✓ Backward fill worked correctly
+
+Testing mean fill...
+✓ Mean fill worked correctly
+
+Testing mode fill...
+✓ Mode fill worked correctly
+
+Testing zero fill...
+✓ Zero fill worked correctly
+
+Testing conditional fill...
+✓ Conditional fill worked correctly
+
+Testing helper methods...
+✓ Helper methods worked correctly
+
+Testing column not found error...
+✓ Correctly caught column not found error
+
+Testing invalid fill method error...
+✓ Correctly caught invalid fill method error
+
+✓ All fill data processor tests passed!
+
+Processor Capabilities:
+  description: Fill missing/null values using various strategies similar to Excel fill operations
+  fill_methods: constant, forward_fill, ffill, backward_fill, bfill, interpolate, mean, median, mode, replace, zero, empty_string
+  condition_types: equals, not_equals, greater_than, less_than, contains, not_contains, is_null, not_null, in_list, not_in_list
+  supported_features: constant_fill, forward_backward_fill, statistical_fill, conditional_fill, interpolation, replacement_fill, missing_data_analysis, limit_consecutive_fills
+  helper_methods: fill_blanks_with_value, forward_fill_series, fill_with_statistical_value, analyze_missing_data
+  excel_equivalents: {'fill_down': 'forward_fill method', 'fill_up': 'backward_fill method', 'fill_series': 'interpolate method', 'find_replace': 'replace method'}
+  examples: {'basic_fill': "Fill null values with 'Unknown'", 'forward_fill': 'Carry forward last known value', 'conditional': 'Fill based on other column values'}
+Testing FilterDataProcessor refactoring...
+
+=== Testing Basic Functionality (Regression) ===
+
+Testing basic equals filter...
+✓ Basic equals filter works correctly
+
+Testing multiple filters...
+✓ Multiple filters work correctly
+
+Testing numeric conditions...
+✓ Numeric conditions work correctly
+
+Testing list conditions...
+✓ List conditions work correctly
+
+=== Testing Stage-Based Filtering (New Features) ===
+
+Testing in_stage filter...
+✓ in_stage filter works correctly
+
+Testing not_in_stage filter...
+✓ not_in_stage filter works correctly
+
+Testing stage_comparison filter...
+✓ stage_comparison filter works correctly
+
+Testing combined stage and basic filters...
+✓ Combined stage and basic filters work correctly
+
+=== Testing Error Handling and Capabilities ===
+
+Testing stage filter error handling...
+✓ Caught expected error for missing stage_name
+✓ Caught expected error for nonexistent stage
+✓ Error handling works correctly
+
+Testing capabilities reporting...
+✓ Capabilities include stage integration features
+
+Testing backward compatibility...
+✓ Backward compatibility maintained
+
+🎉 All FilterDataProcessor refactoring tests passed!
+
+Supported conditions: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'greater_equal', 'less_equal', 'not_empty', 'is_empty', 'in_list', 'not_in_list', 'in_stage', 'not_in_stage', 'stage_comparison']
+Stage-based conditions: ['in_stage', 'not_in_stage', 'stage_comparison']
+
+To run with pytest: pytest test_filter_data_processor_refactored.py -v
+Testing openpyxl requirement...
+✓ openpyxl is available for testing
+
+Testing basic formatting...
+✓ Basic formatting worked correctly
+
+Testing freeze panes...
+✓ Freeze panes formatting worked correctly
+
+Testing multiple sheets...
+✓ Multiple sheets formatting worked correctly
+
+Testing column and row sizing...
+✓ Column and row sizing worked correctly
+
+Testing auto-filter...
+✓ Auto-filter formatting worked correctly
+
+Testing error handling...
+✓ Caught expected error for missing target_file: Step 'Missing target file' missing required fields: target_file
+✓ Caught expected error for nonexistent file: Target file not found: /nonexistent/file.xlsx
+✓ Caught expected error for invalid extension: Target file must be Excel format (.xlsx or .xls), got: .txt
+✓ Caught expected error for invalid column width: 'max_column_width' must be a positive number
+✓ Error handling worked correctly
+
+Testing variable substitution...
+✓ Variable substitution interface worked correctly
+
+Testing real variable substitution...
+✓ Real variable substitution worked correctly
+
+Testing data passthrough...
+✓ Data passthrough worked correctly
+
+✓ All format Excel processor tests passed!
+
+Supported features: ['auto_fit_columns', 'column_widths', 'header_bold', 'header_background', 'freeze_panes', 'freeze_top_row', 'row_heights', 'auto_filter', 'active_sheet']
+Processor capabilities: ['description', 'formatting_features', 'formatting_categories', 'file_requirements', 'dependencies', 'examples']
+📥 Testing ImportFileProcessor functionality...
+   Tests basic import, stage saving, variable substitution, and error handling
+   Leverages FileReader for file operations and StageManager for stage operations
+
+Testing basic Excel import...
+Testing basic load functionality...
+✓ Basic load functionality worked correctly
+
+Testing confirm_replace safety...
+✓ Correctly enforced confirm_replace safety: Step 'Unnamed load_stage step' missing required fields: confirm_replace
+✓ Correctly rejected confirm_replace=false: 'confirm_replace' must be set to true to acknowledge that current data will be replaced
+✓ confirm_replace safety mechanism worked correctly
+
+Testing usage tracking...
+✓ Usage tracking worked correctly
+
+Testing multiple loads...
+✓ Multiple loads worked correctly
+
+Testing error handling...
+✓ Caught expected error for missing stage_name: Step 'Missing stage name' missing required fields: stage_name
+✓ Caught expected error for nonexistent stage: Error loading stage in step 'Unnamed load_stage step': Stage 'Nonexistent Stage' not found. Available stages: []
+✓ Caught expected error for invalid stage_name type: Error loading stage in step 'Unnamed load_stage step': Stage '123' not found. Available stages: []
+✓ Error handling worked correctly
+
+Testing data isolation...
+✓ Data isolation worked correctly
+
+Testing workflow scenario...
+✓ Workflow scenario worked correctly
+
+✓ All load stage processor tests passed!
+
+Processor capabilities: ['description', 'stage_features', 'safety_features', 'examples']
+Testing LookupDataProcessor refactoring...
+
+=== Testing Basic Functionality (Regression) ===
+
+Testing basic inline lookup...
+✓ Basic inline lookup works correctly
+
+Testing DataFrame lookup...
+✓ DataFrame lookup works correctly
+
+Testing multiple column lookup...
+✓ Multiple column lookup works correctly
+
+Testing different join types...
+✓ Join types work correctly
+
+=== Testing File-Based Lookups (FileReader Integration) ===
+
+Testing file-based lookup...
+✓ File-based lookup works correctly
+
+Testing variable substitution in file lookup...
+✓ Variable substitution lookup works correctly
+
+=== Testing Stage-Based Lookups (StageManager Integration) ===
+
+Testing stage-based lookup...
+✓ Stage-based lookup works correctly
+
+Testing chained stage lookups...
+✓ Chained stage lookups work correctly
+
+Testing real-world scenario...
+✓ Real-world scenario works correctly
+
+=== Testing Advanced Features ===
+
+Testing case insensitive lookup...
+✓ Case insensitive lookup works correctly
+
+Testing prefix/suffix naming...
+✓ Prefix/suffix naming works correctly
+
+Testing default values...
+✓ Default values work correctly
+
+Testing duplicate handling...
+✓ Duplicate handling works correctly
+
+=== Testing Error Handling and Capabilities ===
+
+Testing lookup error handling...
+✓ Caught expected error for missing lookup_source
+✓ Caught expected error for nonexistent stage
+✓ Caught expected error for invalid source key
+✓ Error handling works correctly
+
+Testing capabilities and configuration...
+✓ Capabilities and configuration work correctly
+
+🎉 All LookupDataProcessor refactoring tests passed!
+
+Supported join types: ['left', 'right', 'inner', 'outer']
+Supported duplicate handling: ['first', 'last', 'error']
+Supported source types: ['file', 'stage', 'inline', 'dataframe']
+
+To run with pytest: pytest test_lookup_data_processor_refactored.py -v
+Testing dictionary merge...
+✓ Created orders data: 5 rows
+✓ Merge result: 5 rows, 8 columns
+✓ Result columns: ['Order_ID', 'Customer_ID', 'Product_Code', 'Quantity', 'Order_Date', 'key', 'Customer_Name', 'Region']
+✓ Dictionary merge worked correctly
+
+Testing different join types...
+✓ left join: 4 rows (All left rows preserved)
+  ✓ left join worked correctly
+✓ inner join: 2 rows (Only matching rows)
+  ✓ inner join worked correctly
+✓ outer join: 5 rows (All rows from both sides)
+  ✓ outer join worked correctly
+
+Testing CSV file merge...
+✓ CSV merge result: 5 rows, 8 columns
+✓ CSV file merge worked correctly
+
+Testing Excel file merge...
+✓ Excel merge result: 5 rows, 8 columns
+✓ Excel file merge worked correctly
+
+Testing column conflict handling...
+✓ Conflict handling result columns: ['ID', 'Name_left', 'Value_left', 'key', 'Name_right', 'Value_right', 'Extra']
+✓ Column conflict handling worked correctly
+
+Testing real-world scenario...
+✓ Orders data: 5 rows
+✓ After customer merge: 5 rows, 9 columns
+✓ Final enriched data: 5 rows, 11 columns
+✓ Final columns: ['Order_ID', 'Customer_ID', 'Product_SKU', 'Quantity', 'Unit_Price', 'key_x', 'Customer_Name', 'Region', 'Tier', 'Product_Name', 'Category']
+✓ Real-world scenario worked correctly
+
+Testing merge statistics...
+✓ Statistics test result: 5 rows
+✓ Customers matched: 3/5
+✓ Merge statistics test worked correctly
+
+Testing stage merge...
+✓ Stage merge result: 5 rows, 8 columns
+✓ Stage merge worked correctly
+
+Testing stage merge error handling...
+✓ Caught expected error for missing stage: Merge stage 'NonExistent Stage' not found. Available stages: []
+✓ Caught expected error for missing stage_name: Stage merge source requires 'stage_name' field
+✓ Stage merge error handling worked correctly
+
+Testing error handling...
+✓ Caught expected error: Step 'Missing merge source' missing required fields: merge_source
+✓ Caught expected error: Left key column 'NonExistentColumn' not found. Available columns: ['Order_ID', 'Customer_ID', 'Product_Code', 'Quantity', 'Order_Date']
+✓ Caught expected error: join_type 'invalid_join' not supported. Valid types: ['left', 'right', 'inner', 'outer']
+✓ Caught expected error: Error reading merge file '/nonexistent/file.csv': File not found: /nonexistent/file.csv
+
+✓ All merge data processor tests passed!
+
+Supported join types: ['left', 'right', 'inner', 'outer']
+Supported source types: ['excel', 'csv', 'tsv', 'dictionary', 'stage']
+Testing basic pivot table...
+✓ Created test data: 12 rows
+✓ Basic pivot: 8 rows, 2 columns
+✓ Columns: ['Product_Origin', 'Quantity']
+✓ Basic pivot table created correctly
+Sample results:
+  Cordova: 200
+  Craig: 140
+  Dillingham: 90
+
+Testing van report style pivot...
+✓ Van report pivot: 11 rows, 5 columns
+✓ Van report style pivot created correctly
+
+Testing origin vs carrier matrix...
+✓ Matrix pivot: 8 rows, 4 columns
+✓ Columns: ['Product_Origin', 'Quantity_Carrier_A', 'Quantity_Carrier_B', 'Quantity_Carrier_C']
+✓ Origin vs Carrier matrix created correctly
+Sample matrix:
+  {'Product_Origin': 'Cordova', 'Quantity_Carrier_A': 1, 'Quantity_Carrier_B': 0, 'Quantity_Carrier_C': 0}
+  {'Product_Origin': 'Craig', 'Quantity_Carrier_A': 0, 'Quantity_Carrier_B': 1, 'Quantity_Carrier_C': 0}
+  {'Product_Origin': 'Dillingham', 'Quantity_Carrier_A': 1, 'Quantity_Carrier_B': 0, 'Quantity_Carrier_C': 0}
+
+Testing multiple aggregation functions...
+✓ Sum of quantities: 3 rows
+✓ Average quantities: 3 rows
+✓ Count of records: 3 rows
+✓ Maximum quantities: 3 rows
+✓ Minimum quantities: 3 rows
+
+Testing count pivot without values...
+✓ Count pivot: 8 rows, 13 columns
+✓ Count pivot created correctly
+
+Testing fill blanks option...
+✓ Fill blanks pivot: 8 rows
+✓ Null values in first column: 0
+✓ Fill blanks worked correctly
+
+Testing cross-tabulation...
+✓ Cross-tab: 8 rows, 4 columns
+✓ Cross-tabulation created correctly
+
+Testing pivot info analysis...
+✓ Pivot info analysis:
+  Total rows: 12
+  Total columns: 6
+  Numeric columns: ['Quantity', 'Value']
+  Categorical columns: ['Product_Origin', 'Van_Number', 'Carrier', 'Destination']
+  Column cardinality: {'Product_Origin': 8, 'Van_Number': 10, 'Carrier': 3, 'Destination': 3}
+✓ Pivot info analysis worked correctly
+
+Testing error handling...
+✓ Caught expected error: Index field 'NonExistentColumn' not found in data columns
+✓ Caught expected error: Value field 'NonExistentColumn' not found in data columns
+✓ Caught expected error: Unknown aggregation function: 'invalid_function'. Valid options: sum, mean, count, min, max, std, var, first, last, nunique
+
+✓ All pivot table processor tests passed!
+
+Supported aggregation functions: ['sum', 'mean', 'count', 'min', 'max', 'std', 'var', 'first', 'last', 'nunique']
+Testing mapping rename...
+✓ Created test data with columns: ['Product Code', 'Product Name!', 'PRICE USD', 'qty_in_stock', ' Department ', 'Order-Date']
+✓ Renamed columns: ['product_code', 'product_name', 'price_usd', 'quantity', ' Department ', 'Order-Date']
+✓ Mapping rename worked correctly
+
+Testing pattern rename...
+✓ Created data with columns: ['col_2024_jan', 'col_2024_feb', 'col_2024_mar', 'other_column']
+✓ Pattern renamed columns: ['2024_jan', '2024_feb', '2024_mar', 'other_column']
+✓ Pattern rename worked correctly
+
+Testing transform rename...
+✓ Created data with columns: ['Product Code', 'Product Name!', 'PRICE USD', 'qty_in_stock', ' Department ', 'Order-Date']
+✓ Transformed columns: ['product_code', 'product_name', 'price_usd', 'qty_in_stock', 'department', 'order_date']
+✓ Transform rename worked correctly
+
+Testing case conversions...
+✓ upper: ['PRODUCT NAME', 'PRICE USD', 'QTY-IN-STOCK']
+  ✓ upper conversion worked correctly
+✓ lower: ['product name', 'price usd', 'qty-in-stock']
+  ✓ lower conversion worked correctly
+✓ title: ['Product Name', 'Price Usd', 'Qty-In-Stock']
+  ✓ title conversion worked correctly
+✓ snake_case: ['product_name', 'price_usd', 'qty_in_stock']
+  ✓ snake_case conversion worked correctly
+✓ camel_case: ['productName', 'priceUsd', 'qtyInStock']
+  ✓ camel_case conversion worked correctly
+
+Testing prefix and suffix...
+✓ Prefix/suffix result: ['col_step_description_data', 'col_price_data', 'col_quantity_data']
+✗ Expected ['col_name_data', 'col_price_data', 'col_quantity_data'], got ['col_step_description_data', 'col_price_data', 'col_quantity_data']
+
+Testing standardize helper...
+✓ Messy columns: ['Product Name!', 'PRICE (USD)', ' Department ', 'Order-Date']
+✓ Standardized columns: ['product_name', 'price_usd', 'department', 'order_date']
+✓ Standardize helper worked correctly
+
+Testing column analysis...
+✓ Analysis results:
+  Total columns: 6
+  Issues found: 11
+  Recommendations: 3
+✓ Column analysis worked correctly
+
+Testing duplicate name detection...
+✓ Caught expected error: Duplicate new column names not allowed: ['new_name', 'new_name']
+
+Testing real-world scenario...
+✓ Messy export columns: ['Prod Code', 'Product Name (English)', 'Price $USD', 'QTY ON HAND', 'Last Modified Date', 'Category/Type']
+✓ Cleaned columns: ['prod_code', 'product_name_english', 'price_usd', 'qty_on_hand', 'last_modified_date', 'category_type']
+✓ Real-world scenario worked correctly
+
+Testing error handling...
+✓ Caught expected error: Columns not found for renaming: ['NonExistentColumn']. Available columns: ['Product Code', 'Product Name!', 'PRICE USD', 'qty_in_stock', ' Department ', 'Order-Date']
+✓ Caught expected error: 'mapping' dictionary cannot be empty for mapping type
+✓ Caught expected error: Invalid regex pattern '[invalid regex': unterminated character set at position 0
+
+✗ Some rename columns processor tests failed!
+
+Supported rename types: ['mapping', 'pattern', 'transform']
+Supported case conversions: ['upper', 'lower', 'title', 'snake_case', 'camel_case']
+Testing basic save functionality...
+✓ Basic save functionality worked correctly
+
+Testing overwrite behavior...
+✓ Correctly prevented overwrite: Error saving stage in step 'Unnamed save_stage step': Stage 'Test Overwrite Stage' already exists. Use overwrite=true to replace it.
+✓ Overwrite behavior worked correctly
+
+Testing metadata tracking...
+✓ Metadata tracking worked correctly
+
+Testing multiple stages...
+✓ Multiple stages saved correctly
+
+Testing error handling...
+✓ Caught expected error for missing stage_name: Step 'Missing stage name' missing required fields: stage_name
+✓ Caught expected error for reserved name: Error saving stage in step 'Unnamed save_stage step': Stage name 'input' is reserved. Please use a more descriptive name.
+✓ Empty DataFrame properly rejected
+✓ Error handling worked correctly
+
+Testing stage limit enforcement...
+✓ Stage limit enforcement worked correctly
+
+Testing data isolation...
+✓ Data isolation worked correctly
+
+✓ All save stage processor tests passed!
+
+Processor capabilities: ['description', 'stage_features', 'safety_features', 'examples']
+Testing SliceDataProcessor...
+Testing basic row slicing...
+✓ Row slicing returned correct number of rows
+✓ Row slicing extracted correct content
+
+Testing data section extraction with header promotion...
+✓ Data extraction returned correct number of rows
+✓ Headers promoted correctly
+✓ Data content preserved correctly
+
+Testing slice without header promotion...
+✓ Slice without headers returned correct number of rows
+✓ Generic column names preserved (headers not promoted)
+
+Testing column slicing...
+✓ Column slicing returned correct number of columns
+✓ Column slicing preserved all rows
+
+Testing Excel column references...
+✓ Excel column references work correctly
+
+Testing stage integration...
+✓ Stage integration works correctly
+
+Testing error handling...
+✓ Caught expected error for invalid start_row: StepProcessorError
+✓ Caught expected error for start_row beyond data: StepProcessorError
+✓ Error handling works correctly
+
+Testing capabilities...
+✓ Capabilities include slice operations
+✓ Supported slice types reported correctly
+
+🎉 All SliceDataProcessor tests passed!
+
+To run with pytest: pytest test_slice_data_processor.py -v
+Testing single column sort...
+✓ Created test data: 5 rows
+✓ Single column sort: 5 rows
+✓ Sorted prices: [8.25, 10.5, 12.0, 15.75, 25.0]
+✓ Single column sort worked correctly
+
+Testing multi-column sort...
+✓ Multi-column sort: 5 rows
+Sorted data:
+  Electronics: $10.5
+  Electronics: $8.25
+  Hardware: $25.0
+  Tools: $15.75
+  Tools: $12.0
+✓ Multi-column sort worked correctly
+
+Testing custom sort order...
+✓ Custom sort: 5 rows
+✓ Priority order: ['High', 'High', 'Medium', 'Low', 'Low']
+✓ Custom sort order worked correctly
+
+Testing case-insensitive sort...
+✓ Case insensitive sort: 5 rows
+✓ Sorted names: ['widget a', 'Widget A', 'Widget B', 'Widget C', 'widget d']
+✓ Case-insensitive sort worked correctly
+
+Testing null position handling...
+✓ Nulls last: ['Alice', 'Bob', 'Charlie', None, None]
+✓ Nulls first: [None, None, 'Alice', 'Bob', 'Charlie']
+✓ Null position handling worked correctly
+
+Testing frequency sort...
+✓ Frequency sort: 5 rows
+✓ Department frequency order: ['Electronics', 'Electronics', 'Tools', 'Tools', 'Hardware']
+✓ Department counts: {'Electronics': 2, 'Tools': 2, 'Hardware': 1}
+✓ Frequency sort worked correctly
+
+Testing multiple criteria sort...
+✓ Multiple criteria sort: 5 rows
+Results:
+  High: Widget C
+  High: widget d
+  Medium: Widget B
+  Low: widget a
+  Low: Widget A
+✓ Multiple criteria sort worked correctly
+
+Testing sort analysis...
+✓ Price analysis:
+  Data type: float64
+  Min/Max: 8.25/25.0
+  Already sorted: False
+✓ Product name analysis:
+  Data type: object
+  Avg length: 8.0
+  Already sorted: False
+✓ Sort analysis worked correctly
+
+Testing capabilities method...
+✓ Capabilities: {'description': 'Sort DataFrame rows by one or multiple columns', 'supported_options': ['single_column_sort', 'multi_column_sort', 'custom_sort_orders', 'case_insensitive_sort', 'null_position_control', 'frequency_based_sort'], 'na_positions': ['first', 'last'], 'sort_directions': ['ascending', 'descending'], 'special_methods': ['sort_by_frequency', 'sort_by_custom_function', 'sort_by_multiple_criteria']}
+✓ Capabilities method worked correctly
+
+Testing real-world scenario...
+✓ Created order data: 5 rows
+✓ Processed orders:
+  ORD003: VIP $2500 (2024-01-16)
+  ORD001: VIP $1500 (2024-01-15)
+  ORD004: Premium $800 (2024-01-15)
+  ORD005: Standard $400 (2024-01-13)
+  ORD002: Standard $250 (2024-01-14)
+✓ Real-world scenario worked correctly
+
+Testing error handling...
+✓ Caught expected error: Step 'Missing columns' missing required fields: columns
+✓ Caught expected error: Sort column 'NonExistentColumn' not found. Available columns: ['Product_Name', 'Price', 'Quantity', 'Priority', 'Department', 'Order_Date']
+✓ Caught expected error: Length of 'ascending' list (1) must match number of columns (2)
+
+✓ All sort data processor tests passed!
+
+Processor Capabilities:
+  description: Sort DataFrame rows by one or multiple columns
+  supported_options: single_column_sort, multi_column_sort, custom_sort_orders, case_insensitive_sort, null_position_control, frequency_based_sort
+  na_positions: first, last
+  sort_directions: ascending, descending
+  special_methods: sort_by_frequency, sort_by_custom_function, sort_by_multiple_criteria
+Testing delimiter splitting...
+✓ Created test data: 5 rows
+✓ Delimiter split: 7 columns
+✓ New columns: ['Last_Name', 'First_Name']
+✓ Expected columns created
+✓ First record: 'Smith', 'John'
+✓ Delimiter splitting worked correctly
+
+Testing pipe delimiter splitting...
+✓ Pipe split: 7 columns
+✓ All expected columns created
+✓ First product: 'A001' | 'Widget' | 'Electronics'
+✓ Pipe delimiter splitting worked correctly
+
+Testing fixed width splitting...
+✓ Fixed width split: 8 columns
+✓ Fixed width columns created
+✓ First code split: 'ELEC' + '001' + 'A'
+✓ Fixed width splitting worked correctly
+
+Testing regex splitting...
+✓ Regex split: 8 columns
+✓ Regex split columns created
+✓ First phone split: '206' - '555' - '1234'
+✓ Regex splitting worked correctly
+
+Testing position splitting...
+✓ Position split: 8 columns
+✓ Position split columns created
+✓ Position split: 'ELEC' | '001' | 'A'
+✓ Position splitting worked correctly
+
+Testing remove original option...
+✓ After split with remove: 6 columns
+✓ Original column removed, new columns added
+
+Testing fill missing option...
+✓ Fill missing split: 4 columns
+✓ Part3 values: ['C', 'N/A', 'N/A', 'R']
+✓ Fill missing option worked correctly
+
+Testing name splitting helper...
+✓ Last,First split: ['Customer_Name', 'Employee_Name', 'Last_Name', 'First_Name']
+✓ First Last split: ['Customer_Name', 'Employee_Name', 'First_Name', 'Last_Name']
+✓ Last,First result: 'Smith', 'John'
+✓ First Last result: 'John', 'Smith'
+✓ Name splitting helper worked correctly
+
+Testing column analysis helper...
+✓ Name analysis suggestions: 4
+✓ Product analysis suggestions: 1
+Name suggestions: ["Delimiter ',': avg 2.0 parts per value", "Delimiter ' ': avg 2.0 parts per value", 'Fixed width potential: avg length 13.2 chars', "Name pattern: 'Last, First' format detected"]
+Product suggestions: ["Delimiter '|': avg 3.0 parts per value"]
+✓ Column analysis helper worked correctly
+
+Testing auto column naming...
+✓ Auto naming result: 8 columns
+✓ Auto-generated columns: ['Product_Info_part_1', 'Product_Info_part_2', 'Product_Info_part_3']
+✓ Auto column naming worked correctly
+
+Testing capabilities method...
+✓ Capabilities: dict_keys(['description', 'split_types', 'splitting_methods', 'helper_methods', 'common_delimiters', 'options', 'examples'])
+✓ Supported split types: ['delimiter', 'fixed_width', 'regex', 'position']
+✓ Capabilities method worked correctly
+
+Testing real-world scenario...
+✓ Created real-world data: 4 records
+✓ Customer info split: 6 columns
+✓ Product details split: 7 columns
+✓ Order reference split: 11 columns
+✓ Final columns: ['Customer_Name', 'Email', 'Phone', 'Title', 'Product_Code', 'Product_Description', 'Order_Prefix', 'Year', 'Order_Number', 'Location', 'Priority']
+Sample processed record:
+  Customer: Smith, John
+  Email: john.smith@email.com
+  Product: ELEC-001-A -  Electronic Widget (Class A)
+  Order: ORD-2024-001
+  Location: SEA, Priority: RUSH
+✓ Real-world scenario worked correctly
+
+Testing error handling...
+✓ Caught expected error: Step 'Missing fields' missing required fields: source_column, split_type
+✓ Caught expected error: Source column 'NonExistentColumn' not found. Available columns: ['Full_Name', 'Product_Info', 'Address', 'Product_Code', 'Phone']
+✓ Caught expected error: Delimiter split requires 'delimiter' field
+✓ Caught expected error: Invalid regex pattern '[invalid regex': unterminated character set at position 0
+
+✓ All split column processor tests passed!
+
+Supported split types: ['delimiter', 'fixed_width', 'regex', 'position']

@@ -340,6 +340,10 @@ class ImportBaseProcessor(BaseStepProcessor):
         if not self.save_to_stage:
             raise StepProcessorError(f"Import step '{self.step_name}' requires save_to_stage")
     
+    def execute(self, data=None):
+        """Execute import operation (implements BaseStepProcessor abstract method)."""
+        return self.execute_import()
+    
     def execute_import(self) -> pd.DataFrame:
         """Execute import operation."""
         self.log_step_start()
@@ -381,6 +385,12 @@ class ExportBaseProcessor(BaseStepProcessor):
         # But they must have source_stage
         if not self.source_stage:
             raise StepProcessorError(f"Export step '{self.step_name}' requires source_stage")
+    
+    def execute(self, data=None):
+        """Execute export operation (implements BaseStepProcessor abstract method)."""
+        self.execute_export()
+        # Export processors don't return data, but execute() expects return value
+        return self.load_input_data()  # Return the source data for consistency
     
     def execute_export(self) -> None:
         """Execute export operation."""

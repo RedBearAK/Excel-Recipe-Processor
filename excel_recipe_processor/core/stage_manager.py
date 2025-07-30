@@ -2,7 +2,7 @@
 Stage management for Excel Recipe Processor.
 
 Provides the StageManager class for saving, loading, and managing
-intermediate data stages during recipe processing.
+intermediate data stages during recipe processing with friendly validation.
 """
 
 import pandas as pd
@@ -34,7 +34,7 @@ class StageManager:
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
     _max_stages: int        = 100               # Configurable limit
-    _declared_stages        = {}                # dict or list?
+    _declared_stages: dict  = {}
     _protected_stages       = set()
     
     def __new__(cls):
@@ -63,10 +63,21 @@ class StageManager:
         logger.info(f"Declared {len(stages_list)} stages")
 
     @classmethod
-    def validate_recipe_stages(cls, recipe_config: dict) -> list:
-        """Validate all stage references in recipe."""
+    def validate_recipe_stages(cls, recipe_config: dict) -> dict:
+        """
+        Validate all stage references in recipe and return helpful warnings/suggestions.
+        
+        Returns:
+            Dictionary with:
+            - 'warnings': List of warning messages
+            - 'undeclared_stages': Set of stage names that should be declared
+            - 'suggested_declarations': YAML text for stage declarations
+            - 'protection_issues': List of protection-related warnings
+        """
         declared_stages = set(cls._declared_stages.keys())
-        errors = []
+        warnings = []
+        undeclared_stages = set()
+        protection_issues = []
         
         for step_index, step in enumerate(recipe_config.get('recipe', [])):
             step_desc = step.get('step_description', f'Step {step_index + 1}')
@@ -75,36 +86,64 @@ class StageManager:
             # Import processors create stages
             if processor_type == 'import_file':
                 save_stage = step.get('save_to_stage')
-                if not save_stage:
-                    errors.append(f"{step_desc}: import_file requires save_to_stage")
-                elif save_stage not in declared_stages:
-                    errors.append(f"{step_desc}: save_to_stage '{save_stage}' not declared")
+                if save_stage and save_stage not in declared_stages:
+                    warnings.append(f"Step '{step_desc}': stage '{save_stage}' not declared (will be created dynamically)")
+                    undeclared_stages.add(save_stage)
                 continue
             
             # Export processors consume stages  
             if processor_type == 'export_file':
                 source_stage = step.get('source_stage')
-                if not source_stage:
-                    errors.append(f"{step_desc}: export_file requires source_stage")
-                elif source_stage not in declared_stages:
-                    errors.append(f"{step_desc}: source_stage '{source_stage}' not declared")
+                if source_stage and source_stage not in declared_stages:
+                    warnings.append(f"Step '{step_desc}': stage '{source_stage}' not declared (existence will be checked at runtime)")
+                    undeclared_stages.add(source_stage)
                 continue
             
             # Processing steps require both
             source_stage = step.get('source_stage')
             save_stage = step.get('save_to_stage')
             
-            if not source_stage:
-                errors.append(f"{step_desc}: requires source_stage")
-            elif source_stage not in declared_stages:
-                errors.append(f"{step_desc}: source_stage '{source_stage}' not declared")
+            if source_stage and source_stage not in declared_stages:
+                warnings.append(f"Step '{step_desc}': source stage '{source_stage}' not declared")
+                undeclared_stages.add(source_stage)
             
-            if not save_stage:
-                errors.append(f"{step_desc}: requires save_to_stage")
-            elif save_stage not in declared_stages:
-                errors.append(f"{step_desc}: save_to_stage '{save_stage}' not declared")
+            if save_stage and save_stage not in declared_stages:
+                warnings.append(f"Step '{step_desc}': save stage '{save_stage}' not declared")
+                undeclared_stages.add(save_stage)
         
-        return errors
+        # Generate helpful suggestions
+        suggested_declarations = cls._generate_stage_declarations(undeclared_stages)
+        
+        # Check for potential protection issues
+        if undeclared_stages:
+            protection_issues.append("💡 Consider declaring stages to enable protection and auto-completion features")
+            protection_issues.append("💡 Use 'protected: true' for critical data stages that shouldn't be overwritten")
+        
+        return {
+            'warnings': warnings,
+            'undeclared_stages': undeclared_stages,
+            'suggested_declarations': suggested_declarations,
+            'protection_issues': protection_issues,
+            'has_undeclared': len(undeclared_stages) > 0
+        }
+
+    @classmethod
+    def _generate_stage_declarations(cls, stage_names: set) -> str:
+        """Generate YAML for stage declarations."""
+        if not stage_names:
+            return ""
+        
+        sorted_stages = sorted(stage_names)
+        yaml_lines = ["💡 Suggested stage declarations to add to settings section:", ""]
+        yaml_lines.append("stages:")
+        
+        for stage_name in sorted_stages:
+            yaml_lines.append(f'  - stage_name: "{stage_name}"')
+            yaml_lines.append(f'    description: "TODO: Add description for {stage_name}"')
+            yaml_lines.append('    protected: false')
+            yaml_lines.append('')
+        
+        return "\n".join(yaml_lines)
 
     @classmethod
     def is_stage_declared(cls, stage_name: str) -> bool:
@@ -115,32 +154,6 @@ class StageManager:
     def is_stage_protected(cls, stage_name: str) -> bool:
         """Check if stage is protected from overwriting."""
         return stage_name in cls._protected_stages
-
-    @classmethod
-    def get_recipe_completion_report(cls) -> dict:
-        """Generate comprehensive report after recipe completion."""
-        return {
-            'stages_declared': len(cls._declared_stages),
-            'stages_created': len(cls._current_stages),
-            'stages_unused': cls.get_unused_stages(),
-            'protected_stages': list(cls._protected_stages),
-            'total_memory_mb': sum(
-                meta.get('memory_usage_mb', 0) 
-                for meta in cls._stage_metadata.values()
-            ),
-            'stage_details': {
-                name: {
-                    'declared': name in cls._declared_stages,
-                    'description': cls._declared_stages.get(name, {}).get('description', 'N/A'),
-                    'protected': name in cls._protected_stages,
-                    'rows': meta['rows'],
-                    'columns': meta['columns'],
-                    'memory_mb': meta['memory_usage_mb'],
-                    'usage_count': cls._stage_usage.get(name, 0)
-                }
-                for name, meta in cls._stage_metadata.items()
-            }
-        }
 
     @classmethod
     def save_stage(cls, stage_name: str, data: pd.DataFrame, description: str = '',
@@ -155,30 +168,31 @@ class StageManager:
             description: Optional description
             step_name: Name of step creating this stage
             overwrite: Whether to overwrite existing stage
-            confirm_replacement: ???
+            confirm_replacement: Explicit confirmation for protected stages
             
         Raises:
-            StageError: If stage saving fails
+            StageError: If stage saving fails due to protection or other issues
         """
         # Validate stage name
         cls._validate_stage_name(stage_name)
         
-        # NEW: Protection checks for pure stage architecture
-        if cls._declared_stages:  # Only if stages were declared
-            # Must be declared
-            if stage_name not in cls._declared_stages:
-                raise StageError(f"Stage '{stage_name}' not declared in recipe settings")
-            
-            # Check protection
-            if stage_name in cls._protected_stages and stage_name in cls._current_stages:
-                raise StageError(f"Protected stage '{stage_name}' cannot be overwritten")
-            
-            # Check replacement confirmation for declared stages
-            if stage_name in cls._current_stages and not confirm_replacement and not overwrite:
-                raise StageError(f"Stage '{stage_name}' exists. Use confirm_stage_replacement: true")
+        # Protection checks for declared protected stages
+        if cls._declared_stages and stage_name in cls._protected_stages:
+            if stage_name in cls._current_stages:
+                # Protected stage already exists - need explicit confirmation
+                if not confirm_replacement and not overwrite:
+                    raise StageError(
+                        f"Protected stage '{stage_name}' cannot be overwritten without explicit confirmation. "
+                        f"Use 'overwrite: true' or 'confirm_replacement: true' to override."
+                    )
+                else:
+                    logger.warning(f"⚠️ Overwriting protected stage '{stage_name}' with explicit confirmation")
+            else:
+                # First creation of protected stage - allowed
+                logger.info(f"Creating protected stage '{stage_name}' (first save)")
         
-        # Check if stage already exists
-        if stage_name in cls._current_stages and not overwrite:
+        # Check if stage already exists (for non-protected stages)
+        if stage_name in cls._current_stages and not overwrite and stage_name not in cls._protected_stages:
             raise StageError(
                 f"Stage '{stage_name}' already exists. Use overwrite=true to replace it."
             )
@@ -200,14 +214,23 @@ class StageManager:
             'description': description,
             'step_name': step_name,
             'created_at': datetime.now(),
-            'memory_usage_mb': round(data.memory_usage(deep=True).sum() / (1024 * 1024), 2)
+            'memory_usage_mb': round(data.memory_usage(deep=True).sum() / (1024 * 1024), 2),
+            'declared': stage_name in cls._declared_stages,
+            'protected': stage_name in cls._protected_stages
         }
         cls._stage_usage[stage_name] = 0  # Reset usage counter
         
-        logger.info(
-            f"Stage '{stage_name}' saved: {len(data)} rows, {len(data.columns)} columns"
-            + (f" - {description}" if description else "")
-        )
+        # Log with appropriate level based on declaration status
+        if stage_name in cls._declared_stages:
+            logger.info(
+                f"Stage '{stage_name}' saved: {len(data)} rows, {len(data.columns)} columns"
+                + (f" - {description}" if description else "")
+            )
+        else:
+            logger.warning(
+                f"⚠️ Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns"
+                + (f" - {description}" if description else "")
+            )
 
     @classmethod
     def load_stage(cls, stage_name: str) -> pd.DataFrame:
@@ -216,20 +239,30 @@ class StageManager:
         
         Args:
             stage_name: Name of stage to load
-            step_name: Name of step loading this stage (for logging)
             
         Returns:
             DataFrame from the stage
             
         Raises:
-            StageError: If stage not found
+            StageError: If stage not found with helpful suggestions
         """
         # Check if stage exists
         if stage_name not in cls._current_stages:
             available_stages = list(cls._current_stages.keys())
-            raise StageError(
-                f"Stage '{stage_name}' not found. Available stages: {available_stages}"
-            )
+            
+            # Try to suggest similar stage names
+            suggestions = cls._suggest_similar_stage_names(stage_name, available_stages)
+            
+            error_msg = f"Stage '{stage_name}' not found."
+            if available_stages:
+                error_msg += f" Available stages: {available_stages}"
+                if suggestions:
+                    error_msg += f"\n💡 Did you mean: {', '.join(suggestions)}?"
+            else:
+                error_msg += " No stages have been created yet."
+                error_msg += "\n💡 Make sure an import_file or processing step created this stage first."
+            
+            raise StageError(error_msg)
         
         # Increment usage counter
         cls._stage_usage[stage_name] += 1
@@ -237,12 +270,72 @@ class StageManager:
         # Get stage data
         stage_data = cls._current_stages[stage_name].copy()
         
-        logger.info(
-            f"Stage '{stage_name}' loaded: {len(stage_data)} rows, {len(stage_data.columns)} columns "
-            f"[usage: {cls._stage_usage[stage_name]}]"
-        )
+        # Log with declaration status
+        if stage_name in cls._declared_stages:
+            logger.info(
+                f"Stage '{stage_name}' loaded: {len(stage_data)} rows, {len(stage_data.columns)} columns "
+                f"[usage: {cls._stage_usage[stage_name]}]"
+            )
+        else:
+            logger.warning(
+                f"⚠️ Stage '{stage_name}' loaded (undeclared): {len(stage_data)} rows, {len(stage_data.columns)} columns "
+                f"[usage: {cls._stage_usage[stage_name]}]"
+            )
         
         return stage_data
+
+    @classmethod
+    def _suggest_similar_stage_names(cls, target_name: str, available_names: list[str]) -> list:
+        """Suggest similar stage names for typos."""
+        if not available_names:
+            return []
+        
+        suggestions = []
+        target_lower = target_name.lower()
+        
+        for name in available_names:
+            name_lower = name.lower()
+            
+            # Simple similarity checks
+            if target_lower in name_lower or name_lower in target_lower:
+                suggestions.append(name)
+            elif abs(len(target_name) - len(name)) <= 2:
+                # Similar length - might be a typo
+                differences = sum(1 for a, b in zip(target_lower, name_lower) if a != b)
+                if differences <= 2:
+                    suggestions.append(name)
+        
+        return suggestions[:3]  # Limit to top 3 suggestions
+
+    @classmethod
+    def get_recipe_completion_report(cls) -> dict:
+        """Generate comprehensive report after recipe completion."""
+        return {
+            'stages_declared': len(cls._declared_stages),
+            'stages_created': len(cls._current_stages),
+            'stages_unused': cls.get_unused_stages(),
+            'protected_stages': list(cls._protected_stages),
+            'undeclared_stages_created': [
+                name for name in cls._current_stages.keys() 
+                if name not in cls._declared_stages
+            ],
+            'total_memory_mb': sum(
+                meta.get('memory_usage_mb', 0) 
+                for meta in cls._stage_metadata.values()
+            ),
+            'stage_details': {
+                name: {
+                    'declared': name in cls._declared_stages,
+                    'description': cls._declared_stages.get(name, {}).get('description', 'N/A'),
+                    'protected': name in cls._protected_stages,
+                    'rows': meta['rows'],
+                    'columns': meta['columns'],
+                    'memory_mb': meta['memory_usage_mb'],
+                    'usage_count': cls._stage_usage.get(name, 0)
+                }
+                for name, meta in cls._stage_metadata.items()
+            }
+        }
 
     @classmethod
     def list_stages(cls) -> dict:
@@ -317,108 +410,32 @@ class StageManager:
         Suggest human-readable alternative stage names.
         
         Args:
-            problematic_name: Name that has conflicts
+            problematic_name: The problematic stage name
             
         Returns:
-            List of human-readable alternative names
+            List of suggested alternative names
         """
-        base = problematic_name.replace('_', ' ').title()
+        # Simple transformations for common issues
+        suggestions = []
         
-        return [
-            f"Processed {base}",
-            f"Clean {base}", 
-            f"{base} Results",
-            f"Working {base}",
-            f"{base} Dataset"
-        ]
-    
-    @staticmethod
-    def get_stage_naming_guidelines() -> dict:
-        """
-        Get guidelines for stage naming best practices.
+        # Remove special characters
+        cleaned = ''.join(c if c.isalnum() or c in ' _-' else '' for c in problematic_name)
+        if cleaned != problematic_name:
+            suggestions.append(cleaned.strip())
         
-        Returns:
-            Dictionary with naming guidelines and examples
-        """
-        return {
-            'principles': [
-                'Use clear, descriptive names that anyone can understand',
-                'Include business context when possible',
-                'Describe the data state or content, not the processing step',
-                'Use proper capitalization and spaces for readability',
-                'Keep names under 80 characters for log readability'
-            ],
-            'excellent_examples': [
-                'Cleaned Customer Data',           # Processing state + content
-                'Active Orders Only',              # Filter result description  
-                'Q1 Sales Summary',               # Business context + content type
-                'Customer Support Tickets',        # Business entity description
-                'Regional Performance Metrics',    # Analysis result description
-                'Validated Product Catalog',       # Quality state + content
-                'March Sales with Customer Details' # Comprehensive description
-            ],
-            'avoid': [
-                'clean_data',          # Conflicts with processor, not descriptive
-                'temp',               # Not descriptive
-                'data',               # Too generic
-                'result',             # Not descriptive
-                'df',                 # Programmer jargon
-                'output'              # System-sounding
-            ],
-            'naming_patterns': {
-                'business_entities': [
-                    'Customer Master List', 'Product Catalog 2024', 'Employee Directory',
-                    'Vendor Contact Information', 'Regional Sales Data'
-                ],
-                'processing_states': [
-                    'Cleaned Sales Data', 'Filtered Active Records', 'Validated Entries',
-                    'Enriched Customer Information', 'Processed Order Details'
-                ],
-                'analysis_results': [
-                    'Monthly Sales Summary', 'Regional Performance Analysis', 
-                    'Customer Segmentation Results', 'Quarterly Budget Report'
-                ],
-                'workflow_stages': [
-                    'Initial Data Load', 'After Quality Validation', 'Ready for Analysis',
-                    'Backup Before Processing', 'Final Report Dataset'
-                ]
-            },
-            'tips': [
-                'Think about how this will appear in log messages',
-                'Consider what a business user would call this data',
-                'Be specific about what filtering/processing was applied',
-                'Include time periods when relevant (Q1, March, 2024)',
-                'Use terms your organization already uses for this data'
-            ]
-        }
-    
-    @staticmethod
-    def _get_registered_processor_types() -> set:
-        """
-        Get set of all registered processor types to check for collisions.
+        # Replace spaces with underscores
+        if ' ' in problematic_name:
+            suggestions.append(problematic_name.replace(' ', '_'))
         
-        Returns:
-            Set of processor type strings
-        """
-        try:
-            # Import registry to get current processor types
-            from excel_recipe_processor.core.base_processor import registry
-            return set(registry.get_registered_types())
-        except ImportError:
-            # Fallback: known processor types if registry unavailable
-            logger.warning("Could not import processor registry, using fallback processor list")
-            return {
-                'add_calculated_column', 'add_subtotals', 'aggregate_data', 'clean_data',
-                'debug_breakpoint', 'fill_data', 'filter_data', 'group_data',
-                'lookup_data', 'merge_data', 'pivot_table', 'rename_columns',
-                'sort_data', 'split_column', 'save_stage', 'load_stage',
-                'export_file', 'import_file', 'format_excel', 'create_stage'
-            }
+        # Title case version
+        suggestions.append(problematic_name.title().replace('_', ' '))
+        
+        return list(set(suggestions))[:3]  # Remove duplicates, limit to 3
     
     @staticmethod
     def _validate_stage_name(stage_name: str) -> None:
         """
-        Validate a stage name for safety and readability.
+        Validate a stage name according to our conventions.
         
         Args:
             stage_name: Stage name to validate
@@ -426,30 +443,17 @@ class StageManager:
         Raises:
             StageError: If stage name is invalid
         """
-        if not isinstance(stage_name, str) or not stage_name.strip():
-            raise StageError("Stage name must be a non-empty string")
+        if not isinstance(stage_name, str):
+            raise StageError("Stage name must be a string")
         
-        # Check length (reasonable for display in logs)
-        if len(stage_name) > 80:
-            raise StageError("Stage name too long (max 80 characters)")
+        if not stage_name.strip():
+            raise StageError("Stage name cannot be empty")
         
-        # Only check for file system problematic characters
-        problematic_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\t', '\n', '\r']
-        found_problematic = [char for char in problematic_chars if char in stage_name]
-        if found_problematic:
-            raise StageError(f"Stage name contains problematic characters: {found_problematic}")
-        
-        # Check for system reserved names (but allow proper case variations)
-        reserved_names = ['current', 'input', 'output', 'temp', 'tmp', 'data']
-        if stage_name.lower().strip() in reserved_names:
-            raise StageError(f"Stage name '{stage_name}' is reserved. Please use a more descriptive name.")
-        
-        # Check for collision with processor names (case-insensitive for safety)
-        processor_types = StageManager._get_registered_processor_types()
-        if stage_name.lower().replace(' ', '_') in processor_types or stage_name in processor_types:
-            suggestions = StageManager._suggest_alternative_stage_names(stage_name)
+        # Reserved names check
+        reserved_names = {'current', 'input', 'output', 'temp', 'temporary'}
+        if stage_name.lower() in reserved_names:
+            alternatives = StageManager._suggest_alternative_stage_names(stage_name)
             raise StageError(
-                f"Stage name '{stage_name}' too similar to processor type. "
-                f"Please use a more descriptive name to avoid confusion. "
-                f"Suggestions: {', '.join(suggestions)}"
+                f"Stage name '{stage_name}' is reserved. Please use a more descriptive name."
+                + (f" Suggestions: {alternatives}" if alternatives else "")
             )

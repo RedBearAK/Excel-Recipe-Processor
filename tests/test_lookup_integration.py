@@ -14,7 +14,7 @@ def test_lookup_integration():
     
     # Test that the processor is registered
     # Import pipeline first to trigger processor registration
-    from excel_recipe_processor.core.pipeline import ExcelPipeline
+    from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
     from excel_recipe_processor.core.base_processor import registry
     
     registered_types = registry.get_registered_types()
@@ -71,7 +71,7 @@ def test_with_pipeline():
     print("\nTesting with full pipeline...")
     
     try:
-        from excel_recipe_processor.core.pipeline import ExcelPipeline
+        from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
         
         # Create test data files
         main_data = pd.DataFrame({
@@ -112,11 +112,10 @@ settings:
             f.write(recipe_content)
         
         # Run pipeline
-        pipeline = ExcelPipeline()
-        result = pipeline.run_complete_pipeline(
+        pipeline = RecipePipeline()
+        result = pipeline.run_complete_recipe(
             recipe_path=recipe_file,
-            input_path=input_file,
-            output_path=output_file
+            cli_variables=None
         )
         
         print(f"✓ Pipeline completed: {len(result)} rows, {len(result.columns)} columns")

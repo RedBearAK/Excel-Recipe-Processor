@@ -1,139 +1,329 @@
-description: "Recipe settings section configuration options for customizing pipeline behavior"
+# Revision date: 2025-07-30
 
-basic_example:
-  description: "Simple settings with backup and description"
+description: "Recipe settings section configuration options for stage-based architecture with variables and stage management"
+
+minimal_example:
+  description: "Minimal required settings section - every recipe should have this"
   yaml: |
-    # Basic recipe settings configuration
+    # Minimal settings section - required for all recipes
     
     settings:
-      # OPT - Human-readable description of recipe purpose
-      # Default value: none
-      description: "Process customer data for monthly reporting"
-      # OPT - Create backup copies before processing
-      # Default value: false
-      create_backup: true
+      description: "Process daily sales data for regional reporting"
 
-variables_example:
-  description: "Custom variables for dynamic file naming and processing"
+recommended_example:
+  description: "Recommended settings with commonly used features"
   yaml: |
-    # Settings with custom variables for flexible processing
+    # Recommended settings with stage declarations and variables
     
     settings:
-      # OPT - Recipe description
-      # Default value: none
-      description: "Quarterly sales processing with custom variables"
-      # OPT - Custom variables for use throughout recipe
-      # Default value: empty dictionary
+      description: "Process customer orders with data validation and regional analysis"
+      
+      # Custom variables for reuse throughout recipe
       variables:
-        # Custom variable for department
-        department: "sales"
-        # Custom variable for reporting period
-        quarter: "Q4"
-        # Custom variable for year
-        year: "2024"
-        # Custom variable for region
         region: "west"
-      # OPT - Create backups before processing
-      # Default value: false
-      create_backup: true
+        min_order_amount: "500"
+        output_prefix: "processed"
+      
+      # Stage declarations for auto-completion and protection
+      stages:
+        - stage_name: "raw_orders"
+          description: "Raw order data from import"
+          protected: false
+        - stage_name: "validated_orders"
+          description: "Orders passing validation rules"
+          protected: false
+        - stage_name: "regional_orders"
+          description: "Orders filtered for specific region"
+          protected: false
 
-deprecated_settings_example:
-  description: "Example showing deprecated settings (avoid these)"
+advanced_example:
+  description: "Advanced settings with external variables and stage protection"
   yaml: |
-    # DEPRECATED settings - use export_file processor instead
+    # Advanced settings with external variables and protected stages
     
     settings:
-      # ❌ DEPRECATED - Use export_file processor step instead
-      # This setting is no longer recommended and may be removed
-      output_filename: "results_{date}.xlsx"
-      # OPT - Description still supported
-      description: "Example showing deprecated output_filename"
-      # OPT - Backup creation still supported
-      # Default value: false
-      create_backup: true
-
-comprehensive_example:
-  description: "All available settings options in one example"
-  yaml: |
-    # Complete settings section with all available options
-    
-    settings:
-      # OPT - Recipe description for documentation
-      # Default value: none
-      description: "Comprehensive data processing pipeline"
-      # OPT - Create backup files before overwriting
-      # Default value: false
-      create_backup: true
-      # OPT - Custom variables for dynamic configuration
-      # Default value: empty dictionary
+      description: "Batch processing with interactive variable prompting and data protection"
+      
+      # External variables for CLI automation and interactive prompting
+      required_external_vars:
+        batch_id:
+          description: "Batch identifier for processing"
+          validation: "^[A-Z]\\d+$"
+          example: "A47, B23, C91"
+          # No default - user must provide this
+        
+        processing_date:
+          description: "Date for batch processing (YYYYMMDD format)"
+          validation: "^\\d{8}$"
+          default_value: "{date}"  # Dynamic default using current date
+          example: "20250729"
+        
+        region:
+          description: "Processing region"
+          choices: ["west", "east", "central", "all"]
+          default_value: "west"
+        
+        threshold:
+          description: "Minimum value threshold for filtering"
+          validation: "^\\d+$"
+          default_value: "1000"
+          allow_empty: false
+      
+      # Recipe variables for internal use
       variables:
-        # File naming variables
-        report_type: "monthly"
-        department: "finance"
-        batch_id: "B2024001"
-        # Processing variables
-        threshold_amount: "1000"
-        analysis_period: "2024-Q4"
-        # Environment variables
-        environment: "production"
+        output_prefix: "batch_report"
+        version: "v2.1"
+        department: "sales"
+      
+      # Stage declarations with protection
+      stages:
+        - stage_name: "master_data"
+          description: "Critical master data - do not overwrite accidentally"
+          protected: true  # Prevents accidental overwriting
+        - stage_name: "batch_data"
+          description: "Raw batch data from import"
+          protected: false
+        - stage_name: "validated_data"
+          description: "Data passing all validation rules"
+          protected: false
+        - stage_name: "final_results"
+          description: "Final processed results ready for export"
+          protected: false
+      
+      # Global processing options
+      create_backup: true
+      encoding: "utf-8"
+
+external_variables_example:
+  description: "Comprehensive external variable configuration options"
+  yaml: |
+    # External variables with all configuration options
+    
+    settings:
+      description: "Demonstrate all external variable features"
+      
+      required_external_vars:
+        # Required variable with validation
+        batch_id:
+          description: "Unique batch identifier for processing"
+          validation: "^[A-Z]\\d+$"
+          example: "A47, B23, C91"
+          # No default_value means this is truly required
+        
+        # Variable with choices constraint
+        environment:
+          description: "Processing environment"
+          choices: ["development", "staging", "production"]
+          default_value: "development"
+        
+        # Variable with dynamic default
+        report_date:
+          description: "Report generation date"
+          default_value: "{date}"  # Uses current date
+          validation: "^\\d{8}$"
+          example: "20250729"
+        
+        # Optional variable that can be empty
+        notes:
+          description: "Optional processing notes"
+          default_value: ""
+          allow_empty: true
+          example: "Special handling required, Holiday processing"
+        
+        # Variable with complex validation
+        email_list:
+          description: "Comma-separated email addresses for notifications"
+          validation: "^[\\w\\._%+-]+@[\\w\\.-]+\\.[A-Z]{2,}(,\\s*[\\w\\._%+-]+@[\\w\\.-]+\\.[A-Z]{2,})*$"
+          example: "admin@company.com, manager@company.com"
+          default_value: "admin@company.com"
+
+stage_management_example:
+  description: "Stage declarations with protection and organization"
+  yaml: |
+    # Stage management with protection and organization
+    
+    settings:
+      description: "Complex workflow with protected stages and clear organization"
+      
+      stages:
+        # Critical data sources - protected
+        - stage_name: "customer_master"
+          description: "Master customer data - critical reference"
+          protected: true
+        - stage_name: "product_catalog"
+          description: "Product catalog - protected reference data"
+          protected: true
+        
+        # Processing stages - not protected
+        - stage_name: "raw_transactions"
+          description: "Raw transaction data from daily import"
+          protected: false
+        - stage_name: "validated_transactions"
+          description: "Transactions passing validation rules"
+          protected: false
+        - stage_name: "enriched_transactions"
+          description: "Transactions with customer and product details added"
+          protected: false
+        
+        # Analysis stages
+        - stage_name: "regional_summary"
+          description: "Transactions summarized by region"
+          protected: false
+        - stage_name: "product_performance"
+          description: "Product performance metrics"
+          protected: false
+        
+        # Final outputs
+        - stage_name: "executive_dashboard"
+          description: "Executive summary data"
+          protected: false
+
+migration_example:
+  description: "Example showing migration from old format to new format"
+  yaml: |
+    # NEW FORMAT - Stage-based architecture with proper settings
+    
+    settings:
+      description: "Migrated recipe showing new stage-based approach"
+      
+      variables:
+        region: "west"
+        output_prefix: "processed"
+      
+      stages:
+        - stage_name: "imported_data"
+          description: "Data from import step"
+          protected: false
+        - stage_name: "processed_data"
+          description: "Final processed results"
+          protected: false
+      
+      # DEPRECATED - Remove these when migrating
+      # output_filename: "results_{date}.xlsx"  # Use export_file processor instead
+    
+    recipe:
+      # NEW: Explicit import step
+      - step_description: "Import source data"
+        processor_type: "import_file"
+        input_file: "data/{region}_data.xlsx"
+        save_to_stage: "imported_data"
+      
+      # Processing step with explicit stage flow
+      - step_description: "Filter and process data"
+        processor_type: "filter_data"
+        source_stage: "imported_data"
+        save_to_stage: "processed_data"
+        filters:
+          - column: "Status"
+            condition: "equals"
+            value: "Active"
+      
+      # NEW: Explicit export step
+      - step_description: "Export processed results"
+        processor_type: "export_file"
+        source_stage: "processed_data"
+        output_file: "{output_prefix}_{region}_{date}.xlsx"
 
 parameter_details:
   description:
     type: string
-    required: false
-    description: "Human-readable description of what this recipe does"
+    required: true
+    description: "Brief description of what this recipe does"
+    purpose: "Documents recipe purpose for team collaboration and maintenance"
     examples:
-      - "Process customer data for monthly reporting"
-      - "Quarterly sales analysis pipeline"
-      - "Daily inventory reconciliation"
-    usage: "Helps document recipe purpose for team collaboration"
-
-  create_backup:
-    type: boolean
-    required: false
-    default: false
-    description: "Create backup copies of files before overwriting"
-    examples: [true, false]
-    safety_note: "Recommended for production workflows to prevent data loss"
-
+      - "Process daily sales transactions with regional filtering"
+      - "Generate monthly customer report with trend analysis"
+      - "Batch process orders with validation and enrichment"
+  
   variables:
-    type: dict
+    type: object
     required: false
-    default: "empty dictionary"
-    description: "Custom variables for use in file paths and processor configurations"
-    structure: "Dictionary of key-value pairs where both key and value are strings"
+    description: "Custom variables for reuse throughout recipe"
+    usage: "Referenced using {variable_name} syntax in processor parameters"
     examples:
-      - 'department: "sales"'
-      - 'quarter: "Q4"'
-      - 'threshold: "1000"'
-    usage: "Variables can be referenced using {variable_name} syntax throughout the recipe"
-
-  output_filename:
-    type: string
+      region: "west"
+      threshold: "1000"
+      output_prefix: "processed"
+  
+  required_external_vars:
+    type: object
     required: false
-    deprecated: true
-    description: "DEPRECATED - Use export_file processor step instead"
-    deprecation_reason: "export_file processor provides more flexibility and control"
-    replacement: "Use processor_type: export_file with output_file parameter"
-    examples:
-      - 'output_file: "results_{date}.xlsx"'
-
-variable_substitution_notes:
-  built_in_variables: "Available without definition: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}"
-  custom_variables: "Defined in settings.variables section and used with {variable_name} syntax"
-  file_variables: "Automatically available: {input_filename}, {input_basename}, {recipe_filename}"
-  precedence: "External variables (CLI) override recipe variables override built-in variables"
+    description: "Variables that can be provided via CLI or interactive prompting"
+    benefits: ["CLI automation", "Interactive prompting", "Dynamic processing"]
+    
+    variable_config:
+      description:
+        type: string
+        required: true
+        description: "Human-readable description shown during prompting"
+      
+      validation:
+        type: string
+        required: false
+        description: "Regular expression pattern for value validation"
+        examples: ["^[A-Z]\\d+$", "^\\d{8}$", "^[\\w\\.-]+@[\\w\\.-]+\\.[A-Z]{2,}$"]
+      
+      choices:
+        type: array
+        required: false
+        description: "List of valid choices (mutually exclusive with validation)"
+        examples: [["west", "east", "central"], ["development", "staging", "production"]]
+      
+      default_value:
+        type: string
+        required: false
+        description: "Default value (supports variable substitution)"
+        examples: ["west", "{date}", "admin@company.com"]
+      
+      example:
+        type: string
+        required: false
+        description: "Example value shown to user during prompting"
+      
+      allow_empty:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether empty values are allowed"
+  
+  stages:
+    type: array
+    required: false
+    description: "Stage declarations for auto-completion and protection"
+    benefits: ["Auto-completion in editors", "Prevents accidental overwrites", "Workflow documentation"]
+    
+    stage_config:
+      stage_name:
+        type: string
+        required: true
+        description: "Unique name for the stage"
+        naming_tips: ["Use descriptive names", "Consider stage lifecycle", "Be consistent across recipes"]
+      
+      description:
+        type: string
+        required: false
+        description: "Human-readable description of stage contents"
+        purpose: "Team collaboration and workflow documentation"
+      
+      protected:
+        type: boolean
+        required: false
+        default: false
+        description: "Whether stage is protected from accidental overwriting"
+        use_cases: ["Master data", "Critical references", "Expensive computations"]
 
 best_practices:
-  organization: "Use descriptive variable names that clearly indicate their purpose"
-  consistency: "Establish naming conventions for variables across recipes"
-  documentation: "Always include description to explain recipe purpose"
-  safety: "Use create_backup: true for production workflows"
-  migration: "Replace deprecated output_filename with export_file processor steps"
+  settings_first: "Always place settings section before recipe section for discoverability"
+  always_describe: "Include description in every recipe for team collaboration"
+  declare_stages: "Declare stages for auto-completion and protection features"
+  use_variables: "Use variables for repeated values and dynamic content"
+  external_vars: "Use external variables for CLI automation and interactive prompting"
+  protect_critical: "Mark critical stages as protected to prevent accidental overwrite"
+  consistent_naming: "Use consistent naming conventions for stages across recipes"
 
-common_use_cases:
-  dynamic_naming: "Use variables for date-based file naming in automated workflows"
-  environment_config: "Different variables for development vs production environments"
-  batch_processing: "Use batch_id or similar variables for processing identification"
-  multi_department: "Department-specific variables for shared recipe templates"
-  reporting_periods: "Quarter, month, or year variables for periodic reporting"
+common_patterns:
+  simple_processing: "description + basic variables + stage declarations"
+  batch_automation: "description + external variables + stage protection"
+  team_recipes: "description + comprehensive stage declarations + protection"
+  development_recipes: "description + external variables for environment switching"
+  production_recipes: "description + protected stages + comprehensive validation"

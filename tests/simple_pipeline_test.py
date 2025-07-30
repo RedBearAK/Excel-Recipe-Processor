@@ -8,7 +8,8 @@ import pandas as pd
 import tempfile
 from pathlib import Path
 
-from excel_recipe_processor.core.pipeline import ExcelPipeline
+# from excel_recipe_processor.core.pipeline import ExcelPipeline
+from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
 
 def test_refactored_pipeline():
     """Test the refactored pipeline with FileReader/FileWriter integration."""
@@ -53,7 +54,8 @@ settings:
         
         # Test the pipeline
         try:
-            pipeline = ExcelPipeline()
+            # pipeline = ExcelPipeline()
+            pipeline = RecipePipeline()
             
             # Test step-by-step execution
             print("Testing step-by-step execution...")
@@ -128,7 +130,8 @@ def test_variable_integration():
     print("\nTesting variable integration...")
     
     try:
-        pipeline = ExcelPipeline()
+        # pipeline = ExcelPipeline()
+        pipeline = RecipePipeline()
         
         # Test adding custom variables
         pipeline.add_custom_variable('test_var', 'test_value')

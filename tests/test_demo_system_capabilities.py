@@ -8,8 +8,8 @@ def demo_capabilities():
     print("🔍 Excel Recipe Processor - Capability Discovery Demo\n")
     
     # Import the system
-    from excel_recipe_processor.core.pipeline import ExcelPipeline
     from excel_recipe_processor.core.base_processor import registry
+    from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
     
     print("📋 Available Processors:")
     available_types = registry.get_registered_types()

@@ -3,6 +3,7 @@ Simple integration test for the lookup processor with the overall pipeline.
 """
 
 import pandas as pd
+
 from pathlib import Path
 
 
@@ -14,7 +15,7 @@ def test_lookup_integration():
     # Test that the processor is registered
     # Import pipeline first to trigger processor registration
     from excel_recipe_processor.core.pipeline import ExcelPipeline
-    from excel_recipe_processor.processors.base_processor import registry
+    from excel_recipe_processor.core.base_processor import registry
     
     registered_types = registry.get_registered_types()
     print(f"✓ Registered processor types: {registered_types}")

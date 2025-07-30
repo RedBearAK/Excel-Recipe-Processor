@@ -4,7 +4,7 @@ Test the AddSubtotalsProcessor functionality.
 
 import pandas as pd
 
-from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.add_subtotals_processor import AddSubtotalsProcessor, SubtotalUtils
 
 

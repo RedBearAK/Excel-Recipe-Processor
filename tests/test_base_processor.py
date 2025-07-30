@@ -2,7 +2,7 @@
 Simple test for the base step processor functionality.
 """
 
-from excel_recipe_processor.processors.base_processor import (
+from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor, 
     StepProcessorRegistry, 
     StepProcessorError,

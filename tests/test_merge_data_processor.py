@@ -7,7 +7,7 @@ import pandas as pd
 import tempfile
 
 from excel_recipe_processor.core.stage_manager import StageManager
-from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.merge_data_processor import MergeDataProcessor
 
 

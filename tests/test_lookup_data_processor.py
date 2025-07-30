@@ -7,12 +7,13 @@ Tests both existing functionality (regression) and new enhanced capabilities.
 
 import pandas as pd
 import tempfile
+
 from pathlib import Path
 from datetime import datetime
 
 from excel_recipe_processor.core.stage_manager import StageManager
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.lookup_data_processor import LookupDataProcessor
-from excel_recipe_processor.processors.base_processor import StepProcessorError
 
 
 def create_main_data():

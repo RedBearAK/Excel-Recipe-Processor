@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 from excel_recipe_processor.core.stage_manager import StageManager
-from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
 
 

@@ -4,8 +4,8 @@ Test the AddCalculatedColumnProcessor functionality.
 
 import pandas as pd
 
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.add_calculated_column_processor import AddCalculatedColumnProcessor
-from excel_recipe_processor.processors.base_processor import StepProcessorError
 
 
 def create_test_data():

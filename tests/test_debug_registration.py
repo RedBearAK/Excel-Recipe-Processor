@@ -7,7 +7,7 @@ def debug_registration():
     
     # Check before any imports
     try:
-        from excel_recipe_processor.processors.base_processor import registry
+        from excel_recipe_processor.core.base_processor import registry
         print(f"Before pipeline import: {registry.get_registered_types()}")
     except Exception as e:
         print(f"Error importing registry: {e}")

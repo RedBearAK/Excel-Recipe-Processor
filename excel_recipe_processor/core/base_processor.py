@@ -4,9 +4,12 @@ Base step processor for Excel automation recipes.
 Defines the interface and common functionality that all step processors must implement.
 """
 
+import pandas as pd
 import logging
+
 from abc import ABC, abstractmethod
 from typing import Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,10 @@ class BaseStepProcessor(ABC):
         self.step_config = step_config
         self.step_type = step_type
         self.step_name = step_config.get('step_description', f'Unnamed {step_type} step')
+        
+        self.source_stage = step_config.get('source_stage')
+        self.save_to_stage = step_config.get('save_to_stage')
+        self.confirm_stage_replacement = step_config.get('confirm_stage_replacement', False)
         
         # Guard clause: step_name must be a string if provided
         if 'step_description' in step_config and not isinstance(self.step_name, str):
@@ -166,6 +173,44 @@ class BaseStepProcessor(ABC):
         """
         logger.error(f"Error in step '{self.step_name}': {error}")
     
+    def load_input_data(self) -> pd.DataFrame:
+        """Load input data from source_stage."""
+        if not self.source_stage:
+            raise StepProcessorError(f"Step '{self.step_name}' requires source_stage")
+        
+        from excel_recipe_processor.core.stage_manager import StageManager
+        return StageManager.load_stage(self.source_stage)
+    
+    def save_output_data(self, data) -> None:
+        """Save output data to save_to_stage."""
+        if not self.save_to_stage:
+            raise StepProcessorError(f"Step '{self.step_name}' requires save_to_stage")
+        
+        from excel_recipe_processor.core.stage_manager import StageManager
+        StageManager.save_stage(
+            stage_name=self.save_to_stage,
+            data=data,
+            description=f"Result from {self.step_name}",
+            step_name=self.step_name,
+            confirm_replacement=self.confirm_stage_replacement
+        )
+    
+    def execute_stage_to_stage(self) -> pd.DataFrame:
+        """Execute complete stage-to-stage operation."""
+        self.log_step_start()
+        
+        # Load input
+        input_data = self.load_input_data()
+        
+        # Process
+        result = self.execute(input_data)
+        
+        # Save output
+        self.save_output_data(result)
+        
+        self.log_step_complete(f"processed {len(result)} rows")
+        return result
+    
     def __str__(self) -> str:
         """String representation of the step processor."""
         return f"{self.__class__.__name__}(name='{self.step_name}', {proc_type}='{self.step_type}')"
@@ -279,3 +324,82 @@ class StepProcessorRegistry:
 
 # Global registry instance
 registry = StepProcessorRegistry()
+
+
+
+class ImportBaseProcessor(BaseStepProcessor):
+    """Base class for processors that import data (create stages)."""
+    
+    def __init__(self, step_config: dict):
+        super().__init__(step_config)
+        
+        # Import processors don't need source_stage
+        self.source_stage = None
+        
+        # But they must have save_to_stage
+        if not self.save_to_stage:
+            raise StepProcessorError(f"Import step '{self.step_name}' requires save_to_stage")
+    
+    def execute_import(self) -> pd.DataFrame:
+        """Execute import operation."""
+        self.log_step_start()
+        
+        # Load data (implemented by subclass)
+        data = self.load_data()
+        
+        # Save to stage
+        self.save_output_data(data)
+        
+        self.log_step_complete(f"imported {len(data)} rows")
+        return data
+    
+    def save_output_data(self, data) -> None:
+        """Save output data to save_to_stage."""
+        from excel_recipe_processor.core.stage_manager import StageManager
+        StageManager.save_stage(
+            stage_name=self.save_to_stage,
+            data=data,
+            description=f"Imported from {self.step_name}",
+            step_name=self.step_name,
+            confirm_replacement=self.confirm_stage_replacement
+        )
+    
+    @abstractmethod
+    def load_data(self) -> pd.DataFrame:
+        """Load data from source (file, etc.)."""
+        pass
+
+class ExportBaseProcessor(BaseStepProcessor):
+    """Base class for processors that export data (consume stages)."""
+    
+    def __init__(self, step_config: dict):
+        super().__init__(step_config)
+        
+        # Export processors don't need save_to_stage
+        self.save_to_stage = None
+        
+        # But they must have source_stage
+        if not self.source_stage:
+            raise StepProcessorError(f"Export step '{self.step_name}' requires source_stage")
+    
+    def execute_export(self) -> None:
+        """Execute export operation."""
+        self.log_step_start()
+        
+        # Load from stage
+        data = self.load_input_data()
+        
+        # Save data (implemented by subclass)
+        self.save_data(data)
+        
+        self.log_step_complete(f"exported {len(data)} rows")
+    
+    def load_input_data(self) -> pd.DataFrame:
+        """Load input data from source_stage."""
+        from excel_recipe_processor.core.stage_manager import StageManager
+        return StageManager.load_stage(self.source_stage)
+    
+    @abstractmethod
+    def save_data(self, data: pd.DataFrame) -> None:
+        """Save data to destination (file, etc.)."""
+        pass

@@ -8,9 +8,9 @@ and StageManager for accessing multiple data sources.
 import pandas as pd
 import logging
 
-from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
-from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
 logger = logging.getLogger(__name__)

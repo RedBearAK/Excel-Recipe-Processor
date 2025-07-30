@@ -13,7 +13,7 @@ try:
 except ImportError:
     OPENPYXL_AVAILABLE = False
 
-from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.format_excel_processor import FormatExcelProcessor
 
 

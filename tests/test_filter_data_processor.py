@@ -7,7 +7,7 @@ Tests both existing functionality (regression) and new stage-based filtering cap
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager
-from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
 
 

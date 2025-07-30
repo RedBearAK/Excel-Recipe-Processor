@@ -12,7 +12,7 @@ import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from excel_recipe_processor.core.stage_manager import StageManager
-from excel_recipe_processor.processors.base_processor import StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.combine_data_processor import CombineDataProcessor
 
 

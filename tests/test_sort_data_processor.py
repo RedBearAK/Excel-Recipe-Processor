@@ -4,8 +4,8 @@ Test the SortDataProcessor functionality.
 
 import pandas as pd
 
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.sort_data_processor import SortDataProcessor
-from excel_recipe_processor.processors.base_processor import StepProcessorError
 
 
 def create_test_data():

@@ -8,8 +8,8 @@ import yaml
 
 from pathlib import Path
 
+from excel_recipe_processor.core.base_processor import registry
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
-from excel_recipe_processor.processors.base_processor import registry
 
 
 class RecipeValidator:

@@ -9,7 +9,7 @@ def demo_capabilities():
     
     # Import the system
     from excel_recipe_processor.core.pipeline import ExcelPipeline
-    from excel_recipe_processor.processors.base_processor import registry
+    from excel_recipe_processor.core.base_processor import registry
     
     print("📋 Available Processors:")
     available_types = registry.get_registered_types()

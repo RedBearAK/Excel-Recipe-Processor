@@ -5,7 +5,7 @@ Shows detailed capabilities of all processors and system-wide features.
 
 import json
 
-from excel_recipe_processor.processors.base_processor import registry
+from excel_recipe_processor.core.base_processor import registry
 
 
 def get_all_capabilities():

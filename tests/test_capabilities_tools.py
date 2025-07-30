@@ -151,7 +151,7 @@ def demo_capabilities_tools():
     except ImportError:
         print("⚠️  Capabilities viewer not found - run from correct directory")
         # Show basic capabilities instead
-        from excel_recipe_processor.processors.base_processor import registry
+        from excel_recipe_processor.core.base_processor import registry
         available = registry.get_registered_types()
         print(f"Available processors: {len(available)}")
         for i, proc_type in enumerate(available, 1):
@@ -177,8 +177,8 @@ def demo_capabilities_tools():
         print("⚠️  Recipe validator not found")
         
         # Basic validation fallback
+        from excel_recipe_processor.core.base_processor import registry
         from excel_recipe_processor.config.recipe_loader import RecipeLoader
-        from excel_recipe_processor.processors.base_processor import registry
         
         available_types = registry.get_registered_types()
         

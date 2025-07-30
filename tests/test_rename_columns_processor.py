@@ -4,8 +4,8 @@ Test the RenameColumnsProcessor functionality.
 
 import pandas as pd
 
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.rename_columns_processor import RenameColumnsProcessor
-from excel_recipe_processor.processors.base_processor import StepProcessorError
 
 
 def create_messy_columns_data():

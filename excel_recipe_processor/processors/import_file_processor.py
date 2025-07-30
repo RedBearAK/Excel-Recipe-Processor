@@ -7,9 +7,9 @@ variable substitution, and optional stage saving via StageManager.
 
 import logging
 
-from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
+from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
 logger = logging.getLogger(__name__)

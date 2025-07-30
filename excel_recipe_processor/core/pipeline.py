@@ -14,9 +14,9 @@ from pathlib import Path
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.variable_substitution import VariableSubstitution
-from excel_recipe_processor.processors.base_processor import registry, StepProcessorError
+from excel_recipe_processor.core.base_processor import registry, StepProcessorError
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
+from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 
 
 logger = logging.getLogger(__name__)
@@ -692,7 +692,7 @@ def get_processor_usage_examples(processor_name: str) -> dict:
         Dictionary with usage examples or error information
     """
     try:
-        from excel_recipe_processor.processors.base_processor import registry
+        from excel_recipe_processor.core.base_processor import registry
         
         # Check if processor exists
         if processor_name not in registry.get_registered_types():
@@ -762,7 +762,7 @@ def get_all_usage_examples() -> dict:
         Dictionary with usage examples for all processors and system info
     """
     try:
-        from excel_recipe_processor.processors.base_processor import registry
+        from excel_recipe_processor.core.base_processor import registry
         
         processor_types = registry.get_registered_types()
         

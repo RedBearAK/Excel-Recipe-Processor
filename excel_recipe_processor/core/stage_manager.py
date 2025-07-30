@@ -33,7 +33,9 @@ class StageManager:
     _current_stages: dict   = {}                # dict[str, pd.DataFrame]
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
-    _max_stages: int        = 25                # Configurable limit
+    _max_stages: int        = 100               # Configurable limit
+    _declared_stages        = {}                # dict or list?
+    _protected_stages       = set()
     
     def __new__(cls):
         raise TypeError(f"{cls.__name__} is a static utility class. "
@@ -42,25 +44,138 @@ class StageManager:
     # =============================================================================
     # PUBLIC API - What processors call
     # =============================================================================
-    
+
     @classmethod
-    def save_stage(cls, stage_name: str, data: pd.DataFrame, overwrite: bool = False,
-                    description: str = '', step_name: str = '') -> None:
+    def declare_recipe_stages(cls, recipe_config: dict) -> None:
+        """Declare all stages from recipe settings."""
+        cls._declared_stages.clear()
+        cls._protected_stages.clear()
+        
+        stages_list = recipe_config.get('settings', {}).get('stages', [])
+        
+        for stage_config in stages_list:
+            stage_name = stage_config['stage_name']  # Required field
+            cls._declared_stages[stage_name] = stage_config
+            
+            if stage_config.get('protected', False):
+                cls._protected_stages.add(stage_name)
+        
+        logger.info(f"Declared {len(stages_list)} stages")
+
+    @classmethod
+    def validate_recipe_stages(cls, recipe_config: dict) -> list:
+        """Validate all stage references in recipe."""
+        declared_stages = set(cls._declared_stages.keys())
+        errors = []
+        
+        for step_index, step in enumerate(recipe_config.get('recipe', [])):
+            step_desc = step.get('step_description', f'Step {step_index + 1}')
+            processor_type = step.get('processor_type')
+            
+            # Import processors create stages
+            if processor_type == 'import_file':
+                save_stage = step.get('save_to_stage')
+                if not save_stage:
+                    errors.append(f"{step_desc}: import_file requires save_to_stage")
+                elif save_stage not in declared_stages:
+                    errors.append(f"{step_desc}: save_to_stage '{save_stage}' not declared")
+                continue
+            
+            # Export processors consume stages  
+            if processor_type == 'export_file':
+                source_stage = step.get('source_stage')
+                if not source_stage:
+                    errors.append(f"{step_desc}: export_file requires source_stage")
+                elif source_stage not in declared_stages:
+                    errors.append(f"{step_desc}: source_stage '{source_stage}' not declared")
+                continue
+            
+            # Processing steps require both
+            source_stage = step.get('source_stage')
+            save_stage = step.get('save_to_stage')
+            
+            if not source_stage:
+                errors.append(f"{step_desc}: requires source_stage")
+            elif source_stage not in declared_stages:
+                errors.append(f"{step_desc}: source_stage '{source_stage}' not declared")
+            
+            if not save_stage:
+                errors.append(f"{step_desc}: requires save_to_stage")
+            elif save_stage not in declared_stages:
+                errors.append(f"{step_desc}: save_to_stage '{save_stage}' not declared")
+        
+        return errors
+
+    @classmethod
+    def is_stage_declared(cls, stage_name: str) -> bool:
+        """Check if stage was declared in recipe settings."""
+        return stage_name in cls._declared_stages
+
+    @classmethod
+    def is_stage_protected(cls, stage_name: str) -> bool:
+        """Check if stage is protected from overwriting."""
+        return stage_name in cls._protected_stages
+
+    @classmethod
+    def get_recipe_completion_report(cls) -> dict:
+        """Generate comprehensive report after recipe completion."""
+        return {
+            'stages_declared': len(cls._declared_stages),
+            'stages_created': len(cls._current_stages),
+            'stages_unused': cls.get_unused_stages(),
+            'protected_stages': list(cls._protected_stages),
+            'total_memory_mb': sum(
+                meta.get('memory_usage_mb', 0) 
+                for meta in cls._stage_metadata.values()
+            ),
+            'stage_details': {
+                name: {
+                    'declared': name in cls._declared_stages,
+                    'description': cls._declared_stages.get(name, {}).get('description', 'N/A'),
+                    'protected': name in cls._protected_stages,
+                    'rows': meta['rows'],
+                    'columns': meta['columns'],
+                    'memory_mb': meta['memory_usage_mb'],
+                    'usage_count': cls._stage_usage.get(name, 0)
+                }
+                for name, meta in cls._stage_metadata.items()
+            }
+        }
+
+    @classmethod
+    def save_stage(cls, stage_name: str, data: pd.DataFrame, description: str = '',
+                    step_name: str = '', overwrite: bool = False,
+                    confirm_replacement: bool = False) -> None:
         """
-        Save a DataFrame as a named stage.
+        Save a DataFrame to a named stage with protection checks.
         
         Args:
             stage_name: Name for the stage
             data: DataFrame to save
-            overwrite: Whether to overwrite existing stage
             description: Optional description
             step_name: Name of step creating this stage
+            overwrite: Whether to overwrite existing stage
+            confirm_replacement: ???
             
         Raises:
             StageError: If stage saving fails
         """
         # Validate stage name
         cls._validate_stage_name(stage_name)
+        
+        # NEW: Protection checks for pure stage architecture
+        if cls._declared_stages:  # Only if stages were declared
+            # Must be declared
+            if stage_name not in cls._declared_stages:
+                raise StageError(f"Stage '{stage_name}' not declared in recipe settings")
+            
+            # Check protection
+            if stage_name in cls._protected_stages and stage_name in cls._current_stages:
+                raise StageError(f"Protected stage '{stage_name}' cannot be overwritten")
+            
+            # Check replacement confirmation for declared stages
+            if stage_name in cls._current_stages and not confirm_replacement and not overwrite:
+                raise StageError(f"Stage '{stage_name}' exists. Use confirm_stage_replacement: true")
         
         # Check if stage already exists
         if stage_name in cls._current_stages and not overwrite:
@@ -93,7 +208,7 @@ class StageManager:
             f"Stage '{stage_name}' saved: {len(data)} rows, {len(data.columns)} columns"
             + (f" - {description}" if description else "")
         )
-    
+
     @classmethod
     def load_stage(cls, stage_name: str) -> pd.DataFrame:
         """
@@ -128,7 +243,7 @@ class StageManager:
         )
         
         return stage_data
-    
+
     @classmethod
     def list_stages(cls) -> dict:
         """Get information about all saved stages."""
@@ -139,26 +254,26 @@ class StageManager:
                 'usage_count': cls._stage_usage.get(stage_name, 0)
             }
         return stage_info
-    
+
     @classmethod
     def get_unused_stages(cls) -> list:
         """Get list of stages that were created but never used."""
         return [name for name, usage in cls._stage_usage.items() if usage == 0]
-    
+
     @classmethod
     def stage_exists(cls, stage_name: str) -> bool:
         """Check if a stage exists."""
         return stage_name in cls._current_stages
-    
+
     @classmethod
     def get_stage_count(cls) -> int:
         """Get the number of currently stored stages."""
         return len(cls._current_stages)
-    
+
     # =============================================================================
     # LIFECYCLE MANAGEMENT - Called by pipeline
     # =============================================================================
-    
+
     @classmethod
     def initialize_stages(cls, max_stages: int = 10) -> None:
         """Initialize stage storage (called by pipeline at start)."""
@@ -287,7 +402,7 @@ class StageManager:
         """
         try:
             # Import registry to get current processor types
-            from excel_recipe_processor.processors.base_processor import registry
+            from excel_recipe_processor.core.base_processor import registry
             return set(registry.get_registered_types())
         except ImportError:
             # Fallback: known processor types if registry unavailable

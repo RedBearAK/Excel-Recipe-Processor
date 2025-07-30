@@ -4,8 +4,8 @@ Test the PivotTableProcessor functionality.
 
 import pandas as pd
 
+from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.pivot_table_processor import PivotTableProcessor
-from excel_recipe_processor.processors.base_processor import StepProcessorError
 
 
 def create_van_report_test_data():

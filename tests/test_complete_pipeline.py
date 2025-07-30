@@ -238,7 +238,7 @@ def test_registry_functionality():
     
     print("\n\nTesting processor registry...")
     
-    from excel_recipe_processor.processors.base_processor import registry
+    from excel_recipe_processor.core.base_processor import registry
     
     # Check that filter_data processor is registered
     registered_types = registry.get_registered_types()

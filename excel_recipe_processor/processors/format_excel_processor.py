@@ -18,7 +18,7 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
-from excel_recipe_processor.processors.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
 logger = logging.getLogger(__name__)

@@ -495,6 +495,7 @@ from excel_recipe_processor.processors.add_subtotals_processor          import A
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.combine_data_processor           import CombineDataProcessor
+from excel_recipe_processor.processors.copy_stage_processor             import CopyStageProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
 from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
@@ -503,12 +504,10 @@ from excel_recipe_processor.processors.filter_data_processor            import F
 from excel_recipe_processor.processors.format_excel_processor           import FormatExcelProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
-from excel_recipe_processor.processors.load_stage_processor             import LoadStageProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
 from excel_recipe_processor.processors.rename_columns_processor         import RenameColumnsProcessor
-from excel_recipe_processor.processors.save_stage_processor             import SaveStageProcessor
 from excel_recipe_processor.processors.slice_data_processor             import SliceDataProcessor
 from excel_recipe_processor.processors.sort_data_processor              import SortDataProcessor
 from excel_recipe_processor.processors.split_column_processor           import SplitColumnProcessor
@@ -523,6 +522,7 @@ def register_standard_processors():
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('combine_data',                   CombineDataProcessor                )
+    registry.register('copy_stage',                     CopyStageProcessor                  )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
     registry.register('export_file',                    ExportFileProcessor                 )
@@ -531,12 +531,10 @@ def register_standard_processors():
     registry.register('format_excel',                   FormatExcelProcessor                )
     registry.register('group_data',                     GroupDataProcessor                  )
     registry.register('import_file',                    ImportFileProcessor                 )
-    registry.register('load_stage',                     LoadStageProcessor                  )
     registry.register('lookup_data',                    LookupDataProcessor                 )
     registry.register('merge_data',                     MergeDataProcessor                  )
     registry.register('pivot_table',                    PivotTableProcessor                 )
     registry.register('rename_columns',                 RenameColumnsProcessor              )
-    registry.register('save_stage',                     SaveStageProcessor                  )
     registry.register('slice_data',                     SliceDataProcessor                  )
     registry.register('sort_data',                      SortDataProcessor                   )
     registry.register('split_column',                   SplitColumnProcessor                )

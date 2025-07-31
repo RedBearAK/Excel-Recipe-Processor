@@ -1,0 +1,425 @@
+# Revision date: 2025-07-31
+
+description: "Create stages from inline data definitions in recipe YAML - useful for reference lists, lookup tables, and configuration data without requiring external files"
+
+basic_list_example:
+  description: "Create a simple list stage for filtering approved customers"
+  yaml: |
+    # Create a list of approved customer IDs for filtering
+    
+    settings:
+      description: "Filter orders for approved customers only"
+      stages:
+        - stage_name: "approved_customers"
+          description: "List of approved customer IDs"
+          protected: true
+        - stage_name: "all_orders"
+          description: "All order data"
+          protected: false
+        - stage_name: "approved_orders"
+          description: "Orders from approved customers only"
+          protected: false
+    
+    recipe:
+      # Step 1: Create approved customer list
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Create approved customer list"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage (must be declared in settings.stages)
+        stage_name: "approved_customers"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Customer IDs approved for promotional pricing"
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type: "list", "table", or "dictionary"
+          format: "list"
+          # REQ - Column name for the list (format: list only)
+          column: "Customer_ID"
+          # REQ - List of values (format: list only)
+          values:
+            - "CUST001"
+            - "CUST002"
+            - "CUST003"
+            - "CUST004"
+            - "CUST005"
+
+table_mapping_example:
+  description: "Create a lookup table for region mapping"
+  yaml: |
+    # Create a table mapping states to regions for aggregation
+    
+    settings:
+      description: "Map customer locations to sales regions"
+      stages:
+        - stage_name: "region_mapping"
+          description: "State to region lookup table"
+          protected: true
+        - stage_name: "customer_data"
+          description: "Customer data with state information"
+          protected: false
+    
+    recipe:
+      # Step 1: Create region mapping table
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Create state-to-region mapping table"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage
+        stage_name: "region_mapping"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Maps US states to sales regions"
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type: "list", "table", or "dictionary"
+          format: "table"
+          # REQ - Column names for the table (format: table only)
+          columns: ["State", "Region", "Territory_Manager"]
+          # REQ - List of rows, each with values matching columns (format: table only)
+          rows:
+            - ["CA", "West", "Sarah Johnson"]
+            - ["OR", "West", "Sarah Johnson"]
+            - ["WA", "West", "Sarah Johnson"]
+            - ["TX", "South", "Mike Davis"]
+            - ["FL", "South", "Mike Davis"]
+            - ["NY", "East", "Linda Chen"]
+            - ["MA", "East", "Linda Chen"]
+
+dictionary_lookup_example:
+  description: "Create a dictionary for customer tier lookups"
+  yaml: |
+    # Create a dictionary mapping customer IDs to tier levels
+    
+    settings:
+      description: "Apply customer tier-based pricing"
+      stages:
+        - stage_name: "customer_tiers"
+          description: "Customer tier assignments"
+          protected: true
+        - stage_name: "order_data"
+          description: "Order data to apply tier pricing"
+          protected: false
+    
+    recipe:
+      # Step 1: Create customer tier dictionary
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Create customer tier lookup"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage
+        stage_name: "customer_tiers"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Maps customer IDs to service tier levels"
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type: "list", "table", or "dictionary"
+          format: "dictionary"
+          # REQ - Column name for keys (format: dictionary only)
+          key_column: "Customer_ID"
+          # REQ - Column name for values (format: dictionary only)
+          value_column: "Service_Tier"
+          # REQ - Dictionary entries as key-value pairs (format: dictionary only)
+          entries:
+            "CUST001": "Premium"
+            "CUST002": "Standard"
+            "CUST003": "Premium"
+            "CUST004": "Basic"
+            "CUST005": "Premium"
+            "CUST006": "Standard"
+
+advanced_filter_criteria_example:
+  description: "Create complex filter criteria lists for multi-step filtering"
+  yaml: |
+    # Create multiple filter lists for sophisticated data filtering
+    
+    settings:
+      description: "Multi-criteria filtering for product analysis"
+      variables:
+        min_revenue: "10000"
+      stages:
+        - stage_name: "priority_products"
+          description: "High-priority product codes"
+          protected: true
+        - stage_name: "excluded_regions"
+          description: "Regions to exclude from analysis"
+          protected: true
+        - stage_name: "raw_sales"
+          description: "Raw sales data"
+          protected: false
+        - stage_name: "filtered_sales"
+          description: "Sales after filtering"
+          protected: false
+    
+    recipe:
+      # Step 1: Create priority product list
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Define priority products for analysis"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage
+        stage_name: "priority_products"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Product codes flagged as high priority for Q4"
+        # OPT - Whether to overwrite if stage already exists
+        # Default value: false
+        overwrite: false
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type
+          format: "list"
+          # REQ - Column name
+          column: "Product_Code"
+          # REQ - List of values
+          values:
+            - "PROD-A100"
+            - "PROD-A200"
+            - "PROD-B150"
+            - "PROD-C300"
+            - "PROD-D250"
+      
+      # Step 2: Create excluded regions list
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Define regions to exclude"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage
+        stage_name: "excluded_regions"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Regions excluded due to incomplete data"
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type
+          format: "list"
+          # REQ - Column name
+          column: "Region"
+          # REQ - List of values
+          values:
+            - "Test Market"
+            - "Internal"
+            - "Discontinued"
+      
+      # Step 3: Use the created stages in filtering
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter for priority products in valid regions"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "raw_sales"
+        # REQ - Stage to save filtered results
+        save_to_stage: "filtered_sales"
+        # REQ - List of filter conditions
+        filters:
+          - column: "Product_Code"
+            condition: "in_stage"
+            stage_name: "priority_products"
+          - column: "Region"
+            condition: "not_in_stage"
+            stage_name: "excluded_regions"
+          - column: "Revenue"
+            condition: "greater_than"
+            value: "{min_revenue}"
+
+configuration_driven_example:
+  description: "Use inline stages for configuration-driven processing"
+  yaml: |
+    # Create configuration stages that control processing behavior
+    
+    settings:
+      description: "Configuration-driven data validation and cleanup"
+      stages:
+        - stage_name: "validation_rules"
+          description: "Column validation configuration"
+          protected: true
+        - stage_name: "cleanup_mappings"
+          description: "Value cleanup mappings"
+          protected: true
+        - stage_name: "input_data"
+          description: "Data to process"
+          protected: false
+    
+    recipe:
+      # Step 1: Define validation rules
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Configure validation rules"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage
+        stage_name: "validation_rules"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Defines required columns and their validation rules"
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type
+          format: "table"
+          # REQ - Column names
+          columns: ["Column_Name", "Required", "Min_Length", "Pattern"]
+          # REQ - List of rows
+          rows:
+            - ["Customer_ID", "Yes", "5", "^CUST[0-9]+$"]
+            - ["Email", "Yes", "5", "^[^@]+@[^@]+$"]
+            - ["Phone", "No", "10", "^[0-9-]+$"]
+            - ["Status", "Yes", "1", "^(Active|Inactive|Pending)$"]
+      
+      # Step 2: Define cleanup mappings
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed create_stage step"
+        step_description: "Configure cleanup mappings"
+        # REQ - Must be "create_stage" for this processor type
+        processor_type: "create_stage"
+        # REQ - Name for the new stage
+        stage_name: "cleanup_mappings"
+        # OPT - Description of what this stage contains
+        # Default value: "Stage created by create_stage processor"
+        description: "Maps common data entry errors to correct values"
+        # REQ - Data definition for the stage
+        data:
+          # REQ - Format type
+          format: "dictionary"
+          # REQ - Column name for keys
+          key_column: "Incorrect_Value"
+          # REQ - Column name for values
+          value_column: "Correct_Value"
+          # REQ - Dictionary entries
+          entries:
+            "Activ": "Active"
+            "Inactiv": "Inactive"
+            "Pend": "Pending"
+            "Y": "Yes"
+            "N": "No"
+            "": "Unknown"
+
+parameter_details:
+  stage_name:
+    type: string
+    required: true
+    description: "Name for the new stage (must be declared in settings.stages)"
+    examples:
+      - "approved_customers"
+      - "region_mapping"
+      - "validation_rules"
+    validation: "Must be a valid stage name declared in settings"
+    note: "Stage names are case-sensitive"
+
+  description:
+    type: string
+    required: false
+    default: "Stage created by create_stage processor"
+    description: "Human-readable description of what the stage contains"
+    examples:
+      - "List of customers approved for promotions"
+      - "Mapping of product codes to categories"
+      - "Validation rules for data quality checks"
+    best_practice: "Always provide meaningful descriptions for documentation"
+
+  overwrite:
+    type: boolean
+    required: false
+    default: false
+    description: "Whether to overwrite existing stage with same name"
+    safety_note: "When false, processor will error if stage already exists"
+    use_cases:
+      - "Set to true when recreating reference data in development"
+      - "Keep false in production to prevent accidental data loss"
+
+  data:
+    type: object
+    required: true
+    description: "Data definition containing format and content specification"
+    properties:
+      format:
+        type: string
+        required: true
+        enum: ["list", "table", "dictionary"]
+        description: "Type of data structure to create"
+      
+      # List format parameters
+      column:
+        type: string
+        required: true
+        applies_to: "list format only"
+        description: "Column name for the list values"
+        examples: ["Customer_ID", "Product_Code", "Region"]
+      
+      values:
+        type: array
+        required: true
+        applies_to: "list format only"
+        description: "Array of values for the list"
+        max_items: 100
+        item_type: "string, number, or boolean"
+      
+      # Table format parameters
+      columns:
+        type: array
+        required: true
+        applies_to: "table format only"
+        description: "Column names for the table"
+        examples: [["State", "Region"], ["Product", "Category", "Price"]]
+      
+      rows:
+        type: array
+        required: true
+        applies_to: "table format only"
+        description: "Array of rows, each containing values matching columns"
+        max_items: 200
+        validation: "Each row must have same number of values as columns"
+      
+      # Dictionary format parameters
+      key_column:
+        type: string
+        required: true
+        applies_to: "dictionary format only"
+        description: "Column name for dictionary keys"
+        examples: ["Customer_ID", "Product_Code", "Error_Code"]
+      
+      value_column:
+        type: string
+        required: true
+        applies_to: "dictionary format only"
+        description: "Column name for dictionary values"
+        examples: ["Customer_Tier", "Product_Category", "Correct_Value"]
+      
+      entries:
+        type: object
+        required: true
+        applies_to: "dictionary format only"
+        description: "Key-value pairs as a dictionary object"
+        max_entries: 150
+        example: {"CUST001": "Premium", "CUST002": "Standard"}
+
+size_limits:
+  list_items: 100
+  table_rows: 200
+  dictionary_entries: 150
+  warning_thresholds:
+    list_items: 75
+    table_rows: 150
+    dictionary_entries: 112
+  note: "Processor warns when approaching limits and errors when exceeded"
+
+common_use_cases:
+  filter_lists: "Create lists of values for filtering with in_stage condition"
+  lookup_tables: "Build reference tables for merge operations"
+  validation_rules: "Define data quality rules in tabular format"
+  category_mappings: "Map IDs or codes to human-readable categories"
+  test_data: "Create small test datasets for recipe development"
+  configuration: "Store processing configuration as structured data"
+
+integration_notes:
+  stage_usage: "Created stages can be used with in_stage/not_in_stage filters"
+  merge_operations: "Table and dictionary stages work well with merge_data processor"
+  data_isolation: "Inline data is copied to stage - no external file dependencies"
+  recipe_portability: "Recipes with inline stages are self-contained and portable"

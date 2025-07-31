@@ -7,8 +7,8 @@ basic_example:
     
     - # OPT - Human-readable description of what this step does
       step_description: "Save processed customer data as backup"
-      # REQ - Must be "save_stage" for this processor type
-      processor_type: "save_stage"
+      # REQ - Must be "copy_stage" for this processor type
+      processor_type: "copy_stage"
       # REQ - Unique name for this stage (can be any descriptive string)
       # Valid examples: "Customer Master Data", "Processed Orders", "Daily Import"
       stage_name: "Customer Backup"
@@ -21,7 +21,7 @@ advanced_example:
     - # OPT - Step description
       step_description: "Save filtered sales data with overwrite protection"
       # REQ - Processor type
-      processor_type: "save_stage"
+      processor_type: "copy_stage"
       # REQ - Stage name (can contain spaces and special characters)
       # Stage names are case-sensitive and must be exact for later loading
       stage_name: "Q4 Sales Filtered"
@@ -42,7 +42,7 @@ workflow_checkpoint_example:
     - # OPT - Step description
       step_description: "Create checkpoint after data cleaning"
       # REQ - Processor type
-      processor_type: "save_stage"
+      processor_type: "copy_stage"
       # REQ - Descriptive stage name for workflow tracking
       stage_name: "Post-Cleaning Checkpoint"
       # OPT - Enable overwrite for iterative development
@@ -59,7 +59,7 @@ branching_scenario_example:
     - # OPT - Step description
       step_description: "Save original data before trying different aggregation methods"
       # REQ - Processor type
-      processor_type: "save_stage"
+      processor_type: "copy_stage"
       # REQ - Clear stage name indicating purpose
       stage_name: "Pre-Aggregation Original"
       # OPT - Prevent accidental overwrite of important checkpoint

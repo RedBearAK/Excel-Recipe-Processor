@@ -327,7 +327,7 @@ recipe:
   
   # Save current data to a named stage
   - step_description: "Save processed customer data for later use"
-    processor_type: "save_stage"
+    processor_type: "copy_stage"
     stage_name: "Processed Customers"  # required
     description: "Customer data after cleaning and enrichment"  # optional
     overwrite: true  # optional - overwrite existing stage, default: false

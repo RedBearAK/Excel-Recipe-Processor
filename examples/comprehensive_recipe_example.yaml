@@ -193,7 +193,7 @@ recipe:
         
   # Save processed data to stage for later use
   - step_description: "Save enriched sales data"
-    processor_type: "save_stage"
+    processor_type: "copy_stage"
     stage_name: "Enriched Sales Data"
     description: "Complete sales data with customer and product details"
 
@@ -223,7 +223,7 @@ recipe:
     
   # Save regional summary to stage
   - step_description: "Save regional summary"
-    processor_type: "save_stage"
+    processor_type: "copy_stage"
     stage_name: "Regional Summary"
     description: "Revenue and metrics by region and customer tier"
     
@@ -251,7 +251,7 @@ recipe:
     
   # Save product analysis to stage
   - step_description: "Save product analysis"
-    processor_type: "save_stage"
+    processor_type: "copy_stage"
     stage_name: "Product Performance"
     description: "Product sales performance and profitability analysis"
 

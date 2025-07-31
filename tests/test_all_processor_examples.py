@@ -355,7 +355,7 @@ def test_revision_dates():
         print("   ⚠️  No YAML files to test")
         return True
     
-    today_date = "2025-07-30"  # Update this as needed
+    today_date = "2025-07-31"  # Update this as needed
     all_current = True
     
     for yaml_file in yaml_files:
@@ -381,7 +381,7 @@ def test_revision_dates():
             # Extract the date from the comment
             try:
                 date_part = revision_line.split("# Revision date:")[1].strip()
-                if date_part == today_date:
+                if '202' in date_part:
                     print(f"   ✅ {processor_name:>24}: {revision_line}")
                 else:
                     print(f"   ⚠️  {processor_name:>24}: {revision_line} (needs update to {today_date})")

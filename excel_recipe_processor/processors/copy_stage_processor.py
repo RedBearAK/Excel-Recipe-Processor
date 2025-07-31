@@ -9,7 +9,7 @@ from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepPr
 logger = logging.getLogger(__name__)
 
 
-class SaveStageProcessor(BaseStepProcessor):
+class CopyStageProcessor(BaseStepProcessor):
     """Processor for saving current data as a named stage."""
     
     @classmethod
@@ -70,6 +70,6 @@ class SaveStageProcessor(BaseStepProcessor):
         }
     
     def get_usage_examples(self) -> dict:
-        """Get complete usage examples for the save_stage processor."""
+        """Get complete usage examples for the copy_stage processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
-        return load_processor_examples('save_stage')
+        return load_processor_examples('copy_stage')

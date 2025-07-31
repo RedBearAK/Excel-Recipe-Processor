@@ -167,7 +167,7 @@ stage_lookup_example:
           # REQ - Source type specification
           type: "stage"
           # REQ - Name of previously saved stage
-          # Must match exactly what was saved with save_stage processor
+          # Must match exactly what was saved with previous save_to_stage directive
           stage_name: "customer_segments"
         # REQ - Key column in the saved stage data
         lookup_key: "Customer_ID"

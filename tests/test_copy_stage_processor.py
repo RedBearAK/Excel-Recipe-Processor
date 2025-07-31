@@ -1,12 +1,12 @@
 """
-Test the SaveStageProcessor functionality.
+Test the CopyStageProcessor functionality.
 """
 
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.core.base_processor import StepProcessorError
-from excel_recipe_processor.processors.save_stage_processor import SaveStageProcessor
+from excel_recipe_processor.processors.copy_stage_processor import CopyStageProcessor
 
 
 def create_sample_data():
@@ -19,10 +19,10 @@ def create_sample_data():
     })
 
 
-def test_basic_save_functionality():
+def test_basic_copy_functionality():
     """Test basic stage saving functionality."""
     
-    print("Testing basic save functionality...")
+    print("Testing basic copy functionality...")
     
     StageManager.initialize_stages(max_stages=10)
     
@@ -30,13 +30,13 @@ def test_basic_save_functionality():
         test_df = create_sample_data()
         
         step_config = {
-            'processor_type': 'save_stage',
-            'step_description': 'Save customer data',
+            'processor_type': 'copy_stage',
+            'step_description': 'Copy customer data',
             'stage_name': 'Customer Master Data',
             'description': 'Complete customer information for analysis'
         }
         
-        processor = SaveStageProcessor(step_config)
+        processor = CopyStageProcessor(step_config)
         result = processor.execute(test_df)
         
         # Check that input data is unchanged
@@ -49,13 +49,13 @@ def test_basic_save_functionality():
             print("✗ Stage was not created")
             return False
         
-        # Check saved data integrity
-        saved_data = StageManager.load_stage('Customer Master Data')
-        if saved_data.equals(test_df):
-            print("✓ Basic save functionality worked correctly")
+        # Check copied data integrity
+        copied_data = StageManager.load_stage('Customer Master Data')
+        if copied_data.equals(test_df):
+            print("✓ Basic copy functionality worked correctly")
             return True
         else:
-            print("✗ Saved data does not match input data")
+            print("✗ Copied data does not match input data")
             return False
             
     finally:
@@ -76,23 +76,23 @@ def test_overwrite_behavior():
             'Product_Name': ['Widget A', 'Gadget B']
         })
         
-        # Save initial stage
+        # Copy initial stage
         step_config = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Test Overwrite Stage',
             'description': 'Initial data'
         }
         
-        processor = SaveStageProcessor(step_config)
+        processor = CopyStageProcessor(step_config)
         processor.execute(test_df1)
         
-        # Verify initial save
-        saved_data = StageManager.load_stage('Test Overwrite Stage')
-        if not saved_data.equals(test_df1):
-            print("✗ Initial save failed")
+        # Verify initial copy
+        copied_data = StageManager.load_stage('Test Overwrite Stage')
+        if not copied_data.equals(test_df1):
+            print("✗ Initial copy failed")
             return False
         
-        # Try to save again without overwrite (should fail)
+        # Try to copy again without overwrite (should fail)
         try:
             processor.execute(test_df2)
             print("✗ Should have failed without overwrite=true")
@@ -104,12 +104,12 @@ def test_overwrite_behavior():
         step_config['overwrite'] = True
         step_config['description'] = 'Overwritten data'
         
-        processor = SaveStageProcessor(step_config)
+        processor = CopyStageProcessor(step_config)
         processor.execute(test_df2)
         
         # Verify stage was overwritten
-        saved_data = StageManager.load_stage('Test Overwrite Stage')
-        if saved_data.equals(test_df2):
+        copied_data = StageManager.load_stage('Test Overwrite Stage')
+        if copied_data.equals(test_df2):
             print("✓ Overwrite behavior worked correctly")
             return True
         else:
@@ -131,13 +131,13 @@ def test_metadata_tracking():
         test_df = create_sample_data()
         
         step_config = {
-            'processor_type': 'save_stage',
-            'step_description': 'Save for metadata test',
+            'processor_type': 'copy_stage',
+            'step_description': 'Copy for metadata test',
             'stage_name': 'Metadata Test Stage', 
             'description': 'Stage created for testing metadata tracking'
         }
         
-        processor = SaveStageProcessor(step_config)
+        processor = CopyStageProcessor(step_config)
         processor.execute(test_df)
         
         # Check metadata
@@ -145,7 +145,7 @@ def test_metadata_tracking():
         metadata = stage_info.get('Metadata Test Stage', {})
         
         expected_description = 'Stage created for testing metadata tracking'
-        expected_step_name = 'Save for metadata test'
+        expected_step_name = 'Copy for metadata test'
         expected_rows = len(test_df)
         expected_columns = len(test_df.columns)
         
@@ -180,24 +180,24 @@ def test_multiple_stages():
             'Category': ['Electronics', 'Electronics', 'Hardware']
         })
         
-        # Save first stage
+        # Copy first stage
         step_config1 = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Customer Data',
             'description': 'Customer master data'
         }
         
-        processor1 = SaveStageProcessor(step_config1)
+        processor1 = CopyStageProcessor(step_config1)
         processor1.execute(customer_df)
         
-        # Save second stage
+        # Copy second stage
         step_config2 = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Product Catalog',
             'description': 'Product master data'
         }
         
-        processor2 = SaveStageProcessor(step_config2)
+        processor2 = CopyStageProcessor(step_config2)
         processor2.execute(product_df)
         
         # Verify both stages exist
@@ -206,7 +206,7 @@ def test_multiple_stages():
         if (stage_summary['total_stages'] == 2 and
             StageManager.stage_exists('Customer Data') and
             StageManager.stage_exists('Product Catalog')):
-            print("✓ Multiple stages saved correctly")
+            print("✓ Multiple stages copied correctly")
             return True
         else:
             print(f"✗ Multiple stages failed: {stage_summary}")
@@ -229,10 +229,10 @@ def test_error_handling():
         # Test missing stage_name
         try:
             bad_config = {
-                'processor_type': 'save_stage',
+                'processor_type': 'copy_stage',
                 'step_description': 'Missing stage name'
             }
-            processor = SaveStageProcessor(bad_config)
+            processor = CopyStageProcessor(bad_config)
             processor.execute(test_df)
             print("✗ Should have failed with missing stage_name")
             return False
@@ -242,10 +242,10 @@ def test_error_handling():
         # Test reserved stage name
         try:
             bad_config = {
-                'processor_type': 'save_stage',
+                'processor_type': 'copy_stage',
                 'stage_name': 'input'  # Reserved name
             }
-            processor = SaveStageProcessor(bad_config)
+            processor = CopyStageProcessor(bad_config)
             processor.execute(test_df)
             print("✗ Should have failed with reserved stage name")
             return False
@@ -255,29 +255,29 @@ def test_error_handling():
         # # Test empty DataFrame
         # empty_df = pd.DataFrame()
         # step_config = {
-        #     'processor_type': 'save_stage',
+        #     'processor_type': 'copy_stage',
         #     'stage_name': 'Empty Stage'
         # }
         
         # # This should work (empty DataFrames are allowed)
-        # processor = SaveStageProcessor(step_config)
+        # processor = CopyStageProcessor(step_config)
         # result = processor.execute(empty_df)
         
         # if StageManager.stage_exists('Empty Stage'):
-        #     print("✓ Empty DataFrame save handled correctly")
+        #     print("✓ Empty DataFrame copy handled correctly")
         # else:
-        #     print("✗ Empty DataFrame save failed")
+        #     print("✗ Empty DataFrame copy failed")
         #     return False
 
         # Test empty DataFrame - should fail with validation error
         empty_df = pd.DataFrame()
         step_config = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Empty Stage'
         }
 
         try:
-            processor = SaveStageProcessor(step_config)
+            processor = CopyStageProcessor(step_config)
             processor.execute(empty_df)
             print("✗ Should have failed with empty DataFrame")
             return False
@@ -308,27 +308,27 @@ def test_stage_limit_enforcement():
         
         # Create first stage
         step_config1 = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Stage 1'
         }
-        processor1 = SaveStageProcessor(step_config1)
+        processor1 = CopyStageProcessor(step_config1)
         processor1.execute(test_df)
         
         # Create second stage
         step_config2 = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Stage 2'
         }
-        processor2 = SaveStageProcessor(step_config2)
+        processor2 = CopyStageProcessor(step_config2)
         processor2.execute(test_df)
         
         # Try to create third stage (should fail)
         try:
             step_config3 = {
-                'processor_type': 'save_stage',
+                'processor_type': 'copy_stage',
                 'stage_name': 'Stage 3'
             }
-            processor3 = SaveStageProcessor(step_config3)
+            processor3 = CopyStageProcessor(step_config3)
             processor3.execute(test_df)
             print("✗ Should have failed with stage limit exceeded")
             return False
@@ -345,7 +345,7 @@ def test_stage_limit_enforcement():
 
 
 def test_data_isolation():
-    """Test that saved data is properly isolated (copies)."""
+    """Test that copied data is properly isolated (copies)."""
     
     print("\nTesting data isolation...")
     
@@ -354,22 +354,22 @@ def test_data_isolation():
     try:
         test_df = create_sample_data()
         
-        # Save stage
+        # Copy stage
         step_config = {
-            'processor_type': 'save_stage',
+            'processor_type': 'copy_stage',
             'stage_name': 'Isolation Test'
         }
         
-        processor = SaveStageProcessor(step_config)
+        processor = CopyStageProcessor(step_config)
         processor.execute(test_df)
         
         # Modify original DataFrame
         test_df.loc[0, 'Customer_Name'] = 'MODIFIED'
         
-        # Check that saved data was not affected
-        saved_data = StageManager.load_stage('Isolation Test')
+        # Check that copied data was not affected
+        copied_data = StageManager.load_stage('Isolation Test')
         
-        if saved_data.loc[0, 'Customer_Name'] != 'MODIFIED':
+        if copied_data.loc[0, 'Customer_Name'] != 'MODIFIED':
             print("✓ Data isolation worked correctly")
             return True
         else:
@@ -383,7 +383,7 @@ def test_data_isolation():
 if __name__ == '__main__':
     success = True
     
-    success &= test_basic_save_functionality()
+    success &= test_basic_copy_functionality()
     success &= test_overwrite_behavior()
     success &= test_metadata_tracking()
     success &= test_multiple_stages()
@@ -392,13 +392,13 @@ if __name__ == '__main__':
     success &= test_data_isolation()
     
     if success:
-        print("\n✓ All save stage processor tests passed!")
+        print("\n✓ All copy stage processor tests passed!")
     else:
-        print("\n✗ Some save stage processor tests failed!")
+        print("\n✗ Some copy stage processor tests failed!")
     
     # Show processor info
-    processor = SaveStageProcessor({
-        'processor_type': 'save_stage',
+    processor = CopyStageProcessor({
+        'processor_type': 'copy_stage',
         'stage_name': 'test'
     })
     print(f"\nProcessor capabilities: {list(processor.get_capabilities().keys())}")

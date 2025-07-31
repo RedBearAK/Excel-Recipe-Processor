@@ -361,6 +361,11 @@ class CreateStageProcessor(BaseStepProcessor):
                 'test_scenarios': "Inline test data for recipe development"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the create_stage processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('create_stage')
 
 
 class CreateStageUtils:

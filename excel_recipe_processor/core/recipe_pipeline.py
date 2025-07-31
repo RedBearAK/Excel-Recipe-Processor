@@ -274,11 +274,15 @@ class RecipePipeline:
         )
     
     def _create_processor(self, step_config: dict):
-        """Create processor with variable injection and friendly error handling."""
+        """Create processor with variable substitution applied BEFORE processor creation."""
         try:
-            processor = registry.create_processor(step_config)
+            # CRITICAL FIX: Apply variable substitution to step config BEFORE creating processor
+            substituted_config = self._apply_variable_substitution_to_config(step_config)
             
-            # Inject variables for dynamic configurations
+            # Create processor with substituted configuration
+            processor = registry.create_processor(substituted_config)
+            
+            # Still inject variables for any dynamic configurations the processor might need
             self._inject_variables_into_processor(processor)
             
             return processor
@@ -296,6 +300,58 @@ class RecipePipeline:
         except Exception as e:
             step_type = step_config.get('processor_type', 'unknown')
             raise RecipePipelineError(f"Failed to create processor '{step_type}': {e}")
+    
+    def _apply_variable_substitution_to_config(self, config: dict) -> dict:
+        """
+        Apply variable substitution to all string values in a configuration dictionary.
+        
+        This processes the step configuration before the processor is created,
+        ensuring that variables like {min_sales} are substituted to actual values.
+        """
+        if not self.variable_substitution:
+            return config.copy()
+        
+        # Create a deep copy to avoid modifying original
+        import copy
+        substituted_config = copy.deepcopy(config)
+        
+        # Recursively apply substitution to all string values
+        self._substitute_config_values(substituted_config)
+        
+        return substituted_config
+    
+    def _substitute_config_values(self, obj):
+        """
+        Recursively substitute variables in configuration values.
+        
+        Handles nested dictionaries, lists, and string values.
+        """
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if isinstance(value, str) and '{' in value:
+                    # Apply variable substitution to string values containing variables
+                    try:
+                        original_value = value
+                        obj[key] = self.variable_substitution.substitute(value)
+                        if obj[key] != original_value:
+                            logger.debug(f"🔄 Config substitution: {key}: '{original_value}' → '{obj[key]}'")
+                    except Exception as e:
+                        logger.warning(f"⚠️  Variable substitution failed for config '{key}={value}': {e}")
+                elif isinstance(value, (dict, list)):
+                    # Recursively process nested structures
+                    self._substitute_config_values(value)
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                if isinstance(item, str) and '{' in item:
+                    try:
+                        original_item = item
+                        obj[i] = self.variable_substitution.substitute(item)
+                        if obj[i] != original_item:
+                            logger.debug(f"🔄 Config substitution: [{i}]: '{original_item}' → '{obj[i]}'")
+                    except Exception as e:
+                        logger.warning(f"⚠️  Variable substitution failed for config item '{item}': {e}")
+                elif isinstance(item, (dict, list)):
+                    self._substitute_config_values(item)
     
     def _inject_variables_into_processor(self, processor) -> None:
         """Inject variables into processor for dynamic configurations."""

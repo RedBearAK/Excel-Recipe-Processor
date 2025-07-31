@@ -677,3 +677,8 @@ class GroupDataProcessor(BaseStepProcessor):
                 'stage_description': 'Description for saved stage'
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the group_data processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('group_data')

@@ -430,6 +430,11 @@ class MergeDataProcessor(BaseStepProcessor):
                 'column_prefix': 'Prefix for columns from merge source'
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the merge_data processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('merge_data')
 
 
 # Note: Other processors should use FileReader directly for simple file reading

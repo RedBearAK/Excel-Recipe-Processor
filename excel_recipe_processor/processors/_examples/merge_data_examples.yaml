@@ -1,0 +1,377 @@
+# Revision date: 2025-07-30
+
+description: "Merge data with external sources like Excel files, CSV files, or configuration dictionaries using various join types"
+
+basic_example:
+  description: "Simple left join with Excel file to enrich main data"
+  yaml: |
+    # Complete recipe with merge_data processor
+    
+    settings:
+      description: "Enrich order data with customer information"
+      stages:
+        - stage_name: "order_data"
+          description: "Raw order data from import"
+          protected: false
+        - stage_name: "enriched_orders"
+          description: "Orders with customer details added"
+          protected: false
+    
+    recipe:
+      # Previous step would populate 'order_data' stage
+      - step_description: "Add customer details to orders"
+        # REQ - Must be "merge_data" for this processor type
+        processor_type: "merge_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "order_data"
+        # REQ - Stage to save merged results
+        save_to_stage: "enriched_orders"
+        # REQ - External data source configuration
+        merge_source:
+          # REQ - Type of data source
+          type: "excel"
+          # REQ - Path to external file (supports variable substitution)
+          path: "customer_master.xlsx"
+          # OPT - Sheet name or index for Excel files
+          # Can be string (sheet name) or integer (0-based index)
+          # Default value: 0 (first sheet)
+          sheet: "Customers"
+        # REQ - Column in main data to use as merge key
+        left_key: "Customer_ID"
+        # REQ - Column in external data to use as merge key
+        right_key: "Customer_ID"
+        # OPT - Type of join operation to perform
+        # Default value: "left"
+        join_type: "left"
+
+multi_source_example:
+  description: "Chain multiple merges to enrich from different sources"
+  yaml: |
+    # Multi-step enrichment from Excel, CSV, and dictionary sources
+    
+    settings:
+      description: "Comprehensive data enrichment from multiple sources"
+      variables:
+        data_year: "2024"
+        region: "west"
+      stages:
+        - stage_name: "raw_orders"
+          description: "Raw order data"
+          protected: false
+        - stage_name: "customer_enriched"
+          description: "Orders with customer data"
+          protected: false
+        - stage_name: "product_enriched"
+          description: "Orders with customer and product data"
+          protected: false
+        - stage_name: "territory_enriched"
+          description: "Fully enriched order data"
+          protected: false
+    
+    recipe:
+      # Step 1: Add customer information from Excel
+      - step_description: "Enrich with customer master data"
+        processor_type: "merge_data"
+        source_stage: "raw_orders"
+        save_to_stage: "customer_enriched"
+        merge_source:
+          type: "excel"
+          path: "reference_data/customers_{data_year}.xlsx"
+          sheet: "Active_Customers"
+          # OPT - Text encoding for files (ignored for Excel)
+          # Default value: "utf-8"
+          encoding: "utf-8"
+        left_key: "Customer_ID"
+        right_key: "Customer_ID"
+        join_type: "left"
+        # OPT - Handle duplicate column names
+        # Default value: ["_x", "_y"]
+        suffixes: ["_order", "_customer"]
+      
+      # Step 2: Add product information from CSV
+      - step_description: "Add product catalog details"
+        processor_type: "merge_data"
+        source_stage: "customer_enriched"
+        save_to_stage: "product_enriched"
+        merge_source:
+          type: "csv"
+          path: "product_catalog.csv"
+          # OPT - Field separator for CSV files
+          # Default value: ","
+          separator: ","
+          encoding: "utf-8"
+        left_key: "Product_SKU"
+        right_key: "SKU"
+        join_type: "left"
+      
+      # Step 3: Add territory mapping from configuration
+      - step_description: "Map regions to sales territories"
+        processor_type: "merge_data"
+        source_stage: "product_enriched"
+        save_to_stage: "territory_enriched"
+        merge_source:
+          # REQ - Dictionary-based lookup data
+          type: "dictionary"
+          # REQ - Inline mapping data
+          data:
+            "West": 
+              Territory: "Pacific"
+              Territory_Manager: "Alice Johnson"
+              Commission_Rate: 0.05
+            "East":
+              Territory: "Atlantic"
+              Territory_Manager: "Bob Smith"
+              Commission_Rate: 0.045
+            "Central":
+              Territory: "Continental"
+              Territory_Manager: "Carol Davis"
+              Commission_Rate: 0.04
+        left_key: "Customer_Region"
+        # REQ - For dictionary sources, right_key must be "key"
+        right_key: "key"
+        join_type: "left"
+
+join_types_example:
+  description: "Demonstrate different join types and their use cases"
+  yaml: |
+    # Show how different join types affect the results
+    
+    settings:
+      description: "Compare join type behaviors for data validation"
+      stages:
+        - stage_name: "main_data"
+          description: "Main dataset"
+          protected: false
+        - stage_name: "left_joined"
+          description: "Left join result - keeps all main data"
+          protected: false
+        - stage_name: "inner_joined"
+          description: "Inner join result - only matching records"
+          protected: false
+        - stage_name: "outer_joined"
+          description: "Outer join result - all records from both sources"
+          protected: false
+    
+    recipe:
+      # Left join: Keep all main data, add external where available
+      - step_description: "Left join - preserve all main data rows"
+        processor_type: "merge_data"
+        source_stage: "main_data"
+        save_to_stage: "left_joined"
+        merge_source:
+          type: "excel"
+          path: "reference_data.xlsx"
+        left_key: "ID"
+        right_key: "Reference_ID"
+        # OPT - Left join preserves all rows from main data
+        join_type: "left"
+      
+      # Inner join: Only keep rows that match in both datasets
+      - step_description: "Inner join - only complete records"
+        processor_type: "merge_data"
+        source_stage: "main_data"
+        save_to_stage: "inner_joined"
+        merge_source:
+          type: "excel"
+          path: "reference_data.xlsx"
+        left_key: "ID"
+        right_key: "Reference_ID"
+        # OPT - Inner join filters out non-matching rows
+        join_type: "inner"
+      
+      # Outer join: Keep all rows from both datasets
+      - step_description: "Outer join - comprehensive data view"
+        processor_type: "merge_data"
+        source_stage: "main_data"
+        save_to_stage: "outer_joined"
+        merge_source:
+          type: "excel"
+          path: "reference_data.xlsx"
+        left_key: "ID"
+        right_key: "Reference_ID"
+        # OPT - Outer join includes all data from both sources
+        join_type: "outer"
+
+stage_merge_example:
+  description: "Merge with data from another stage instead of external file"
+  yaml: |
+    # Use previously processed data as merge source
+    
+    settings:
+      description: "Merge with results from previous processing stages"
+      stages:
+        - stage_name: "customer_orders"
+          description: "Customer order data"
+          protected: false
+        - stage_name: "customer_segments"
+          description: "Customer segmentation results"
+          protected: false
+        - stage_name: "segmented_orders"
+          description: "Orders enriched with segmentation data"
+          protected: false
+    
+    recipe:
+      # Previous steps would populate both customer_orders and customer_segments
+      - step_description: "Add customer segmentation to orders"
+        processor_type: "merge_data"
+        source_stage: "customer_orders"
+        save_to_stage: "segmented_orders"
+        merge_source:
+          # REQ - Stage-based data source
+          type: "stage"
+          # REQ - Name of previously saved stage
+          stage_name: "customer_segments"
+        left_key: "Customer_ID"
+        right_key: "Customer_ID"
+        # OPT - Inner join to only include customers that were segmented
+        join_type: "inner"
+
+parameter_details:
+  merge_source:
+    type: dict
+    required: true
+    description: "Configuration for the external data source to merge with main data"
+    structure: "Must contain 'type' field, other fields depend on source type"
+    
+  merge_source_type:
+    type: string
+    required: true
+    context: "Within merge_source configuration"
+    description: "Type of external data source"
+    valid_values: ["excel", "csv", "tsv", "dictionary", "stage"]
+    details:
+      excel: "Excel files (.xlsx, .xls) with optional sheet selection"
+      csv: "Comma-separated values files with encoding and separator options"
+      tsv: "Tab-separated values files"
+      dictionary: "Inline key-value mapping data"
+      stage: "Data from previously saved processing stage"
+  
+  merge_source_path:
+    type: string
+    required: true
+    context: "Required for excel, csv, tsv source types"
+    description: "File path to external data source (supports variable substitution)"
+    examples: ["customers.xlsx", "data/{year}/products.csv", "reference/{region}_territories.xlsx"]
+  
+  merge_source_sheet:
+    type: string_or_int
+    required: false
+    default: 0
+    context: "Used with excel source type"
+    description: "Sheet name or 0-based index to read from Excel file"
+    examples: ["Customers", "Active_Data", 0, 1]
+  
+  merge_source_data:
+    type: dict
+    required: true
+    context: "Required for dictionary source type"
+    description: "Inline dictionary mapping data where keys become the merge column"
+    structure: "Keys map to dictionaries containing the lookup values"
+    example: "{'CUST001': {'Name': 'TechCorp', 'Region': 'West'}}"
+  
+  merge_source_stage_name:
+    type: string
+    required: true
+    context: "Required for stage source type"
+    description: "Name of previously saved stage to use as merge source"
+    examples: ["customer_analysis", "product_enrichment", "regional_data"]
+  
+  left_key:
+    type: string
+    required: true
+    description: "Column name in main data to use as merge key"
+    examples: ["Customer_ID", "Product_SKU", "Territory_Code"]
+  
+  right_key:
+    type: string
+    required: true
+    description: "Column name in external data to use as merge key"
+    special_cases: "For dictionary sources, must be 'key' to reference the dictionary keys"
+    examples: ["Customer_ID", "SKU", "Territory_Code", "key"]
+  
+  join_type:
+    type: string
+    required: false
+    default: "left"
+    description: "Type of join operation to perform between datasets"
+    valid_values: ["left", "right", "inner", "outer"]
+    details:
+      left: "Keep all main data rows, add external data where available"
+      right: "Keep all external data rows, add main data where available"
+      inner: "Only keep rows that have matches in both datasets"
+      outer: "Keep all rows from both datasets, fill missing with null"
+  
+  suffixes:
+    type: list
+    required: false
+    default: ["_x", "_y"]
+    description: "Suffixes to add to duplicate column names from left and right datasets"
+    examples: ["['_main', '_lookup']", "['_order', '_customer']", "['_left', '_right']"]
+  
+  drop_duplicate_keys:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether to remove duplicate key columns after merge"
+  
+  encoding:
+    type: string
+    required: false
+    default: "utf-8"
+    context: "Used with csv and tsv source types"
+    description: "Text encoding for reading CSV/TSV files (ignored for Excel files)"
+    examples: ["utf-8", "latin-1", "cp1252", "ascii"]
+  
+  separator:
+    type: string
+    required: false
+    default: ","
+    context: "Used with csv source type"
+    description: "Field separator character for CSV files"
+    examples: [",", ";", "|", "\\t"]
+
+merge_source_types:
+  excel:
+    description: "Excel workbook files with optional sheet selection"
+    supported_formats: [".xlsx", ".xls"]
+    configuration: "Requires 'path', optionally 'sheet' and 'encoding'"
+    best_for: "Small to medium datasets with multiple sheets"
+  
+  csv:
+    description: "Comma-separated values files with encoding options"
+    supported_formats: [".csv"]
+    configuration: "Requires 'path', optionally 'encoding' and 'separator'"
+    best_for: "Large datasets, cross-platform compatibility"
+  
+  tsv:
+    description: "Tab-separated values files"
+    supported_formats: [".tsv", ".txt"]
+    configuration: "Requires 'path', optionally 'encoding'"
+    best_for: "Data with commas in values, database exports"
+  
+  dictionary:
+    description: "Inline key-value mapping for small lookup tables"
+    configuration: "Requires 'data' dictionary with string keys"
+    best_for: "Small reference data, configuration mappings"
+    memory_efficient: true
+  
+  stage:
+    description: "Previously saved processing stage data"
+    configuration: "Requires 'stage_name' referencing existing stage"
+    best_for: "Multi-step processing workflows, intermediate results"
+
+integration_notes:
+  stage_manager: "All merge operations work with declared stages - no direct pipeline data access"
+  file_reader: "Uses FileReader infrastructure for consistent file handling across formats"
+  variable_substitution: "File paths and all parameters support variable substitution"
+  data_type_conversion: "Automatically handles common data type mismatches between merge keys"
+  memory_efficiency: "Merged results create new stage copy - consider memory usage for large datasets"
+  stage_validation: "Both source_stage and save_to_stage must be declared in settings.stages"
+
+common_use_cases:
+  customer_enrichment: "Add customer details (name, region, tier) to transaction data"
+  product_lookup: "Enrich orders with product information (name, category, price)"
+  territory_assignment: "Map geographic data to sales territories and managers"
+  multi_source_enrichment: "Chain multiple merges to build comprehensive datasets"
+  reference_data_join: "Add lookup values from master data files"
+  stage_combination: "Merge results from different processing workflows"

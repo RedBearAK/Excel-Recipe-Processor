@@ -4,7 +4,7 @@ Format Excel step processor for Excel automation recipes.
 Handles formatting existing Excel files with auto-fit columns, header styling, and other presentation features.
 """
 
-import pandas as pd
+# import pandas as pd
 import logging
 
 from pathlib import Path
@@ -18,13 +18,13 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 
 
 logger = logging.getLogger(__name__)
 
 
-class FormatExcelProcessor(BaseStepProcessor):
+class FormatExcelProcessor(FileOpsBaseProcessor):
     """
     Processor for formatting existing Excel files.
     
@@ -38,31 +38,11 @@ class FormatExcelProcessor(BaseStepProcessor):
             'target_file': 'output.xlsx'
         }
     
-    def execute(self, data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Execute Excel formatting on target file while passing data through unchanged.
-        
-        Args:
-            data: Input pandas DataFrame (passed through unchanged)
-            
-        Returns:
-            Original DataFrame unchanged (formatting is a side effect)
-            
-        Raises:
-            StepProcessorError: If formatting operation fails
-        """
-        self.log_step_start()
-        
-        # Guard clause: ensure we have a DataFrame (even though we pass it through)
-        if not isinstance(data, pd.DataFrame):
-            raise StepProcessorError(f"Format Excel step '{self.step_name}' requires a pandas DataFrame")
-        
+    def perform_file_operation(self) -> str:
+        """Format the target Excel file."""
         # Check openpyxl availability
         if not OPENPYXL_AVAILABLE:
             raise StepProcessorError("openpyxl is required for Excel formatting but not installed")
-        
-        # Validate required configuration
-        self.validate_required_fields(['target_file'])
         
         target_file = self.get_config_value('target_file')
         formatting = self.get_config_value('formatting', {})
@@ -70,28 +50,23 @@ class FormatExcelProcessor(BaseStepProcessor):
         # Validate configuration
         self._validate_format_config(target_file, formatting)
         
-        try:
-            # Apply variable substitution to target filename
-            final_target_file = self._apply_variable_substitution(target_file)
-            
-            # Check file exists
-            if not Path(final_target_file).exists():
-                raise StepProcessorError(f"Target file not found: {final_target_file}")
-            
-            # Load and format the workbook
-            formatted_sheets = self._format_excel_file(final_target_file, formatting)
-            
-            result_info = f"formatted {final_target_file} ({formatted_sheets} sheets processed)"
-            self.log_step_complete(result_info)
-            
-            # Return original data unchanged
-            return data
-            
-        except Exception as e:
-            if isinstance(e, StepProcessorError):
-                raise
-            else:
-                raise StepProcessorError(f"Error formatting Excel file in step '{self.step_name}': {e}")
+        # Apply variable substitution to target filename
+        final_target_file = self._apply_variable_substitution(target_file)
+        
+        # Check file exists
+        if not Path(final_target_file).exists():
+            raise StepProcessorError(f"Target file not found: {final_target_file}")
+        
+        # Load and format the workbook
+        formatted_sheets = self._format_excel_file(final_target_file, formatting)
+        
+        return f"formatted {final_target_file} ({formatted_sheets} sheets processed)"
+    
+    # ADD THIS METHOD (optional override for better validation):
+    def _validate_file_operation_config(self):
+        """Validate format_excel specific configuration."""
+        if not self.get_config_value('target_file'):
+            raise StepProcessorError(f"Format Excel step '{self.step_name}' requires 'target_file'")
     
     def _validate_format_config(self, target_file: str, formatting: dict) -> None:
         """

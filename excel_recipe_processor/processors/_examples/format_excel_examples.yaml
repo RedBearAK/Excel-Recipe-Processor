@@ -1,0 +1,464 @@
+# Revision date: 2025-07-30
+
+description: "Format existing Excel files with professional presentation features. This is a file operation utility that doesn't participate in data flow - it simply formats external Excel files."
+
+basic_example:
+  description: "Simple auto-fit formatting after exporting data"
+  yaml: |
+    settings:
+      description: "Export sales data and apply professional formatting"
+      stages:
+        - stage_name: "sales_data"
+          description: "Processed sales data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import sales data
+        step_description: "Import monthly sales report"
+        processor_type: "import_file"
+        input_file: "data/sales_march_2024.xlsx"
+        save_to_stage: "sales_data"
+
+      - # Step 2: Export data to Excel file
+        step_description: "Export processed data to Excel"
+        processor_type: "export_file"
+        source_stage: "sales_data"
+        output_file: "reports/sales_report.xlsx"
+
+      - # Step 3: Format the exported Excel file
+        # OPT - Human-readable step description
+        # Default value: "Unnamed format_excel step"
+        step_description: "Apply professional formatting to Excel report"
+        # REQ - Must be "format_excel" for this processor type
+        processor_type: "format_excel"
+        # REQ - Excel file to format (must already exist)
+        # File path supports variable substitution
+        target_file: "reports/sales_report.xlsx"
+        # OPT - Formatting configuration options
+        # Default value: {} (no formatting applied)
+        formatting:
+          # OPT - Automatically size columns to fit content
+          # Default value: false
+          auto_fit_columns: true
+          # OPT - Make header row bold for emphasis
+          # Default value: false
+          header_bold: true
+          # OPT - Add background color to header row
+          # Default value: false
+          header_background: true
+
+comprehensive_formatting_example:
+  description: "Complete Excel formatting with all available features"
+  yaml: |
+    settings:
+      description: "Create comprehensive business report with full Excel formatting"
+      variables:
+        report_date: "2024-03-15"
+        department: "sales"
+      stages:
+        - stage_name: "report_data"
+          description: "Business report data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import and process data
+        step_description: "Import quarterly business report"
+        processor_type: "import_file"
+        input_file: "data/q1_business_report.xlsx"
+        save_to_stage: "report_data"
+
+      - # Step 2: Export to Excel with variable filename
+        step_description: "Export data for formatting"
+        processor_type: "export_file"
+        source_stage: "report_data"
+        # REQ - Use variables in filename
+        # Variables: {report_date}, {department} defined in settings
+        output_file: "reports/{department}_report_{report_date}.xlsx"
+
+      - # Step 3: Apply comprehensive formatting (no stage requirements!)
+        step_description: "Apply full professional formatting suite"
+        # REQ - Must be "format_excel" for this processor type
+        processor_type: "format_excel"
+        # REQ - Target file with variable substitution
+        target_file: "reports/{department}_report_{report_date}.xlsx"
+        # OPT - Complete formatting configuration
+        formatting:
+          # Column sizing options
+          # OPT - Automatically adjust column widths to content
+          auto_fit_columns: true
+          # OPT - Maximum column width in Excel units
+          # Default value: None (no maximum)
+          max_column_width: 50
+          # OPT - Minimum column width in Excel units  
+          # Default value: None (no minimum)
+          min_column_width: 10
+          # OPT - Specific column widths (column letter: width)
+          # Default value: {} (no specific widths)
+          column_widths:
+            "A": 15
+            "B": 25
+            "C": 20
+            "D": 30
+          
+          # Header formatting options
+          # OPT - Make header row text bold
+          header_bold: true
+          # OPT - Add background color to header row
+          header_background: true
+          # OPT - Background color for headers (hex color code)
+          # Default value: "D3D3D3" (light gray)
+          header_background_color: "4472C4"
+          
+          # Pane freezing options
+          # OPT - Freeze top row for easier scrolling
+          # Default value: false
+          freeze_top_row: true
+          # OPT - Freeze specific panes (cell reference like "B2")
+          # Default value: None (no custom freeze)
+          # freeze_panes: "B2"
+          
+          # Row sizing options
+          # OPT - Specific row heights (row number: height in points)
+          # Default value: {} (no custom heights)
+          row_heights:
+            1: 25  # Header row height
+            2: 18  # Data row height
+          
+          # Data features
+          # OPT - Add auto-filter to data range
+          # Default value: false
+          auto_filter: true
+          # OPT - Set active sheet (sheet name or index)
+          # Default value: None (first sheet remains active)
+          active_sheet: "Sheet1"
+
+multiple_files_example:
+  description: "Format multiple Excel files in sequence"
+  yaml: |
+    settings:
+      description: "Process and format multiple related Excel reports"
+      variables:
+        quarter: "Q1"
+        year: "2024"
+      stages:
+        - stage_name: "summary_data"
+          description: "Executive summary data"
+          protected: false
+        - stage_name: "detail_data"
+          description: "Detailed analysis data"
+          protected: false
+
+    recipe:
+      - # Step 1: Create summary report
+        step_description: "Import and export executive summary"
+        processor_type: "import_file"
+        input_file: "data/executive_summary.xlsx"
+        save_to_stage: "summary_data"
+
+      - step_description: "Export executive summary"
+        processor_type: "export_file"
+        source_stage: "summary_data"
+        output_file: "reports/executive_summary_{quarter}_{year}.xlsx"
+
+      - # Step 2: Create detailed report
+        step_description: "Import and export detailed analysis"
+        processor_type: "import_file"
+        input_file: "data/detailed_analysis.xlsx"
+        save_to_stage: "detail_data"
+
+      - step_description: "Export detailed analysis"
+        processor_type: "export_file"
+        source_stage: "detail_data"
+        output_file: "reports/detailed_analysis_{quarter}_{year}.xlsx"
+
+      - # Step 3: Format executive summary (file operation)
+        step_description: "Format executive summary for presentation"
+        processor_type: "format_excel"
+        target_file: "reports/executive_summary_{quarter}_{year}.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "2F5597"  # Executive blue
+          freeze_top_row: true
+          max_column_width: 40
+
+      - # Step 4: Format detailed analysis (separate file operation)
+        step_description: "Format detailed analysis for analysts"
+        processor_type: "format_excel"
+        target_file: "reports/detailed_analysis_{quarter}_{year}.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "4472C4"  # Data blue
+          freeze_top_row: true
+          auto_filter: true
+          max_column_width: 60
+
+batch_formatting_example:
+  description: "Format Excel files with different styles based on content type"
+  yaml: |
+    settings:
+      description: "Apply different formatting styles to different report types"
+      variables:
+        report_types: ["financial", "operational", "executive"]
+      stages:
+        - stage_name: "financial_data"
+          description: "Financial report data"
+          protected: false
+        - stage_name: "operational_data"
+          description: "Operational report data"
+          protected: false
+        - stage_name: "executive_data"
+          description: "Executive summary data"
+          protected: false
+
+    recipe:
+      - # Step 1: Process financial data
+        step_description: "Import financial data"
+        processor_type: "import_file"
+        input_file: "data/financial_report.xlsx"
+        save_to_stage: "financial_data"
+
+      - step_description: "Export financial report"
+        processor_type: "export_file"
+        source_stage: "financial_data"
+        output_file: "reports/financial_report.xlsx"
+
+      - # Step 2: Process operational data
+        step_description: "Import operational data"
+        processor_type: "import_file"
+        input_file: "data/operational_metrics.xlsx"
+        save_to_stage: "operational_data"
+
+      - step_description: "Export operational report"
+        processor_type: "export_file"
+        source_stage: "operational_data"
+        output_file: "reports/operational_report.xlsx"
+
+      - # Step 3: Process executive data
+        step_description: "Import executive summary"
+        processor_type: "import_file"
+        input_file: "data/executive_summary.xlsx"
+        save_to_stage: "executive_data"
+
+      - step_description: "Export executive summary"
+        processor_type: "export_file"
+        source_stage: "executive_data"
+        output_file: "reports/executive_summary.xlsx"
+
+      - # Step 4: Format financial report (conservative style)
+        step_description: "Apply conservative formatting to financial report"
+        processor_type: "format_excel"
+        target_file: "reports/financial_report.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "1F4E79"  # Conservative navy
+          freeze_top_row: true
+          auto_filter: true
+          min_column_width: 12
+          max_column_width: 35
+
+      - # Step 5: Format operational report (data-focused style)
+        step_description: "Apply data-focused formatting to operational report"
+        processor_type: "format_excel"
+        target_file: "reports/operational_report.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "4472C4"  # Data blue
+          freeze_top_row: true
+          auto_filter: true
+          max_column_width: 50
+          row_heights:
+            1: 25
+
+      - # Step 6: Format executive summary (presentation style)
+        step_description: "Apply presentation formatting to executive summary"
+        processor_type: "format_excel"
+        target_file: "reports/executive_summary.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "70AD47"  # Executive green
+          freeze_top_row: true
+          min_column_width: 15
+          max_column_width: 45
+          row_heights:
+            1: 30  # Prominent header
+
+standalone_formatting_example:
+  description: "Format existing Excel files without data processing pipeline"
+  yaml: |
+    settings:
+      description: "Pure file formatting operations on existing Excel files"
+
+    recipe:
+      - # Format existing file #1
+        step_description: "Format quarterly sales report"
+        # REQ - Must be "format_excel" for this processor type
+        processor_type: "format_excel"
+        # REQ - Excel file to format (must already exist)
+        target_file: "existing_reports/q1_sales.xlsx"
+        # OPT - Formatting configuration
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          freeze_top_row: true
+
+      - # Format existing file #2
+        step_description: "Format customer analysis report"
+        processor_type: "format_excel"
+        target_file: "existing_reports/customer_analysis.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "4472C4"
+          auto_filter: true
+          max_column_width: 40
+
+      - # Format existing file #3 with advanced options
+        step_description: "Format executive dashboard with custom styling"
+        processor_type: "format_excel"
+        target_file: "existing_reports/executive_dashboard.xlsx"
+        formatting:
+          auto_fit_columns: true
+          header_bold: true
+          header_background: true
+          header_background_color: "2F5597"
+          freeze_top_row: true
+          auto_filter: true
+          column_widths:
+            "A": 20  # Metric names
+            "B": 15  # Current values
+            "C": 15  # Previous values
+            "D": 12  # Change %
+          row_heights:
+            1: 35  # Extra tall header
+          active_sheet: "Dashboard"
+
+parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'format_excel' for this processor type"
+    examples:
+      - "format_excel"
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed format_excel step"
+    description: "Human-readable description of what formatting this step applies"
+    examples:
+      - "Apply professional formatting to sales report"
+      - "Format executive summary with corporate styling"
+      - "Add auto-filter and freeze panes to data table"
+
+  target_file:
+    type: string
+    required: true
+    description: "Path to existing Excel file to format (.xlsx or .xls). Supports variable substitution. File must already exist"
+    examples:
+      - "reports/sales_report.xlsx"
+      - "output/{department}_summary.xlsx"  
+      - "reports/{date}_formatted.xlsx"
+    note: "This is a file operation - no source_stage or save_to_stage needed"
+
+  formatting:
+    type: object
+    required: false
+    default: {}
+    description: "Formatting configuration options for Excel presentation"
+    properties:
+      auto_fit_columns:
+        type: boolean
+        default: false
+        description: "Automatically size columns to fit content"
+      
+      max_column_width:
+        type: number
+        default: null
+        description: "Maximum column width in Excel units (prevents overly wide columns)"
+        
+      min_column_width:
+        type: number
+        default: null
+        description: "Minimum column width in Excel units"
+        
+      column_widths:
+        type: object
+        default: {}
+        description: "Specific column widths (column letter: width)"
+        examples:
+          - {"A": 15, "B": 25, "C": 20}
+          
+      header_bold:
+        type: boolean
+        default: false
+        description: "Make header row text bold"
+        
+      header_background:
+        type: boolean
+        default: false
+        description: "Add background color to header row"
+        
+      header_background_color:
+        type: string
+        default: "D3D3D3"
+        description: "Header background color (hex color code without #)"
+        examples:
+          - "4472C4"
+          - "2F5597" 
+          - "1F4E79"
+          
+      freeze_top_row:
+        type: boolean
+        default: false
+        description: "Freeze top row for easier scrolling through data"
+        
+      freeze_panes:
+        type: string
+        default: null
+        description: "Freeze panes at specific cell reference (e.g., 'B2')"
+        examples:
+          - "B2"
+          - "C3"
+          
+      row_heights:
+        type: object
+        default: {}
+        description: "Specific row heights (row number: height in points)"
+        examples:
+          - {1: 25, 2: 18}
+          
+      auto_filter:
+        type: boolean
+        default: false
+        description: "Add auto-filter dropdown arrows to header row"
+        
+      active_sheet:
+        type: string or integer
+        default: null
+        description: "Set active sheet (sheet name or 0-based index)"
+        examples:
+          - "Summary"
+          - 0
+          - "Sheet1"
+
+  variables:
+    type: object
+    required: false
+    default: {}
+    description: "Custom variables for use in target_file path substitution"
+    examples:
+      - report_date: "2024-03-15"
+      - department: "sales"
+      - format_theme: "corporate"

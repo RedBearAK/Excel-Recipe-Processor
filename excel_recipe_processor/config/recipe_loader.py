@@ -183,9 +183,12 @@ class RecipeLoader:
         if isinstance(self.recipe_data, dict) or isinstance(self.recipe_data, OrderedDict):
             settings = self.recipe_data.get('settings', {})
         
-        # Require at least a description
+        # Require at least a description (errors cause recipe to be invalid)
         if 'description' not in settings:
-            warnings.append("💡 Consider adding 'description' to settings section to document recipe purpose")
+            errors.append("Missing required 'description' in settings section")
+            errors.append("💡 Add description to document recipe purpose:")
+            errors.append("settings:")
+            errors.append("  description: 'Brief description of what this recipe does'")
         
         # Check for deprecated settings
         if 'output_filename' in settings:

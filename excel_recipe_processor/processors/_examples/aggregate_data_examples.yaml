@@ -1,0 +1,265 @@
+# Revision date: 2025-07-30
+
+description: "Group data by columns and calculate summary statistics with stage-based data flow"
+
+basic_example:
+  description: "Simple grouping with single aggregation function"
+  yaml: |
+    # Complete recipe with aggregate_data processor
+    
+    settings:
+      description: "Calculate regional sales totals"
+      stages:
+        - stage_name: "sales_data"
+          description: "Raw sales data from import"
+          protected: false
+        - stage_name: "regional_summary"
+          description: "Sales summarized by region"
+          protected: false
+    
+    recipe:
+      # Previous step would populate 'sales_data' stage
+      - step_description: "Calculate total sales by region"
+        # REQ - Must be "aggregate_data" for this processor type
+        processor_type: "aggregate_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "sales_data"
+        # REQ - Stage to save aggregated results
+        save_to_stage: "regional_summary"
+        # REQ - List of columns to group by
+        group_by: ["Sales_Region"]
+        # REQ - List of aggregation operations to perform
+        aggregations:
+          - # REQ - Column name to aggregate
+            column: "Revenue"
+            # REQ - Aggregation function to apply
+            function: "sum"
+            # OPT - Name for the new aggregated column
+            # Default value: "{column}_{function}" (e.g., "Revenue_sum")
+            new_column_name: "Total_Revenue"
+
+multiple_aggregations_example:
+  description: "Multiple grouping columns with different aggregation functions"
+  yaml: |
+    # Complex aggregation with multiple functions and grouping levels
+    
+    settings:
+      description: "Customer analysis by segment and registration year"
+      variables:
+        analysis_year: "2024"
+      stages:
+        - stage_name: "customer_data"
+          description: "Customer transaction data"
+          protected: false
+        - stage_name: "customer_metrics"
+          description: "Customer behavior metrics by segment"
+          protected: false
+    
+    recipe:
+      # Previous steps populate customer_data
+      - step_description: "Calculate customer metrics by segment and year"
+        processor_type: "aggregate_data"
+        source_stage: "customer_data"
+        save_to_stage: "customer_metrics"
+        # REQ - Multiple grouping columns for hierarchical analysis
+        group_by: ["Customer_Segment", "Registration_Year"]
+        # REQ - Multiple aggregations with different functions
+        aggregations:
+          # Revenue aggregations
+          - column: "Total_Spent"
+            function: "sum"
+            new_column_name: "Segment_Revenue"
+          - column: "Total_Spent"
+            function: "mean"
+            new_column_name: "Average_Customer_Value"
+          
+          # Customer count metrics
+          - column: "Customer_ID"
+            function: "nunique"
+            new_column_name: "Unique_Customers"
+          - column: "Customer_ID"
+            function: "count"
+            new_column_name: "Total_Transactions"
+          
+          # Order behavior metrics
+          - column: "Order_Count"
+            function: "sum"
+            new_column_name: "Total_Orders"
+          - column: "Order_Count"
+            function: "mean"
+            new_column_name: "Avg_Orders_Per_Customer"
+          
+          # Date analysis
+          - column: "Last_Order_Date"
+            function: "max"
+            new_column_name: "Most_Recent_Order"
+          - column: "Last_Order_Date"
+            function: "min"
+            new_column_name: "First_Order_Date"
+
+business_intelligence_example:
+  description: "Executive dashboard metrics with advanced aggregations"
+  yaml: |
+    # Comprehensive business intelligence aggregation for executive reporting
+    
+    settings:
+      description: "Executive dashboard metrics by business unit and quarter"
+      variables:
+        current_year: "2024"
+        company_name: "AcmeCorp"
+      stages:
+        - stage_name: "sales_transactions"
+          description: "All sales transaction data"
+          protected: false
+        - stage_name: "executive_metrics"
+          description: "Executive-level KPIs"
+          protected: false
+    
+    recipe:
+      # Previous steps populate sales_transactions
+      - step_description: "Generate executive dashboard KPIs"
+        processor_type: "aggregate_data"
+        source_stage: "sales_transactions"
+        save_to_stage: "executive_metrics"
+        # REQ - Group by business dimensions
+        group_by: ["Business_Unit", "Quarter"]
+        # REQ - Comprehensive business metrics
+        aggregations:
+          # Revenue metrics
+          - column: "Revenue"
+            function: "sum"
+            new_column_name: "Total_Revenue"
+          - column: "Revenue"
+            function: "mean"
+            new_column_name: "Average_Deal_Size"
+          - column: "Revenue"
+            function: "std"
+            new_column_name: "Revenue_Variability"
+          
+          # Customer metrics
+          - column: "Customer_ID"
+            function: "nunique"
+            new_column_name: "Unique_Customers"
+          - column: "New_Customer_Flag"
+            function: "sum"
+            new_column_name: "New_Customers_Acquired"
+          
+          # Operational metrics
+          - column: "Days_to_Close"
+            function: "mean"
+            new_column_name: "Average_Sales_Cycle"
+          - column: "Opportunity_Count"
+            function: "sum"
+            new_column_name: "Total_Opportunities"
+          - column: "Win_Rate"
+            function: "mean"
+            new_column_name: "Average_Win_Rate"
+          
+          # Product metrics
+          - column: "Product_Line"
+            function: "nunique"
+            new_column_name: "Product_Lines_Sold"
+          - column: "Units_Sold"
+            function: "sum"
+            new_column_name: "Total_Units_Sold"
+
+parameter_details:
+  group_by:
+    type: list
+    required: true
+    description: "List of column names to group data by - creates unique combinations"
+    examples: ["['Region']", "['Region', 'Product_Type']", "['Customer_Segment', 'Year', 'Quarter']"]
+    performance_tip: "Group by high-cardinality columns first for better performance"
+  
+  aggregations:
+    type: list
+    required: true
+    description: "List of aggregation operations to perform on grouped data"
+    structure: "Each item must contain 'column' and 'function', optionally 'new_column_name'"
+    
+  column:
+    type: string
+    required: true
+    context: "Within aggregations list items"
+    description: "Name of the column to aggregate - must exist in source data"
+    examples: ["Revenue", "Customer_ID", "Order_Count", "Sales_Amount"]
+  
+  function:
+    type: string
+    required: true
+    context: "Within aggregations list items"
+    description: "Aggregation function to apply to the column"
+    options:
+      numeric: ["sum", "mean", "median", "min", "max", "std", "var", "count"]
+      counting: ["count", "nunique", "size"]
+      positional: ["first", "last"]
+    details:
+      sum: "Add all values - best for totals"
+      mean: "Average value - best for typical amounts"
+      median: "Middle value - less affected by outliers"
+      count: "Count non-null values"
+      nunique: "Count unique values - best for distinct customers/products"
+      size: "Count all rows including nulls"
+      min_max: "Minimum/Maximum values - best for ranges"
+      std_var: "Standard deviation/variance - best for measuring spread"
+      first_last: "First/last value in group - best for status or dates"
+  
+  new_column_name:
+    type: string
+    required: false
+    context: "Within aggregations list items"
+    description: "Custom name for the aggregated column"
+    default: "Uses format: {column}_{function} (e.g., Revenue_sum, Customer_ID_nunique)"
+    examples: ["Total_Revenue", "Unique_Customers", "Average_Order_Value"]
+  
+  keep_group_columns:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether to include grouping columns in the output DataFrame"
+  
+  sort_by_groups:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether to sort the result by grouping columns"
+  
+  reset_index:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether to reset index after grouping (makes group columns regular columns)"
+
+aggregation_functions:
+  numeric_functions:
+    sum: "Add all values together - best for revenue, quantities, totals"
+    mean: "Calculate average - best for typical amounts, rates, scores"
+    median: "Find middle value - less affected by extreme outliers"
+    min: "Find minimum value - best for lowest prices, earliest dates"
+    max: "Find maximum value - best for highest amounts, latest dates"
+    std: "Standard deviation - measure of data spread/variability"
+    var: "Variance - another measure of data spread"
+  
+  counting_functions:
+    count: "Count non-null values - excludes empty cells"
+    nunique: "Count unique/distinct values - best for customers, products"
+    size: "Count all rows including nulls - total record count"
+  
+  positional_functions:
+    first: "First value in each group - best for initial status, creation dates"
+    last: "Last value in each group - best for current status, latest updates"
+
+integration_notes:
+  stage_manager: "All aggregation operations work with declared stages - no direct pipeline data access"
+  memory_efficiency: "Aggregated results create new stage copy with reduced row count"
+  variable_substitution: "Group columns and aggregation parameters support variable substitution"
+  data_types: "Numeric functions require numeric data - use clean_data processor first if needed"
+  stage_validation: "Both source_stage and save_to_stage must be declared in settings.stages"
+
+common_use_cases:
+  sales_analysis: "Revenue totals by region, product, time period"
+  customer_analytics: "Customer lifetime value, behavior metrics, segmentation"
+  financial_reporting: "Budget vs actual, department spending, cost analysis"
+  operational_metrics: "Production volumes, efficiency ratios, quality metrics"
+  business_intelligence: "Executive dashboards, KPI tracking, trend analysis"
+  inventory_management: "Stock levels by location, turnover rates, reorder analysis"

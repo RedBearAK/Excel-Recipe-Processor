@@ -678,3 +678,8 @@ class AggregateDataProcessor(BaseStepProcessor):
             }
         
         return analysis
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the aggregate_data processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('aggregate_data')

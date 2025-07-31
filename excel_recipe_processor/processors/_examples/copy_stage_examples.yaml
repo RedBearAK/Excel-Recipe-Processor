@@ -1,114 +1,309 @@
-description: "Save current DataFrame as a named stage for later use in the pipeline"
+# Revision date: 2025-07-31
+
+description: "Copy data from one stage to another, creating duplicates for backup, branching, or alternative processing paths"
 
 basic_example:
-  description: "Simple stage save with minimal configuration"
+  description: "Simple stage duplication for backup purposes"
   yaml: |
-    # Save current data as a named stage for later retrieval
+    settings:
+      description: "Create backup of imported data before processing"
+      stages:
+        - stage_name: "raw_import"
+          description: "Original imported data"
+          protected: false
+        - stage_name: "raw_backup"
+          description: "Backup copy of raw data"
+          protected: true
     
-    - # OPT - Human-readable description of what this step does
-      step_description: "Save processed customer data as backup"
-      # REQ - Must be "copy_stage" for this processor type
-      processor_type: "copy_stage"
-      # REQ - Unique name for this stage (can be any descriptive string)
-      # Valid examples: "Customer Master Data", "Processed Orders", "Daily Import"
-      stage_name: "Customer Backup"
+    recipe:
+      # Import data
+      - step_description: "Import customer data"
+        processor_type: "import_file"
+        input_file: "data/customers.xlsx"
+        save_to_stage: "raw_import"
+      
+      # Create backup copy
+      - # OPT - Human-readable description of the copy operation
+        # Default value: "Unnamed copy_stage step"
+        step_description: "Create backup of raw data"
+        # REQ - Must be "copy_stage" for this processor type
+        processor_type: "copy_stage"
+        # REQ - Source stage to copy data from
+        source_stage: "raw_import"
+        # REQ - Target stage name for the copy
+        target_stage: "raw_backup"
 
-advanced_example:
-  description: "Stage save with overwrite protection and custom description"
+workflow_branching_example:
+  description: "Create copies for different processing branches"
   yaml: |
-    # Save data with overwrite protection and detailed description
+    settings:
+      description: "Test different filtering approaches on same data"
+      stages:
+        - stage_name: "cleaned_data"
+          description: "Data after cleaning operations"
+          protected: false
+        - stage_name: "branch_strict"
+          description: "Copy for strict filtering"
+          protected: false
+        - stage_name: "branch_lenient"
+          description: "Copy for lenient filtering"
+          protected: false
+        - stage_name: "strict_results"
+          description: "Results from strict filtering"
+          protected: false
+        - stage_name: "lenient_results"
+          description: "Results from lenient filtering"
+          protected: false
     
-    - # OPT - Step description
-      step_description: "Save filtered sales data with overwrite protection"
-      # REQ - Processor type
-      processor_type: "copy_stage"
-      # REQ - Stage name (can contain spaces and special characters)
-      # Stage names are case-sensitive and must be exact for later loading
-      stage_name: "Q4 Sales Filtered"
-      # OPT - Allow overwriting existing stage with same name
-      # Default value: false
-      # If false and stage exists, will raise error
-      overwrite: true
-      # OPT - Custom description for the saved stage
-      # Default value: auto-generated description
-      # Used for stage management and documentation
-      description: "Q4 sales data filtered for active customers only"
+    recipe:
+      # Assume cleaned_data already exists
+      
+      # Create copy for strict filtering branch
+      - # OPT - Step description
+        step_description: "Copy data for strict filtering approach"
+        # REQ - Processor type
+        processor_type: "copy_stage"
+        # REQ - Stage to copy from
+        source_stage: "cleaned_data"
+        # REQ - New stage name for the copy
+        target_stage: "branch_strict"
+        # OPT - Detailed description for the copied stage
+        # Default value: "Copy of {source_stage}"
+        description: "Working copy for testing strict business rules"
+      
+      # Create copy for lenient filtering branch
+      - step_description: "Copy data for lenient filtering approach"
+        processor_type: "copy_stage"
+        source_stage: "cleaned_data"
+        target_stage: "branch_lenient"
+        description: "Working copy for testing relaxed business rules"
+      
+      # Process each branch differently
+      - step_description: "Apply strict filters"
+        processor_type: "filter_data"
+        source_stage: "branch_strict"
+        save_to_stage: "strict_results"
+        filters:
+          - column: "Score"
+            condition: "greater_than"
+            value: 90
+      
+      - step_description: "Apply lenient filters"
+        processor_type: "filter_data"
+        source_stage: "branch_lenient"
+        save_to_stage: "lenient_results"
+        filters:
+          - column: "Score"
+            condition: "greater_than"
+            value: 70
 
-workflow_checkpoint_example:
-  description: "Creating checkpoints in multi-step data processing workflow"
+checkpoint_recovery_example:
+  description: "Create checkpoints for complex multi-step processing"
   yaml: |
-    # Save intermediate results as checkpoints during complex processing
+    settings:
+      description: "Complex data processing with recovery checkpoints"
+      variables:
+        min_value: "1000"
+        category: "premium"
+      stages:
+        - stage_name: "initial_data"
+          description: "Starting dataset"
+          protected: false
+        - stage_name: "checkpoint_1"
+          description: "After initial cleaning"
+          protected: true
+        - stage_name: "checkpoint_2"
+          description: "After enrichment"
+          protected: true
+        - stage_name: "checkpoint_3"
+          description: "After filtering"
+          protected: true
+        - stage_name: "final_output"
+          description: "Completed processing"
+          protected: false
     
-    - # OPT - Step description
-      step_description: "Create checkpoint after data cleaning"
-      # REQ - Processor type
-      processor_type: "copy_stage"
-      # REQ - Descriptive stage name for workflow tracking
-      stage_name: "Post-Cleaning Checkpoint"
-      # OPT - Enable overwrite for iterative development
-      # Default value: false
-      overwrite: true
-      # OPT - Detailed description for team collaboration
-      description: "Customer data after cleaning and validation - ready for filtering"
+    recipe:
+      # Step 1: Initial processing
+      - step_description: "Clean and validate data"
+        processor_type: "clean_data"
+        source_stage: "initial_data"
+        save_to_stage: "cleaned"
+        # ... cleaning rules
+      
+      # Checkpoint 1: Save after cleaning
+      - # OPT - Step description
+        step_description: "Checkpoint: Post-cleaning"
+        # REQ - Processor type
+        processor_type: "copy_stage"
+        # REQ - Source stage
+        source_stage: "cleaned"
+        # REQ - Target checkpoint stage
+        target_stage: "checkpoint_1"
+        # OPT - Allow overwriting during development
+        # Default value: false
+        overwrite: true
+        # OPT - Document checkpoint purpose
+        description: "Recovery point after data cleaning phase"
+      
+      # Step 2: Data enrichment
+      - step_description: "Add calculated fields"
+        processor_type: "add_calculated_column"
+        source_stage: "cleaned"
+        save_to_stage: "enriched"
+        # ... calculations
+      
+      # Checkpoint 2: Save after enrichment
+      - step_description: "Checkpoint: Post-enrichment"
+        processor_type: "copy_stage"
+        source_stage: "enriched"
+        target_stage: "checkpoint_2"
+        overwrite: true
+        description: "Recovery point after enrichment phase"
 
-branching_scenario_example:
-  description: "Save data before trying different processing approaches"
+versioning_example:
+  description: "Create versioned copies of processed data"
   yaml: |
-    # Save original data before experimental processing
+    settings:
+      description: "Maintain versions of processed data"
+      variables:
+        report_date: "2024-12-15"
+        version: "v2"
+      stages:
+        - stage_name: "current_report"
+          description: "Latest processed report data"
+          protected: false
+        - stage_name: "report_v1"
+          description: "Version 1 of report"
+          protected: true
+        - stage_name: "report_v2"
+          description: "Version 2 of report"
+          protected: true
+        - stage_name: "report_archive_{report_date}"
+          description: "Date-stamped archive"
+          protected: true
     
-    - # OPT - Step description
-      step_description: "Save original data before trying different aggregation methods"
-      # REQ - Processor type
-      processor_type: "copy_stage"
-      # REQ - Clear stage name indicating purpose
-      stage_name: "Pre-Aggregation Original"
-      # OPT - Prevent accidental overwrite of important checkpoint
-      # Default value: false
-      overwrite: false
-      # OPT - Document the branching point
-      description: "Original customer transaction data before testing different aggregation approaches"
+    recipe:
+      # Save current version before updates
+      - # OPT - Step description with variable
+        step_description: "Archive current report as {version}"
+        # REQ - Processor type
+        processor_type: "copy_stage"
+        # REQ - Current report stage
+        source_stage: "current_report"
+        # REQ - Versioned target using variable
+        target_stage: "report_{version}"
+        # OPT - Prevent overwriting existing versions
+        # Default value: false
+        overwrite: false
+        # OPT - Version description
+        description: "Report {version} - includes {report_date} updates"
+      
+      # Create date-stamped archive
+      - step_description: "Create date-stamped archive"
+        processor_type: "copy_stage"
+        source_stage: "current_report"
+        target_stage: "report_archive_{report_date}"
+        description: "Permanent archive for {report_date}"
+
+iterative_development_example:
+  description: "Support iterative recipe development with overwritable copies"
+  yaml: |
+    settings:
+      description: "Development workflow with reusable stage names"
+      stages:
+        - stage_name: "test_input"
+          description: "Test data for development"
+          protected: false
+        - stage_name: "working_copy"
+          description: "Reusable working stage"
+          protected: false
+        - stage_name: "test_output"
+          description: "Results of test processing"
+          protected: false
+    
+    recipe:
+      # Create working copy that can be overwritten
+      - # OPT - Step description
+        step_description: "Create fresh working copy for testing"
+        # REQ - Processor type
+        processor_type: "copy_stage"
+        # REQ - Test data source
+        source_stage: "test_input"
+        # REQ - Working stage (overwritable)
+        target_stage: "working_copy"
+        # OPT - Enable overwrite for iterative development
+        # Default value: false
+        # Set to true during development, false in production
+        overwrite: true
+        # OPT - Development note
+        description: "Temporary working copy - safe to overwrite"
 
 parameter_details:
-  stage_name:
+  source_stage:
     type: string
     required: true
-    description: "Unique identifier for the saved stage - can be any descriptive text"
-    examples: 
-      - "Customer Master Data"
-      - "Processed Orders Q4"
-      - "Daily Import 2024-12-15"
-      - "Pre-Filter Backup"
-    notes: "Stage names are case-sensitive and used exactly for load_stage operations"
+    description: "Stage to copy data from (must exist and be declared in settings.stages)"
+    examples:
+      - "raw_import"
+      - "cleaned_data"
+      - "checkpoint_1"
+    validation: "Stage must exist before copy operation"
+  
+  target_stage:
+    type: string
+    required: true
+    description: "Name for the new stage copy (must be declared in settings.stages)"
+    examples:
+      - "raw_backup"
+      - "branch_experimental"
+      - "checkpoint_recovery"
+    validation: "Cannot use reserved names; must be unique unless overwrite=true"
   
   overwrite:
     type: boolean
     required: false
     default: false
-    description: "Whether to overwrite existing stage with same name"
-    examples: [true, false]
-    safety_note: "When false, will raise error if stage already exists"
+    description: "Allow overwriting existing stage with same name"
+    safety_note: "When false, raises error if target stage already exists"
+    best_practice: "Use true during development, false in production"
   
   description:
     type: string
     required: false
-    default: "auto-generated based on step context"
-    description: "Human-readable description of what this stage contains"
+    default: "Copy of {source_stage}"
+    description: "Human-readable description of the copied stage's purpose"
     examples:
-      - "Customer data after initial cleaning"
-      - "Sales records filtered for active accounts"
-      - "Original import before any processing"
-    usage: "Helps with stage management and team collaboration"
+      - "Backup before risky operations"
+      - "Branch for testing alternative approach"
+      - "Checkpoint after phase 1 completion"
+    best_practice: "Always document why the copy was created"
 
 stage_management_notes:
-  stage_limits: "System enforces maximum number of concurrent stages to prevent memory issues"
-  memory_usage: "Each saved stage creates a complete copy of the DataFrame in memory"
-  stage_isolation: "Saved stages are independent - modifying current data doesn't affect saved stages"
-  usage_tracking: "System tracks when stages are created and accessed for debugging"
-  cleanup: "Stages persist for the duration of the pipeline execution"
+  memory_impact: "Each copy doubles memory usage for that dataset"
+  stage_limits: "System enforces maximum concurrent stages to prevent memory issues"
+  data_isolation: "Copies are independent - changes to one don't affect others"
+  naming_strategy: "Use descriptive names indicating purpose (backup, branch, checkpoint)"
+  cleanup: "All stages persist until pipeline completion"
 
 common_use_cases:
-  backup_before_processing: "Save original data before any modifications"
-  workflow_checkpoints: "Create save points during complex multi-step processing"
-  branching_experiments: "Save data before trying different processing approaches"
-  intermediate_results: "Preserve intermediate calculations for later analysis"
-  debugging_snapshots: "Save data at various points for troubleshooting"
+  data_backup: "Preserve original or intermediate data before modifications"
+  workflow_branching: "Test different processing approaches on same data"
+  checkpoint_recovery: "Create recovery points in complex workflows"
+  version_management: "Maintain versions of processed data"
+  iterative_development: "Reusable working copies during recipe development"
+  comparison_analysis: "Keep before/after copies for validation"
+
+best_practices:
+  - "Name copies clearly to indicate their purpose"
+  - "Set overwrite=true only during development"
+  - "Protect important copies with protected=true in stage declaration"
+  - "Document why each copy exists with meaningful descriptions"
+  - "Consider memory usage when creating multiple copies"
+  - "Clean up unnecessary copies in production recipes"
+
+integration_notes:
+  - "Copied stages can be used immediately by subsequent processors"
+  - "Use with filter_data to create subsets for different analyses"
+  - "Combine with export_file to save multiple versions"
+  - "Essential for recipes that test multiple approaches"
+  - "Useful with debug_breakpoint to compare stage contents"

@@ -190,7 +190,8 @@ def process_recipe(args: Namespace) -> int:
         return 1
 
 
-# Keep existing special command functions for compatibility
+# Replace the existing list_system_capabilities_* functions in main.py with these corrected versions
+
 def list_system_capabilities() -> int:
     """List available processors in basic format."""
     try:
@@ -199,11 +200,20 @@ def list_system_capabilities() -> int:
         print("Available Excel Recipe Processors")
         print("=" * 40)
         
-        for processor_name, info in capabilities.items():
-            description = info.get('description', 'No description available')
-            print(f"{processor_name:20} {description}")
+        system_info = capabilities.get('system_info', {})
+        processors = capabilities.get('processors', {})
         
-        print(f"\nTotal: {len(capabilities)} processors available")
+        print(f"System: {system_info.get('description', 'Excel Recipe Processor')}")
+        print(f"Total Processors: {system_info.get('total_processors', len(processors))}")
+        print()
+        
+        for processor_name, info in sorted(processors.items()):
+            if 'error' in info:
+                print(f"{processor_name:<25} ❌ {info['error']}")
+            else:
+                description = info.get('description', 'No description available')
+                print(f"{processor_name:<25} {description}")
+        
         return 0
         
     except Exception as e:
@@ -219,9 +229,21 @@ def list_system_capabilities_detailed() -> int:
         print("Detailed Excel Recipe Processor Capabilities")
         print("=" * 50)
         
-        for processor_name, info in capabilities.items():
+        system_info = capabilities.get('system_info', {})
+        processors = capabilities.get('processors', {})
+        
+        print(f"System: {system_info.get('description', 'Excel Recipe Processor')}")
+        print(f"Total Processors: {system_info.get('total_processors', len(processors))}")
+        print()
+        
+        for processor_name, info in sorted(processors.items()):
             print(f"\n{processor_name}")
             print("-" * len(processor_name))
+            
+            if 'error' in info:
+                print(f"❌ Error: {info['error']}")
+                continue
+                
             print(f"Description: {info.get('description', 'No description available')}")
             
             # Show parameters if available
@@ -229,9 +251,35 @@ def list_system_capabilities_detailed() -> int:
                 print("Parameters:")
                 for param_name, param_info in info['parameters'].items():
                     required = "Required" if param_info.get('required', False) else "Optional"
-                    print(f"  {param_name} ({required}): {param_info.get('description', 'No description')}")
+                    param_desc = param_info.get('description', 'No description')
+                    print(f"  {param_name} ({required}): {param_desc}")
+            
+            # Show capabilities if available
+            if 'supported_actions' in info:
+                print(f"Supported Actions: {', '.join(info['supported_actions'])}")
+            
+            if 'calculation_types' in info:
+                print(f"Calculation Types: {', '.join(info['calculation_types'])}")
+            
+            if 'supported_conditions' in info:
+                print(f"Filter Conditions: {', '.join(info['supported_conditions'])}")
+            
+            if 'join_types' in info:
+                print(f"Join Types: {', '.join(info['join_types'])}")
+            
+            if 'aggregation_functions' in info:
+                print(f"Aggregation Functions: {', '.join(info['aggregation_functions'])}")
+            
+            # Show feature counts
+            feature_counts = []
+            for key, value in info.items():
+                if isinstance(value, list) and key not in ['parameters']:
+                    feature_counts.append(f"{key}: {len(value)}")
+            
+            if feature_counts:
+                print(f"Features: {', '.join(feature_counts)}")
         
-        print(f"\nTotal: {len(capabilities)} processors available")
+        print(f"\nTotal: {len(processors)} processors available")
         return 0
         
     except Exception as e:
@@ -287,19 +335,53 @@ def list_system_capabilities_matrix() -> int:
         print("Excel Recipe Processor - Feature Matrix")
         print("=" * 50)
         
-        # This would need more sophisticated matrix logic
-        # For now, show a simple categorized view
-        categories = {}
-        for processor_name, info in capabilities.items():
-            category = info.get('category', 'Data Processing')
-            if category not in categories:
-                categories[category] = []
-            categories[category].append(processor_name)
+        system_info = capabilities.get('system_info', {})
+        processors = capabilities.get('processors', {})
         
-        for category, processors in categories.items():
-            print(f"\n{category}:")
-            for processor in processors:
-                print(f"  ✓ {processor}")
+        print(f"System: {system_info.get('description', 'Excel Recipe Processor')}")
+        print(f"Total Processors: {len(processors)}")
+        print()
+        
+        # Collect all feature types across processors
+        all_features = set()
+        processor_features = {}
+        
+        for processor_name, info in processors.items():
+            if 'error' not in info:
+                features = set()
+                for key, value in info.items():
+                    if isinstance(value, list) and key not in ['parameters']:
+                        features.update([f"{key}:{item}" for item in value])
+                        all_features.update([f"{key}:{item}" for item in value])
+                    elif key in ['join_types', 'calculation_types', 'supported_conditions', 'aggregation_functions']:
+                        if isinstance(value, list):
+                            features.update([f"{key}:{item}" for item in value])
+                            all_features.update([f"{key}:{item}" for item in value])
+                
+                processor_features[processor_name] = features
+        
+        # Group features by category
+        feature_categories = {}
+        for feature in sorted(all_features):
+            if ':' in feature:
+                category, item = feature.split(':', 1)
+                if category not in feature_categories:
+                    feature_categories[category] = []
+                feature_categories[category].append(item)
+        
+        # Display matrix by category
+        for category, items in feature_categories.items():
+            print(f"\n{category.replace('_', ' ').title()}:")
+            print("-" * 30)
+            
+            for item in sorted(items):
+                supporting_processors = []
+                for proc_name, proc_features in processor_features.items():
+                    if f"{category}:{item}" in proc_features:
+                        supporting_processors.append(proc_name)
+                
+                if supporting_processors:
+                    print(f"  {item:<20} → {', '.join(supporting_processors)}")
         
         return 0
     except Exception as e:
@@ -352,68 +434,368 @@ def validate_recipe_file(recipe_path: str) -> int:
         return 1
 
 
+# Add these missing CLI functions to excel_recipe_processor/core/main.py
+
 def get_settings_examples(format_type: str = 'yaml') -> int:
-    """Show recipe settings examples."""
-    # This would be implemented based on your existing settings examples
-    print("Recipe Settings Usage Examples")
-    print("=" * 40)
-    print("# Example settings configurations")
-    print()
+    """
+    Get and display recipe settings configuration examples.
     
-    example_settings = """
-settings:
-  # External variables for dynamic file names
-  required_external_vars:
-    batch_id:
-      description: "Batch identifier (e.g., A47, B23)"
-      validation: "^[A-Z]\\d+$"
-      example: "A47"
-    
-    region:
-      description: "Processing region"
-      choices: ["west", "east", "central"]
-      default_value: "west"
-  
-  # Custom variables for reuse
-  variables:
-    output_prefix: "processed"
-    version: "v1.0"
-    
-  # Optional global settings
-  create_backup: true
-  encoding: "utf-8"
-"""
-    
-    print(example_settings)
-    return 0
+    Args:
+        format_type: Output format ('yaml', 'text', 'json')
+        
+    Returns:
+        Exit code (0 for success, non-zero for error)
+    """
+    try:
+        # Import the settings examples loading function
+        from excel_recipe_processor.utils.processor_examples_loader import load_settings_examples
+        
+        # Try to load settings examples from YAML file
+        settings_examples = load_settings_examples()
+        
+        if 'error' in settings_examples:
+            # No YAML file found, use built-in examples
+            return _display_builtin_settings_examples(format_type)
+        
+        # Successfully loaded YAML file
+        return _display_yaml_settings_examples(settings_examples, format_type)
+        
+    except Exception as e:
+        print(f"Error getting settings examples: {e}")
+        return 1
 
 
-def get_usage_examples(processor_name: str = None, format_type: str = 'yaml') -> int:
-    """Show usage examples for processors."""
-    # This would integrate with your existing usage examples system
-    if processor_name:
+def get_usage_examples(processor_name: str, format_type: str = 'yaml') -> int:
+    """
+    Get and display usage examples for a specific processor or all processors.
+    
+    Args:
+        processor_name: Name of the processor to get examples for, or 'all' for all processors
+        format_type: Output format ('yaml', 'text', 'json')
+        
+    Returns:
+        Exit code (0 for success, non-zero for error)
+    """
+    try:
+        # Special case: handle 'settings' as processor name
+        if processor_name == 'settings':
+            return get_settings_examples(format_type)
+        
+        # Import the YAML loading function and pipeline functions
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        from excel_recipe_processor.core.pipeline import get_processor_usage_examples, get_all_usage_examples
+        
+        # Handle 'all' processors case
+        if processor_name == 'all':
+            return _get_all_usage_examples(format_type)
+        
+        # First try to load from YAML file
+        examples_data = load_processor_examples(processor_name)
+        
+        if 'error' not in examples_data:
+            # Successfully loaded YAML file
+            return _display_yaml_examples(processor_name, examples_data, format_type)
+        
+        # Fallback to processor method
+        method_examples = get_processor_usage_examples(processor_name)
+        
+        if method_examples and 'error' not in method_examples:
+            # Successfully got examples from processor method
+            return _display_method_examples(processor_name, method_examples, format_type)
+        
+        # No examples available
+        print(f"No usage examples available for processor: {processor_name}")
+        print()
+        print("Available processors:")
+        
+        # Show available processors
+        capabilities = get_system_capabilities()
+        processor_names = [name for name in capabilities['processors'].keys() if name != 'base_processor']
+        
+        for name in sorted(processor_names):
+            print(f"  - {name}")
+        
+        return 1
+        
+    except Exception as e:
+        print(f"Error getting usage examples: {e}")
+        return 1
+
+
+def _display_yaml_settings_examples(settings_examples: dict, format_type: str) -> int:
+    """Display settings examples loaded from YAML file."""
+    try:
+        print("Recipe Settings Usage Examples")
+        print("=" * 40)
+        
+        if format_type == 'json':
+            import json
+            print(json.dumps(settings_examples, indent=2))
+            return 0
+        
+        if format_type == 'text':
+            print(f"Description: {settings_examples.get('description', 'No description available')}")
+            print()
+            
+            # List examples
+            example_keys = [key for key in settings_examples.keys() if key.endswith('_example')]
+            for example_key in example_keys:
+                example = settings_examples[example_key]
+                print(f"Example: {example_key}")
+                print(f"  Description: {example.get('description', 'No description')}")
+                print()
+            
+            return 0
+        
+        # YAML format (default)
+        print(f"# {settings_examples.get('description', 'Recipe settings configuration examples')}")
+        print()
+        
+        # Extract and display the actual YAML examples
+        example_keys = [key for key in settings_examples.keys() if key.endswith('_example')]
+        
+        for example_key in example_keys:
+            example = settings_examples[example_key]
+            if 'yaml' in example:
+                print(f"# {example.get('description', example_key)}")
+                print(example['yaml'])
+                print()
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error displaying settings examples: {e}")
+        return 1
+
+
+def _display_builtin_settings_examples(format_type: str) -> int:
+    """Display built-in settings examples when no YAML file is available."""
+    try:
+        print("Recipe Settings Usage Examples")
+        print("=" * 40)
+        
+        if format_type == 'json':
+            builtin_examples = {
+                "description": "Recipe settings configuration examples",
+                "basic_example": {
+                    "description": "Minimal settings section",
+                    "yaml": "settings:\n  description: \"Process daily sales data\""
+                },
+                "variables_example": {
+                    "description": "Settings with custom variables",
+                    "yaml": "settings:\n  description: \"Process with variables\"\n  variables:\n    region: \"west\"\n    batch_id: \"A47\""
+                }
+            }
+            import json
+            print(json.dumps(builtin_examples, indent=2))
+            return 0
+        
+        if format_type == 'text':
+            print("Description: Recipe settings configuration options")
+            print()
+            print("Available settings:")
+            print("  - description: Recipe description")
+            print("  - variables: Custom variables")
+            print("  - required_external_vars: External variable definitions")
+            print("  - stages: Stage declarations")
+            print()
+            return 0
+        
+        # YAML format (default)
+        print("# Recipe settings configuration examples")
+        print()
+        
+        print("# Minimal settings section")
+        print("settings:")
+        print("  description: \"Process daily sales data\"")
+        print()
+        
+        print("# Settings with custom variables")
+        print("settings:")
+        print("  description: \"Process with dynamic variables\"")
+        print("  variables:")
+        print("    region: \"west\"")
+        print("    batch_id: \"A47\"")
+        print("    output_prefix: \"processed\"")
+        print()
+        
+        print("# Advanced settings with external variables and stages")
+        print("settings:")
+        print("  description: \"Complete recipe configuration\"")
+        print("  ")
+        print("  # Custom variables for reuse")
+        print("  variables:")
+        print("    region: \"west\"")
+        print("    output_prefix: \"processed\"")
+        print("  ")
+        print("  # External variables with validation")
+        print("  required_external_vars:")
+        print("    batch_id:")
+        print("      description: \"Batch identifier\"")
+        print("      validation: \"^[A-Z]\\\\d+$\"")
+        print("      example: \"A47\"")
+        print("  ")
+        print("  # Stage declarations")
+        print("  stages:")
+        print("    - stage_name: \"raw_data\"")
+        print("      description: \"Raw imported data\"")
+        print("      protected: false")
+        print("    - stage_name: \"processed_data\"")
+        print("      description: \"Final processed results\"")
+        print("      protected: false")
+        print()
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error displaying built-in settings examples: {e}")
+        return 1
+
+
+def _get_all_usage_examples(format_type: str) -> int:
+    """Get usage examples for all processors."""
+    try:
+        from excel_recipe_processor.core.pipeline import get_all_usage_examples
+        
+        all_examples = get_all_usage_examples()
+        
+        if format_type == 'json':
+            import json
+            print(json.dumps(all_examples, indent=2))
+        elif format_type == 'text':
+            _display_all_examples_text(all_examples)
+        else:  # yaml format
+            _display_all_examples_yaml(all_examples)
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error getting all usage examples: {e}")
+        return 1
+
+
+def _display_yaml_examples(processor_name: str, examples_data: dict, format_type: str) -> int:
+    """Display examples loaded from YAML file."""
+    try:
         print(f"Usage Examples for: {processor_name}")
-    else:
-        print("Usage Examples - All Processors")
-    
-    print("=" * 40)
-    print("# Example processor configurations")
+        print("=" * 40)
+        
+        if format_type == 'json':
+            import json
+            print(json.dumps(examples_data, indent=2))
+            return 0
+        
+        if format_type == 'text':
+            print(f"Processor: {processor_name}")
+            print(f"Description: {examples_data.get('description', 'No description available')}")
+            print()
+            
+            # List examples
+            example_keys = [key for key in examples_data.keys() if key.endswith('_example')]
+            for example_key in example_keys:
+                example = examples_data[example_key]
+                print(f"Example: {example_key}")
+                print(f"  Description: {example.get('description', 'No description')}")
+                print()
+            
+            return 0
+        
+        # YAML format (default)
+        print(f"# {examples_data.get('description', 'Usage examples')}")
+        print()
+        
+        # Extract and display the actual YAML examples
+        example_keys = [key for key in examples_data.keys() if key.endswith('_example')]
+        
+        for example_key in example_keys:
+            example = examples_data[example_key]
+            if 'yaml' in example:
+                print(f"# {example.get('description', example_key)}")
+                print(example['yaml'])
+                print()
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error displaying YAML examples: {e}")
+        return 1
+
+
+def _display_method_examples(processor_name: str, method_examples: dict, format_type: str) -> int:
+    """Display examples from processor method."""
+    try:
+        print(f"Usage Examples for: {processor_name}")
+        print("=" * 40)
+        
+        if format_type == 'json':
+            print(method_examples.get('formatted_json', '{}'))
+        elif format_type == 'text':
+            print(method_examples.get('formatted_text', 'No text format available'))
+        else:  # yaml format
+            print(method_examples.get('formatted_yaml', '# No YAML format available'))
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error displaying method examples: {e}")
+        return 1
+
+
+def _display_all_examples_yaml(all_examples: dict) -> None:
+    """Display all examples in YAML format."""
+    print("# Complete Usage Examples for Excel Recipe Processor")
+    print("# =" * 50)
     print()
     
-    # This would be implemented to show actual examples
-    example_usage = """
-# Example import_file step
-- step_description: "Import daily sales data"
-  processor_type: "import_file"
-  input_file: "data/sales_{batch_id}_{date}.xlsx"
-  sheet: 0
-
-# Example export_file step  
-- step_description: "Export processed results"
-  processor_type: "export_file"
-  output_file: "output/results_{batch_id}_{date}.xlsx"
-  create_backup: true
-"""
+    system_info = all_examples.get('system_info', {})
+    print(f"# Total processors: {system_info.get('total_processors', 0)}")
+    print(f"# Processors with examples: {system_info.get('processors_with_examples', 0)}")
+    print(f"# Processors missing examples: {system_info.get('processors_missing_examples', 0)}")
+    print()
     
-    print(example_usage)
-    return 0
+    processors = all_examples.get('processors', {})
+    
+    for processor_name in sorted(processors.keys()):
+        processor_data = processors[processor_name]
+        
+        if 'error' not in processor_data:
+            print(f"# {processor_name.upper()} PROCESSOR")
+            print(f"# {'-' * 20}")
+            
+            if 'formatted_yaml' in processor_data:
+                print(processor_data['formatted_yaml'])
+            else:
+                print(f"# Examples available but not formatted for {processor_name}")
+        else:
+            print(f"# {processor_name.upper()} PROCESSOR - {processor_data['error']}")
+        
+        print()
+
+
+def _display_all_examples_text(all_examples: dict) -> None:
+    """Display all examples in text format."""
+    print("Complete Usage Examples for Excel Recipe Processor")
+    print("=" * 50)
+    
+    system_info = all_examples.get('system_info', {})
+    print(f"Total processors: {system_info.get('total_processors', 0)}")
+    print(f"Processors with examples: {system_info.get('processors_with_examples', 0)}")
+    print(f"Processors missing examples: {system_info.get('processors_missing_examples', 0)}")
+    print()
+    
+    processors = all_examples.get('processors', {})
+    
+    for processor_name in sorted(processors.keys()):
+        processor_data = processors[processor_name]
+        
+        print(f"Processor: {processor_name}")
+        
+        if 'error' not in processor_data:
+            if 'formatted_text' in processor_data:
+                print(processor_data['formatted_text'])
+            else:
+                print("  Examples available but not formatted for text display")
+        else:
+            print(f"  Error: {processor_data['error']}")
+        
+        print("-" * 30)

@@ -73,8 +73,8 @@ excel_file_example:
           type: "file"
           # REQ - Path to Excel file (supports variable substitution)
           filename: "reference_data/product_catalog.xlsx"
-          # OPT - Sheet name or 0-based index
-          # Default value: 0 (first sheet)
+          # OPT - Sheet name or 1-based index (converts to 0-based internally for pandas)
+          # Default value: 1 (first sheet)
           sheet: "Products"
           # OPT - Text encoding (ignored for Excel files)
           # Default value: "utf-8"
@@ -325,10 +325,11 @@ parameter_details:
   lookup_sheet:
     type: string_or_int
     required: false
-    default: "0"
+    # Uses 1-based indexing, converts to 0-based internally for pandas
+    default: "1"
     context: "Used when lookup_source is an Excel file"
     description: "Sheet name or index to read from Excel file"
-    examples: ["Customer_Master", "Products", 0, 1]
+    examples: ["Customer_Master", "Products", 1, 2]
   
   join_type:
     type: string

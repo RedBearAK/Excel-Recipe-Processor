@@ -447,10 +447,10 @@ parameter_details:
       active_sheet:
         type: string or integer
         default: null
-        description: "Set active sheet (sheet name or 0-based index)"
+        description: "Set active sheet (sheet name or 1-based index)"
         examples:
           - "Summary"
-          - 0
+          - 1
           - "Sheet1"
 
   variables:

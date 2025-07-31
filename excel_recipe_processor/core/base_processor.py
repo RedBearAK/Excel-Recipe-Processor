@@ -326,7 +326,6 @@ class StepProcessorRegistry:
 registry = StepProcessorRegistry()
 
 
-
 class ImportBaseProcessor(BaseStepProcessor):
     """Base class for processors that import data (create stages)."""
     
@@ -373,6 +372,7 @@ class ImportBaseProcessor(BaseStepProcessor):
         """Load data from source (file, etc.)."""
         pass
 
+
 class ExportBaseProcessor(BaseStepProcessor):
     """Base class for processors that export data (consume stages)."""
     
@@ -413,7 +413,6 @@ class ExportBaseProcessor(BaseStepProcessor):
     def save_data(self, data: pd.DataFrame) -> None:
         """Save data to destination (file, etc.)."""
         pass
-
 
 
 class FileOpsBaseProcessor(BaseStepProcessor):

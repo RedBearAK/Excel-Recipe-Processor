@@ -33,8 +33,8 @@ python -m excel_recipe_processor data.xlsx \
   --output results.xlsx \
   --output-sheet "Processed Data"
 
-# Process by sheet index (0-based)
-python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet 0
+# Process by sheet index (1-based)
+python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet 1
 
 # Process by sheet name
 python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet "Raw Data"

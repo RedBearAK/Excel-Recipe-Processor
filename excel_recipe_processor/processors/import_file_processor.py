@@ -31,7 +31,7 @@ class ImportFileProcessor(ImportBaseProcessor):
     def load_data(self):
         """Load data from file (implements ImportBaseProcessor abstract method)."""
         input_file = self.get_config_value('input_file')
-        sheet = self.get_config_value('sheet', 0)
+        sheet = self.get_config_value('sheet', 1)  # Just change default to 1
         encoding = self.get_config_value('encoding', 'utf-8')
         separator = self.get_config_value('separator', ',')
         explicit_format = self.get_config_value('format', None)
@@ -46,7 +46,7 @@ class ImportFileProcessor(ImportBaseProcessor):
         try:
             data = FileReader.read_file(
                 substituted_path,
-                sheet=sheet,
+                sheet=sheet,                # FileReader handles all validation/conversion
                 encoding=encoding,
                 separator=separator,
                 explicit_format=explicit_format

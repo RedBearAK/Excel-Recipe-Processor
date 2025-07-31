@@ -8,6 +8,7 @@ basic_example:
     # Complete recipe with import_file processor
     
     settings:
+      description: "Simple Excel file import saving customer data to a stage"
       stages:
         - stage_name: "customer_data"
           description: "Imported customer data from Excel"
@@ -29,6 +30,7 @@ excel_sheet_example:
     # Import specific sheet from Excel workbook
     
     settings:
+      description: "Import specific sheet from multi-sheet Excel workbook"
       stages:
         - stage_name: "q4_sales"
           description: "Q4 sales data from specific sheet"
@@ -54,6 +56,7 @@ csv_import_example:
     # Import CSV file with custom formatting options
     
     settings:
+      description: "Import CSV file with custom encoding and separator options"
       stages:
         - stage_name: "system_data"
           description: "System data imported from CSV"
@@ -83,6 +86,7 @@ variable_substitution_example:
     # Import file with variable substitution in path
     
     settings:
+      description: "Import daily data files using dynamic variable-based file paths"
       variables:
         department: "sales"
       stages:
@@ -111,6 +115,7 @@ multi_import_workflow_example:
     # Import multiple files saving each to different stages for complex processing
     
     settings:
+      description: "Complete workflow importing multiple data sources to separate stages for complex processing"
       variables:
         processing_date: "20250729"
       stages:

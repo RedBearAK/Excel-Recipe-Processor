@@ -8,6 +8,7 @@ basic_example:
     # Complete recipe with export from stage
     
     settings:
+      description: "Simple export from processed data to monthly Excel report"
       stages:
         - stage_name: "processed_data"
           description: "Data ready for export"
@@ -36,6 +37,7 @@ multi_sheet_example:
     # Export data from multiple stages to comprehensive Excel report
     
     settings:
+      description: "Export data from multiple stages to comprehensive multi-sheet quarterly report"
       variables:
         company: "AcmeCorp"
         quarter: "Q4"
@@ -80,6 +82,7 @@ csv_export_example:
     # Export stage data to CSV with custom options
     
     settings:
+      description: "Export data to CSV file with custom formatting options"
       stages:
         - stage_name: "export_ready_data"
           description: "Data formatted for CSV export"
@@ -109,6 +112,7 @@ variable_substitution_example:
     # Export with dynamic file naming using various variable types
     
     settings:
+      description: "Demonstrate dynamic file naming using built-in and custom variables"
       variables:
         department: "sales"
         batch_id: "B001"
@@ -136,6 +140,7 @@ complete_workflow_example:
     # Complete recipe showing import, processing, and export
     
     settings:
+      description: "Complete data processing workflow from import through filtering to export"
       variables:
         region: "west"
         output_prefix: "processed"

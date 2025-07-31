@@ -8,6 +8,7 @@ basic_example:
     # Complete recipe with filter processor
     
     settings:
+      description: "Filter for active customers using basic equality condition"
       stages:
         - stage_name: "raw_data"
           description: "Raw imported data"
@@ -18,14 +19,16 @@ basic_example:
     
     recipe:
       # Previous step would populate raw_data stage
-      - step_description: "Filter for active customers only"
-        # REQ - Processor type
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter for active customers only"
+        # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
-        # REQ - Stage to read data from
+        # REQ - Stage to read data from (must be declared in settings.stages)
         source_stage: "raw_data"
-        # REQ - Stage to save filtered results
+        # REQ - Stage to save filtered results (must be declared in settings.stages)
         save_to_stage: "active_customers"
-        # REQ - List of filter conditions
+        # REQ - List of filter conditions (AND logic applied)
         filters:
           - # REQ - Column name to filter on
             column: "Status"
@@ -40,6 +43,7 @@ multiple_filters_example:
     # Apply multiple filters in sequence (AND logic)
     
     settings:
+      description: "Apply multiple filter conditions to extract premium recent orders"
       stages:
         - stage_name: "all_orders"
           description: "All order data"
@@ -50,53 +54,38 @@ multiple_filters_example:
     
     recipe:
       # Previous step populates all_orders
-      - step_description: "Filter for premium recent orders"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter for premium recent orders"
+        # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
+        # REQ - Stage to read data from
         source_stage: "all_orders"
+        # REQ - Stage to save filtered results
         save_to_stage: "premium_orders"
+        # REQ - List of filter conditions (all must be true - AND logic)
         filters:
           # Filter 1: Amount greater than $1000
-          - column: "Order_Amount"
+          - # REQ - Column name to filter on
+            column: "Order_Amount"
+            # REQ - Numeric comparison condition
             condition: "greater_than"
+            # REQ - Numeric value for comparison
             value: 1000
           # Filter 2: Customer tier is Premium or VIP
-          - column: "Customer_Tier"
+          - # REQ - Column name to filter on
+            column: "Customer_Tier"
+            # REQ - List membership condition
             condition: "in_list"
+            # REQ - List of acceptable values
             value: ["Premium", "VIP"]
           # Filter 3: Recent orders only
-          - column: "Order_Date"
+          - # REQ - Column name to filter on
+            column: "Order_Date"
+            # REQ - Date comparison condition
             condition: "greater_than"
+            # REQ - Date value in YYYY-MM-DD format
             value: "2024-01-01"
-
-stage_based_filtering_example:
-  description: "Filter using data from another stage for comparison"
-  yaml: |
-    # Filter by comparing against data in another stage
-    
-    settings:
-      stages:
-        - stage_name: "all_shipments"
-          description: "All shipment data"
-          protected: false
-        - stage_name: "approved_descriptions"
-          description: "List of approved shipment descriptions"
-          protected: false
-        - stage_name: "approved_shipments"
-          description: "Shipments with approved descriptions"
-          protected: false
-    
-    recipe:
-      # Previous steps populate both stages
-      - step_description: "Keep only shipments with approved descriptions"
-        processor_type: "filter_data"
-        source_stage: "all_shipments"
-        save_to_stage: "approved_shipments"
-        filters:
-          # Filter using stage-based condition
-          - column: "Shipment_Description"
-            condition: "in_stage"
-            stage_name: "approved_descriptions"
-            stage_column: "Description"
 
 text_filtering_example:
   description: "Text-based filtering with contains and pattern matching"
@@ -104,6 +93,7 @@ text_filtering_example:
     # Filter using text conditions
     
     settings:
+      description: "Filter products using text pattern matching and exclusions"
       stages:
         - stage_name: "all_products"
           description: "Complete product catalog"
@@ -113,18 +103,30 @@ text_filtering_example:
           protected: false
     
     recipe:
-      - step_description: "Filter for canned products"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter for canned products"
+        # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
+        # REQ - Stage to read data from
         source_stage: "all_products"
+        # REQ - Stage to save filtered results
         save_to_stage: "canned_products"
+        # REQ - List of filter conditions
         filters:
           # Text contains filter
-          - column: "Product_Name"
+          - # REQ - Column name to filter on
+            column: "Product_Name"
+            # REQ - Text containment condition
             condition: "contains"
+            # REQ - Text pattern to search for
             value: "CANNED"
           # Exclude test products
-          - column: "Product_Name"
+          - # REQ - Column name to filter on
+            column: "Product_Name"
+            # REQ - Text exclusion condition
             condition: "not_contains"
+            # REQ - Text pattern to exclude
             value: "TEST"
 
 numeric_filtering_example:
@@ -133,6 +135,7 @@ numeric_filtering_example:
     # Filter using numeric conditions
     
     settings:
+      description: "Identify inventory items needing reorder using numeric thresholds"
       stages:
         - stage_name: "inventory_data"
           description: "Full inventory data"
@@ -142,23 +145,83 @@ numeric_filtering_example:
           protected: false
     
     recipe:
-      - step_description: "Identify items needing reorder"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Identify items needing reorder"
+        # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
+        # REQ - Stage to read data from
         source_stage: "inventory_data"
+        # REQ - Stage to save filtered results
         save_to_stage: "reorder_needed"
+        # REQ - List of filter conditions
         filters:
           # Low stock filter
-          - column: "Quantity_On_Hand"
+          - # REQ - Column name to filter on
+            column: "Quantity_On_Hand"
+            # REQ - Numeric comparison condition
             condition: "less_than"
+            # REQ - Numeric threshold value
             value: 50
           # Exclude discontinued items
-          - column: "Status"
+          - # REQ - Column name to filter on
+            column: "Status"
+            # REQ - Exact match exclusion condition
             condition: "not_equals"
+            # REQ - Value to exclude
             value: "Discontinued"
           # Only items with value
-          - column: "Unit_Price"
+          - # REQ - Column name to filter on
+            column: "Unit_Price"
+            # REQ - Numeric comparison condition
             condition: "greater_than"
+            # REQ - Minimum value threshold
             value: 0
+
+variable_substitution_example:
+  description: "Using recipe variables in filter values"
+  yaml: |
+    # Filter using variable substitution for dynamic values
+    
+    settings:
+      description: "Demonstrate dynamic filtering using recipe variables"
+      variables:
+        min_amount: "500"
+        target_region: "west"
+      stages:
+        - stage_name: "all_sales"
+          description: "All sales data"
+          protected: false
+        - stage_name: "qualified_sales"
+          description: "Sales meeting criteria"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter using dynamic variables"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "all_sales"
+        # REQ - Stage to save filtered results
+        save_to_stage: "qualified_sales"
+        # REQ - List of filter conditions with variable substitution
+        filters:
+          # Use variable in filter value
+          - # REQ - Column name to filter on
+            column: "Sale_Amount"
+            # REQ - Numeric comparison condition
+            condition: "greater_than"
+            # REQ - Variable reference substituted at runtime
+            value: "{min_amount}"
+          # Use variable for region filtering
+          - # REQ - Column name to filter on
+            column: "Region"
+            # REQ - Exact match condition
+            condition: "equals"
+            # REQ - Variable reference for dynamic region
+            value: "{target_region}"
 
 complete_workflow_example:
   description: "Complete import → filter → export workflow"
@@ -166,6 +229,7 @@ complete_workflow_example:
     # Complete recipe with import, filter, and export
     
     settings:
+      description: "Complete data processing workflow from import to export with filtering"
       variables:
         min_amount: "500"
         region: "west"
@@ -179,35 +243,53 @@ complete_workflow_example:
     
     recipe:
       # Step 1: Import sales data
-      - step_description: "Import regional sales data"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed import_file step"
+        step_description: "Import regional sales data"
+        # REQ - Must be "import_file" for this processor type
         processor_type: "import_file"
+        # REQ - Input file path with variable substitution support
         input_file: "sales/{region}_sales_data.xlsx"
+        # REQ - Stage to save imported data
         save_to_stage: "raw_sales"
       
       # Step 2: Filter for qualified sales
-      - step_description: "Filter for qualified high-value sales"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter for qualified high-value sales"
+        # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
+        # REQ - Stage to read data from
         source_stage: "raw_sales"
+        # REQ - Stage to save filtered results
         save_to_stage: "qualified_sales"
+        # REQ - List of filter conditions
         filters:
           # Use variable in filter value
-          - column: "Sale_Amount"
-            condition: "greater_equal"
+          - # REQ - Column name to filter on
+            column: "Amount"
+            # REQ - Numeric comparison condition
+            condition: "greater_than"
+            # REQ - Variable reference substituted at runtime
             value: "{min_amount}"
-          # Active customers only
-          - column: "Customer_Status"
-            condition: "equals"
-            value: "Active"
-          # Exclude refunds
-          - column: "Transaction_Type"
-            condition: "not_equals"
-            value: "Refund"
+          # Filter for current year only
+          - # REQ - Column name to filter on
+            column: "Date"
+            # REQ - Date comparison condition
+            condition: "greater_than"
+            # REQ - Date value in YYYY-MM-DD format
+            value: "2024-01-01"
       
-      # Step 3: Export filtered results
-      - step_description: "Export qualified sales report"
+      # Step 3: Export results
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed export_file step"
+        step_description: "Export qualified sales report"
+        # REQ - Must be "export_file" for this processor type
         processor_type: "export_file"
+        # REQ - Stage to read data from
         source_stage: "qualified_sales"
-        output_file: "reports/{region}_qualified_sales_{date}.xlsx"
+        # REQ - Output file path with variable substitution support
+        output_file: "reports/qualified_sales_{region}_{date}.xlsx"
 
 parameter_details:
   source_stage:
@@ -217,94 +299,83 @@ parameter_details:
     examples:
       - "raw_data"
       - "imported_customers"
-      - "Previous Processing Step"
+      - "cleaned_products"
+    note: "Stage must exist and contain data before filter step"
 
   save_to_stage:
     type: string
     required: true
     description: "Stage name to save filtered results (must be declared in settings.stages)"
     examples:
-      - "filtered_data"
-      - "Active Customers"
-      - "qualified_results"
+      - "active_customers"
+      - "qualified_orders"
+      - "validated_data"
+    note: "Stage will be created if data filtering succeeds"
 
   filters:
     type: list
     required: true
-    description: "List of filter conditions to apply (AND logic)"
-    
-  filter_condition:
-    column:
-      type: string
-      required: true
-      description: "Column name to filter on"
-    
-    condition:
-      type: string
-      required: true
-      description: "Filter condition type"
-      options:
-        basic: ["equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal"]
-        text: ["contains", "not_contains", "not_empty", "is_empty"]
-        list: ["in_list", "not_in_list"]
-        stage: ["in_stage", "not_in_stage", "stage_comparison"]
-    
-    value:
-      type: "string, number, list, or boolean"
-      required: true
-      description: "Value to compare against (supports variable substitution)"
-      examples:
-        - "Active"  # String value
-        - 1000      # Numeric value
-        - ["A", "B", "C"]  # List for in_list/not_in_list
-        - "{min_threshold}"  # Variable substitution
-    
-    stage_name:
-      type: string
-      required: false
-      description: "Stage name for stage-based conditions (in_stage, not_in_stage)"
-      
-    stage_column:
-      type: string
-      required: false
-      description: "Column name in comparison stage for stage-based conditions"
+    description: "List of filter conditions applied with AND logic"
+    minimum_items: 1
+    note: "All conditions must be true for a row to be included"
 
-condition_types:
-  basic_comparison:
-    - "equals: Exact match"
-    - "not_equals: Not equal to value"
-    - "greater_than: Numeric > value"
-    - "less_than: Numeric < value"
-    - "greater_equal: Numeric >= value"
-    - "less_equal: Numeric <= value"
-  
-  text_operations:
-    - "contains: Text contains substring"
-    - "not_contains: Text does not contain substring"
-    - "not_empty: Cell is not null/empty"
-    - "is_empty: Cell is null/empty"
-  
-  list_operations:
-    - "in_list: Value is in provided list"
-    - "not_in_list: Value is not in provided list"
-  
-  stage_operations:
-    - "in_stage: Value exists in specified stage column"
-    - "not_in_stage: Value does not exist in specified stage column"
-    - "stage_comparison: Advanced comparison with stage data"
+  column:
+    type: string
+    required: true
+    context: "Within filters list items"
+    description: "Name of the column to filter on - must exist in source data"
+    examples: ["Status", "Amount", "Date", "Customer_Type"]
+    validation: "Column name is case-sensitive and must match exactly"
+
+  condition:
+    type: string
+    required: true
+    context: "Within filters list items"
+    description: "Type of comparison or condition to apply"
+    options:
+      text_conditions: ["equals", "not_equals", "contains", "not_contains", "not_empty", "is_empty"]
+      numeric_conditions: ["equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal"]
+      list_conditions: ["in_list", "not_in_list"]
+    examples:
+      equals: "Exact text or numeric match"
+      contains: "Text contains substring (case-sensitive)"
+      greater_than: "Numeric or date comparison"
+      in_list: "Value exists in provided list"
+
+  value:
+    type: any
+    required: true
+    context: "Within filters list items"
+    description: "Value to compare against (supports variable substitution)"
+    data_types:
+      string: "For text comparisons and exact matches"
+      number: "For numeric comparisons"
+      list: "For in_list and not_in_list conditions"
+      date: "For date comparisons (YYYY-MM-DD format)"
+    variable_support: "Use {variable_name} for dynamic values from recipe settings"
+    examples:
+      text: ["Active", "Premium", "CANNED"]
+      numeric: [100, 1000, 0]
+      list: ["[\"Premium\", \"VIP\"]", "[\"Active\", \"Pending\"]"]
+      date: ["2024-01-01", "2024-12-31"]
+      variables: ["{min_amount}", "{target_status}", "{current_year}"]
 
 integration_notes:
-  stage_manager: "All filtering operations work with declared stages - no direct pipeline data access"
-  variable_substitution: "Filter values support variable substitution for dynamic filtering"
-  memory_efficiency: "Filtered results create new stage copy - original stage remains unchanged"
-  filter_logic: "Multiple filters use AND logic - all conditions must be true"
-  stage_validation: "Both source_stage and save_to_stage must be declared in settings.stages"
+  stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"
+  variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings"
+  data_preservation: "Original source stage data remains unchanged - filter creates new stage"
+  pipeline_flow: "Pure stage-based architecture - filters transform data between named stages"
+  performance: "Filtering early in workflow reduces memory usage and processing time for subsequent steps"
+
+stage_architecture_notes:
+  required_stages: "Both source_stage and save_to_stage must be declared in settings.stages"
+  stage_validation: "Source stage must exist and contain data before filter operation"
+  data_isolation: "Filter operation does not affect source stage data - creates independent filtered stage"
+  workflow_design: "Plan stage names and filter points when designing complex data processing workflows"
 
 common_use_cases:
-  data_cleanup: "Remove invalid, test, or outdated records"
-  subset_creation: "Create focused datasets for specific analysis"
-  quality_control: "Filter for records meeting quality standards"
-  regional_filtering: "Extract data for specific regions or territories"
-  date_range_filtering: "Focus on specific time periods"
-  status_filtering: "Work with active/approved/current records only"
-  stage_comparison: "Use one stage as filter criteria for another stage"
+  data_quality: "Remove invalid, incomplete, or test records from imported data"
+  business_rules: "Apply domain-specific filtering criteria (active customers, recent orders, etc.)"
+  data_reduction: "Reduce dataset size early to improve performance of subsequent processing steps"
+  conditional_processing: "Create different processing branches based on data characteristics"
+  report_filtering: "Extract specific subsets of data for targeted reporting and analysis"

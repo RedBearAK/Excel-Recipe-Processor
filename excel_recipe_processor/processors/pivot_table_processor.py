@@ -338,3 +338,8 @@ class PivotTableProcessor(BaseStepProcessor):
                 'count_matrix': "Count occurrences by category"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the pivot_table processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('pivot_table')

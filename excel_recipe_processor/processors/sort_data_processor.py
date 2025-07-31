@@ -409,3 +409,8 @@ class SortDataProcessor(BaseStepProcessor):
                 'sort_by_frequency', 'sort_by_custom_function', 'sort_by_multiple_criteria'
             ]
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the sort_data processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('sort_data')

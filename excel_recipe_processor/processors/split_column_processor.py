@@ -580,3 +580,8 @@ class SplitColumnProcessor(BaseStepProcessor):
                 'fixed_format': "Split fixed-width data like product codes"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the split_column processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('split_column')

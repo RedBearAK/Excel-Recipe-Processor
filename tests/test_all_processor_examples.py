@@ -157,35 +157,35 @@ def test_yaml_file_syntax():
                 data = yaml.safe_load(f)
             
             if not data:
-                print(f"   ❌ {processor_name}: Empty or invalid YAML")
+                print(f"   ❌ {processor_name:>24}: Empty or invalid YAML")
                 all_valid = False
                 continue
             
             if not isinstance(data, dict):
-                print(f"   ❌ {processor_name}: Root level must be a dictionary")
+                print(f"   ❌ {processor_name:>24}: Root level must be a dictionary")
                 all_valid = False
                 continue
             
             # Check required keys
             if 'description' not in data:
-                print(f"   ❌ {processor_name}: Missing 'description' key")
+                print(f"   ❌ {processor_name:>24}: Missing 'description' key")
                 all_valid = False
                 continue
             
             # Check for examples
             example_keys = [key for key in data.keys() if key.endswith('_example')]
             if not example_keys:
-                print(f"   ❌ {processor_name}: No examples found")
+                print(f"   ❌ {processor_name:>24}: No examples found")
                 all_valid = False
                 continue
             
-            print(f"   ✅ {processor_name}: Valid YAML with {len(example_keys)} examples")
+            print(f"   ✅ {processor_name:>24}: Valid YAML with {len(example_keys)} examples")
             
         except yaml.YAMLError as e:
-            print(f"   ❌ {processor_name}: YAML syntax error - {e}")
+            print(f"   ❌ {processor_name:>24}: YAML syntax error - {e}")
             all_valid = False
         except Exception as e:
-            print(f"   ❌ {processor_name}: Error reading file - {e}")
+            print(f"   ❌ {processor_name:>24}: Error reading file - {e}")
             all_valid = False
     
     return all_valid
@@ -221,20 +221,20 @@ def test_yaml_content_quality():
             if 'REQ -' not in content:
                 issues.append("missing 'REQ -' markers")
             
-            if f'processor_type: "{processor_name}"' not in content:
+            if f'processor_type: "{processor_name:>24}"' not in content:
                 issues.append("missing correct processor_type")
             
             if 'Default value:' not in content and 'default:' not in content.lower():
                 issues.append("missing default value documentation")
             
             if issues:
-                print(f"   ⚠️  {processor_name}: {', '.join(issues)}")
+                print(f"   ⚠️  {processor_name:>24}: {', '.join(issues)}")
                 all_good = False
             else:
-                print(f"   ✅ {processor_name}: Good formatting")
+                print(f"   ✅ {processor_name:>24}: Good formatting")
                 
         except Exception as e:
-            print(f"   ❌ {processor_name}: Error checking content - {e}")
+            print(f"   ❌ {processor_name:>24}: Error checking content - {e}")
             all_good = False
     
     return all_good
@@ -266,30 +266,30 @@ def test_cli_integration():
             )
             
             if result.returncode != 0:
-                print(f"   ❌ {processor_name}: CLI command failed - {result.stderr.strip()}")
+                print(f"   ❌ {processor_name:>24}: CLI command failed - {result.stderr.strip()}")
                 all_working = False
                 continue
             
             output = result.stdout
             
             # Check for expected content
-            if f'processor_type: "{processor_name}"' not in output:
-                print(f"   ❌ {processor_name}: CLI output missing correct processor_type")
+            if f'processor_type: "{processor_name:>24}"' not in output:
+                print(f"   ❌ {processor_name:>24}: CLI output missing correct processor_type")
                 all_working = False
                 continue
             
             if 'OPT -' not in output and 'REQ -' not in output:
-                print(f"   ❌ {processor_name}: CLI output missing OPT/REQ markers")
+                print(f"   ❌ {processor_name:>24}: CLI output missing OPT/REQ markers")
                 all_working = False
                 continue
             
-            print(f"   ✅ {processor_name}: CLI working correctly")
+            print(f"   ✅ {processor_name:>24}: CLI working correctly")
             
         except subprocess.TimeoutExpired:
-            print(f"   ❌ {processor_name}: CLI command timed out")
+            print(f"   ❌ {processor_name:>24}: CLI command timed out")
             all_working = False
         except Exception as e:
-            print(f"   ❌ {processor_name}: Error testing CLI - {e}")
+            print(f"   ❌ {processor_name:>24}: Error testing CLI - {e}")
             all_working = False
     
     return all_working
@@ -343,6 +343,148 @@ def test_processor_method_fallbacks():
     return len(missing_methods) == 0
 
 
+def test_revision_dates():
+    """Test that YAML files have today's revision date comment."""
+    print("\n📅 Testing revision date comments...")
+    
+    examples_dir = get_examples_directory()
+    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
+    
+    if not yaml_files:
+        print("   ⚠️  No YAML files to test")
+        return True
+    
+    today_date = "2025-07-30"  # Update this as needed
+    all_current = True
+    
+    for yaml_file in yaml_files:
+        processor_name = yaml_file.stem.replace('_examples', '')
+        
+        try:
+            with open(yaml_file, 'r', encoding='utf-8') as f:
+                # Read first 10 lines to look for revision date
+                lines = [f.readline().strip() for _ in range(10)]
+            
+            # Look for revision date comment
+            revision_line = None
+            for i, line in enumerate(lines):
+                if line.startswith("# Revision date:"):
+                    revision_line = line
+                    break
+            
+            if revision_line is None:
+                print(f"   ❌ {processor_name:>24}: No revision date comment found")
+                all_current = False
+                continue
+            
+            # Extract the date from the comment
+            try:
+                date_part = revision_line.split("# Revision date:")[1].strip()
+                if date_part == today_date:
+                    print(f"   ✅ {processor_name:>24}: {revision_line}")
+                else:
+                    print(f"   ⚠️  {processor_name:>24}: {revision_line} (needs update to {today_date})")
+                    all_current = False
+            except (IndexError, ValueError):
+                print(f"   ❌ {processor_name:>24}: Invalid revision date format: {revision_line}")
+                all_current = False
+                
+        except Exception as e:
+            print(f"   ❌ {processor_name:>24}: Error reading file - {e}")
+            all_current = False
+    
+    if all_current:
+        print(f"\n   🎉 All YAML files have current revision date ({today_date})")
+    else:
+        print(f"\n   📝 Some files need revision date updates to {today_date}")
+    
+    return all_current
+
+
+def test_settings_description_requirement():
+    """Test that all settings sections contain required description key."""
+    print("\n⚙️  Testing settings description requirement...")
+    
+    examples_dir = get_examples_directory()
+    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files.sort() # Make list come out in alphabetical order
+    
+    if not yaml_files:
+        print("   ⚠️  No YAML files to test")
+        return True
+    
+    all_have_descriptions = True
+    
+    for yaml_file in yaml_files:
+        processor_name = yaml_file.stem.replace('_examples', '')
+        
+        try:
+            with open(yaml_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            import yaml
+            data = yaml.safe_load(content)
+            
+            if not data:
+                print(f"   ❌ {processor_name:>24}: Invalid YAML structure")
+                all_have_descriptions = False
+                continue
+            
+            # Find all settings sections in the examples
+            settings_sections = []
+            
+            # Check each example for settings sections
+            for key, example in data.items():
+                if key.endswith('_example') and isinstance(example, dict):
+                    if 'yaml' in example:
+                        try:
+                            # Parse the YAML content of the example
+                            example_yaml = yaml.safe_load(example['yaml'])
+                            if isinstance(example_yaml, list):
+                                # Look for settings in recipe steps (shouldn't be there, but check anyway)
+                                for step in example_yaml:
+                                    if isinstance(step, dict) and 'settings' in step:
+                                        settings_sections.append((key, step['settings']))
+                            elif isinstance(example_yaml, dict) and 'settings' in example_yaml:
+                                settings_sections.append((key, example_yaml['settings']))
+                        except yaml.YAMLError:
+                            # Skip malformed YAML in examples
+                            continue
+            
+            # Check each settings section for description
+            missing_descriptions = []
+            for example_name, settings in settings_sections:
+                if not isinstance(settings, dict):
+                    continue
+                if 'description' not in settings:
+                    missing_descriptions.append(example_name)
+            
+            if missing_descriptions:
+                print(f"   ❌ {processor_name:>24}: Missing description in settings for examples: {', '.join(missing_descriptions)}")
+                all_have_descriptions = False
+            else:
+                settings_count = len(settings_sections)
+                if settings_count > 0:
+                    print(f"   ✅ {processor_name:>24}: All {settings_count} settings sections have descriptions")
+                else:
+                    print(f"   ⚠️ {processor_name:>24}: No settings sections found")
+                    all_have_descriptions = False
+                    
+        except Exception as e:
+            print(f"   ❌ {processor_name:>24}: Error checking settings - {e}")
+            all_have_descriptions = False
+    
+    if all_have_descriptions:
+        print(f"\n   🎉 All settings sections have required descriptions")
+    else:
+        print(f"\n   📝 Some settings sections missing required descriptions (or no settings found)")
+        print(f"      A 'settings:' section is required in every valid recipe")
+        print(f"   💡 Every settings section must include: description: 'Brief description of what this recipe does'")
+    
+    return all_have_descriptions
+
+
 def main():
     """Run all tests for processor usage examples."""
     print("🧪 Testing All Processor Usage Examples")
@@ -351,14 +493,16 @@ def main():
     print()
     
     tests = [
-        ("Examples Directory", test_examples_directory_exists),
-        ("Processor Discovery", test_processor_discovery),
-        ("YAML File Existence", test_yaml_files_existence),
-        ("YAML Syntax Validation", test_yaml_file_syntax),
-        ("Content Quality", test_yaml_content_quality),
-        ("CLI Integration", test_cli_integration),
-        ("Method Fallbacks", test_processor_method_fallbacks)
-    ]
+            ("Examples Directory", test_examples_directory_exists),
+            ("Processor Discovery", test_processor_discovery),
+            ("YAML File Existence", test_yaml_files_existence),
+            ("YAML Syntax Validation", test_yaml_file_syntax),
+            ("Revision Dates", test_revision_dates),
+            ("Settings Description Requirement", test_settings_description_requirement),  # NEW TEST
+            ("Content Quality", test_yaml_content_quality),
+            ("CLI Integration", test_cli_integration),
+            ("Method Fallbacks", test_processor_method_fallbacks)
+        ]
     
     results = []
     

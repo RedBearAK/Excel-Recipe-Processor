@@ -206,7 +206,7 @@ def test_excel_file_merge():
             'merge_source': {
                 'type': 'excel',
                 'path': temp_excel_path,
-                'sheet': 0
+                'sheet': 1
             },
             'left_key': 'Product_Code',
             'right_key': 'Product_Code',

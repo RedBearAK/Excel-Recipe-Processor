@@ -50,15 +50,15 @@ class FileReader:
     }
     
     @staticmethod
-    def read_file(filename, variables=None, sheet=0, encoding='utf-8', 
-                  separator=',', explicit_format=None):
+    def read_file(filename, variables=None, sheet=1, encoding='utf-8', 
+                    separator=',', explicit_format=None):
         """
         Read a file with automatic format detection and variable substitution.
         
         Args:
             filename: Path to file (may contain variables like {date})
             variables: Dictionary of custom variables for substitution
-            sheet: Sheet name or index for Excel files (default: 0)
+            sheet: Sheet name or 1-based index (1 for first sheet) - CONVERTS to 0-based internally
             encoding: Text encoding for CSV/TSV files (default: 'utf-8')
             separator: Column separator for CSV files (default: ',')
             explicit_format: Override format detection ('xlsx', 'csv', 'tsv')
@@ -69,6 +69,7 @@ class FileReader:
         Raises:
             FileReaderError: If file reading fails
         """
+
         try:
             # Apply variable substitution
             final_filename = FileReader._apply_variable_substitution(filename, variables)
@@ -79,9 +80,20 @@ class FileReader:
             # Determine logical format
             file_format = FileReader._determine_format(final_filename, explicit_format)
             
+            # Convert 1-based sheet index to 0-based for Excel files
+            if file_format in FileReader.EXCEL_FORMATS and isinstance(sheet, int):
+                if sheet < 1:
+                    raise FileReaderError(
+                        f"Sheet index must be 1 or greater, got {sheet}. "
+                        "Use 1 for first sheet, 2 for second sheet, etc."
+                    )
+                sheet_for_excel = sheet - 1  # Convert to 0-based for ExcelReader
+            else:
+                sheet_for_excel = sheet  # Pass sheet names through unchanged
+            
             # Delegate to appropriate reader based on logical format
             if file_format in FileReader.EXCEL_FORMATS:
-                return FileReader._read_excel_file(final_filename, sheet)
+                return FileReader._read_excel_file(final_filename, sheet_for_excel)
             elif file_format in FileReader.CSV_FORMATS:
                 return FileReader._read_csv_file(final_filename, encoding, separator)
             elif file_format in FileReader.TSV_FORMATS:

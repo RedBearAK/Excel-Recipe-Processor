@@ -210,7 +210,8 @@ class LookupDataProcessor(BaseStepProcessor):
             raise StepProcessorError("File lookup source missing 'filename' field")
         
         filename = source_config['filename']
-        sheet = source_config.get('sheet', 0)
+        # Uses 1-based indexing, file reader converts to 0-based internally for pandas
+        sheet = source_config.get('sheet', 1)
         encoding = source_config.get('encoding', 'utf-8')
         separator = source_config.get('separator', ',')
         explicit_format = source_config.get('format', None)

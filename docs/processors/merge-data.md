@@ -61,7 +61,7 @@ Add customer and product details to order data:
   merge_source:
     type: "excel"              # Data source type
     path: "data.xlsx"          # File path
-    sheet: 0                   # Sheet name/index (Excel only)
+    sheet: 1                   # Sheet name/index (Excel only)
   left_key: "Customer_ID"      # Main data key column
   right_key: "Cust_ID"         # External data key column
   join_type: "left"            # Join strategy

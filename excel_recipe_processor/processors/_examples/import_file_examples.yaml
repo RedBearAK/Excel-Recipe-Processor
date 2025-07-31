@@ -46,8 +46,8 @@ excel_sheet_example:
         # REQ - Stage to save imported data
         save_to_stage: "q4_sales"
         # OPT - Sheet name or index to import
-        # Can be sheet name (string) or sheet index (integer, 0-based)
-        # Default value: 0 (first sheet)
+        # Can be sheet name (string) or sheet index (integer, 1-based)
+        # Default value: 1 (first sheet)
         sheet: "Q4 Sales Data"
 
 csv_import_example:
@@ -106,8 +106,8 @@ variable_substitution_example:
         input_file: "daily_data/{department}_{YYYY}{MM}{DD}.xlsx"
         # REQ - Stage to save imported data
         save_to_stage: "daily_data"
-        # OPT - Import specific sheet by index
-        sheet: 0
+        # OPT - Import specific sheet by index (starts at 1, converts to 0-based internally)
+        sheet: 1
 
 multi_import_workflow_example:
   description: "Complete workflow importing multiple files to different stages"
@@ -171,11 +171,12 @@ parameter_details:
   sheet:
     type: "string or integer"
     required: false
-    default: 0
+    # Uses 1-based index, converts to 0-based internally
+    default: 1
     description: "Sheet name or index to import from Excel files"
     examples:
-      - 0  # First sheet
-      - 1  # Second sheet
+      - 1  # First sheet
+      - 2  # Second sheet
       - "Data"  # Sheet by name
       - "Q4 Sales"  # Sheet with spaces
 

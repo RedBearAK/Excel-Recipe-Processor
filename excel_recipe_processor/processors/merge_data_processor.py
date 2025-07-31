@@ -171,7 +171,9 @@ class MergeDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"{source_type.upper()} merge source requires 'path' field")
         
         file_path = merge_source['path']
-        sheet = merge_source.get('sheet', 0)
+
+        # Using 1-based indexing, file reader converts to 0-based for pandas
+        sheet = merge_source.get('sheet', 1)
         encoding = merge_source.get('encoding', 'utf-8')
         separator = merge_source.get('separator', ',')
         explicit_format = merge_source.get('format', None)

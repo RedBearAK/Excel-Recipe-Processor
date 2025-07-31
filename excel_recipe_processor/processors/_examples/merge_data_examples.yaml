@@ -33,8 +33,8 @@ basic_example:
           # REQ - Path to external file (supports variable substitution)
           path: "customer_master.xlsx"
           # OPT - Sheet name or index for Excel files
-          # Can be string (sheet name) or integer (0-based index)
-          # Default value: 0 (first sheet)
+          # Can be string (sheet name) or integer (1-based index)
+          # Default value: 1 (first sheet)
           sheet: "Customers"
         # REQ - Column in main data to use as merge key
         left_key: "Customer_ID"
@@ -256,10 +256,11 @@ parameter_details:
   merge_source_sheet:
     type: string_or_int
     required: false
-    default: 0
+    # Uses 1-based indexing, converts to 0-based internally
+    default: 1
     context: "Used with excel source type"
-    description: "Sheet name or 0-based index to read from Excel file"
-    examples: ["Customers", "Active_Data", 0, 1]
+    description: "Sheet name or 1-based index to read from Excel file"
+    examples: ["Customers", "Active_Data", 1, 2]
   
   merge_source_data:
     type: dict

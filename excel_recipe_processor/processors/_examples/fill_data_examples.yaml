@@ -1,0 +1,469 @@
+# Revision date: 2025-07-30
+
+description: "Fill missing values and blanks using Excel-equivalent strategies. Essential for data cleaning, especially before merge operations and statistical analysis."
+
+basic_example:
+  description: "Simple constant fill for missing customer information"
+  yaml: |
+    settings:
+      description: "Clean customer data by filling missing values"
+      stages:
+        - stage_name: "customer_data"
+          description: "Raw customer data with missing values"
+          protected: false
+        - stage_name: "cleaned_customers"
+          description: "Customer data with filled missing values"
+          protected: false
+
+    recipe:
+      - # Step 1: Import customer data
+        step_description: "Import customer database"
+        # REQ - Must be "import_file" for file import
+        processor_type: "import_file"
+        # REQ - Path to input Excel file
+        input_file: "data/customer_database.xlsx"
+        # REQ - Stage to save imported data (import_file only needs save_to_stage)
+        save_to_stage: "customer_data"
+
+      - # Step 2: Fill missing customer names
+        # OPT - Human-readable step description
+        # Default value: "Unnamed fill_data step"
+        step_description: "Fill missing customer names with Unknown"
+        # REQ - Must be "fill_data" for this processor type
+        processor_type: "fill_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "customer_data"
+        # REQ - Columns to fill missing values in
+        # Can be single column string or list of columns
+        columns: ["Customer_Name", "Contact_Person"]
+        # REQ - Method to use for filling missing values
+        # Valid values: constant, forward_fill, backward_fill, mean, median, mode, interpolate, replace, zero, empty_string
+        fill_method: "constant"
+        # REQ - Value to fill with (required for constant and replace methods)
+        fill_value: "Unknown"
+        # REQ - Stage to save filled data
+        save_to_stage: "cleaned_customers"
+
+statistical_fill_example:
+  description: "Use statistical methods to fill numeric and categorical data"
+  yaml: |
+    settings:
+      description: "Fill missing values using statistical methods for better data quality"
+      stages:
+        - stage_name: "sales_data"
+          description: "Sales data with missing values"
+          protected: false
+        - stage_name: "amounts_filled"
+          description: "Sales data with amounts filled using mean"
+          protected: false
+        - stage_name: "categories_filled"
+          description: "Sales data with categories filled using mode"
+          protected: false
+
+    recipe:
+      - # Step 1: Import sales data
+        step_description: "Import monthly sales report"
+        processor_type: "import_file"
+        input_file: "data/sales_march_2024.xlsx"
+        save_to_stage: "sales_data"
+
+      - # Step 2: Fill missing sales amounts with average
+        step_description: "Fill missing sales amounts with mean value"
+        processor_type: "fill_data"
+        source_stage: "sales_data"
+        # REQ - Numeric columns for statistical filling
+        columns: ["Sales_Amount", "Commission", "Discount"]
+        # REQ - Use mean for numeric data
+        # Calculates average of existing values and fills missing with that
+        fill_method: "mean"
+        save_to_stage: "amounts_filled"
+
+      - # Step 3: Fill missing categories with most common value
+        step_description: "Fill missing customer types with most common type"
+        processor_type: "fill_data"
+        source_stage: "amounts_filled"
+        # REQ - Categorical columns for mode filling
+        columns: ["Customer_Type", "Sales_Region"]
+        # REQ - Use mode for categorical data
+        # Finds most frequently occurring value and fills missing with that
+        fill_method: "mode"
+        save_to_stage: "categories_filled"
+
+forward_backward_fill_example:
+  description: "Excel-equivalent forward fill (fill down) and backward fill (fill up)"
+  yaml: |
+    settings:
+      description: "Use Excel-style fill operations for time series and sequential data"
+      stages:
+        - stage_name: "time_series_data"
+          description: "Time series data with gaps"
+          protected: false
+        - stage_name: "forward_filled"
+          description: "Data with forward fill applied"
+          protected: false
+        - stage_name: "backward_filled"
+          description: "Data with backward fill applied"
+          protected: false
+
+    recipe:
+      - # Step 1: Import time series data
+        step_description: "Import sensor readings with missing values"
+        processor_type: "import_file"
+        input_file: "data/sensor_readings.xlsx"
+        save_to_stage: "time_series_data"
+
+      - # Step 2: Forward fill (Excel Fill Down equivalent)
+        step_description: "Carry forward last known status values"
+        processor_type: "fill_data"
+        source_stage: "time_series_data"
+        # REQ - Columns suitable for forward filling
+        columns: ["Equipment_Status", "Operator_Name"]
+        # REQ - Forward fill method (same as Excel Fill Down)
+        # Copies the last known value forward to fill gaps
+        fill_method: "forward_fill"
+        # OPT - Limit consecutive fills to prevent over-filling
+        # Default value: None (no limit)
+        # Maximum number of consecutive missing values to fill
+        limit: 5
+        save_to_stage: "forward_filled"
+
+      - # Step 3: Backward fill (Excel Fill Up equivalent)
+        step_description: "Fill maintenance dates backward from next known date"
+        processor_type: "fill_data"
+        source_stage: "forward_filled"
+        # REQ - Columns suitable for backward filling
+        columns: ["Next_Maintenance_Date"]
+        # REQ - Backward fill method (same as Excel Fill Up)
+        # Copies next known value backward to fill gaps
+        fill_method: "backward_fill"
+        # OPT - Limit consecutive fills
+        limit: 3
+        save_to_stage: "backward_filled"
+
+conditional_fill_example:
+  description: "Fill values based on conditions in other columns"
+  yaml: |
+    settings:
+      description: "Apply business rules for filling missing values based on context"
+      stages:
+        - stage_name: "employee_data"
+          description: "Employee data with missing information"
+          protected: false
+        - stage_name: "salary_filled"
+          description: "Employee data with department-based salary defaults"
+          protected: false
+        - stage_name: "benefits_filled"
+          description: "Employee data with region-based benefit defaults"
+          protected: false
+
+    recipe:
+      - # Step 1: Import employee data
+        step_description: "Import HR employee database"
+        processor_type: "import_file"
+        input_file: "data/employee_database.xlsx"
+        save_to_stage: "employee_data"
+
+      - # Step 2: Fill missing salaries based on department
+        step_description: "Set department-specific salary defaults"
+        processor_type: "fill_data"
+        source_stage: "employee_data"
+        # REQ - Column to fill
+        columns: ["Starting_Salary"]
+        # REQ - Constant fill method for conditional filling
+        fill_method: "constant"
+        # OPT - Conditional filling rules based on other column values
+        # Default value: [] (no conditions, fill all missing values)
+        conditions:
+          # First condition: Sales department
+          - # REQ - Column to check for condition
+            condition_column: "Department"
+            # REQ - Type of condition to apply
+            # Valid values: equals, not_equals, greater_than, less_than, contains, not_contains, is_null, not_null, in_list, not_in_list
+            condition_type: "equals"
+            # REQ - Value to compare against
+            condition_value: "Sales"
+            # REQ - Value to fill with when condition is met
+            fill_value: 45000
+          
+          # Second condition: Engineering department
+          - condition_column: "Department"
+            condition_type: "equals"
+            condition_value: "Engineering"
+            fill_value: 65000
+          
+          # Third condition: Marketing department
+          - condition_column: "Department"
+            condition_type: "equals"
+            condition_value: "Marketing"
+            fill_value: 50000
+        save_to_stage: "salary_filled"
+
+      - # Step 3: Fill missing benefits based on region
+        step_description: "Set region-specific benefit defaults"
+        processor_type: "fill_data"
+        source_stage: "salary_filled"
+        columns: ["Health_Plan", "Retirement_Match"]
+        fill_method: "constant"
+        conditions:
+          # High-cost regions get premium benefits
+          - condition_column: "Work_Location"
+            condition_type: "in_list"
+            condition_value: ["San Francisco", "New York", "Boston"]
+            fill_value: "Premium"
+          
+          # Other regions get standard benefits
+          - condition_column: "Work_Location"
+            condition_type: "not_in_list"
+            condition_value: ["San Francisco", "New York", "Boston"]
+            fill_value: "Standard"
+        save_to_stage: "benefits_filled"
+
+advanced_workflow_example:
+  description: "Complex data preparation workflow with multiple fill strategies"
+  yaml: |
+    settings:
+      description: "Complete data cleaning workflow with various fill methods and business logic"
+      variables:
+        default_region: "Other"
+        minimum_order: "0"
+      stages:
+        - stage_name: "raw_orders"
+          description: "Raw order data from import"
+          protected: false
+        - stage_name: "basic_cleanup"
+          description: "Orders with basic missing values filled"
+          protected: false
+        - stage_name: "advanced_fills"
+          description: "Orders with statistical and conditional fills"
+          protected: false
+        - stage_name: "final_dataset"
+          description: "Complete cleaned order dataset"
+          protected: false
+
+    recipe:
+      - # Step 1: Import order data
+        step_description: "Import quarterly order data"
+        processor_type: "import_file"
+        input_file: "data/q1_orders.xlsx"
+        save_to_stage: "raw_orders"
+
+      - # Step 2: Fill missing quantities with zero
+        step_description: "Fill missing quantities and amounts with zero for calculations"
+        processor_type: "fill_data"
+        source_stage: "raw_orders"
+        # REQ - Numeric columns that should default to zero
+        columns: ["Quantity", "Backorder_Amount", "Discount_Amount"]
+        # REQ - Zero fill method for numeric defaults
+        # Sets missing numeric values to 0 for calculations
+        fill_method: "zero"
+        save_to_stage: "basic_cleanup"
+
+      - # Step 3: Fill missing order amounts with median
+        step_description: "Fill missing order amounts with median value"
+        processor_type: "fill_data"
+        source_stage: "basic_cleanup"
+        columns: ["Order_Amount"]
+        # REQ - Median fill for robust statistical filling
+        # Less sensitive to outliers than mean
+        fill_method: "median"
+        save_to_stage: "advanced_fills"
+
+      - # Step 4: Interpolate missing dates
+        step_description: "Interpolate missing ship dates in time series"
+        processor_type: "fill_data"
+        source_stage: "advanced_fills"
+        columns: ["Ship_Date", "Expected_Delivery"]
+        # REQ - Interpolate method for smooth progression
+        # Creates gradual progression between known values
+        fill_method: "interpolate"
+        # OPT - Limit interpolation to prevent unrealistic fills
+        limit: 10
+        save_to_stage: "final_dataset"
+
+      - # Step 5: Replace specific values
+        step_description: "Replace outdated status codes with current ones"
+        processor_type: "fill_data"
+        source_stage: "final_dataset"
+        columns: ["Order_Status"]
+        # REQ - Replace method for value substitution
+        # Replaces specific old values with new ones
+        fill_method: "replace"
+        # REQ - Old value to find and replace (required for replace method)
+        old_value: "PROC"
+        # REQ - New value to replace with
+        fill_value: "Processing"
+        save_to_stage: "final_dataset"
+
+specialized_methods_example:
+  description: "Specialized fill methods for specific data types and use cases"
+  yaml: |
+    settings:
+      description: "Demonstrate specialized fill methods for different data scenarios"
+      stages:
+        - stage_name: "mixed_data"
+          description: "Dataset with various data types"
+          protected: false
+        - stage_name: "text_filled"
+          description: "Data with text fields filled"
+          protected: false
+        - stage_name: "numeric_filled"
+          description: "Data with numeric fields filled"
+          protected: false
+
+    recipe:
+      - # Step 1: Import mixed data types
+        step_description: "Import dataset with various data types"
+        processor_type: "import_file"
+        input_file: "data/mixed_data_types.xlsx"
+        save_to_stage: "mixed_data"
+
+      - # Step 2: Fill text fields with empty strings
+        step_description: "Fill missing comments and notes with empty strings"
+        processor_type: "fill_data"
+        source_stage: "mixed_data"
+        # REQ - Text columns that should be empty rather than null
+        columns: ["Comments", "Notes", "Additional_Info"]
+        # REQ - Empty string fill method
+        # Sets missing text values to empty string instead of null
+        fill_method: "empty_string"
+        save_to_stage: "text_filled"
+
+      - # Step 3: Fill missing measurements with interpolation
+        step_description: "Interpolate missing sensor measurements"
+        processor_type: "fill_data"
+        source_stage: "text_filled"
+        # REQ - Numeric measurement columns
+        columns: ["Temperature", "Pressure", "Flow_Rate"]
+        # REQ - Interpolate for smooth measurement progression
+        fill_method: "interpolate"
+        save_to_stage: "numeric_filled"
+
+      - # Step 4: Fill missing IDs with forward fill
+        step_description: "Carry forward batch IDs through related records"
+        processor_type: "fill_data"
+        source_stage: "numeric_filled"
+        columns: ["Batch_ID", "Operator_ID"]
+        fill_method: "forward_fill"
+        # OPT - Prevent excessive forward filling
+        limit: 20
+        save_to_stage: "final_clean_data"
+
+parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'fill_data' for this processor type"
+    examples:
+      - "fill_data"
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed fill_data step"
+    description: "Human-readable description of what this fill operation does"
+    examples:
+      - "Fill missing customer names with Unknown"
+      - "Fill missing amounts with average value"
+      - "Forward fill status through time series"
+
+  source_stage:
+    type: string
+    required: true
+    description: "Stage to read data from (must be declared in settings.stages)"
+    examples:
+      - "customer_data"
+      - "sales_data"
+      - "imported_data"
+
+  save_to_stage:
+    type: string
+    required: true
+    description: "Stage to save filled data (must be declared in settings.stages)"
+    examples:
+      - "cleaned_data"
+      - "filled_customers"
+      - "processed_data"
+
+  columns:
+    type: string or list of strings
+    required: true
+    description: "Column(s) to fill missing values in. Can be single column name or list of column names"
+    examples:
+      - "Customer_Name"
+      - ["Sales_Amount", "Commission"]
+      - ["Name", "Email", "Phone"]
+
+  fill_method:
+    type: string
+    required: true
+    description: "Method to use for filling missing values"
+    valid_values: ["constant", "forward_fill", "ffill", "backward_fill", "bfill", "interpolate", "mean", "median", "mode", "replace", "zero", "empty_string"]
+    examples:
+      - "constant"
+      - "forward_fill"
+      - "mean"
+      - "mode"
+    note: "ffill and bfill are aliases for forward_fill and backward_fill respectively"
+
+  fill_value:
+    type: any
+    required: false
+    default: null
+    description: "Value to fill with (required for 'constant' and 'replace' methods)"
+    examples:
+      - "Unknown"
+      - 0
+      - "N/A"
+      - "TBD"
+    note: "Data type should match the target columns"
+
+  old_value:
+    type: any
+    required: false
+    default: null
+    description: "Value to find and replace (required for 'replace' method only)"
+    examples:
+      - "N/A"
+      - "NULL"
+      - "TBD"
+    note: "Used only with fill_method: replace"
+
+  limit:
+    type: integer
+    required: false
+    default: null
+    description: "Maximum number of consecutive missing values to fill (prevents over-filling)"
+    examples:
+      - 5
+      - 10
+      - 20
+    note: "Useful for forward_fill, backward_fill, and interpolate methods"
+
+  conditions:
+    type: list of objects
+    required: false
+    default: []
+    description: "Conditional filling rules based on values in other columns"
+    structure:
+      condition_column:
+        type: string
+        required: true
+        description: "Column to check for condition"
+      condition_type:
+        type: string
+        required: true  
+        description: "Type of condition to apply"
+        valid_values: ["equals", "not_equals", "greater_than", "less_than", "contains", "not_contains", "is_null", "not_null", "in_list", "not_in_list"]
+      condition_value:
+        type: any
+        required: true
+        description: "Value to compare against (or list for in_list/not_in_list)"
+      fill_value:
+        type: any
+        required: true
+        description: "Value to fill with when condition is met"
+    examples:
+      - condition_column: "Department"
+        condition_type: "equals"
+        condition_value: "Sales"
+        fill_value: 45000

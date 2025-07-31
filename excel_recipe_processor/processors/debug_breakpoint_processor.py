@@ -10,15 +10,15 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
 
 
 logger = logging.getLogger(__name__)
 
 
-class DebugBreakpointProcessor(BaseStepProcessor):
+class DebugBreakpointProcessor(ExportBaseProcessor):  # ← CHANGE: inherit from ExportBaseProcessor
     """
-    Processor that stops recipe execution and saves current data state.
+    Processor that exports data for debugging and stops recipe execution.
     
     Acts like "exit 0" in shell scripts - provides a clean way to halt
     processing at any point for testing and troubleshooting.
@@ -27,29 +27,26 @@ class DebugBreakpointProcessor(BaseStepProcessor):
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
+            'source_stage': 'test_stage',  # ← CHANGE: now requires source_stage
             'message': 'Debug checkpoint'
         }
     
-    def execute(self, data) -> pd.DataFrame:
+    def save_data(self, data: pd.DataFrame) -> None:  # ← CHANGE: override save_data instead of execute
         """
-        Save current data and stop recipe execution.
+        Export debug data and stop recipe execution.
         
         Args:
-            data: Current pandas DataFrame state
-            
-        Returns:
-            The DataFrame (though execution will stop)
+            data: DataFrame loaded from source_stage
             
         Raises:
             StepProcessorError: Always raises to stop execution
         """
-        self.log_step_start()
-        
-        # Guard clause: ensure we have a DataFrame
+        # Validate data (defensive programming)
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Debug breakpoint step '{self.step_name}' requires a pandas DataFrame")
         
-        self.validate_data_not_empty(data)
+        if data.empty:
+            raise StepProcessorError(f"Debug breakpoint step '{self.step_name}' received empty DataFrame")
         
         # Get configuration options
         output_path = self.get_config_value('output_path', './debug_outputs/')
@@ -110,18 +107,23 @@ class DebugBreakpointProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Stop recipe execution and save current data state for debugging',
+            'description': 'Export data for debugging and stop recipe execution',
             'features': [
                 'automatic_timestamping', 'custom_output_paths', 'data_preview',
-                'execution_stopping', 'troubleshooting_support'
+                'execution_stopping', 'troubleshooting_support', 'stage_based_loading'
             ],
             'options': [
-                'output_path', 'filename_prefix', 'include_timestamp', 
+                'source_stage', 'output_path', 'filename_prefix', 'include_timestamp', 
                 'message', 'show_sample', 'sample_rows'
             ],
             'examples': {
-                'simple': "Stop execution and save data with timestamp",
+                'simple': "Stop execution and save stage data with timestamp",
                 'custom': "Save to specific location with custom message",
                 'testing': "Check intermediate results during recipe development"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the debug_breakpoint processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('debug_breakpoint')

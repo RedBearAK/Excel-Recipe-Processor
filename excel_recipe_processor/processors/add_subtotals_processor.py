@@ -362,6 +362,12 @@ class AddSubtotalsProcessor(BaseStepProcessor):
                 'hierarchical_reporting': "Multi-level subtotals for complex reports"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the add_subtotals processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('add_subtotals')
+
 
 
 class SubtotalUtils:

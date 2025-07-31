@@ -1,223 +1,339 @@
-# Usage Examples for slice_data processor
-# Shows how to extract portions of DataFrames with 1-based indexing
+# Revision date: 2025-07-30
 
-description: |
-  The slice_data processor extracts portions of DataFrames using user-friendly 1-based indexing.
-  Perfect for separating metadata, headers, and data sections in complex Excel files.
+description: "Extract portions of DataFrames using 1-based indexing. Perfect for separating metadata, headers, and data sections in complex Excel files."
 
-basic_row_slicing_example:
+basic_example:
   description: "Extract specific rows from a DataFrame"
   yaml: |
-    # Extract metadata rows from top of Excel file
-    
-    - # OPT - Step description
-      step_description: "Extract file metadata"
-      # REQ - Processor type
-      processor_type: "slice_data"
-      # REQ - Type of slice operation
-      slice_type: "row_range"
-      # REQ - Starting row (1-based, matches Excel)
-      start_row: 1
-      # OPT - Ending row (1-based, inclusive)
-      end_row: 3
-      # OPT - Save result to stage for later use
-      save_to_stage: "File Metadata"
+    settings:
+      description: "Import Excel file and extract metadata rows"
+      stages:
+        - stage_name: "raw_data"
+          description: "Complete imported Excel file"
+          protected: false
+        - stage_name: "file_metadata"
+          description: "Header information from Excel file"
+          protected: false
 
-data_extraction_with_headers_example:
-  description: "Extract data section and promote headers"
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Import Excel file"
+        # REQ - Must be "import_file" for file import
+        processor_type: "import_file"
+        # REQ - Path to input Excel file
+        input_file: "data/monthly_report.xlsx"
+        # REQ - Stage to save imported data (import_file only needs save_to_stage)
+        save_to_stage: "raw_data"
+
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed slice_data step"
+        step_description: "Extract file metadata section"
+        # REQ - Must be "slice_data" for this processor type
+        processor_type: "slice_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "raw_data"
+        # REQ - Type of slice operation to perform
+        # Valid values: "row_range", "column_range"
+        slice_type: "row_range"
+        # REQ - Starting row number (1-based indexing, matches Excel)
+        # Row 1 is the first row in the data
+        start_row: 1
+        # OPT - Ending row number (1-based, inclusive)
+        # If omitted, extracts from start_row to end of data
+        end_row: 3
+        # REQ - Stage to save extracted rows
+        save_to_stage: "file_metadata"
+
+data_extraction_example:
+  description: "Extract data section with automatic header promotion"
   yaml: |
-    # Extract data starting from where headers are located
-    
-    - # OPT - Step description  
-      step_description: "Extract data with header promotion"
-      # REQ - Processor type
-      processor_type: "slice_data"
-      # REQ - Type of slice operation
-      slice_type: "row_range"
-      # REQ - Row where data section starts (1-based)
-      start_row: 4
-      # OPT - End row (omit to get all remaining rows)
-      # end_row: 10
-      # OPT - First row of slice contains headers (default: false)
-      slice_result_contains_headers: true
-      # OPT - Save clean data to stage
-      save_to_stage: "Clean Data"
+    settings:
+      description: "Import file and extract clean data with proper column headers"
+      stages:
+        - stage_name: "imported_file"
+          description: "Complete imported Excel file"
+          protected: false
+        - stage_name: "clean_data"
+          description: "Data section with promoted headers"
+          protected: false
+
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Import Excel file with mixed content"
+        # REQ - Must be "import_file" for file import
+        processor_type: "import_file"
+        # REQ - Path to input Excel file
+        input_file: "data/sales_report.xlsx"
+        # REQ - Stage to save imported data (import_file only needs save_to_stage)
+        save_to_stage: "imported_file"
+
+      - # OPT - Human-readable step description
+        step_description: "Extract data with header promotion"
+        # REQ - Must be "slice_data" for this processor type
+        processor_type: "slice_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "imported_file"
+        # REQ - Type of slice operation
+        slice_type: "row_range"
+        # REQ - Row where data section starts (1-based)
+        # This should be the row containing column headers
+        start_row: 4
+        # OPT - Ending row (1-based, inclusive)
+        # Omit to get all remaining rows from start_row
+        end_row: 10
+        # OPT - Promote first row of slice to column headers
+        # Default value: false
+        # When true, first row becomes DataFrame column names
+        slice_result_contains_headers: true
+        # REQ - Stage to save the clean data
+        save_to_stage: "clean_data"
 
 column_slicing_example:
-  description: "Extract specific columns by range"
+  description: "Extract specific columns using different reference methods"
   yaml: |
-    # Extract columns using different reference methods
-    
-    - # OPT - Step description
-      step_description: "Extract key columns"
-      # REQ - Processor type
-      processor_type: "slice_data"
-      # REQ - Type of slice operation
-      slice_type: "column_range"
-      # REQ - Starting column (Excel reference)
-      start_col: "A"
-      # OPT - Ending column (Excel reference)
-      end_col: "D"
-      
-    # Alternative: using 1-based column numbers
-    - step_description: "Extract first 3 columns by number"
-      processor_type: "slice_data"
-      slice_type: "column_range"
-      start_col: 1        # First column
-      end_col: 3          # Third column
-      
-    # Alternative: using column names
-    - step_description: "Extract by column names"
-      processor_type: "slice_data"
-      slice_type: "column_range"
-      start_col: "Product ID"
-      end_col: "Price"
+    settings:
+      description: "Import wide dataset and extract key columns"
+      stages:
+        - stage_name: "wide_dataset"
+          description: "Complete imported dataset with many columns"
+          protected: false
+        - stage_name: "key_columns"
+          description: "Important columns only"
+          protected: false
+        - stage_name: "first_three_columns"
+          description: "First three columns by number"
+          protected: false
 
-stage_source_example:
-  description: "Load data from stage instead of input stream"
-  yaml: |
-    # Process data from a previously saved stage
-    
-    - # OPT - Step description
-      step_description: "Extract metadata from saved file"
-      # REQ - Processor type
-      processor_type: "slice_data"
-      # REQ - Type of slice operation
-      slice_type: "row_range"
-      # REQ - Load data from this stage instead of input
-      source_stage: "Raw File Data"
-      # REQ - Starting row to extract
-      start_row: 1
-      # OPT - Ending row to extract
-      end_row: 2
-      # OPT - Save result to new stage
-      save_to_stage: "File Headers"
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Import wide Excel dataset"
+        # REQ - Must be "import_file" for file import
+        processor_type: "import_file"
+        # REQ - Path to input Excel file
+        input_file: "data/wide_dataset.xlsx"
+        # REQ - Stage to save imported data (import_file only needs save_to_stage)
+        save_to_stage: "wide_dataset"
 
-automatic_header_detection_example:
-  description: "Automatically find and extract data section"
-  yaml: |
-    # Let the processor find where real data starts
-    
-    - # OPT - Step description
-      step_description: "Auto-detect data section"
-      # REQ - Processor type
-      processor_type: "slice_data"
-      # REQ - Type of slice operation
-      slice_type: "header_detection"
-      # OPT - Maximum rows to scan for headers
-      max_scan_rows: 20
-      # OPT - Minimum non-empty columns to consider a header row (1 = any data)
-      min_non_empty_cols: 1
-      # OPT - Save detected data
-      save_to_stage: "Detected Data"
+      - # OPT - Human-readable step description
+        step_description: "Extract key columns using Excel references"
+        # REQ - Must be "slice_data" for this processor type
+        processor_type: "slice_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "wide_dataset"
+        # REQ - Type of slice operation
+        slice_type: "column_range"
+        # REQ - Starting column reference (Excel letter format)
+        # Valid formats: "A", "B", "C", etc.
+        start_col: "A"
+        # OPT - Ending column reference (Excel letter format)
+        # If omitted, extracts from start_col to last column
+        end_col: "D"
+        # REQ - Stage to save column subset
+        save_to_stage: "key_columns"
 
-complex_workflow_example:
-  description: "Complete workflow separating metadata and data"
+      - # Alternative example using 1-based column numbers
+        step_description: "Extract first 3 columns by number"
+        processor_type: "slice_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "wide_dataset"
+        slice_type: "column_range"
+        # REQ - Starting column number (1-based indexing)
+        # Column 1 is the first column (Excel column A)
+        start_col: 1
+        # OPT - Ending column number (1-based, inclusive)
+        end_col: 3
+        # REQ - Stage to save column subset
+        save_to_stage: "first_three_columns"
+
+stage_workflow_example:
+  description: "Process data from saved stage instead of pipeline input"
   yaml: |
-    # Real-world example: process Excel file with metadata
-    
-    # Step 1: Import entire file without trying to interpret structure
-    - step_description: "Import raw file"
-      processor_type: "import_file"
-      input_file: "monthly_report.xlsx"
-      reading_options:
-        header: null  # Don't try to detect headers yet
-      save_to_stage: "Raw File"
-    
-    # Step 2: Extract metadata section
-    - step_description: "Extract report metadata"
-      processor_type: "slice_data"
-      slice_type: "row_range"
-      source_stage: "Raw File"
-      start_row: 1
-      end_row: 3
-      save_to_stage: "Report Metadata"
-    
-    # Step 3: Extract data section with headers
-    - step_description: "Extract data with headers"
-      processor_type: "slice_data"
-      slice_type: "row_range"
-      source_stage: "Raw File"
-      start_row: 5      # Skip blank row 4
-      slice_result_contains_headers: true  # First row becomes headers
-      save_to_stage: "Raw Data"
-    
-    # Step 4: Process the data normally
-    - step_description: "Load clean data for processing"
-      processor_type: "load_stage"
-      stage_name: "Raw Data"
-    
-    - step_description: "Filter active records"
-      processor_type: "filter_data"
-      filters:
-        - column: "Status"
-          condition: "equals"
-          value: "Active"
-      save_to_stage: "Processed Data"
-    
-    # Step 5: Later, combine metadata + processed data for export
-    # (This would use a future combine_data processor)
+    settings:
+      description: "Multi-step workflow using stage-based processing"
+      stages:
+        - stage_name: "raw_excel_data"
+          description: "Complete imported Excel file"
+          protected: false
+        - stage_name: "extracted_metadata"
+          description: "File metadata section"
+          protected: false
+        - stage_name: "clean_dataset"
+          description: "Data section with headers"
+          protected: false
+
+    recipe:
+      - # Step 1: Import the entire Excel file
+        step_description: "Import complete Excel file"
+        processor_type: "import_file"
+        # REQ - Path to input file
+        input_file: "reports/monthly_data.xlsx"
+        # REQ - Stage to save imported data
+        save_to_stage: "raw_excel_data"
+
+      - # Step 2: Extract metadata from saved stage
+        step_description: "Extract file metadata from saved data"
+        processor_type: "slice_data"
+        slice_type: "row_range"
+        # REQ - Load data from this stage instead of pipeline input
+        # Stage must exist and contain data
+        source_stage: "raw_excel_data"
+        start_row: 1
+        end_row: 2
+        save_to_stage: "extracted_metadata"
+
+      - # Step 3: Extract data section from same saved stage
+        step_description: "Extract data with headers from saved data"
+        processor_type: "slice_data"
+        slice_type: "row_range"
+        source_stage: "raw_excel_data"
+        start_row: 4
+        slice_result_contains_headers: true
+        save_to_stage: "clean_dataset"
+
+advanced_example:
+  description: "Complex workflow with column name references and validation"
+  yaml: |
+    settings:
+      description: "Advanced slicing with column name references and data validation"
+      variables:
+        report_date: "2024-03"
+        department: "sales"
+      stages:
+        - stage_name: "imported_report"
+          description: "Raw monthly sales report"
+          protected: false
+        - stage_name: "core_data"
+          description: "Essential columns for analysis"
+          protected: false
+        - stage_name: "validation_data"
+          description: "Data subset for quality checks"
+          protected: false
+
+    recipe:
+      - # Import with variable substitution
+        step_description: "Import monthly sales report"
+        processor_type: "import_file"
+        # REQ - Input file path with variable support
+        # Variables: {report_date}, {department} defined in settings
+        input_file: "reports/{department}_{report_date}.xlsx"
+        save_to_stage: "imported_report"
+
+      - # Extract core columns by name reference
+        step_description: "Extract essential columns by name"
+        processor_type: "slice_data"
+        slice_type: "column_range"
+        source_stage: "imported_report"
+        # REQ - Starting column name (exact match required)
+        # Must match existing column header exactly
+        start_col: "Product ID"
+        # OPT - Ending column name (exact match required)
+        end_col: "Total Sales"
+        save_to_stage: "core_data"
+
+      - # Extract validation subset
+        step_description: "Extract data for quality validation"
+        processor_type: "slice_data"
+        slice_type: "row_range"
+        source_stage: "core_data"
+        start_row: 1
+        # OPT - Limit to first 100 rows for validation
+        end_row: 100
+        slice_result_contains_headers: true
+        save_to_stage: "validation_data"
 
 parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'slice_data' for this processor type"
+    examples:
+      - "slice_data"
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed slice_data step"
+    description: "Human-readable description of what this step does"
+    examples:
+      - "Extract file metadata"
+      - "Get data section with headers"
+
   slice_type:
     type: string
     required: true
     description: "Type of slicing operation to perform"
-    values: ["row_range", "column_range", "header_detection"]
-  
+    examples:
+      - "row_range"
+      - "column_range"
+
   start_row:
     type: integer
-    required: "for row_range slice_type"
-    description: "Starting row number (1-based, matches Excel row numbers)"
-    minimum: 1
-    examples: [1, 4, 10]
-  
+    required: true
+    description: "Starting row number using 1-based indexing (row 1 = first row)"
+    examples:
+      - 1
+      - 4
+      - 10
+    note: "Only used with slice_type: row_range"
+
   end_row:
     type: integer
     required: false
-    description: "Ending row number (1-based, inclusive). Omit to slice to end"
-    minimum: "must be >= start_row"
-    examples: [3, 15, 100]
-  
+    default: null
+    description: "Ending row number (1-based, inclusive). If omitted, extracts to end of data"
+    examples:
+      - 3
+      - 50
+      - 100
+    note: "Only used with slice_type: row_range"
+
   start_col:
-    type: "string or integer"
-    required: "for column_range slice_type"
-    description: "Starting column (Excel ref like 'A', 1-based number, or column name)"
-    examples: ["A", "BH", 1, 5, "Product ID", "Total Sales"]
-  
+    type: string or integer
+    required: true
+    description: "Starting column reference. Supports Excel letters (A, B), 1-based numbers (1, 2), or exact column names"
+    examples:
+      - "A"
+      - 1
+      - "Product ID"
+    note: "Only used with slice_type: column_range"
+
   end_col:
-    type: "string or integer"
+    type: string or integer
     required: false
-    description: "Ending column (Excel ref, 1-based number, or name). Omit to slice to end"
-    examples: ["D", "ZZ", 10, "Price", "Final Total"]
-  
+    default: null
+    description: "Ending column reference. Same format as start_col. If omitted, extracts to last column"
+    examples:
+      - "F"
+      - 6
+      - "Total Price"
+    note: "Only used with slice_type: column_range"
+
   slice_result_contains_headers:
     type: boolean
     required: false
-    description: "Whether the first row of the slice contains column headers (default: false)"
     default: false
-    examples: [true, false]
-  
+    description: "When true, promotes first row of slice result to DataFrame column headers"
+    examples:
+      - true
+      - false
+    note: "Useful when extracting data sections where first row contains column names"
+
   source_stage:
     type: string
     required: false
-    description: "Stage name to load data from instead of using input data"
-    examples: ["Raw File", "Imported Data", "Previous Results"]
+    default: null
+    description: "Load data from this saved stage instead of pipeline input. Stage must exist and contain data"
+    examples:
+      - "raw_data"
+      - "imported_file"
+      - "previous_results"
 
-indexing_note: |
-  IMPORTANT: All row and column numbers use 1-based indexing to match what users 
-  see in Excel. Row 1 is the first row, Column A is column 1, etc. The processor 
-  handles conversion to 0-based indexing internally.
-
-common_patterns:
-  - name: "Extract metadata"
-    description: "Get title, date, and other metadata from top of file"
-    config: "slice_type: row_range, start_row: 1, end_row: 3"
-  
-  - name: "Extract data section"
-    description: "Get actual data starting from specific row with headers"
-    config: "slice_type: row_range, start_row: 5, slice_result_contains_headers: true"
-  
-  - name: "Extract key columns"
-    description: "Get only important columns from wide datasets"
-    config: "slice_type: column_range, start_col: A, end_col: F"
+  save_to_stage:
+    type: string
+    required: false
+    default: null
+    description: "Save slice results to this stage name for later use in pipeline"
+    examples:
+      - "metadata"
+      - "clean_data"
+      - "key_columns"

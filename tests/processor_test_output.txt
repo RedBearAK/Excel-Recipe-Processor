@@ -136,6 +136,28 @@ Testing error handling...
 
 Supported functions: ['sum', 'count', 'mean', 'min', 'max', 'nunique', 'std', 'var']
 Supported positions: ['before_group', 'after_group']
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Sales Summary' saved (undeclared): 4 rows, 2 columns - Regional sales totals
+⚠️ Stage 'Sales Summary' loaded (undeclared): 4 rows, 2 columns [usage: 1]
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Aggregation Configs' loaded (undeclared): 3 rows, 5 columns [usage: 1]
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Region Lookup' loaded (undeclared): 4 rows, 5 columns [usage: 1]
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Test Overwrite Stage' saved (undeclared): 4 rows, 2 columns - Aggregated data from step 'Unnamed aggregate_data step'
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
+⚠️ Stage 'Regional Quarterly Summary' saved (undeclared): 7 rows, 5 columns - Quarterly performance by region
+⚠️ Stage 'Aggregation Configs' saved (undeclared): 3 rows, 5 columns - Test aggregation configurations
+⚠️ Stage 'Region Lookup' saved (undeclared): 4 rows, 5 columns - Region lookup for aggregation configs
 Testing AggregateDataProcessor refactoring...
 
 === Testing Basic Functionality (Regression) ===
@@ -380,6 +402,38 @@ Testing conditional replacement error handling...
 ✓ All clean data processor tests passed!
 
 Supported actions: ['replace', 'regex_replace', 'uppercase', 'lowercase', 'title_case', 'strip_whitespace', 'normalize_whitespace', 'remove_invisible_chars', 'remove_special_chars', 'fix_numeric', 'fix_dates', 'fill_empty', 'remove_duplicates', 'standardize_values']
+⚠️ Stage 'Report Title Section' saved (undeclared): 3 rows, 3 columns - Title section
+⚠️ Stage 'Product Data Section' saved (undeclared): 3 rows, 3 columns - Data section
+⚠️ Stage 'Report Title Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Product Data Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Report Title Section' saved (undeclared): 3 rows, 3 columns - Title section
+⚠️ Stage 'Product Data Section' saved (undeclared): 3 rows, 3 columns - Data section
+⚠️ Stage 'Report Title Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Product Data Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Product Data Section' saved (undeclared): 3 rows, 3 columns - Data section
+⚠️ Stage 'Report Metadata Section' saved (undeclared): 3 rows, 2 columns - Metadata section
+⚠️ Stage 'Product Data Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Report Metadata Section' loaded (undeclared): 3 rows, 2 columns [usage: 1]
+⚠️ Stage 'Report Title Section' saved (undeclared): 3 rows, 3 columns - Title section
+⚠️ Stage 'Product Data Section' saved (undeclared): 3 rows, 3 columns - Data section
+⚠️ Stage 'Report Title Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Product Data Section' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Product Data Set 1' saved (undeclared): 3 rows, 3 columns - First data section
+⚠️ Stage 'Product Data Set 2' saved (undeclared): 2 rows, 3 columns - Second data section
+⚠️ Stage 'Product Data Set 1' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Product Data Set 2' loaded (undeclared): 2 rows, 3 columns [usage: 1]
+⚠️ Stage 'Report Title' saved (undeclared): 1 rows, 3 columns - Report title
+⚠️ Stage 'Column Headers' saved (undeclared): 1 rows, 4 columns - Column headers
+⚠️ Stage 'Sales Data' saved (undeclared): 3 rows, 4 columns - Sales data
+⚠️ Stage 'Report Footer' saved (undeclared): 1 rows, 3 columns - Report footer
+⚠️ Stage 'Report Title' loaded (undeclared): 1 rows, 3 columns [usage: 1]
+⚠️ Stage 'Column Headers' loaded (undeclared): 1 rows, 4 columns [usage: 1]
+⚠️ Stage 'Sales Data' loaded (undeclared): 3 rows, 4 columns [usage: 1]
+⚠️ Stage 'Report Footer' loaded (undeclared): 1 rows, 3 columns [usage: 1]
+⚠️ Stage 'Current Year Sales' saved (undeclared): 3 rows, 2 columns - Current year data
+⚠️ Stage 'Previous Year Sales' saved (undeclared): 3 rows, 2 columns - Previous year data
+⚠️ Stage 'Current Year Sales' loaded (undeclared): 3 rows, 2 columns [usage: 1]
+⚠️ Stage 'Previous Year Sales' loaded (undeclared): 3 rows, 2 columns [usage: 1]
 Testing Enhanced CombineDataProcessor...
 
 Testing enhanced configuration validation...
@@ -422,6 +476,17 @@ Testing enhanced capabilities...
 🎉 All Enhanced CombineDataProcessor tests passed!
 
 To run with pytest: pytest test_enhanced_combine_data_processor.py -v
+⚠️ Stage 'Approved Customers' saved (undeclared): 4 rows, 1 columns - List of customers approved for promotions
+⚠️ Stage 'Approved Customers' loaded (undeclared): 4 rows, 1 columns [usage: 1]
+⚠️ Stage 'Customer Tiers' saved (undeclared): 3 rows, 3 columns - Customer tier assignments
+⚠️ Stage 'Customer Tiers' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+⚠️ Stage 'Region Mapping' saved (undeclared): 4 rows, 2 columns - State to region mappings
+⚠️ Stage 'Region Mapping' loaded (undeclared): 4 rows, 2 columns [usage: 1]
+⚠️ Stage 'Test Overwrite' saved (undeclared): 3 rows, 1 columns
+⚠️ Stage 'Test Overwrite' loaded (undeclared): 3 rows, 1 columns [usage: 1]
+⚠️ Stage 'Test Overwrite' saved (undeclared): 4 rows, 1 columns
+⚠️ Stage 'Test Overwrite' loaded (undeclared): 4 rows, 1 columns [usage: 1]
+⚠️ Stage 'Metadata Test Stage' saved (undeclared): 3 rows, 1 columns - This is a test stage for metadata
 Testing list format creation...
 ✓ List format creation worked correctly
 
@@ -438,7 +503,7 @@ Testing size limits and warnings...
 Testing error handling...
 ✓ Caught expected error for missing stage_name: Step 'Missing stage name' missing required fields: stage_name
 ✓ Caught expected error for invalid format: Data format 'invalid_format' not supported. Valid formats: ['list', 'table', 'dictionary']
-✓ Caught expected error for reserved name: Failed to save stage 'current': Stage name 'current' is reserved. Please use a more descriptive name.
+✓ Caught expected error for reserved name: Failed to save stage 'current': Stage name 'current' is reserved. Please use a more descriptive name. Suggestions: ['Current']
 ✓ Caught expected error for mismatched table: Table row 1 has 2 values but 3 columns defined
 ✓ Error handling worked correctly
 
@@ -458,6 +523,15 @@ Size limits: {'list_items': 100, 'table_rows': 200, 'dictionary_entries': 150, '
    Leverages FileWriter for file operations and StageManager for stage access
 
 Testing basic Excel export...
+Traceback (most recent call last):
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/tests/test_export_file_processor.py", line 536, in <module>
+    success &= test_basic_excel_export()
+               ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/tests/test_export_file_processor.py", line 52, in test_basic_excel_export
+    processor = ExportFileProcessor(step_config)
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/base_processor.py", line 387, in __init__
+    raise StepProcessorError(f"Export step '{self.step_name}' requires source_stage")
+excel_recipe_processor.core.base_processor.StepProcessorError: Export step 'Test Excel export' requires source_stage
 Testing get_minimal_config...
 ✓ get_minimal_config returned all required fields
 Testing constant fill single column...
@@ -520,6 +594,21 @@ Processor Capabilities:
   helper_methods: fill_blanks_with_value, forward_fill_series, fill_with_statistical_value, analyze_missing_data
   excel_equivalents: {'fill_down': 'forward_fill method', 'fill_up': 'backward_fill method', 'fill_series': 'interpolate method', 'find_replace': 'replace method'}
   examples: {'basic_fill': "Fill null values with 'Unknown'", 'forward_fill': 'Carry forward last known value', 'conditional': 'Fill based on other column values'}
+⚠️ Stage 'Approved Customers' saved (undeclared): 4 rows, 3 columns - List of approved customers for orders
+⚠️ Stage 'Price History' saved (undeclared): 5 rows, 3 columns - Historical pricing data for products
+⚠️ Stage 'Approved Customers' saved (undeclared): 4 rows, 3 columns - List of approved customers for orders
+⚠️ Stage 'Price History' saved (undeclared): 5 rows, 3 columns - Historical pricing data for products
+⚠️ Stage 'Approved Customers' loaded (undeclared): 4 rows, 3 columns [usage: 1]
+⚠️ Stage 'Approved Customers' saved (undeclared): 4 rows, 3 columns - List of approved customers for orders
+⚠️ Stage 'Price History' saved (undeclared): 5 rows, 3 columns - Historical pricing data for products
+⚠️ Stage 'Approved Customers' loaded (undeclared): 4 rows, 3 columns [usage: 1]
+⚠️ Stage 'Approved Customers' saved (undeclared): 4 rows, 3 columns - List of approved customers for orders
+⚠️ Stage 'Price History' saved (undeclared): 5 rows, 3 columns - Historical pricing data for products
+⚠️ Stage 'Price History' loaded (undeclared): 5 rows, 3 columns [usage: 1]
+⚠️ Stage 'Approved Customers' saved (undeclared): 4 rows, 3 columns - List of approved customers for orders
+⚠️ Stage 'Price History' saved (undeclared): 5 rows, 3 columns - Historical pricing data for products
+⚠️ Stage 'Approved Customers' loaded (undeclared): 4 rows, 3 columns [usage: 1]
+⚠️ Stage 'Test Stage' saved (undeclared): 3 rows, 2 columns - Test stage for error handling
 Testing FilterDataProcessor refactoring...
 
 === Testing Basic Functionality (Regression) ===
@@ -607,11 +696,68 @@ Testing data passthrough...
 
 Supported features: ['auto_fit_columns', 'column_widths', 'header_bold', 'header_background', 'freeze_panes', 'freeze_top_row', 'row_heights', 'auto_filter', 'active_sheet']
 Processor capabilities: ['description', 'formatting_features', 'formatting_categories', 'file_requirements', 'dependencies', 'examples']
+⚠️ Stage 'basic_import_stage' saved (undeclared): 4 rows, 4 columns - Imported from Test Excel import
 📥 Testing ImportFileProcessor functionality...
    Tests basic import, stage saving, variable substitution, and error handling
    Leverages FileReader for file operations and StageManager for stage operations
 
 Testing basic Excel import...
+✓ Imported data: (4, 4)
+✓ Result columns: ['ProductID', 'ProductName', 'Category', 'Price']
+✓ Basic Excel import worked correctly
+
+Testing basic CSV import...
+Traceback (most recent call last):
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/tests/test_import_file_processor.py", line 541, in <module>
+    success &= test_basic_import_csv()
+               ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/tests/test_import_file_processor.py", line 118, in test_basic_import_csv
+    result = processor.execute(original_data)
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/base_processor.py", line 345, in execute
+    return self.execute_import()
+           ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/base_processor.py", line 355, in execute_import
+    self.save_output_data(data)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/base_processor.py", line 363, in save_output_data
+    StageManager.save_stage(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        stage_name=self.save_to_stage,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        confirm_replacement=self.confirm_stage_replacement
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/kris/Documents/Dev-Projects/Excel-Recipe-Processor/excel_recipe_processor/core/stage_manager.py", line 196, in save_stage
+    raise StageError(
+        f"Stage '{stage_name}' already exists. Use overwrite=true to replace it."
+    )
+excel_recipe_processor.core.stage_manager.StageError: Stage 'basic_import_stage' already exists. Use overwrite=true to replace it.
+⚠️ Stage 'Customer Data' saved (undeclared): 4 rows, 4 columns - Customer master data
+⚠️ Stage 'Customer Data' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+Replacing current data (3 rows) with stage 'Customer Data' (4 rows)
+⚠️ Stage 'Safety Test Stage' saved (undeclared): 4 rows, 4 columns - Test data for safety
+⚠️ Stage 'Safety Test Stage' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+Replacing current data (3 rows) with stage 'Safety Test Stage' (4 rows)
+⚠️ Stage 'Usage Test Stage' saved (undeclared): 4 rows, 4 columns - Test data for usage tracking
+⚠️ Stage 'Usage Test Stage' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+Replacing current data (3 rows) with stage 'Usage Test Stage' (4 rows)
+⚠️ Stage 'Multi Load Test' saved (undeclared): 4 rows, 4 columns - Test data for multiple loads
+⚠️ Stage 'Multi Load Test' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+Replacing current data (3 rows) with stage 'Multi Load Test' (4 rows)
+⚠️ Stage 'Multi Load Test' loaded (undeclared): 4 rows, 4 columns [usage: 2]
+Replacing current data (3 rows) with stage 'Multi Load Test' (4 rows)
+⚠️ Stage 'Multi Load Test' loaded (undeclared): 4 rows, 4 columns [usage: 3]
+Replacing current data (3 rows) with stage 'Multi Load Test' (4 rows)
+⚠️ Stage 'Isolation Test' saved (undeclared): 4 rows, 4 columns - Test data for isolation
+⚠️ Stage 'Isolation Test' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+Replacing current data (3 rows) with stage 'Isolation Test' (4 rows)
+⚠️ Stage 'Isolation Test' loaded (undeclared): 4 rows, 4 columns [usage: 2]
+⚠️ Stage 'Original Orders' saved (undeclared): 3 rows, 3 columns - Original order data before processing
+⚠️ Stage 'Processed Orders' saved (undeclared): 3 rows, 4 columns - Orders with 10% markup added
+⚠️ Stage 'Original Orders' loaded (undeclared): 3 rows, 3 columns [usage: 1]
+Replacing current data (3 rows) with stage 'Original Orders' (3 rows)
 Testing basic load functionality...
 ✓ Basic load functionality worked correctly
 
@@ -628,8 +774,10 @@ Testing multiple loads...
 
 Testing error handling...
 ✓ Caught expected error for missing stage_name: Step 'Missing stage name' missing required fields: stage_name
-✓ Caught expected error for nonexistent stage: Error loading stage in step 'Unnamed load_stage step': Stage 'Nonexistent Stage' not found. Available stages: []
-✓ Caught expected error for invalid stage_name type: Error loading stage in step 'Unnamed load_stage step': Stage '123' not found. Available stages: []
+✓ Caught expected error for nonexistent stage: Error loading stage in step 'Unnamed load_stage step': Stage 'Nonexistent Stage' not found. No stages have been created yet.
+💡 Make sure an import_file or processing step created this stage first.
+✓ Caught expected error for invalid stage_name type: Error loading stage in step 'Unnamed load_stage step': Stage '123' not found. No stages have been created yet.
+💡 Make sure an import_file or processing step created this stage first.
 ✓ Error handling worked correctly
 
 Testing data isolation...
@@ -641,6 +789,24 @@ Testing workflow scenario...
 ✓ All load stage processor tests passed!
 
 Processor capabilities: ['description', 'stage_features', 'safety_features', 'examples']
+⚠️ Stage 'Customer Master' saved (undeclared): 5 rows, 5 columns - Customer master data for lookups
+⚠️ Stage 'Product Catalog' saved (undeclared): 5 rows, 5 columns - Product catalog for lookups
+⚠️ Stage 'Territory Data' saved (undeclared): 4 rows, 4 columns - Territory and sales data
+⚠️ Stage 'Customer Master' saved (undeclared): 5 rows, 5 columns - Customer master data for lookups
+⚠️ Stage 'Product Catalog' saved (undeclared): 5 rows, 5 columns - Product catalog for lookups
+⚠️ Stage 'Territory Data' saved (undeclared): 4 rows, 4 columns - Territory and sales data
+⚠️ Stage 'Customer Master' loaded (undeclared): 5 rows, 5 columns [usage: 1]
+⚠️ Stage 'Customer Master' saved (undeclared): 5 rows, 5 columns - Customer master data for lookups
+⚠️ Stage 'Product Catalog' saved (undeclared): 5 rows, 5 columns - Product catalog for lookups
+⚠️ Stage 'Territory Data' saved (undeclared): 4 rows, 4 columns - Territory and sales data
+⚠️ Stage 'Customer Master' loaded (undeclared): 5 rows, 5 columns [usage: 1]
+⚠️ Stage 'Territory Data' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+⚠️ Stage 'Customer Master' saved (undeclared): 5 rows, 5 columns - Customer master data for lookups
+⚠️ Stage 'Product Catalog' saved (undeclared): 5 rows, 5 columns - Product catalog for lookups
+⚠️ Stage 'Territory Data' saved (undeclared): 4 rows, 4 columns - Territory and sales data
+⚠️ Stage 'Customer Master' loaded (undeclared): 5 rows, 5 columns [usage: 1]
+⚠️ Stage 'Product Catalog' loaded (undeclared): 5 rows, 5 columns [usage: 1]
+⚠️ Stage 'Territory Data' loaded (undeclared): 4 rows, 4 columns [usage: 1]
 Testing LookupDataProcessor refactoring...
 
 === Testing Basic Functionality (Regression) ===
@@ -708,6 +874,8 @@ Supported duplicate handling: ['first', 'last', 'error']
 Supported source types: ['file', 'stage', 'inline', 'dataframe']
 
 To run with pytest: pytest test_lookup_data_processor_refactored.py -v
+⚠️ Stage 'Test Customer Data' saved (undeclared): 4 rows, 4 columns - Customer data for merge testing
+⚠️ Stage 'Test Customer Data' loaded (undeclared): 4 rows, 4 columns [usage: 1]
 Testing dictionary merge...
 ✓ Created orders data: 5 rows
 ✓ Merge result: 5 rows, 8 columns
@@ -885,6 +1053,19 @@ Testing error handling...
 
 Supported rename types: ['mapping', 'pattern', 'transform']
 Supported case conversions: ['upper', 'lower', 'title', 'snake_case', 'camel_case']
+⚠️ Stage 'Customer Master Data' saved (undeclared): 4 rows, 4 columns - Complete customer information for analysis
+⚠️ Stage 'Customer Master Data' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+⚠️ Stage 'Test Overwrite Stage' saved (undeclared): 4 rows, 4 columns - Initial data
+⚠️ Stage 'Test Overwrite Stage' loaded (undeclared): 4 rows, 4 columns [usage: 1]
+⚠️ Stage 'Test Overwrite Stage' saved (undeclared): 2 rows, 2 columns - Overwritten data
+⚠️ Stage 'Test Overwrite Stage' loaded (undeclared): 2 rows, 2 columns [usage: 1]
+⚠️ Stage 'Metadata Test Stage' saved (undeclared): 4 rows, 4 columns - Stage created for testing metadata tracking
+⚠️ Stage 'Customer Data' saved (undeclared): 4 rows, 4 columns - Customer master data
+⚠️ Stage 'Product Catalog' saved (undeclared): 3 rows, 3 columns - Product master data
+⚠️ Stage 'Stage 1' saved (undeclared): 4 rows, 4 columns
+⚠️ Stage 'Stage 2' saved (undeclared): 4 rows, 4 columns
+⚠️ Stage 'Isolation Test' saved (undeclared): 4 rows, 4 columns
+⚠️ Stage 'Isolation Test' loaded (undeclared): 4 rows, 4 columns [usage: 1]
 Testing basic save functionality...
 ✓ Basic save functionality worked correctly
 
@@ -900,7 +1081,7 @@ Testing multiple stages...
 
 Testing error handling...
 ✓ Caught expected error for missing stage_name: Step 'Missing stage name' missing required fields: stage_name
-✓ Caught expected error for reserved name: Error saving stage in step 'Unnamed save_stage step': Stage name 'input' is reserved. Please use a more descriptive name.
+✓ Caught expected error for reserved name: Error saving stage in step 'Unnamed save_stage step': Stage name 'input' is reserved. Please use a more descriptive name. Suggestions: ['Input']
 ✓ Empty DataFrame properly rejected
 ✓ Error handling worked correctly
 
@@ -913,6 +1094,8 @@ Testing data isolation...
 ✓ All save stage processor tests passed!
 
 Processor capabilities: ['description', 'stage_features', 'safety_features', 'examples']
+⚠️ Stage 'Test Data' saved (undeclared): 11 rows, 4 columns - Test data for slicing
+⚠️ Stage 'Test Data' loaded (undeclared): 11 rows, 4 columns [usage: 1]
 Testing SliceDataProcessor...
 Testing basic row slicing...
 ✓ Row slicing returned correct number of rows

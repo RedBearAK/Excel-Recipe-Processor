@@ -1,0 +1,488 @@
+# Revision date: 2025-07-30
+
+description: "Group individual values into categories using various source types. Perfect for regional grouping, product categorization, and hierarchical data organization with advanced workflows."
+
+basic_example:
+  description: "Simple inline grouping of cities into regions"
+  yaml: |
+    settings:
+      description: "Group customer cities into sales regions"
+      stages:
+        - stage_name: "customer_data"
+          description: "Raw customer data with city information"
+          protected: false
+        - stage_name: "regional_customers"
+          description: "Customers grouped by sales region"
+          protected: false
+
+    recipe:
+      - # Step 1: Import customer data
+        step_description: "Import customer database"
+        # REQ - Must be "import_file" for file import
+        processor_type: "import_file"
+        # REQ - Path to input Excel file
+        input_file: "data/customer_database.xlsx"
+        # REQ - Stage to save imported data (import_file only needs save_to_stage)
+        save_to_stage: "customer_data"
+
+      - # Step 2: Group cities into regions
+        # OPT - Human-readable step description
+        # Default value: "Unnamed group_data step"
+        step_description: "Group customer cities into sales regions"
+        # REQ - Must be "group_data" for this processor type
+        processor_type: "group_data"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "customer_data"
+        # REQ - Column containing values to group
+        source_column: "City"
+        # REQ - New column name for grouped values
+        target_column: "Sales_Region"
+        # REQ - Group definitions (category: [list of values])
+        groups:
+          "West Coast": ["Seattle", "Portland", "San Francisco", "Los Angeles"]
+          "East Coast": ["New York", "Boston", "Philadelphia", "Washington DC"]
+          "Central": ["Chicago", "Detroit", "Minneapolis", "Kansas City"]
+          "South": ["Atlanta", "Miami", "Dallas", "Houston"]
+        # OPT - How to handle values not in any group
+        # Default value: "keep_original"
+        # Valid values: "keep_original", "set_default", "error"
+        unmatched_action: "set_default"
+        # OPT - Default value for unmatched items (when unmatched_action is "set_default")
+        # Default value: "Ungrouped"
+        unmatched_value: "Other Region"
+        # REQ - Stage to save grouped data
+        save_to_stage: "regional_customers"
+
+stage_based_grouping_example:
+  description: "Load group definitions from another stage for dynamic grouping"
+  yaml: |
+    settings:
+      description: "Use stage-based group definitions for flexible product categorization"
+      stages:
+        - stage_name: "product_data"
+          description: "Raw product data"
+          protected: false
+        - stage_name: "category_definitions"
+          description: "Product category group definitions"
+          protected: false
+        - stage_name: "categorized_products"
+          description: "Products with category assignments"
+          protected: false
+
+    recipe:
+      - # Step 1: Import product data
+        step_description: "Import product catalog"
+        processor_type: "import_file"
+        input_file: "data/product_catalog.xlsx"
+        save_to_stage: "product_data"
+
+      - # Step 2: Import category definitions
+        step_description: "Import category mapping definitions"
+        processor_type: "import_file"
+        input_file: "config/product_categories.xlsx"
+        save_to_stage: "category_definitions"
+
+      - # Step 3: Group products using stage-based definitions
+        step_description: "Categorize products using imported definitions"
+        processor_type: "group_data"
+        source_stage: "product_data"
+        # REQ - Column to group
+        source_column: "Product_Name"
+        # REQ - New column for groups
+        target_column: "Product_Category"
+        # REQ - Advanced source configuration for group definitions
+        groups_source:
+          # REQ - Source type for group definitions
+          # Valid values: "inline", "stage", "file", "lookup", "predefined"
+          type: "stage"
+          # REQ - Stage containing group definitions (when type is "stage")
+          stage_name: "category_definitions"
+          # OPT - Format of group definitions in source
+          # Default value: "wide"
+          # Valid values: "wide", "long"
+          # Wide: Category | Product1 | Product2 | Product3
+          # Long: Category | Product_Name (one row per product)
+          format: "long"
+          # OPT - Column containing group names (for long format)
+          # Default value: first column
+          group_column: "Category"
+          # OPT - Column containing values to match (for long format)
+          # Default value: second column
+          value_column: "Product_Name"
+        # OPT - Handle unmatched products
+        unmatched_action: "set_default"
+        unmatched_value: "Miscellaneous"
+        save_to_stage: "categorized_products"
+
+file_based_grouping_example:
+  description: "Load group definitions from external files with variable substitution"
+  yaml: |
+    settings:
+      description: "Dynamic grouping using external definition files"
+      variables:
+        region_type: "sales"
+        year: "2024"
+      stages:
+        - stage_name: "customer_data"
+          description: "Customer data for regional analysis"
+          protected: false
+        - stage_name: "regionally_grouped"
+          description: "Customers grouped by dynamic regional definitions"
+          protected: false
+
+    recipe:
+      - # Step 1: Import customer data
+        step_description: "Import customer database"
+        processor_type: "import_file"
+        input_file: "data/customers_{year}.xlsx"
+        save_to_stage: "customer_data"
+
+      - # Step 2: Group using external file definitions
+        step_description: "Group customers using external regional definitions"
+        processor_type: "group_data"
+        source_stage: "customer_data"
+        source_column: "State"
+        target_column: "Sales_Territory"
+        # REQ - File-based group source configuration
+        groups_source:
+          # REQ - Use external file for group definitions
+          type: "file"
+          # REQ - Path to file containing group definitions (supports variables)
+          # Variables: {region_type}, {year} defined in settings
+          file_path: "config/{region_type}_regions_{year}.xlsx"
+          # OPT - File format (wide or long)
+          format: "wide"
+          # OPT - Sheet name for Excel files
+          # Default value: first sheet
+          sheet: "Regional_Mapping"
+          # OPT - Which row contains group names (for wide format)
+          # Default value: 1 (first row)
+          header_row: 1
+          # OPT - Starting column for values (for wide format)
+          # Default value: second column
+          value_start_column: 2
+        # OPT - Case sensitivity for matching
+        # Default value: false
+        case_sensitive: false
+        unmatched_action: "keep_original"
+        save_to_stage: "regionally_grouped"
+
+hierarchical_grouping_example:
+  description: "Multi-level hierarchical grouping for complex categorization"
+  yaml: |
+    settings:
+      description: "Create hierarchical grouping structure for sales analysis"
+      stages:
+        - stage_name: "sales_data"
+          description: "Raw sales transaction data"
+          protected: false
+        - stage_name: "city_grouped"
+          description: "Sales data grouped by city"
+          protected: false
+        - stage_name: "region_grouped"
+          description: "Sales data with city and region grouping"
+          protected: false
+        - stage_name: "territory_grouped"
+          description: "Complete hierarchical grouping structure"
+          protected: false
+
+    recipe:
+      - # Step 1: Import sales data
+        step_description: "Import sales transaction data"
+        processor_type: "import_file"
+        input_file: "data/sales_transactions.xlsx"
+        save_to_stage: "sales_data"
+
+      - # Step 2: First level - group by city (cleanup/standardization)
+        step_description: "Standardize city names and group variations"
+        processor_type: "group_data"
+        source_stage: "sales_data"
+        source_column: "Customer_City"
+        target_column: "Standardized_City"
+        groups:
+          "New York": ["NYC", "New York City", "Manhattan", "Brooklyn"]
+          "Los Angeles": ["LA", "Los Angeles", "Hollywood", "Beverly Hills"]
+          "Chicago": ["Chicago", "Chi-town", "Windy City"]
+          "San Francisco": ["SF", "San Francisco", "San Fran"]
+        # OPT - Replace original column with grouped values
+        # Default value: false
+        replace_source: false
+        unmatched_action: "keep_original"
+        save_to_stage: "city_grouped"
+
+      - # Step 3: Second level - group cities into regions
+        step_description: "Group standardized cities into sales regions"
+        processor_type: "group_data"
+        source_stage: "city_grouped"
+        source_column: "Standardized_City"
+        target_column: "Sales_Region"
+        groups:
+          "Northeast": ["New York", "Boston", "Philadelphia", "Washington DC"]
+          "West": ["Los Angeles", "San Francisco", "Seattle", "Portland"]
+          "Midwest": ["Chicago", "Detroit", "Minneapolis", "Cleveland"]
+          "South": ["Atlanta", "Miami", "Dallas", "Houston"]
+        unmatched_action: "set_default"
+        unmatched_value: "Other"
+        save_to_stage: "region_grouped"
+
+      - # Step 4: Third level - group regions into territories
+        step_description: "Group regions into sales territories"
+        processor_type: "group_data"
+        source_stage: "region_grouped"
+        source_column: "Sales_Region"
+        target_column: "Sales_Territory"
+        groups:
+          "Eastern Territory": ["Northeast", "South"]
+          "Western Territory": ["West", "Midwest"]
+        unmatched_action: "keep_original"
+        save_to_stage: "territory_grouped"
+
+predefined_grouping_example:
+  description: "Use built-in predefined group definitions for common categorizations"
+  yaml: |
+    settings:
+      description: "Apply predefined regional groupings for consistent categorization"
+      stages:
+        - stage_name: "location_data"
+          description: "Data with location information"
+          protected: false
+        - stage_name: "standardized_regions"
+          description: "Data with predefined regional groupings"
+          protected: false
+
+    recipe:
+      - # Step 1: Import location data
+        step_description: "Import data with state information"
+        processor_type: "import_file"
+        input_file: "data/customer_locations.xlsx"
+        save_to_stage: "location_data"
+
+      - # Step 2: Apply predefined US regional grouping
+        step_description: "Group states using predefined US regional definitions"
+        processor_type: "group_data"
+        source_stage: "location_data"
+        source_column: "State"
+        target_column: "US_Region"
+        # REQ - Use predefined group definitions
+        groups_source:
+          # REQ - Use built-in predefined groups
+          type: "predefined"
+          # REQ - Predefined group type
+          # Valid values: "van_report_regions", "us_regions", "product_categories"
+          predefined_type: "us_regions"
+        # OPT - Handle unmatched values (states not in predefined groups)
+        unmatched_action: "set_default"
+        unmatched_value: "Other"
+        save_to_stage: "standardized_regions"
+
+advanced_workflow_example:
+  description: "Complex workflow with lookup-based grouping and validation"
+  yaml: |
+    settings:
+      description: "Advanced grouping workflow with cross-reference validation"
+      variables:
+        validation_date: "2024-03-15"
+        department: "sales"
+      stages:
+        - stage_name: "transaction_data"
+          description: "Raw transaction data"
+          protected: false
+        - stage_name: "validation_data"
+          description: "Validation lookup data"
+          protected: false
+        - stage_name: "grouped_transactions"
+          description: "Transactions with validated grouping"
+          protected: false
+        - stage_name: "final_categorized"
+          description: "Final categorized transaction data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import transaction data
+        step_description: "Import sales transaction data"
+        processor_type: "import_file"
+        input_file: "data/{department}_transactions.xlsx"
+        save_to_stage: "transaction_data"
+
+      - # Step 2: Import validation lookup data
+        step_description: "Import customer validation data"
+        processor_type: "import_file"
+        input_file: "validation/customer_lookup_{validation_date}.xlsx"
+        save_to_stage: "validation_data"
+
+      - # Step 3: Group customers with validation lookup
+        step_description: "Group customers with cross-reference validation"
+        processor_type: "group_data"
+        source_stage: "transaction_data"
+        source_column: "Customer_ID"
+        target_column: "Customer_Tier"
+        # REQ - Lookup-based grouping configuration
+        groups_source:
+          # REQ - Use lookup/cross-reference grouping
+          type: "lookup"
+          # REQ - Stage containing lookup data
+          lookup_stage: "validation_data"
+          # REQ - Column in lookup data to match against
+          lookup_key: "Customer_ID"
+          # REQ - Column in lookup data containing group values
+          lookup_value: "Tier"
+          # OPT - Join type for lookup
+          # Default value: "left"
+          # Valid values: "left", "inner"
+          join_type: "left"
+        # OPT - Handle customers not found in lookup
+        unmatched_action: "error"  # Strict validation - fail if customer not found
+        save_to_stage: "grouped_transactions"
+
+      - # Step 4: Secondary grouping for analysis categories
+        step_description: "Create analysis categories from customer tiers"
+        processor_type: "group_data"
+        source_stage: "grouped_transactions"
+        source_column: "Customer_Tier"
+        target_column: "Analysis_Category"
+        groups:
+          "High Value": ["Premium", "VIP", "Enterprise"]
+          "Standard": ["Gold", "Silver", "Standard"]
+          "Basic": ["Bronze", "Basic", "Trial"]
+        # OPT - Replace the tier column with analysis category
+        replace_source: true
+        unmatched_action: "set_default"
+        unmatched_value: "Unclassified"
+        save_to_stage: "final_categorized"
+
+parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'group_data' for this processor type"
+    examples:
+      - "group_data"
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed group_data step"
+    description: "Human-readable description of what this grouping operation does"
+    examples:
+      - "Group cities into sales regions"
+      - "Categorize products by type"
+      - "Create customer tier groupings"
+
+  source_stage:
+    type: string
+    required: true
+    description: "Stage to read data from (must be declared in settings.stages)"
+    examples:
+      - "customer_data"
+      - "product_data"
+      - "sales_data"
+
+  save_to_stage:
+    type: string
+    required: true
+    description: "Stage to save grouped data (must be declared in settings.stages)"
+    examples:
+      - "regional_customers"
+      - "categorized_products"
+      - "grouped_data"
+
+  source_column:
+    type: string
+    required: true
+    description: "Column containing values to group into categories"
+    examples:
+      - "City"
+      - "Product_Name"
+      - "Customer_State"
+
+  target_column:
+    type: string
+    required: true
+    description: "Name of new column to contain grouped values"
+    examples:
+      - "Sales_Region"
+      - "Product_Category"
+      - "Customer_Tier"
+
+  groups:
+    type: object
+    required: false
+    default: {}
+    description: "Inline group definitions (traditional approach). Maps group names to lists of values"
+    examples:
+      - "West Coast": ["Seattle", "Portland", "San Francisco"]
+        "East Coast": ["New York", "Boston", "Philadelphia"]
+    note: "Use either 'groups' (inline) OR 'groups_source' (advanced), not both"
+
+  groups_source:
+    type: object
+    required: false
+    default: null
+    description: "Advanced source configuration for group definitions from external sources"
+    properties:
+      type:
+        type: string
+        required: true
+        description: "Source type for group definitions"
+        valid_values: ["inline", "stage", "file", "lookup", "predefined"]
+      
+      stage_name:
+        type: string
+        required: false
+        description: "Stage containing group definitions (when type is 'stage')"
+        
+      file_path:
+        type: string
+        required: false
+        description: "Path to file containing group definitions (when type is 'file'). Supports variable substitution"
+        
+      lookup_stage:
+        type: string
+        required: false
+        description: "Stage containing lookup data (when type is 'lookup')"
+        
+      predefined_type:
+        type: string
+        required: false
+        description: "Predefined group type (when type is 'predefined')"
+        valid_values: ["van_report_regions", "us_regions", "product_categories"]
+    note: "Use either 'groups' (inline) OR 'groups_source' (advanced), not both"
+
+  replace_source:
+    type: boolean
+    required: false
+    default: false
+    description: "Replace source column with grouped values instead of creating new column"
+    examples:
+      - true
+      - false
+
+  unmatched_action:
+    type: string
+    required: false
+    default: "keep_original"
+    description: "How to handle values that don't match any group"
+    valid_values: ["keep_original", "set_default", "error"]
+    examples:
+      - "keep_original"
+      - "set_default"
+      - "error"
+
+  unmatched_value:
+    type: string
+    required: false
+    default: "Ungrouped"
+    description: "Default value for unmatched items (when unmatched_action is 'set_default')"
+    examples:
+      - "Other"
+      - "Miscellaneous"
+      - "Unclassified"
+
+  case_sensitive:
+    type: boolean
+    required: false
+    default: false
+    description: "Whether value matching is case sensitive"
+    examples:
+      - true
+      - false

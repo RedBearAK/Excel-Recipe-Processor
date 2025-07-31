@@ -221,7 +221,7 @@ def test_yaml_content_quality():
             if 'REQ -' not in content:
                 issues.append("missing 'REQ -' markers")
             
-            if f'processor_type: "{processor_name:>24}"' not in content:
+            if f'processor_type: "{processor_name}"' not in content:
                 issues.append("missing correct processor_type")
             
             if 'Default value:' not in content and 'default:' not in content.lower():
@@ -273,7 +273,7 @@ def test_cli_integration():
             output = result.stdout
             
             # Check for expected content
-            if f'processor_type: "{processor_name:>24}"' not in output:
+            if f'processor_type: "{processor_name}"' not in output:
                 print(f"   ❌ {processor_name:>24}: CLI output missing correct processor_type")
                 all_working = False
                 continue

@@ -1,6 +1,6 @@
-# Revision date: 2025-07-30
+# Revision date: 2025-08-03
 
-description: "Recipe settings section configuration options for stage-based architecture with variables and stage management"
+description: "Recipe settings section configuration options for stage-based architecture with variables, stage management, and error handling"
 
 minimal_example:
   description: "Minimal required settings section - every recipe should have this"
@@ -36,63 +36,79 @@ recommended_example:
           description: "Orders filtered for specific region"
           protected: false
 
+error_handling_example:
+  description: "Settings with global error handling configuration"
+  yaml: |
+    # Settings with error handling options
+    
+    settings:
+      description: "Process data with error tolerance and graceful degradation"
+      
+      # Global error handling - applies to all steps unless overridden
+      # Options: halt (default), continue, log_and_continue, skip_remaining
+      on_error: "log_and_continue"
+      
+      # Variables and stages
+      variables:
+        batch_id: "A47"
+        region: "west"
+      
+      stages:
+        - stage_name: "raw_data"
+          description: "Raw input data"
+          protected: false
+        - stage_name: "processed_data"
+          description: "Processed results"
+          protected: false
+
 advanced_example:
-  description: "Advanced settings with external variables and stage protection"
+  description: "Advanced settings with external variables, stage protection, and error handling"
   yaml: |
     # Advanced settings with external variables and protected stages
     
     settings:
-      description: "Batch processing with interactive variable prompting and data protection"
+      description: "Batch processing with interactive variable prompting, data protection, and error handling"
       
-      # External variables for CLI automation and interactive prompting
+      # Global error handling strategy
+      on_error: "halt"  # Conservative approach for production
+      
+      # External variables for interactive prompting
       required_external_vars:
         batch_id:
-          description: "Batch identifier for processing"
+          description: "Unique batch identifier for processing"
           validation: "^[A-Z]\\d+$"
           example: "A47, B23, C91"
-          # No default - user must provide this
-        
-        processing_date:
-          description: "Date for batch processing (YYYYMMDD format)"
+          
+        environment:
+          description: "Processing environment"
+          choices: ["development", "staging", "production"]
+          default_value: "development"
+          
+        report_date:
+          description: "Report generation date (YYYYMMDD)"
+          default_value: "{date}"
           validation: "^\\d{8}$"
-          default_value: "{date}"  # Dynamic default using current date
-          example: "20250729"
-        
-        region:
-          description: "Processing region"
-          choices: ["west", "east", "central", "all"]
-          default_value: "west"
-        
-        threshold:
-          description: "Minimum value threshold for filtering"
-          validation: "^\\d+$"
-          default_value: "1000"
-          allow_empty: false
+          example: "20250803"
       
-      # Recipe variables for internal use
+      # Static variables
       variables:
-        output_prefix: "batch_report"
+        company_name: "TechCorp Inc"
         version: "v2.1"
-        department: "sales"
-      
-      # Stage declarations with protection
+        
+      # Protected stages for critical data
       stages:
         - stage_name: "master_data"
-          description: "Critical master data - do not overwrite accidentally"
-          protected: true  # Prevents accidental overwriting
-        - stage_name: "batch_data"
+          description: "Master reference data - DO NOT OVERWRITE"
+          protected: true
+        - stage_name: "raw_batch_data"
           description: "Raw batch data from import"
           protected: false
         - stage_name: "validated_data"
-          description: "Data passing all validation rules"
+          description: "Data after validation and cleaning"
           protected: false
         - stage_name: "final_results"
-          description: "Final processed results ready for export"
+          description: "Final processed results"
           protected: false
-      
-      # Global processing options
-      create_backup: true
-      encoding: "utf-8"
 
 external_variables_example:
   description: "Comprehensive external variable configuration options"
@@ -100,7 +116,10 @@ external_variables_example:
     # External variables with all configuration options
     
     settings:
-      description: "Demonstrate all external variable features"
+      description: "Demonstrate all external variable features with error handling"
+      
+      # Error handling for external variable processing
+      on_error: "log_and_continue"
       
       required_external_vars:
         # Required variable with validation
@@ -121,7 +140,7 @@ external_variables_example:
           description: "Report generation date"
           default_value: "{date}"  # Uses current date
           validation: "^\\d{8}$"
-          example: "20250729"
+          example: "20250803"
         
         # Optional variable that can be empty
         notes:
@@ -134,134 +153,136 @@ external_variables_example:
         email_list:
           description: "Comma-separated email addresses for notifications"
           validation: "^[\\w\\._%+-]+@[\\w\\.-]+\\.[A-Z]{2,}(,\\s*[\\w\\._%+-]+@[\\w\\.-]+\\.[A-Z]{2,})*$"
-          example: "admin@company.com, manager@company.com"
           default_value: "admin@company.com"
-
-stage_management_example:
-  description: "Stage declarations with protection and organization"
-  yaml: |
-    # Stage management with protection and organization
-    
-    settings:
-      description: "Complex workflow with protected stages and clear organization"
+          example: "user1@company.com, user2@company.com"
       
+      # Stage declarations
       stages:
-        # Critical data sources - protected
-        - stage_name: "customer_master"
-          description: "Master customer data - critical reference"
-          protected: true
-        - stage_name: "product_catalog"
-          description: "Product catalog - protected reference data"
-          protected: true
-        
-        # Processing stages - not protected
-        - stage_name: "raw_transactions"
-          description: "Raw transaction data from daily import"
-          protected: false
-        - stage_name: "validated_transactions"
-          description: "Transactions passing validation rules"
-          protected: false
-        - stage_name: "enriched_transactions"
-          description: "Transactions with customer and product details added"
-          protected: false
-        
-        # Analysis stages
-        - stage_name: "regional_summary"
-          description: "Transactions summarized by region"
-          protected: false
-        - stage_name: "product_performance"
-          description: "Product performance metrics"
-          protected: false
-        
-        # Final outputs
-        - stage_name: "executive_dashboard"
-          description: "Executive summary data"
+        - stage_name: "batch_data"
+          description: "Batch data for processing"
           protected: false
 
-migration_example:
-  description: "Example showing migration from old format to new format"
+comprehensive_example:
+  description: "Complete settings configuration showing all available options"
   yaml: |
-    # NEW FORMAT - Stage-based architecture with proper settings
+    # Comprehensive settings with all available features
     
     settings:
-      description: "Migrated recipe showing new stage-based approach"
+      description: "Complete data processing pipeline with full configuration"
       
+      # Error handling strategy - can be overridden per step
+      on_error: "log_and_continue"
+      
+      # Custom variables for recipe logic
       variables:
         region: "west"
+        min_order_amount: "500"
         output_prefix: "processed"
+        company_code: "TECH"
+        fiscal_year: "2025"
       
+      # Interactive external variables
+      required_external_vars:
+        batch_date:
+          description: "Processing batch date (YYYYMMDD format)"
+          validation: "^\\d{8}$"
+          default_value: "{date}"
+          example: "20250803"
+          
+        department:
+          description: "Department for processing"
+          choices: ["SALES", "FINANCE", "HR", "OPERATIONS"]
+          default_value: "SALES"
+          
+        output_format:
+          description: "Output format preference"
+          choices: ["excel", "csv", "both"]
+          default_value: "excel"
+          
+        notification_email:
+          description: "Email for completion notifications"
+          validation: "^[\\w\\._%+-]+@[\\w\\.-]+\\.[A-Z]{2,}$"
+          default_value: "admin@company.com"
+          allow_empty: false
+      
+      # Stage management with protection
       stages:
-        - stage_name: "imported_data"
-          description: "Data from import step"
+        - stage_name: "master_customers"
+          description: "Master customer database - protected"
+          protected: true
+          
+        - stage_name: "raw_orders"
+          description: "Raw order data from daily import"
           protected: false
-        - stage_name: "processed_data"
-          description: "Final processed results"
+          
+        - stage_name: "validated_orders"
+          description: "Orders after validation and cleaning"
+          protected: false
+          
+        - stage_name: "enriched_orders" 
+          description: "Orders with customer data merged"
+          protected: false
+          
+        - stage_name: "regional_summary"
+          description: "Regional analysis and summary data"
+          protected: false
+          
+        - stage_name: "final_report"
+          description: "Final formatted report data"
           protected: false
       
-      # DEPRECATED - Remove these when migrating
-      # output_filename: "results_{date}.xlsx"  # Use export_file processor instead
-    
-    recipe:
-      # NEW: Explicit import step
-      - step_description: "Import source data"
-        processor_type: "import_file"
-        input_file: "data/{region}_data.xlsx"
-        save_to_stage: "imported_data"
-      
-      # Processing step with explicit stage flow
-      - step_description: "Filter and process data"
-        processor_type: "filter_data"
-        source_stage: "imported_data"
-        save_to_stage: "processed_data"
-        filters:
-          - column: "Status"
-            condition: "equals"
-            value: "Active"
-      
-      # NEW: Explicit export step
-      - step_description: "Export processed results"
-        processor_type: "export_file"
-        source_stage: "processed_data"
-        output_file: "{output_prefix}_{region}_{date}.xlsx"
+      # Global processing options
+      create_backup: true
+      encoding: "utf-8"
 
 parameter_details:
   description:
     type: string
     required: true
-    description: "Brief description of what this recipe does"
-    purpose: "Documents recipe purpose for team collaboration and maintenance"
-    examples:
-      - "Process daily sales transactions with regional filtering"
-      - "Generate monthly customer report with trend analysis"
-      - "Batch process orders with validation and enrichment"
-  
+    description: "Human-readable description of what this recipe does"
+    purpose: "Documentation and team collaboration"
+    examples: ["Process daily sales data", "Generate monthly customer reports"]
+    
+  on_error:
+    type: string
+    required: false
+    default: "halt"
+    description: "Global error handling strategy for all recipe steps (can be overridden per step)"
+    options:
+      halt: "Stop processing immediately when any error occurs (default behavior)"
+      continue: "Log error and continue to next step"
+      log_and_continue: "Log detailed error information and continue processing"
+      skip_remaining: "Log error and skip all remaining steps (but don't raise exception)"
+    examples: ["halt", "continue", "log_and_continue", "skip_remaining"]
+    note: "Individual recipe steps can override this setting using their own on_error parameter"
+    
   variables:
     type: object
     required: false
-    description: "Custom variables for reuse throughout recipe"
-    usage: "Referenced using {variable_name} syntax in processor parameters"
+    description: "Custom variables for use throughout the recipe with variable substitution"
+    use_cases: ["Repeated values", "Dynamic content", "Configuration parameters"]
+    syntax: "Reference with {variable_name} in any string field"
     examples:
-      region: "west"
-      threshold: "1000"
-      output_prefix: "processed"
-  
+      basic: {"region": "west", "batch_id": "A47"}
+      advanced: {"output_prefix": "processed", "min_amount": "1000", "company": "TechCorp"}
+    
   required_external_vars:
     type: object
     required: false
-    description: "Variables that can be provided via CLI or interactive prompting"
-    benefits: ["CLI automation", "Interactive prompting", "Dynamic processing"]
+    description: "Variables that will be collected interactively or from CLI arguments"
+    benefits: ["CLI automation", "Interactive prompting", "Environment-specific values"]
     
     variable_config:
       description:
         type: string
         required: true
-        description: "Human-readable description shown during prompting"
+        description: "Human-readable description shown to user during prompting"
       
       validation:
         type: string
         required: false
         description: "Regular expression pattern for value validation"
-        examples: ["^[A-Z]\\d+$", "^\\d{8}$", "^[\\w\\.-]+@[\\w\\.-]+\\.[A-Z]{2,}$"]
+        examples: ["^[A-Z]{2,}$", "^\\d{8}$", "^[\\w\\._%+-]+@[\\w\\.-]+\\.[A-Z]{2,}$"]
       
       choices:
         type: array
@@ -320,10 +341,20 @@ best_practices:
   external_vars: "Use external variables for CLI automation and interactive prompting"
   protect_critical: "Mark critical stages as protected to prevent accidental overwrite"
   consistent_naming: "Use consistent naming conventions for stages across recipes"
+  error_strategy: "Choose appropriate error handling strategy based on environment and criticality"
+  step_overrides: "Use per-step on_error overrides for fine-grained error control"
+
+error_handling_strategies:
+  development: "Use 'log_and_continue' for detailed debugging information"
+  staging: "Use 'continue' for resilient testing environments"
+  production: "Use 'halt' (default) for fail-fast reliability"
+  batch_processing: "Use 'skip_remaining' when current step failure makes remaining steps pointless"
+  data_pipelines: "Mix strategies: 'halt' for critical steps, 'continue' for optional enrichment"
 
 common_patterns:
   simple_processing: "description + basic variables + stage declarations"
   batch_automation: "description + external variables + stage protection"
   team_recipes: "description + comprehensive stage declarations + protection"
-  development_recipes: "description + external variables for environment switching"
-  production_recipes: "description + protected stages + comprehensive validation"
+  development_recipes: "description + external variables + log_and_continue error handling"
+  production_recipes: "description + protected stages + comprehensive validation + halt on errors"
+  graceful_degradation: "description + continue/log_and_continue for non-critical steps"

@@ -112,7 +112,7 @@ For detailed documentation and more examples:
 
     parser = argparse.ArgumentParser(
         description=f"{__description__}\n\nProcess data using YAML recipes with dynamic variables and stage-based architecture.",
-        prog="python -m excel_recipe_processor",
+        prog="excel-recipe-processor",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=epilog_for_argparse
     )

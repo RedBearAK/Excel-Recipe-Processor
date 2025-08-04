@@ -14,7 +14,11 @@ from pathlib import Path
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import (
-    registry, StepProcessorError, ImportBaseProcessor, ExportBaseProcessor
+    BaseStepProcessor,
+    ExportBaseProcessor,
+    ImportBaseProcessor,
+    registry,
+    StepProcessorError,
 )
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
@@ -188,13 +192,16 @@ class RecipePipeline:
                 # Create processor with variable injection
                 processor = self._create_processor(step_config)
                 
+                
                 # Execute based on processor type
                 if isinstance(processor, ImportBaseProcessor):
                     processor.execute_import()
                 elif isinstance(processor, ExportBaseProcessor):
                     processor.execute_export()
-                else:
+                elif isinstance(processor, BaseStepProcessor):
                     processor.execute_stage_to_stage()
+                else:
+                    raise TypeError(f"Unknown processor type: {type(processor)}")
                 
                 self.steps_executed += 1
                 logger.info(f"✅ Step {step_index + 1} completed successfully")

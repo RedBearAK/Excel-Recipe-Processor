@@ -68,6 +68,9 @@ class RecipePipeline:
             # Load recipe data
             self.recipe_data = self.recipe_loader.load_file(recipe_path)
             
+            # Declare stages for execution (not just validation)
+            StageManager.declare_recipe_stages(self.recipe_data)
+            
             # Extract global error handling setting
             settings = self.recipe_data.get('settings', {})
             global_on_error = settings.get('on_error', 'halt')

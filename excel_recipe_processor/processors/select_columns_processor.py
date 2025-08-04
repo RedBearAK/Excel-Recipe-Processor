@@ -63,11 +63,12 @@ class SelectColumnsProcessor(BaseStepProcessor):
         # Get configuration parameters
         columns_to_keep = self.get_config_value('columns_to_keep')
         columns_to_drop = self.get_config_value('columns_to_drop')
+        columns_to_create = self.get_config_value('columns_to_create', [])
         allow_duplicates = self.get_config_value('allow_duplicates', True)
         strict_mode = self.get_config_value('strict_mode', True)
         
         # Validate configuration
-        self._validate_select_config(data, columns_to_keep, columns_to_drop)
+        self._validate_select_config(data, columns_to_keep, columns_to_drop, columns_to_create)
         
         # Work on a copy
         result_data = data.copy()
@@ -76,7 +77,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
             # Determine which columns to select
             if columns_to_keep is not None:
                 result_data = self._select_by_inclusion(
-                    result_data, columns_to_keep, allow_duplicates, strict_mode
+                    result_data, columns_to_keep, columns_to_create, allow_duplicates, strict_mode
                 )
                 operation_desc = f"selected {len(columns_to_keep)} column specifications"
             elif columns_to_drop is not None:
@@ -100,7 +101,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
             else:
                 raise StepProcessorError(f"Error selecting columns in step '{self.step_name}': {e}")
     
-    def _validate_select_config(self, df: pd.DataFrame, columns_to_keep, columns_to_drop) -> None:
+    def _validate_select_config(self, df: pd.DataFrame, columns_to_keep, columns_to_drop, columns_to_create) -> None:
         """
         Validate column selection configuration parameters.
         
@@ -108,6 +109,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
             df: Input DataFrame
             columns_to_keep: List of columns to keep (or None)
             columns_to_drop: List of columns to drop (or None)
+            columns_to_create: List of columns to create if missing (or empty list)
         """
         # Ensure exactly one selection method is specified
         if columns_to_keep is not None and columns_to_drop is not None:
@@ -139,8 +141,35 @@ class SelectColumnsProcessor(BaseStepProcessor):
             for col in columns_to_drop:
                 if not isinstance(col, str) or not col.strip():
                     raise StepProcessorError(f"Column names must be non-empty strings, got: {col}")
+        
+        # Validate columns_to_create if specified
+        if columns_to_create:  # Only validate if non-empty
+            if not isinstance(columns_to_create, list):
+                raise StepProcessorError("'columns_to_create' must be a list")
+            
+            for col in columns_to_create:
+                if not isinstance(col, str) or not col.strip():
+                    raise StepProcessorError(f"Column names to create must be non-empty strings, got: {col}")
+            
+            # Check for duplicates in columns_to_create
+            if len(columns_to_create) != len(set(columns_to_create)):
+                duplicates = [col for col in columns_to_create if columns_to_create.count(col) > 1]
+                raise StepProcessorError(f"Duplicate column names in columns_to_create: {duplicates}")
+            
+            # columns_to_create can only be used with columns_to_keep
+            if columns_to_keep is None:
+                raise StepProcessorError("'columns_to_create' can only be used with 'columns_to_keep'")
+            
+            # Check that all columns_to_create are also in columns_to_keep
+            columns_to_create_set = set(columns_to_create)
+            columns_to_keep_set = set(columns_to_keep)
+            not_in_keep = columns_to_create_set - columns_to_keep_set
+            if not_in_keep:
+                raise StepProcessorError(
+                    f"Columns in 'columns_to_create' must also be in 'columns_to_keep': {list(not_in_keep)}"
+                )
     
-    def _select_by_inclusion(self, df: pd.DataFrame, columns_to_keep: list, 
+    def _select_by_inclusion(self, df: pd.DataFrame, columns_to_keep: list, columns_to_create: list,
                            allow_duplicates: bool, strict_mode: bool) -> pd.DataFrame:
         """
         Select columns by specifying which ones to keep.
@@ -148,6 +177,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
         Args:
             df: Input DataFrame
             columns_to_keep: List of column names to keep (order matters)
+            columns_to_create: List of column names that should be created if missing
             allow_duplicates: Whether to allow duplicate column selections
             strict_mode: Whether to fail on missing columns or skip them
             
@@ -155,6 +185,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
             DataFrame with only the specified columns in the specified order
         """
         available_columns = set(df.columns)
+        columns_to_create_set = set(columns_to_create)
         missing_columns = []
         selected_columns = []
         
@@ -162,7 +193,11 @@ class SelectColumnsProcessor(BaseStepProcessor):
         for col in columns_to_keep:
             if col in available_columns:
                 selected_columns.append(col)
+            elif col in columns_to_create_set:
+                # Column should be created - add to selected list
+                selected_columns.append(col)
             else:
+                # Column is genuinely missing
                 missing_columns.append(col)
         
         # Handle missing columns based on strict_mode
@@ -170,7 +205,8 @@ class SelectColumnsProcessor(BaseStepProcessor):
             if strict_mode:
                 raise StepProcessorError(
                     f"Columns not found: {missing_columns}. "
-                    f"Available columns: {list(df.columns)}"
+                    f"Available columns: {list(df.columns)}. "
+                    f"Add missing columns to 'columns_to_create' if you want to create them."
                 )
             else:
                 logger.warning(f"Skipping missing columns: {missing_columns}")
@@ -187,13 +223,33 @@ class SelectColumnsProcessor(BaseStepProcessor):
             if duplicates:
                 raise StepProcessorError(f"Duplicate columns found: {duplicates}. Set allow_duplicates=true to permit duplicates")
         
-        # Select columns in the specified order
+        # Select/create columns in the specified order
         if not selected_columns:
             raise StepProcessorError("No valid columns found to select")
         
-        result = df[selected_columns].copy()
+        # Build result DataFrame column by column to handle duplicates
+        result_columns = []
         
-        logger.debug(f"Selected {len(selected_columns)} columns: {selected_columns[:5]}{'...' if len(selected_columns) > 5 else ''}")
+        for col in selected_columns:
+            if col in available_columns:
+                # Use existing column
+                result_columns.append(df[col])
+            elif col in columns_to_create_set:
+                # Create new column with default value
+                default_value = self.get_config_value('default_value', pd.NA)
+                new_column = pd.Series([default_value] * len(df), index=df.index, name=col)
+                result_columns.append(new_column)
+                logger.debug(f"Created new column '{col}' with default value: {default_value}")
+            # Note: genuinely missing columns were already handled above
+        
+        # Combine all columns into result DataFrame
+        result = pd.concat(result_columns, axis=1)
+        
+        # Set column names to match the requested order (handles duplicates)
+        result.columns = selected_columns
+        
+        created_count = len([col for col in selected_columns if col in columns_to_create_set and col not in available_columns])
+        logger.debug(f"Selected {len(selected_columns)} columns ({created_count} created): {selected_columns[:5]}{'...' if len(selected_columns) > 5 else ''}")
         
         return result
     
@@ -305,21 +361,24 @@ class SelectColumnsProcessor(BaseStepProcessor):
             'configuration_options': {
                 'columns_to_keep': 'List of columns to select in specified order',
                 'columns_to_drop': 'List of columns to exclude from result',
+                'columns_to_create': 'List of columns to create if missing (used with columns_to_keep)',
                 'allow_duplicates': 'Allow same column to appear multiple times (default: true)',
-                'strict_mode': 'Fail on missing columns vs skip them (default: true)'
+                'strict_mode': 'Fail on missing columns vs skip them (default: true)',
+                'default_value': 'Default value for created columns (default: pd.NA)'
             },
             'helper_methods': [
                 'get_column_info', 'suggest_common_columns'
             ],
             'features': [
                 'automatic_reordering', 'duplicate_column_support', 'missing_column_handling',
-                'column_type_analysis', 'smart_column_suggestions'
+                'column_type_analysis', 'smart_column_suggestions', 'dynamic_column_creation'
             ],
             'examples': {
                 'basic_selection': "Keep only Customer_ID, Product_Name, Price columns",
                 'reordering': "Reorder columns by specifying them in desired sequence", 
                 'duplication': "Duplicate columns by listing them multiple times",
-                'exclusion': "Drop unwanted columns while keeping everything else"
+                'exclusion': "Drop unwanted columns while keeping everything else",
+                'column_creation': "Create new empty columns alongside existing ones"
             }
         }
     

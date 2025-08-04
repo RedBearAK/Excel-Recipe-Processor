@@ -257,6 +257,122 @@ def test_duplicate_prevention():
         return True
 
 
+def test_column_creation():
+    """Test creating new columns functionality."""
+    
+    print("\nTesting column creation...")
+    
+    test_df = create_test_data()
+    
+    # Test creating new columns alongside existing ones
+    step_config = {
+        'processor_type': 'select_columns',
+        'step_description': 'Create template columns',
+        'columns_to_keep': ['Customer_ID', 'Product_Name', 'Notes', 'Follow_Up_Date'],
+        'columns_to_create': ['Notes', 'Follow_Up_Date'],
+        'default_value': 'TBD'
+    }
+    
+    processor = SelectColumnsProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    print(f"✓ Result columns: {list(result.columns)}")
+    print(f"✓ Result shape: {result.shape}")
+    
+    # Check that new columns were created
+    expected_columns = ['Customer_ID', 'Product_Name', 'Notes', 'Follow_Up_Date']
+    if list(result.columns) == expected_columns:
+        print("✓ Column creation worked correctly")
+        
+        # Check that created columns have the default value
+        notes_values = result['Notes'].unique()
+        followup_values = result['Follow_Up_Date'].unique()
+        
+        if len(notes_values) == 1 and notes_values[0] == 'TBD' and len(followup_values) == 1 and followup_values[0] == 'TBD':
+            print("✓ Created columns have correct default values")
+            
+            # Check that existing columns preserved data
+            if result.iloc[0]['Customer_ID'] == 'C001' and result.iloc[0]['Product_Name'] == 'Widget A':
+                print("✓ Existing column data preserved")
+                return True
+            else:
+                print("✗ Existing column data corrupted")
+        else:
+            print(f"✗ Default values incorrect: Notes={notes_values}, Follow_Up={followup_values}")
+    else:
+        print(f"✗ Expected {expected_columns}, got {list(result.columns)}")
+        
+    return False
+
+
+def test_column_creation_validation():
+    """Test validation of column creation parameters."""
+    
+    print("\nTesting column creation validation...")
+    
+    test_df = create_test_data()
+    
+    # Test that columns_to_create requires columns_to_keep
+    try:
+        bad_config = {
+            'processor_type': 'select_columns',
+            'columns_to_drop': ['Internal_Notes'],
+            'columns_to_create': ['New_Field']  # Can't use with columns_to_drop
+        }
+        processor = SelectColumnsProcessor(bad_config)
+        processor.execute(test_df)
+        print("✗ Should have failed when using columns_to_create with columns_to_drop")
+        return False
+    except StepProcessorError as e:
+        print(f"✓ Correctly rejected columns_to_create with columns_to_drop: {e}")
+    
+    # Test that columns_to_create must be subset of columns_to_keep
+    try:
+        bad_config = {
+            'processor_type': 'select_columns',
+            'columns_to_keep': ['Customer_ID', 'Price'],
+            'columns_to_create': ['Customer_ID', 'New_Field']  # New_Field not in columns_to_keep
+        }
+        processor = SelectColumnsProcessor(bad_config)
+        processor.execute(test_df)
+        print("✗ Should have failed when columns_to_create contains columns not in columns_to_keep")
+        return False
+    except StepProcessorError as e:
+        print(f"✓ Correctly rejected invalid columns_to_create: {e}")
+    
+    return True
+
+
+def test_creation_vs_missing_distinction():
+    """Test that column creation is properly distinguished from missing columns."""
+    
+    print("\nTesting creation vs missing column distinction...")
+    
+    test_df = create_test_data()
+    
+    # Test strict mode with intentional creation and accidental typo
+    step_config = {
+        'processor_type': 'select_columns',
+        'step_description': 'Test creation vs missing',
+        'columns_to_keep': ['Customer_ID', 'New_Field', 'Typo_Field'],  # New_Field intentional, Typo_Field is mistake
+        'columns_to_create': ['New_Field'],  # Only New_Field is intentional
+        'strict_mode': True
+    }
+    
+    try:
+        processor = SelectColumnsProcessor(step_config)
+        processor.execute(test_df)
+        print("✗ Should have failed due to Typo_Field not being in columns_to_create")
+        return False
+    except StepProcessorError as e:
+        if "Typo_Field" in str(e) and "columns_to_create" in str(e):
+            print(f"✓ Correctly distinguished between intentional creation and typo: {e}")
+            return True
+        else:
+            print(f"✗ Error message didn't provide helpful guidance: {e}")
+            return False
+
+
 def test_error_handling():
     """Test various error conditions."""
     
@@ -299,6 +415,19 @@ def test_error_handling():
         processor = SelectColumnsProcessor(bad_config)
         processor.execute(test_df)
         print("✗ Should have failed with empty columns list")
+    except StepProcessorError as e:
+        print(f"✓ Caught expected error: {e}")
+    
+    # Test duplicate columns in columns_to_create
+    try:
+        bad_config = {
+            'processor_type': 'select_columns',
+            'columns_to_keep': ['Customer_ID', 'New_Field'],
+            'columns_to_create': ['New_Field', 'New_Field']  # Duplicate
+        }
+        processor = SelectColumnsProcessor(bad_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with duplicate columns in columns_to_create")
     except StepProcessorError as e:
         print(f"✓ Caught expected error: {e}")
     
@@ -374,8 +503,11 @@ def main():
     success &= test_column_reordering()
     success &= test_column_dropping()
     success &= test_column_duplication()
+    success &= test_column_creation()
     success &= test_strict_mode_handling()
     success &= test_duplicate_prevention()
+    success &= test_column_creation_validation()
+    success &= test_creation_vs_missing_distinction()
     success &= test_helper_methods()
     success &= test_capabilities()
     
@@ -398,8 +530,11 @@ if __name__ == '__main__':
     success &= test_column_reordering()
     success &= test_column_dropping()
     success &= test_column_duplication()
+    success &= test_column_creation()
     success &= test_strict_mode_handling()
     success &= test_duplicate_prevention()
+    success &= test_column_creation_validation()
+    success &= test_creation_vs_missing_distinction()
     success &= test_helper_methods()
     success &= test_capabilities()
     

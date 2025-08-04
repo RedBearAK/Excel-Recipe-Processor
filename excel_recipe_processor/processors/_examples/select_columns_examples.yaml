@@ -1,0 +1,236 @@
+# excel_recipe_processor/processors/_examples/select_columns_examples.yaml
+# Revision date: 2025-08-04
+
+description: "Select and reorder DataFrame columns with flexible inclusion/exclusion patterns and stage-based data flow"
+
+basic_selection_example:
+  description: "Keep only essential columns from a wide dataset"
+  yaml: |
+    # Simple column selection example
+    
+    settings:
+      description: "Select key business columns from wide export data"
+      stages:
+        - stage_name: "raw_export"
+          description: "Wide export data with many columns"
+          protected: false
+        - stage_name: "essential_data"
+          description: "Key business columns only"
+          protected: false
+    
+    recipe:
+      # Previous step would populate raw_export stage
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed select_columns step"
+        step_description: "Keep only essential business columns"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from (must be declared in settings.stages)
+        source_stage: "raw_export"
+        # REQ - List of columns to keep (in this exact order)
+        columns_to_keep: ["Customer_ID", "Product_Name", "Price", "Quantity", "Status"]
+        # REQ - Stage to save selected columns
+        save_to_stage: "essential_data"
+
+reordering_example:
+  description: "Reorder columns by specifying them in desired sequence"
+  yaml: |
+    # Column reordering example
+    
+    settings:
+      description: "Reorder columns for better readability and workflow"
+      stages:
+        - stage_name: "messy_order"
+          description: "Data with columns in poor order"
+          protected: false
+        - stage_name: "ordered_data"
+          description: "Columns in logical business order"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Reorder columns for business logic flow"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from
+        source_stage: "messy_order"
+        # REQ - Columns in desired order (Price first, then ID, then details)
+        columns_to_keep: ["Price", "Customer_ID", "Product_Name", "Description", "Category"]
+        # OPT - Allow duplicate columns if same column listed multiple times
+        # Default value: true
+        allow_duplicates: true
+        # REQ - Stage to save reordered data
+        save_to_stage: "ordered_data"
+
+exclusion_example:
+  description: "Drop unwanted columns while keeping everything else"
+  yaml: |
+    # Column exclusion example
+    
+    settings:
+      description: "Remove internal/temporary columns from final export"
+      stages:
+        - stage_name: "working_data"
+          description: "Data with internal working columns"
+          protected: false
+        - stage_name: "clean_export"
+          description: "Clean data ready for external use"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Remove internal columns before export"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from
+        source_stage: "working_data"
+        # REQ - List of columns to remove (everything else is kept)
+        columns_to_drop: ["_temp_calc", "_internal_id", "debug_info", "processing_notes"]
+        # OPT - Fail if drop columns don't exist vs skip missing ones
+        # Default value: true (fail on missing)
+        strict_mode: false
+        # REQ - Stage to save cleaned data
+        save_to_stage: "clean_export"
+
+duplication_example:
+  description: "Duplicate columns for comparison or special formatting"
+  yaml: |
+    # Column duplication example
+    
+    settings:
+      description: "Duplicate price column for comparison analysis"
+      stages:
+        - stage_name: "pricing_data"
+          description: "Product pricing information"
+          protected: false
+        - stage_name: "comparison_format"
+          description: "Data formatted for price comparison"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Create comparison format with duplicate price columns"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from
+        source_stage: "pricing_data"
+        # REQ - Include Price column multiple times for comparison
+        # The same column can appear multiple times in the list
+        columns_to_keep: ["Product_ID", "Product_Name", "Price", "Price", "Category"]
+        # OPT - Allow duplicate columns (required for this to work)
+        # Default value: true
+        allow_duplicates: true
+        # REQ - Stage to save duplicated format
+        save_to_stage: "comparison_format"
+
+flexible_selection_example:
+  description: "Flexible selection with error handling for missing columns" 
+  yaml: |
+    # Flexible selection with missing column handling
+    
+    settings:
+      description: "Select columns that may or may not exist in import data"
+      stages:
+        - stage_name: "variable_import"
+          description: "Import data with varying column structure"
+          protected: false
+        - stage_name: "standardized_output"
+          description: "Standardized output with available columns"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Select standard columns, skip missing ones"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from
+        source_stage: "variable_import"
+        # REQ - Preferred columns (some may not exist in all imports)
+        columns_to_keep: ["ID", "Name", "Email", "Phone", "Address", "Notes", "Created_Date"]
+        # OPT - Don't fail if some columns are missing, just skip them
+        # Default value: true (fail on missing)
+        strict_mode: false
+        # OPT - No duplicates needed for this case
+        # Default value: true
+        allow_duplicates: false
+        # REQ - Stage to save available columns
+        save_to_stage: "standardized_output"
+
+parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'select_columns' for this processor type"
+    examples:
+      - "select_columns"
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed select_columns step"
+    description: "Human-readable description of what this selection does"
+    examples:
+      - "Keep only essential columns"
+      - "Reorder for business workflow"
+      - "Remove internal columns"
+
+  source_stage:
+    type: string
+    required: false
+    default: null
+    description: "Stage to read data from (must be declared in settings.stages). If omitted, uses current pipeline data"
+    examples:
+      - "raw_data"
+      - "imported_file"
+      - "pivot_results"
+
+  save_to_stage:
+    type: string
+    required: false
+    default: null
+    description: "Stage to save selected data (must be declared in settings.stages)"
+    examples:
+      - "selected_data"
+      - "reordered_columns"
+      - "final_output"
+
+  columns_to_keep:
+    type: list
+    required: false
+    default: null
+    description: "List of column names to keep in the specified order. Cannot use with columns_to_drop"
+    examples:
+      - ["Customer_ID", "Product_Name", "Price"]
+      - ["Price", "Product_Name", "Customer_ID"]  # Different order
+      - ["Name", "Email", "Email", "Phone"]  # Duplicates allowed
+    note: "Order matters - columns will appear in the DataFrame in this exact sequence"
+
+  columns_to_drop:
+    type: list  
+    required: false
+    default: null
+    description: "List of column names to exclude from result. Cannot use with columns_to_keep"
+    examples:
+      - ["_temp_field", "debug_info"]
+      - ["internal_notes", "processing_flags", "audit_trail"]
+    note: "All other columns will be kept in their original order"
+
+  allow_duplicates:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether to allow the same column name multiple times in columns_to_keep"
+    examples:
+      - true
+      - false
+    note: "Only applies to columns_to_keep. Set to false to prevent accidental duplicates"
+
+  strict_mode:
+    type: boolean
+    required: false
+    default: true
+    description: "Whether to fail when specified columns don't exist, or skip missing columns"
+    examples:
+      - true   # Fail if any specified column is missing
+      - false  # Skip missing columns and continue with available ones
+    note: "false mode is useful when column structure varies between data sources"

@@ -508,6 +508,7 @@ from excel_recipe_processor.processors.lookup_data_processor            import L
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
 from excel_recipe_processor.processors.rename_columns_processor         import RenameColumnsProcessor
+from excel_recipe_processor.processors.select_columns_processor         import SelectColumnsProcessor
 from excel_recipe_processor.processors.slice_data_processor             import SliceDataProcessor
 from excel_recipe_processor.processors.sort_data_processor              import SortDataProcessor
 from excel_recipe_processor.processors.split_column_processor           import SplitColumnProcessor
@@ -535,6 +536,7 @@ def register_standard_processors():
     registry.register('merge_data',                     MergeDataProcessor                  )
     registry.register('pivot_table',                    PivotTableProcessor                 )
     registry.register('rename_columns',                 RenameColumnsProcessor              )
+    registry.register('select_columns',                 SelectColumnsProcessor              )
     registry.register('slice_data',                     SliceDataProcessor                  )
     registry.register('sort_data',                      SortDataProcessor                   )
     registry.register('split_column',                   SplitColumnProcessor                )

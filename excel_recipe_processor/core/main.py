@@ -1,14 +1,13 @@
 """Main functionality for excel_recipe_processor package."""
 
-import sys
 import logging
 
-from pathlib import Path
 from argparse import Namespace
 
 from excel_recipe_processor.core.pipeline import get_system_capabilities  # Keep for compatibility
+from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.core.recipe_pipeline import RecipePipeline, RecipePipelineError
-from excel_recipe_processor.config.recipe_loader import RecipeLoader
+from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.core.interactive_variables import (
     InteractiveVariablePrompt,
     InteractiveVariableError,
@@ -493,27 +492,115 @@ def list_system_capabilities_matrix() -> int:
         return 1
 
 
+# def validate_recipe_file(recipe_path: str) -> int:
+#     """Validate a recipe file."""
+#     try:
+#         from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
+#         from excel_recipe_processor.core.stage_manager import StageManager
+        
+#         # Load and validate recipe
+#         recipe_loader = RecipeLoader()
+#         recipe_data = recipe_loader.load_recipe_file(recipe_path)
+        
+#         # Validate stages
+#         StageManager.declare_recipe_stages(recipe_data)
+#         stage_errors = StageManager.validate_recipe_stages(recipe_data)
+        
+#         if stage_errors:
+#             print(f"Recipe validation failed for: {recipe_path}")
+#             for error in stage_errors:
+#                 print(f"  ❌ {error}")
+#             return 1
+#         else:
+#             print(f"✓ Recipe validation successful: {recipe_path}")
+            
+#             # Show summary
+#             recipe_steps = recipe_data.get('recipe', [])
+#             settings = recipe_data.get('settings', {})
+#             external_vars = settings.get('required_external_vars', {})
+#             custom_vars = settings.get('variables', {})
+            
+#             print(f"  Steps: {len(recipe_steps)}")
+#             print(f"  External variables: {len(external_vars)}")
+#             print(f"  Custom variables: {len(custom_vars)}")
+            
+#             return 0
+            
+#     except RecipeValidationError as e:
+#         print(f"Recipe validation error: {e}")
+#         return 1
+#     except FileNotFoundError:
+#         print(f"Recipe file not found: {recipe_path}")
+#         return 1
+#     except Exception as e:
+#         print(f"Error validating recipe: {e}")
+#         return 1
+
+
 def validate_recipe_file(recipe_path: str) -> int:
-    """Validate a recipe file."""
+    """
+    Validate a recipe file without executing it.
+    
+    Args:
+        recipe_path: Path to recipe file
+        
+    Returns:
+        Exit code (0 for success, non-zero for error)
+    """
     try:
-        from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
-        from excel_recipe_processor.core.stage_manager import StageManager
+        # from excel_recipe_processor.core.stage_manager import StageManager
+        # from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
         
         # Load and validate recipe
-        recipe_loader = RecipeLoader()
-        recipe_data = recipe_loader.load_recipe_file(recipe_path)
+        loader = RecipeLoader()
+        recipe_data = loader.load_recipe_file(recipe_path)  # Using the corrected method name
         
-        # Validate stages
+        # Validate stages - this returns a DICTIONARY, not a list!
         StageManager.declare_recipe_stages(recipe_data)
-        stage_errors = StageManager.validate_recipe_stages(recipe_data)
+        stage_validation = StageManager.validate_recipe_stages(recipe_data)
         
-        if stage_errors:
-            print(f"Recipe validation failed for: {recipe_path}")
-            for error in stage_errors:
-                print(f"  ❌ {error}")
-            return 1
-        else:
-            print(f"✓ Recipe validation successful: {recipe_path}")
+        # Extract the actual error information from the dictionary
+        warnings = stage_validation.get('warnings', [])
+        undeclared_stages = stage_validation.get('undeclared_stages', set())
+        suggested_declarations = stage_validation.get('suggested_declarations', '')
+        protection_issues = stage_validation.get('protection_issues', [])
+        has_undeclared = stage_validation.get('has_undeclared', False)
+        
+        # Check if there are any issues to report
+        has_issues = bool(warnings or has_undeclared)
+        
+        if has_issues:
+            print(f"Recipe validation completed with warnings: {recipe_path}")
+            print()
+            
+            # Show warnings
+            if warnings:
+                print("⚠️  Warnings:")
+                for warning in warnings:
+                    print(f"    • {warning}")
+                print()
+            
+            # Show undeclared stages
+            if undeclared_stages:
+                print(f"💡 Found {len(undeclared_stages)} undeclared stages:")
+                for stage in sorted(undeclared_stages):
+                    print(f"    • {stage}")
+                print()
+            
+            # Show suggested stage declarations
+            if suggested_declarations:
+                print("🔧 Suggested improvements:")
+                print(suggested_declarations)
+                print()
+            
+            # Show protection issues
+            if protection_issues:
+                print("🛡️  Protection recommendations:")
+                for issue in protection_issues:
+                    print(f"    • {issue}")
+                print()
+            
+            print("✓ Recipe is valid but could be improved with the suggestions above")
             
             # Show summary
             recipe_steps = recipe_data.get('recipe', [])
@@ -521,20 +608,40 @@ def validate_recipe_file(recipe_path: str) -> int:
             external_vars = settings.get('required_external_vars', {})
             custom_vars = settings.get('variables', {})
             
-            print(f"  Steps: {len(recipe_steps)}")
-            print(f"  External variables: {len(external_vars)}")
-            print(f"  Custom variables: {len(custom_vars)}")
+            print(f"📊 Recipe Summary:")
+            print(f"    Steps: {len(recipe_steps)}")
+            print(f"    External variables: {len(external_vars)}")
+            print(f"    Custom variables: {len(custom_vars)}")
+            print(f"    Declared stages: {len(settings.get('stages', []))}")
+            print(f"    Undeclared stages: {len(undeclared_stages)}")
+            
+            return 0  # Warnings don't cause failure
+            
+        else:
+            print(f"✅ Recipe validation successful: {recipe_path}")
+            
+            # Show summary
+            recipe_steps = recipe_data.get('recipe', [])
+            settings = recipe_data.get('settings', {})
+            external_vars = settings.get('required_external_vars', {})
+            custom_vars = settings.get('variables', {})
+            
+            print(f"📊 Recipe Summary:")
+            print(f"    Steps: {len(recipe_steps)}")
+            print(f"    External variables: {len(external_vars)}")
+            print(f"    Custom variables: {len(custom_vars)}")
+            print(f"    Declared stages: {len(settings.get('stages', []))}")
             
             return 0
             
     except RecipeValidationError as e:
-        print(f"Recipe validation error: {e}")
+        print(f"❌ Recipe validation error: {e}")
         return 1
     except FileNotFoundError:
-        print(f"Recipe file not found: {recipe_path}")
+        print(f"❌ Recipe file not found: {recipe_path}")
         return 1
     except Exception as e:
-        print(f"Error validating recipe: {e}")
+        print(f"❌ Error validating recipe: {e}")
         return 1
 
 

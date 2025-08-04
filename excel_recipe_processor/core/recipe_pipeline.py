@@ -16,6 +16,7 @@ from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor,
     ExportBaseProcessor,
+    FileOpsBaseProcessor,
     ImportBaseProcessor,
     registry,
     StepProcessorError,
@@ -198,10 +199,14 @@ class RecipePipeline:
                     processor.execute_import()
                 elif isinstance(processor, ExportBaseProcessor):
                     processor.execute_export()
-                elif isinstance(processor, BaseStepProcessor):
-                    processor.execute_stage_to_stage()
+                elif isinstance(processor, FileOpsBaseProcessor):
+                    processor.execute()
                 else:
-                    raise TypeError(f"Unknown processor type: {type(processor)}")
+                    # This looks lost/generic to syntax highlighter because we can't check for 
+                    # the base processor. It would match any processor, even ones that should 
+                    # use a different execute method. 
+                    # DO NOT USE isinstance(processor, BaseStepProcessor) to fix this!!!!!!
+                    processor.execute_stage_to_stage()
                 
                 self.steps_executed += 1
                 logger.info(f"✅ Step {step_index + 1} completed successfully")

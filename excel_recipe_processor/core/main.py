@@ -123,13 +123,10 @@ def process_recipe(args: Namespace) -> int:
         # Create and initialize pipeline
         pipeline = RecipePipeline()
         
-        # Load recipe first to check for required external variables
-        recipe_data = pipeline.load_recipe(recipe_file)
-        
         # Handle external variables
         external_variables = {}
-        recipe_loader = RecipeLoader()
-        required_external_vars = recipe_loader.get_required_external_vars()
+        # recipe_loader = RecipeLoader() # use the recipe instance from the pipeline
+        required_external_vars = pipeline.recipe_loader.get_required_external_vars()
         
         if required_external_vars:
             try:

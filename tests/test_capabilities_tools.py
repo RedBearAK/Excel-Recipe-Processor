@@ -185,9 +185,9 @@ def demo_capabilities_tools():
         for recipe_file in recipe_files:
             print(f"\n📋 Basic validation: {recipe_file.name}")
             try:
-                loader = RecipeLoader()
-                recipe_data = loader.load_file(str(recipe_file))
-                steps = loader.get_steps()
+                recipe_loader = RecipeLoader()
+                recipe_data = recipe_loader.load_recipe_file(str(recipe_file))
+                steps = recipe_loader.get_steps()
                 
                 valid_steps = 0
                 for step in steps:

@@ -279,9 +279,9 @@ recipe:
             # Test recipe loading and validation
             from excel_recipe_processor.config.recipe_loader import RecipeLoader
             
-            loader = RecipeLoader()
-            recipe_data = loader.load_file(recipe_file)
-            external_vars = loader.get_required_external_vars()
+            recipe_loader = RecipeLoader()
+            recipe_data = recipe_loader.load_recipe_file(recipe_file)
+            external_vars = recipe_loader.get_required_external_vars()
             
             print(f"  ✓ Recipe loaded with external variables: {list(external_vars.keys())}")
             

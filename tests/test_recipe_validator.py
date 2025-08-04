@@ -44,13 +44,13 @@ class RecipeValidator:
         
         try:
             # Try to parse the recipe
-            loader = RecipeLoader()
-            recipe_data = loader.load_file(recipe_path)
+            recipe_loader = RecipeLoader()
+            recipe_data = recipe_loader.load_recipe_file(recipe_path)
             validation_result['parseable'] = True
             validation_result['valid_structure'] = True
             
             # Analyze steps
-            steps = loader.get_steps()
+            steps = recipe_loader.get_steps()
             validation_result['total_steps'] = len(steps)
             
             for i, step in enumerate(steps, 1):

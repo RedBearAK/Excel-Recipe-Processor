@@ -66,7 +66,7 @@ class RecipePipeline:
             self._recipe_path = recipe_path
             
             # Load recipe data
-            self.recipe_data = self.recipe_loader.load_file(recipe_path)
+            self.recipe_data = self.recipe_loader.load_recipe_file(recipe_path)
             
             # Declare stages for execution (not just validation)
             StageManager.declare_recipe_stages(self.recipe_data)

@@ -231,10 +231,10 @@ def validate_recipe_file(recipe_path):
         print(f"\n🔍 RECIPE VALIDATION: {recipe_path}")
         print("=" * 80)
         
-        loader = RecipeLoader()
-        recipe_data = loader.load_file(recipe_path)
+        recipe_loader = RecipeLoader()
+        recipe_data = recipe_loader.load_recipe_file(recipe_path)
         
-        steps = loader.get_steps()
+        steps = recipe_loader.get_steps()
         available_types = registry.get_registered_types()
         
         print(f"📋 Recipe Summary:")

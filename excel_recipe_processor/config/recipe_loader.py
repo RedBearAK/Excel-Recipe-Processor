@@ -54,7 +54,7 @@ class RecipeLoader:
         self.recipe_path = None
         self._original_section_order = []
     
-    def load_file(self, recipe_path) -> dict:
+    def load_recipe_file(self, recipe_path) -> dict:  # ✅ RENAMED from load_file
         """
         Load a recipe file from disk with validation.
         
@@ -124,7 +124,23 @@ class RecipeLoader:
         
         logger.info(f"Successfully loaded recipe: {self.summary()}")
         return self.recipe_data
-    
+
+    # # Optional: Keep old method for backward compatibility (with deprecation warning)
+    # def load_file(self, recipe_path) -> dict:
+    #     """
+    #     DEPRECATED: Use load_recipe_file() instead.
+        
+    #     This method is kept for backward compatibility but will be removed
+    #     in a future version.
+    #     """
+    #     import warnings
+    #     warnings.warn(
+    #         "load_file() is deprecated. Use load_recipe_file() instead.",
+    #         DeprecationWarning,
+    #         stacklevel=2
+    #     )
+    #     return self.load_recipe_file(recipe_path)
+
     def validate_recipe_structure(self) -> dict:
         """
         Validate the overall structure of the recipe.

@@ -500,8 +500,8 @@ def validate_recipe_file(recipe_path: str) -> int:
         from excel_recipe_processor.core.stage_manager import StageManager
         
         # Load and validate recipe
-        loader = RecipeLoader()
-        recipe_data = loader.load_recipe(recipe_path)
+        recipe_loader = RecipeLoader()
+        recipe_data = recipe_loader.load_recipe_file(recipe_path)
         
         # Validate stages
         StageManager.declare_recipe_stages(recipe_data)

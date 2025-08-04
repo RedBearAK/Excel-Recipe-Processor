@@ -98,7 +98,7 @@ class RecipePipeline:
         except ValueError:
             valid_actions = [action.value for action in ErrorAction]
             logger.warning(f"⚠️ Unknown on_error action '{action_str}' in {context}. "
-                         f"Valid options: {valid_actions}. Using 'halt'")
+                            f"Valid options: {valid_actions}. Using 'halt'")
             return ErrorAction.HALT
     
     def _log_step_separator(self, step_index: int, step_desc: str) -> None:
@@ -112,7 +112,7 @@ class RecipePipeline:
         logger.info(separator)
     
     def _handle_step_error(self, step_index: int, step_desc: str, error: Exception, 
-                          step_on_error: ErrorAction) -> bool:
+                            step_on_error: ErrorAction) -> bool:
         """
         Handle step execution error according to configured error action.
         
@@ -217,7 +217,7 @@ class RecipePipeline:
         # Enhanced completion logging
         if skipped_steps > 0:
             logger.info(f"🎯 Recipe execution completed: {self.steps_executed} steps executed, "
-                       f"{skipped_steps} steps skipped")
+                        f"{skipped_steps} steps skipped")
         else:
             logger.info(f"🎉 Recipe execution completed successfully: {self.steps_executed} steps")
         

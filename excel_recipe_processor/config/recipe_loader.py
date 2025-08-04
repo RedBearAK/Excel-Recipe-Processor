@@ -263,22 +263,22 @@ class RecipeLoader:
         errors = []
         warnings = []
         
-        # Import processors need save_to_stage
+        # Import processors need 'save_to_stage'
         if processor_type == 'import_file':
             if 'save_to_stage' not in step:
                 errors.append(f"Step '{step_name}': missing required field 'save_to_stage'")
                 errors.append("💡 All import_file steps must specify where to save imported data")
                 errors.append("Example: save_to_stage: 'raw_data'")
         
-        # Export processors need source_stage
+        # Export processors need 'source_stage'
         elif processor_type == 'export_file':
             if 'source_stage' not in step:
                 errors.append(f"Step '{step_name}': missing required field 'source_stage'")
                 errors.append("💡 All export_file steps must specify which stage to export from")
                 errors.append("Example: source_stage: 'processed_data'")
         
-        # Processing steps need both (most processors)
-        elif processor_type not in ['debug_breakpoint', 'create_stage']:
+        # Processing steps need both 'save_to_stage' and 'source_stage' (except those in list)
+        elif processor_type not in ['debug_breakpoint', 'create_stage', 'format_excel']:
             if 'source_stage' not in step:
                 errors.append(f"Step '{step_name}': missing required field 'source_stage'")
                 errors.append("💡 Processing steps must specify which stage to read data from")

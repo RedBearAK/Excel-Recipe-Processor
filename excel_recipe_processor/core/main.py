@@ -92,6 +92,126 @@ def run_main(args: Namespace) -> int:
         return 1
 
 
+# def process_recipe(args: Namespace) -> int:
+#     """
+#     Process a recipe using the new RecipePipeline system.
+    
+#     Args:
+#         args: Parsed command line arguments
+        
+#     Returns:
+#         Exit code (0 for success, non-zero for error)
+#     """
+#     recipe_file = args.recipe_file
+#     verbose = getattr(args, 'verbose', False)
+    
+#     if verbose:
+#         logger.info(f"Processing recipe: {recipe_file}")
+    
+#     try:
+#         # Parse CLI variable overrides
+#         cli_variables = {}
+#         if hasattr(args, 'variable_overrides') and args.variable_overrides:
+#             try:
+#                 cli_variables = parse_cli_variables(args.variable_overrides)
+#                 if cli_variables:
+#                     logger.info(f"Parsed {len(cli_variables)} variable overrides from CLI")
+#             except InteractiveVariableError as e:
+#                 print(f"Error parsing variable overrides: {e}")
+#                 return 1
+        
+#         # Create and initialize pipeline
+#         pipeline = RecipePipeline()
+        
+#         # Handle external variables
+#         external_variables = {}
+        
+#         # Load recipe first to check for required external variables
+#         recipe_data = pipeline.load_recipe(recipe_file)
+#         settings = recipe_data.get('settings', {})
+#         required_external_vars = settings.get('required_external_vars', {})
+
+#         # # recipe_loader = RecipeLoader() # use the recipe instance from the pipeline
+#         # required_external_vars = pipeline.recipe_loader.get_required_external_vars()
+        
+#         if required_external_vars:
+#             try:
+#                 # Initialize variable substitution for default resolution
+#                 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
+#                 var_sub = VariableSubstitution(recipe_path=recipe_file)
+                
+#                 # Collect variables interactively
+#                 prompt = InteractiveVariablePrompt(var_sub)
+#                 external_variables = prompt.collect_variables(required_external_vars, cli_variables)
+                
+#                 logger.info(f"Collected {len(external_variables)} external variables")
+                
+#             except InteractiveVariableError as e:
+#                 print(f"Error collecting variables: {e}")
+#                 return 1
+#         elif cli_variables:
+#             # No external variables required, but CLI variables provided
+#             logger.warning("CLI variables provided but recipe doesn't require external variables")
+#             print("Warning: Recipe doesn't require external variables but --var arguments were provided")
+#             external_variables = cli_variables  # Use them anyway for flexibility
+        
+#         # Add external variables to pipeline
+#         for name, value in external_variables.items():
+
+#             print(f"DEBUG: Adding external variable: {name} = {value}")
+
+#             pipeline.add_external_variable(name, value)
+        
+
+
+#         # DEBUG: Check what variables are actually available after adding
+#         available_vars = pipeline.get_available_variables()
+#         print(f"DEBUG: Available variables after adding external: {list(available_vars.keys())}")
+#         print(f"DEBUG: file_date value: {available_vars.get('file_date', 'NOT FOUND')}")
+
+#         # DEBUG: Check pipeline's variable substitution directly
+#         if pipeline.variable_substitution:
+#             pipeline_vars = pipeline.variable_substitution.get_available_variables()
+#             print(f"DEBUG: Pipeline VariableSubstitution has: {list(pipeline_vars.keys())}")
+#             print(f"DEBUG: Pipeline file_date: {pipeline_vars.get('file_date', 'NOT FOUND')}")
+#         else:
+#             print("DEBUG: Pipeline has no variable_substitution!")
+
+
+#         # Execute the complete recipe
+#         completion_report = pipeline.execute_recipe()
+        
+#         # Report completion
+#         steps_executed = completion_report.get('steps_executed', 0)
+#         stages_created = len(completion_report.get('stages_created', []))
+        
+#         print(f"✓ Recipe completed successfully")
+#         print(f"  Steps executed: {steps_executed}")
+#         print(f"  Data stages created: {stages_created}")
+        
+#         if verbose:
+#             stages = completion_report.get('stages_created', [])
+#             if stages:
+#                 print("  Stages created:")
+#                 for stage_name in stages:
+#                     print(f"    - {stage_name}")
+        
+#         return 0
+        
+#     except RecipePipelineError as e:
+#         print(f"Recipe processing failed: {e}")
+#         return 1
+#     except FileNotFoundError:
+#         print(f"Recipe file not found: {recipe_file}")
+#         return 1
+#     except Exception as e:
+#         print(f"Unexpected error: {e}")
+#         if verbose:
+#             import traceback
+#             traceback.print_exc()
+#         return 1
+
+
 def process_recipe(args: Namespace) -> int:
     """
     Process a recipe using the new RecipePipeline system.
@@ -120,81 +240,37 @@ def process_recipe(args: Namespace) -> int:
                 print(f"Error parsing variable overrides: {e}")
                 return 1
         
-        # Create and initialize pipeline
+        # Create pipeline and run complete workflow
         pipeline = RecipePipeline()
         
-        # Handle external variables
-        external_variables = {}
+        try:
+            # Use the integrated pipeline method that handles everything
+            completion_report = pipeline.run_complete_recipe(recipe_file, cli_variables)
+            
+        except RecipePipelineError as e:
+            # Pipeline handles friendly error messages internally
+            print(f"Recipe processing failed: {e}")
+            return 1
+        except FileNotFoundError:
+            print(f"Recipe file not found: {recipe_file}")
+            return 1
+        except InteractiveVariableError as e:
+            print(f"Error collecting variables: {e}")
+            return 1
         
-        # Load recipe first to check for required external variables
-        recipe_data = pipeline.load_recipe(recipe_file)
-        settings = recipe_data.get('settings', {})
-        required_external_vars = settings.get('required_external_vars', {})
-
-        # # recipe_loader = RecipeLoader() # use the recipe instance from the pipeline
-        # required_external_vars = pipeline.recipe_loader.get_required_external_vars()
-        
-        if required_external_vars:
-            try:
-                # Initialize variable substitution for default resolution
-                from excel_recipe_processor.core.variable_substitution import VariableSubstitution
-                var_sub = VariableSubstitution(recipe_path=recipe_file)
-                
-                # Collect variables interactively
-                prompt = InteractiveVariablePrompt(var_sub)
-                external_variables = prompt.collect_variables(required_external_vars, cli_variables)
-                
-                logger.info(f"Collected {len(external_variables)} external variables")
-                
-            except InteractiveVariableError as e:
-                print(f"Error collecting variables: {e}")
-                return 1
-        elif cli_variables:
-            # No external variables required, but CLI variables provided
-            logger.warning("CLI variables provided but recipe doesn't require external variables")
-            print("Warning: Recipe doesn't require external variables but --var arguments were provided")
-            external_variables = cli_variables  # Use them anyway for flexibility
-        
-        # Add external variables to pipeline
-        for name, value in external_variables.items():
-
-            print(f"DEBUG: Adding external variable: {name} = {value}")
-
-            pipeline.add_external_variable(name, value)
-        
-
-
-        # DEBUG: Check what variables are actually available after adding
-        available_vars = pipeline.get_available_variables()
-        print(f"DEBUG: Available variables after adding external: {list(available_vars.keys())}")
-        print(f"DEBUG: file_date value: {available_vars.get('file_date', 'NOT FOUND')}")
-
-        # DEBUG: Check pipeline's variable substitution directly
-        if pipeline.variable_substitution:
-            pipeline_vars = pipeline.variable_substitution.get_available_variables()
-            print(f"DEBUG: Pipeline VariableSubstitution has: {list(pipeline_vars.keys())}")
-            print(f"DEBUG: Pipeline file_date: {pipeline_vars.get('file_date', 'NOT FOUND')}")
-        else:
-            print("DEBUG: Pipeline has no variable_substitution!")
-
-
-        # Execute the complete recipe
-        completion_report = pipeline.execute_recipe()
-        
-        # Report completion
+        # Report completion with same level of detail as before
         steps_executed = completion_report.get('steps_executed', 0)
-        stages_created = len(completion_report.get('stages_created', []))
+        stages_created = completion_report.get('stages_created', [])
         
         print(f"✓ Recipe completed successfully")
         print(f"  Steps executed: {steps_executed}")
-        print(f"  Data stages created: {stages_created}")
+        print(f"  Data stages created: {len(stages_created)}")
         
-        if verbose:
-            stages = completion_report.get('stages_created', [])
-            if stages:
-                print("  Stages created:")
-                for stage_name in stages:
-                    print(f"    - {stage_name}")
+        # Verbose stage details (preserving current behavior)
+        if verbose and stages_created:
+            print("  Stages created:")
+            for stage_name in stages_created:
+                print(f"    - {stage_name}")
         
         return 0
         
@@ -211,8 +287,6 @@ def process_recipe(args: Namespace) -> int:
             traceback.print_exc()
         return 1
 
-
-# Replace the existing list_system_capabilities_* functions in main.py with these corrected versions
 
 def list_system_capabilities() -> int:
     """List available processors in basic format."""

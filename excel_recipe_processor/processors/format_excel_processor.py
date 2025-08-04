@@ -38,6 +38,32 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'target_file': 'output.xlsx'
         }
     
+    # def perform_file_operation(self) -> str:
+    #     """Format the target Excel file."""
+    #     # Check openpyxl availability
+    #     if not OPENPYXL_AVAILABLE:
+    #         raise StepProcessorError("openpyxl is required for Excel formatting but not installed")
+        
+    #     target_file = self.get_config_value('target_file')
+    #     formatting = self.get_config_value('formatting', {})
+        
+    #     # Validate configuration
+    #     self._validate_format_config(target_file, formatting)
+        
+    #     # Apply variable substitution to target filename
+    #     final_target_file = self._apply_variable_substitution(target_file)
+        
+    #     # Check file exists
+    #     if not Path(final_target_file).exists():
+    #         raise StepProcessorError(f"Target file not found: {final_target_file}")
+        
+    #     # Load and format the workbook
+    #     formatted_sheets = self._format_excel_file(final_target_file, formatting)
+        
+    #     return f"formatted {final_target_file} ({formatted_sheets} sheets processed)"
+
+
+
     def perform_file_operation(self) -> str:
         """Format the target Excel file."""
         # Check openpyxl availability
@@ -50,18 +76,23 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Validate configuration
         self._validate_format_config(target_file, formatting)
         
-        # Apply variable substitution to target filename
-        final_target_file = self._apply_variable_substitution(target_file)
+        # Apply variable substitution BEFORE file operations
+        if hasattr(self, 'variable_substitution') and self.variable_substitution:
+            resolved_file = self.variable_substitution.substitute(target_file)
+        else:
+            resolved_file = target_file
         
         # Check file exists
-        if not Path(final_target_file).exists():
-            raise StepProcessorError(f"Target file not found: {final_target_file}")
+        if not Path(resolved_file).exists():
+            raise StepProcessorError(f"Target file not found: {resolved_file}")
         
         # Load and format the workbook
-        formatted_sheets = self._format_excel_file(final_target_file, formatting)
+        formatted_sheets = self._format_excel_file(resolved_file, formatting)
         
-        return f"formatted {final_target_file} ({formatted_sheets} sheets processed)"
-    
+        return f"formatted {resolved_file} ({formatted_sheets} sheets processed)"
+
+
+
     # ADD THIS METHOD (optional override for better validation):
     def _validate_file_operation_config(self):
         """Validate format_excel specific configuration."""
@@ -100,37 +131,37 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(min_width, (int, float)) or min_width <= 0:
                 raise StepProcessorError("'min_column_width' must be a positive number")
     
-    def _apply_variable_substitution(self, filename: str) -> str:
-        """
-        Apply variable substitution to filename.
+    # def _apply_variable_substitution(self, filename: str) -> str:
+    #     """
+    #     Apply variable substitution to filename.
         
-        Args:
-            filename: Original filename template
+    #     Args:
+    #         filename: Original filename template
             
-        Returns:
-            Filename with variables substituted
-        """
-        # Get custom variables from processor config
-        custom_variables = self.get_config_value('variables', {})
+    #     Returns:
+    #         Filename with variables substituted
+    #     """
+    #     # Get custom variables from processor config
+    #     custom_variables = self.get_config_value('variables', {})
         
-        # Create variable substitution instance
-        # Note: We don't have input_path/recipe_path context, but we can still
-        # handle custom variables and date/time substitution
-        variable_sub = VariableSubstitution(
-            input_path=None,
-            recipe_path=None, 
-            custom_variables=custom_variables
-        )
+    #     # Create variable substitution instance
+    #     # Note: We don't have input_path/recipe_path context, but we can still
+    #     # handle custom variables and date/time substitution
+    #     variable_sub = VariableSubstitution(
+    #         input_path=None,
+    #         recipe_path=None, 
+    #         custom_variables=custom_variables
+    #     )
         
-        # Apply substitution
-        try:
-            substituted = variable_sub.substitute(filename)
-            if substituted != filename:
-                logger.debug(f"Variable substitution: {filename} → {substituted}")
-            return substituted
-        except Exception as e:
-            logger.warning(f"Variable substitution failed for '{filename}': {e}")
-            return filename
+    #     # Apply substitution
+    #     try:
+    #         substituted = variable_sub.substitute(filename)
+    #         if substituted != filename:
+    #             logger.debug(f"Variable substitution: {filename} → {substituted}")
+    #         return substituted
+    #     except Exception as e:
+    #         logger.warning(f"Variable substitution failed for '{filename}': {e}")
+    #         return filename
     
     def _format_excel_file(self, filename: str, formatting: dict) -> int:
         """

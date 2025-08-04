@@ -159,7 +159,6 @@ class AggregateDataProcessor(BaseStepProcessor):
             # Read configuration file
             config_data = FileReader.read_file(
                 filename, 
-                variables=variables,
                 sheet=sheet,
                 encoding=encoding,
                 separator=separator

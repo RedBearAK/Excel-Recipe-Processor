@@ -2,7 +2,7 @@
 Central file writing coordination for Excel Recipe Processor.
 
 Provides unified interface for writing files in various formats with automatic
-format detection, variable substitution, and consistent error handling.
+format detection, and consistent error handling.
 """
 
 import pandas as pd
@@ -10,7 +10,6 @@ import logging
 
 from pathlib import Path
 
-from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
 
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ class FileWriter:
     """
     Central coordinator for writing files in various formats.
     
-    Handles variable substitution, format auto-detection, and delegates
+    Handles format auto-detection, and delegates
     to appropriate specialized writers or pandas for different file types.
     All methods are static for easy use across processors.
     """
@@ -48,16 +47,15 @@ class FileWriter:
     }
     
     @staticmethod
-    def write_file(data, filename, variables=None, sheet_name='Data', index=False, 
-                   create_backup=False, explicit_format=None,
-                   encoding='utf-8', separator=','):
+    def write_file(data, filename, sheet_name='Data', index=False, 
+                    create_backup=False, explicit_format=None,
+                    encoding='utf-8', separator=','):
         """
-        Write a DataFrame to file with automatic format detection and variable substitution.
+        Write a DataFrame to file with automatic format detection
         
         Args:
             data: DataFrame to write
-            filename: Output file path (may contain variables like {date})
-            variables: Dictionary of custom variables for substitution
+            filename: Output file path
             sheet_name: Sheet name for Excel files (default: 'Data')
             index: Whether to include DataFrame index (default: False)
             create_backup: Create backup if file exists (default: False)
@@ -66,7 +64,7 @@ class FileWriter:
             separator: Column separator for CSV files (default: ',')
             
         Returns:
-            Final filename after variable substitution
+            Filename
             
         Raises:
             FileWriterError: If file writing fails
@@ -75,31 +73,28 @@ class FileWriter:
             # Validate input data
             FileWriter._validate_dataframe(data)
             
-            # Apply variable substitution
-            final_filename = FileWriter._apply_variable_substitution(filename, variables)
-            
             # Ensure output directory exists
-            FileWriter._ensure_directory_exists(final_filename)
+            FileWriter._ensure_directory_exists(filename)
             
             # Create backup if requested
             if create_backup:
-                FileWriter._create_backup_if_exists(final_filename)
+                FileWriter._create_backup_if_exists(filename)
             
             # Determine file format
-            file_format = FileWriter._determine_format(final_filename, explicit_format)
+            file_format = FileWriter._determine_format(filename, explicit_format)
             
             # Delegate to appropriate writer based on logical format
             if file_format in FileWriter.EXCEL_FORMATS:
-                FileWriter._write_excel_file(data, final_filename, sheet_name, index)
+                FileWriter._write_excel_file(data, filename, sheet_name, index)
             elif file_format in FileWriter.CSV_FORMATS:
-                FileWriter._write_csv_file(data, final_filename, index, encoding, separator)
+                FileWriter._write_csv_file(data, filename, index, encoding, separator)
             elif file_format in FileWriter.TSV_FORMATS:
-                FileWriter._write_tsv_file(data, final_filename, index, encoding)
+                FileWriter._write_tsv_file(data, filename, index, encoding)
             else:
                 raise FileWriterError(f"Unsupported file format: {file_format}")
             
-            logger.info(f"Wrote {len(data)} rows to '{final_filename}' ({file_format} format)")
-            return final_filename
+            logger.info(f"Wrote {len(data)} rows to '{filename}' ({file_format} format)")
+            return filename
             
         except FileWriterError:
             raise
@@ -107,20 +102,18 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing file '{filename}': {e}")
     
     @staticmethod
-    def write_multi_sheet_excel(sheets_data, filename, variables=None, 
-                               create_backup=False, active_sheet=None):
+    def write_multi_sheet_excel(sheets_data, filename, create_backup=False, active_sheet=None):
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
         Args:
             sheets_data: Dictionary mapping sheet names to DataFrames
-            filename: Output Excel file path (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: Output Excel file path
             create_backup: Create backup if file exists (default: False)
             active_sheet: Sheet to set as active (default: first sheet)
             
         Returns:
-            Final filename after variable substitution
+            Filename
             
         Raises:
             FileWriterError: If file writing fails
@@ -135,34 +128,31 @@ class FileWriter:
                     raise FileWriterError(f"Sheet name must be a non-empty string, got: {type(sheet_name)}")
                 FileWriter._validate_dataframe(df)
             
-            # Apply variable substitution
-            final_filename = FileWriter._apply_variable_substitution(filename, variables)
-            
             # Force Excel format
-            file_path = Path(final_filename)
+            file_path = Path(filename)
             extension = file_path.suffix.lower()
             if extension not in FileWriter.EXTENSION_TO_FORMAT or FileWriter.EXTENSION_TO_FORMAT[extension] not in FileWriter.EXCEL_FORMATS:
-                final_filename = str(file_path.with_suffix('.xlsx'))
-                logger.debug(f"Changed extension to .xlsx for multi-sheet file: {final_filename}")
+                filename = str(file_path.with_suffix('.xlsx'))
+                logger.debug(f"Changed extension to .xlsx for multi-sheet file: {filename}")
             
             # Ensure output directory exists
-            FileWriter._ensure_directory_exists(final_filename)
+            FileWriter._ensure_directory_exists(filename)
             
             # Create backup if requested
             if create_backup:
-                FileWriter._create_backup_if_exists(final_filename)
+                FileWriter._create_backup_if_exists(filename)
             
             # Use ExcelWriter for multi-sheet writing
             excel_writer = ExcelWriter()
-            excel_writer.write_multiple_sheets(sheets_data, final_filename)
+            excel_writer.write_multiple_sheets(sheets_data, filename)
             
             # Set active sheet if specified (requires openpyxl)
             if active_sheet and active_sheet in sheets_data:
-                FileWriter._set_active_sheet(final_filename, active_sheet)
+                FileWriter._set_active_sheet(filename, active_sheet)
             
             total_rows = sum(len(df) for df in sheets_data.values())
-            logger.info(f"Wrote {total_rows} total rows across {len(sheets_data)} sheets to '{final_filename}'")
-            return final_filename
+            logger.info(f"Wrote {total_rows} total rows across {len(sheets_data)} sheets to '{filename}'")
+            return filename
             
         except ExcelWriterError as e:
             raise FileWriterError(f"Excel writing error: {e}")
@@ -172,13 +162,12 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing multi-sheet Excel file '{filename}': {e}")
     
     @staticmethod
-    def create_backup(filename, variables=None):
+    def create_backup(filename):
         """
         Create a backup copy of an existing file.
         
         Args:
-            filename: File to backup (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: File to backup
             
         Returns:
             Path to backup file
@@ -187,12 +176,9 @@ class FileWriter:
             FileWriterError: If backup creation fails
         """
         try:
-            # Apply variable substitution
-            final_filename = FileWriter._apply_variable_substitution(filename, variables)
-            
             # Use ExcelWriter's backup functionality for all file types
             excel_writer = ExcelWriter()
-            backup_path = excel_writer.create_backup(final_filename)
+            backup_path = excel_writer.create_backup(filename)
             
             logger.info(f"Created backup: {backup_path}")
             return str(backup_path)
@@ -203,20 +189,18 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error creating backup for '{filename}': {e}")
     
     @staticmethod
-    def file_writable(filename, variables=None):
+    def file_writable(filename):
         """
-        Check if a file location is writable after applying variable substitution.
+        Check if a file location is writable
         
         Args:
-            filename: Path to file (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: Path to file
             
         Returns:
             True if file location is writable, False otherwise
         """
         try:
-            final_filename = FileWriter._apply_variable_substitution(filename, variables)
-            file_path = Path(final_filename)
+            file_path = Path(filename)
             
             # Check if directory exists or can be created
             try:
@@ -229,27 +213,25 @@ class FileWriter:
             return False
     
     @staticmethod
-    def get_output_info(filename, variables=None):
+    def get_output_info(filename):
         """
-        Get information about an output file path after variable substitution.
+        Get information about an output file path
         
         Args:
-            filename: Output file path (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: Output file path
             
         Returns:
             Dictionary with output file information
         """
         try:
-            final_filename = FileWriter._apply_variable_substitution(filename, variables)
-            file_path = Path(final_filename)
+            file_path = Path(filename)
             
             info = {
                 'original_filename': filename,
-                'final_filename': final_filename,
+                'final_filename': filename,
                 'directory': str(file_path.parent),
                 'extension': file_path.suffix.lower(),
-                'detected_format': FileWriter._determine_format(final_filename, None),
+                'detected_format': FileWriter._determine_format(filename, None),
                 'directory_exists': file_path.parent.exists(),
                 'file_exists': file_path.exists()
             }
@@ -310,30 +292,6 @@ class FileWriter:
             logger.warning("Writing empty DataFrame")
     
     @staticmethod
-    def _apply_variable_substitution(filename, variables):
-        """Apply variable substitution to filename."""
-        if not variables:
-            variables = {}
-        
-        try:
-            variable_sub = VariableSubstitution(
-                input_path=None,
-                recipe_path=None,
-                custom_variables=variables
-            )
-            
-            substituted = variable_sub.substitute(filename)
-            
-            if substituted != filename:
-                logger.debug(f"Variable substitution: {filename} → {substituted}")
-            
-            return substituted
-            
-        except Exception as e:
-            logger.warning(f"Variable substitution failed for '{filename}': {e}")
-            return filename
-    
-    @staticmethod
     def _ensure_directory_exists(filename):
         """Ensure the output directory exists."""
         file_path = Path(filename)
@@ -347,7 +305,7 @@ class FileWriter:
             FileWriter.create_backup(filename)
     
     @staticmethod
-    def _determine_format(filename, explicit_format):
+    def _determine_format(filename, explicit_format: str):
         """
         Determine logical format from extension or explicit override.
         
@@ -384,7 +342,7 @@ class FileWriter:
             raise FileWriterError(f"Excel writing error for '{filename}': {e}")
     
     @staticmethod
-    def _write_csv_file(data, filename, index, encoding, separator):
+    def _write_csv_file(data: pd.DataFrame, filename, index, encoding, separator):
         """Write DataFrame to CSV file."""
         try:
             data.to_csv(
@@ -401,7 +359,7 @@ class FileWriter:
             raise FileWriterError(f"CSV writing error for '{filename}': {e}")
     
     @staticmethod
-    def _write_tsv_file(data, filename, index, encoding):
+    def _write_tsv_file(data: pd.DataFrame, filename, index, encoding):
         """Write DataFrame to TSV file."""
         try:
             data.to_csv(

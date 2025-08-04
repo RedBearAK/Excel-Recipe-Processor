@@ -28,6 +28,39 @@ class ExportFileProcessor(ExportBaseProcessor):
             'output_file': 'output.xlsx'
         }
     
+    # def save_data(self, data):
+    #     """Save data to file (implements ExportBaseProcessor abstract method)."""
+    #     output_file = self.get_config_value('output_file')
+    #     sheet_name = self.get_config_value('sheet_name', 'Data')
+    #     explicit_format = self.get_config_value('format', None)
+    #     sheets = self.get_config_value('sheets', None)
+        
+    #     # Apply variable substitution if available
+    #     if hasattr(self, 'variable_substitution') and self.variable_substitution:
+    #         substituted_path = self.variable_substitution.substitute(output_file)
+    #     else:
+    #         substituted_path = output_file
+        
+    #     try:
+    #         if sheets:
+    #             # Multi-sheet export
+    #             sheets_data = self._build_sheets_data(sheets)
+    #             FileWriter.write_multi_sheet_excel(sheets_data, substituted_path)
+    #         else:
+    #             # Single file export
+    #             FileWriter.write_file(
+    #                 data,
+    #                 substituted_path,
+    #                 sheet_name=sheet_name,
+    #                 explicit_format=explicit_format
+    #             )
+            
+    #         logger.info(f"Exported {len(data)} rows to {substituted_path}")
+            
+    #     except FileWriterError as e:
+    #         raise StepProcessorError(f"Failed to export to '{output_file}': {e}")
+
+
     def save_data(self, data):
         """Save data to file (implements ExportBaseProcessor abstract method)."""
         output_file = self.get_config_value('output_file')
@@ -35,31 +68,33 @@ class ExportFileProcessor(ExportBaseProcessor):
         explicit_format = self.get_config_value('format', None)
         sheets = self.get_config_value('sheets', None)
         
-        # Apply variable substitution if available
+        # Apply variable substitution BEFORE calling FileWriter
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
-            substituted_path = self.variable_substitution.substitute(output_file)
+            resolved_file = self.variable_substitution.substitute(output_file)
         else:
-            substituted_path = output_file
+            resolved_file = output_file
         
         try:
             if sheets:
                 # Multi-sheet export
                 sheets_data = self._build_sheets_data(sheets)
-                FileWriter.write_multi_sheet_excel(sheets_data, substituted_path)
+                FileWriter.write_multi_sheet_excel(sheets_data, resolved_file)  # No variables parameter
             else:
                 # Single file export
                 FileWriter.write_file(
                     data,
-                    substituted_path,
+                    resolved_file,  # No variables parameter needed
                     sheet_name=sheet_name,
                     explicit_format=explicit_format
                 )
             
-            logger.info(f"Exported {len(data)} rows to {substituted_path}")
+            logger.info(f"Exported {len(data)} rows to {resolved_file}")
             
         except FileWriterError as e:
             raise StepProcessorError(f"Failed to export to '{output_file}': {e}")
-    
+
+
+
     def _build_sheets_data(self, sheets):
         """Build dictionary of sheet data for multi-sheet export."""
         from excel_recipe_processor.core.stage_manager import StageManager

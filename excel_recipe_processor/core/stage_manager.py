@@ -227,8 +227,8 @@ class StageManager:
                 + (f" - {description}" if description else "")
             )
         else:
-            logger.warning(
-                f"⚠️ Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns"
+            logger.info(
+                f"Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns"
                 + (f" - {description}" if description else "")
             )
 
@@ -277,8 +277,8 @@ class StageManager:
                 f"[usage: {cls._stage_usage[stage_name]}]"
             )
         else:
-            logger.warning(
-                f"⚠️ Stage '{stage_name}' loaded (undeclared): {len(stage_data)} rows, {len(stage_data.columns)} columns "
+            logger.info(
+                f"Stage '{stage_name}' loaded (undeclared): {len(stage_data)} rows, {len(stage_data.columns)} columns "
                 f"[usage: {cls._stage_usage[stage_name]}]"
             )
         

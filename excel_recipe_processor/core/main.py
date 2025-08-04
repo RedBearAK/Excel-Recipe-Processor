@@ -130,7 +130,7 @@ def process_recipe(args: Namespace) -> int:
         recipe_data = pipeline.load_recipe(recipe_file)
         settings = recipe_data.get('settings', {})
         required_external_vars = settings.get('required_external_vars', {})
-        
+
         # # recipe_loader = RecipeLoader() # use the recipe instance from the pipeline
         # required_external_vars = pipeline.recipe_loader.get_required_external_vars()
         
@@ -157,8 +157,27 @@ def process_recipe(args: Namespace) -> int:
         
         # Add external variables to pipeline
         for name, value in external_variables.items():
+
+            print(f"DEBUG: Adding external variable: {name} = {value}")
+
             pipeline.add_external_variable(name, value)
         
+
+
+        # DEBUG: Check what variables are actually available after adding
+        available_vars = pipeline.get_available_variables()
+        print(f"DEBUG: Available variables after adding external: {list(available_vars.keys())}")
+        print(f"DEBUG: file_date value: {available_vars.get('file_date', 'NOT FOUND')}")
+
+        # DEBUG: Check pipeline's variable substitution directly
+        if pipeline.variable_substitution:
+            pipeline_vars = pipeline.variable_substitution.get_available_variables()
+            print(f"DEBUG: Pipeline VariableSubstitution has: {list(pipeline_vars.keys())}")
+            print(f"DEBUG: Pipeline file_date: {pipeline_vars.get('file_date', 'NOT FOUND')}")
+        else:
+            print("DEBUG: Pipeline has no variable_substitution!")
+
+
         # Execute the complete recipe
         completion_report = pipeline.execute_recipe()
         

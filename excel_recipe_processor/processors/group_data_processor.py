@@ -272,7 +272,6 @@ class GroupDataProcessor(BaseStepProcessor):
         try:
             groups_data = FileReader.read_file(
                 filename=filename,
-                variables=variables,
                 sheet=sheet,
                 encoding=encoding,
                 separator=separator,

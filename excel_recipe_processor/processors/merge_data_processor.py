@@ -182,7 +182,6 @@ class MergeDataProcessor(BaseStepProcessor):
             # Use FileReader for all file operations
             merge_data = FileReader.read_file(
                 filename=file_path,
-                variables=variables,
                 sheet=sheet,
                 encoding=encoding,
                 separator=separator,

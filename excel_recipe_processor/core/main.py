@@ -261,15 +261,23 @@ def process_recipe(args: Namespace) -> int:
         # Report completion with same level of detail as before
         steps_executed = completion_report.get('steps_executed', 0)
         stages_created = completion_report.get('stages_created', [])
+        stages_declared = completion_report.get('stages_declared', [])
         
         print(f"✓ Recipe completed successfully")
         print(f"  Steps executed: {steps_executed}")
         print(f"  Data stages created: {len(stages_created)}")
+        print(f"  Data stages declared: {len(stages_declared)}")
         
         # Verbose stage details (preserving current behavior)
         if verbose and stages_created:
             print("  Stages created:")
             for stage_name in stages_created:
+                print(f"    - {stage_name}")
+        
+        # Verbose stage details (preserving current behavior)
+        if verbose and stages_declared:
+            print("  Stages created:")
+            for stage_name in stages_declared:
                 print(f"    - {stage_name}")
         
         return 0

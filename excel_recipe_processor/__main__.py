@@ -21,86 +21,86 @@ def create_argument_parser() -> argparse.ArgumentParser:
 examples:
   BASIC RECIPE PROCESSING:
     # Process recipe with external variables from CLI
-    python -m excel_recipe_processor recipe.yaml --var batch_id=A47 --var region=west
+    %(prog)s recipe.yaml --var batch_id=A47 --var region=west
     
     # Process recipe with interactive prompting for missing variables
-    python -m excel_recipe_processor daily_report.yaml
+    %(prog)s daily_report.yaml
     
     # Combine CLI variables with interactive prompting for others
-    python -m excel_recipe_processor report.yaml --var batch_id=A47
+    %(prog)s report.yaml --var batch_id=A47
     
     # Complex variables with spaces and special characters
-    python -m excel_recipe_processor recipe.yaml --var "description=Q4 Sales Report" --var dept=FINANCE
+    %(prog)s recipe.yaml --var "description=Q4 Sales Report" --var dept=FINANCE
 
   DEBUGGING AND DEVELOPMENT:
     # Verbose output for debugging recipe execution
-    python -m excel_recipe_processor recipe.yaml --var date=20250729 --verbose
+    %(prog)s recipe.yaml --var date=20250729 --verbose
     
     # Validate recipe syntax before processing
-    python -m excel_recipe_processor --validate-recipe recipe.yaml
+    %(prog)s --validate-recipe recipe.yaml
     
     # Validate multiple recipes
-    python -m excel_recipe_processor --validate-recipe sales.yaml
-    python -m excel_recipe_processor --validate-recipe finance.yaml
+    %(prog)s --validate-recipe sales.yaml
+    %(prog)s --validate-recipe finance.yaml
 
   SYSTEM INFORMATION:
     # List all available processors
-    python -m excel_recipe_processor --list-capabilities
+    %(prog)s --list-capabilities
     
     # Detailed processor information
-    python -m excel_recipe_processor --list-capabilities --detailed
+    %(prog)s --list-capabilities --detailed
     
     # Output capabilities in different formats
-    python -m excel_recipe_processor --list-capabilities --json
-    python -m excel_recipe_processor --list-capabilities --yaml
-    python -m excel_recipe_processor --list-capabilities --detailed-yaml
+    %(prog)s --list-capabilities --json
+    %(prog)s --list-capabilities --yaml
+    %(prog)s --list-capabilities --detailed-yaml
     
     # Feature comparison matrix
-    python -m excel_recipe_processor --list-capabilities --matrix
+    %(prog)s --list-capabilities --matrix
     
     # Save capabilities to files for documentation
-    python -m excel_recipe_processor --list-capabilities --json > capabilities.json
-    python -m excel_recipe_processor --list-capabilities --yaml > capabilities.yaml
+    %(prog)s --list-capabilities --json > capabilities.json
+    %(prog)s --list-capabilities --yaml > capabilities.yaml
 
   USAGE EXAMPLES AND HELP:
     # Get examples for specific processor
-    python -m excel_recipe_processor --get-usage-examples import_file
-    python -m excel_recipe_processor --get-usage-examples export_file
-    python -m excel_recipe_processor --get-usage-examples filter_data
+    %(prog)s --get-usage-examples import_file
+    %(prog)s --get-usage-examples export_file
+    %(prog)s --get-usage-examples filter_data
     
     # Get examples for all processors
-    python -m excel_recipe_processor --get-usage-examples
+    %(prog)s --get-usage-examples
     
     # Get examples in different formats
-    python -m excel_recipe_processor --get-usage-examples import_file --format-examples yaml
-    python -m excel_recipe_processor --get-usage-examples export_file --format-examples text
-    python -m excel_recipe_processor --get-usage-examples --format-examples json
+    %(prog)s --get-usage-examples import_file --format-examples yaml
+    %(prog)s --get-usage-examples export_file --format-examples text
+    %(prog)s --get-usage-examples --format-examples json
     
     # Get recipe settings configuration examples
-    python -m excel_recipe_processor --get-settings-examples
+    %(prog)s --get-settings-examples
 
   ADVANCED SCENARIOS:
     # Process recipe with date-based variables
-    python -m excel_recipe_processor monthly.yaml --var month=12 --var year=2024
+    %(prog)s monthly.yaml --var month=12 --var year=2024
     
     # Process with multiple batch identifiers
-    python -m excel_recipe_processor batch.yaml --var batch_id=A47 --var sub_batch=001
+    %(prog)s batch.yaml --var batch_id=A47 --var sub_batch=001
     
     # Process with region-specific settings
-    python -m excel_recipe_processor regional.yaml --var region=west --var timezone=PST
+    %(prog)s regional.yaml --var region=west --var timezone=PST
     
     # Debug complex recipes with verbose output
-    python -m excel_recipe_processor complex.yaml --var env=prod --verbose
+    %(prog)s complex.yaml --var env=prod --verbose
 
   RECIPE EXAMPLES:
     # Simple data processing recipe
-    python -m excel_recipe_processor simple_filter.yaml --var input_date=20250729
+    %(prog)s simple_filter.yaml --var input_date=20250729
     
     # Multi-file processing with lookups
-    python -m excel_recipe_processor lookup_report.yaml --var quarter=Q4 --var dept=sales
+    %(prog)s lookup_report.yaml --var quarter=Q4 --var dept=sales
     
     # Automated daily report generation
-    python -m excel_recipe_processor daily_report.yaml --var region=west --var format=xlsx
+    %(prog)s daily_report.yaml --var region=west --var format=xlsx
 
 note: External variables can be defined in recipes with validation, defaults, and choices.
       If required variables are missing from CLI, you'll be prompted interactively.

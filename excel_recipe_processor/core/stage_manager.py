@@ -227,8 +227,8 @@ class StageManager:
                 + (f" - {description}" if description else "")
             )
         else:
-            logger.warning(
-                f"⚠️ Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns"
+            logger.info(
+                f"Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns"
                 + (f" - {description}" if description else "")
             )
 
@@ -277,8 +277,8 @@ class StageManager:
                 f"[usage: {cls._stage_usage[stage_name]}]"
             )
         else:
-            logger.warning(
-                f"⚠️ Stage '{stage_name}' loaded (undeclared): {len(stage_data)} rows, {len(stage_data.columns)} columns "
+            logger.info(
+                f"Stage '{stage_name}' loaded (undeclared): {len(stage_data)} rows, {len(stage_data.columns)} columns "
                 f"[usage: {cls._stage_usage[stage_name]}]"
             )
         
@@ -311,10 +311,10 @@ class StageManager:
     def get_recipe_completion_report(cls) -> dict:
         """Generate comprehensive report after recipe completion."""
         return {
-            'stages_declared': len(cls._declared_stages),
-            'stages_created': len(cls._current_stages),
-            'stages_unused': cls.get_unused_stages(),
-            'protected_stages': list(cls._protected_stages),
+            'stages_declared':          list(cls._declared_stages.keys()),
+            'stages_created':           list(cls._current_stages.keys()),
+            'stages_unused':            cls.get_unused_stages(),
+            'protected_stages':         list(cls._protected_stages),
             'undeclared_stages_created': [
                 name for name in cls._current_stages.keys() 
                 if name not in cls._declared_stages

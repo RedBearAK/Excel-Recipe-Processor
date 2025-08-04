@@ -28,32 +28,63 @@ class ImportFileProcessor(ImportBaseProcessor):
             'save_to_stage': 'imported_data'  # Required for import processors
         }
     
+    # def load_data(self):
+    #     """Load data from file (implements ImportBaseProcessor abstract method)."""
+    #     input_file = self.get_config_value('input_file')
+    #     sheet = self.get_config_value('sheet', 1)  # Just change default to 1
+    #     encoding = self.get_config_value('encoding', 'utf-8')
+    #     separator = self.get_config_value('separator', ',')
+    #     explicit_format = self.get_config_value('format', None)
+        
+    #     # Apply variable substitution if available
+    #     if hasattr(self, 'variable_substitution') and self.variable_substitution:
+    #         substituted_path = self.variable_substitution.substitute(input_file)
+    #     else:
+    #         substituted_path = input_file
+        
+    #     # Use FileReader for consistent file handling
+    #     try:
+    #         data = FileReader.read_file(
+    #             substituted_path,
+    #             sheet=sheet,                # FileReader handles all validation/conversion
+    #             encoding=encoding,
+    #             separator=separator,
+    #             explicit_format=explicit_format
+    #         )
+            
+    #         logger.info(f"Imported {len(data)} rows, {len(data.columns)} columns from {substituted_path}")
+    #         return data
+            
+    #     except FileReaderError as e:
+    #         raise StepProcessorError(f"Failed to import file '{input_file}': {e}")
+
     def load_data(self):
         """Load data from file (implements ImportBaseProcessor abstract method)."""
         input_file = self.get_config_value('input_file')
-        sheet = self.get_config_value('sheet', 1)  # Just change default to 1
+        sheet = self.get_config_value('sheet', 1)
         encoding = self.get_config_value('encoding', 'utf-8')
         separator = self.get_config_value('separator', ',')
         explicit_format = self.get_config_value('format', None)
         
-        # Apply variable substitution if available
+        # Apply variable substitution BEFORE calling FileReader
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
-            substituted_path = self.variable_substitution.substitute(input_file)
+            resolved_file = self.variable_substitution.substitute(input_file)
         else:
-            substituted_path = input_file
+            resolved_file = input_file
         
-        # Use FileReader for consistent file handling
+        # FileReader gets the fully resolved filename
         try:
             data = FileReader.read_file(
-                substituted_path,
-                sheet=sheet,                # FileReader handles all validation/conversion
+                resolved_file,  # No variables parameter needed
+                sheet=sheet,
                 encoding=encoding,
                 separator=separator,
                 explicit_format=explicit_format
             )
             
-            logger.info(f"Imported {len(data)} rows, {len(data.columns)} columns from {substituted_path}")
+            logger.info(f"Imported {len(data)} rows, {len(data.columns)} columns from {resolved_file}")
             return data
             
         except FileReaderError as e:
             raise StepProcessorError(f"Failed to import file '{input_file}': {e}")
+

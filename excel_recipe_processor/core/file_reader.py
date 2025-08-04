@@ -2,7 +2,7 @@
 Central file reading coordination for Excel Recipe Processor.
 
 Provides unified interface for reading files in various formats with automatic
-format detection, variable substitution, and consistent error handling.
+format detection, and consistent error handling.
 """
 
 import pandas as pd
@@ -10,7 +10,6 @@ import logging
 
 from pathlib import Path
 
-from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.readers.excel_reader import ExcelReader, ExcelReaderError
 
 
@@ -26,7 +25,7 @@ class FileReader:
     """
     Central coordinator for reading files in various formats.
     
-    Handles variable substitution, format auto-detection, and delegates
+    Handles format auto-detection, and delegates
     to appropriate specialized readers or pandas for different file types.
     All methods are static for easy use across processors.
     """
@@ -50,14 +49,12 @@ class FileReader:
     }
     
     @staticmethod
-    def read_file(filename, variables=None, sheet=1, encoding='utf-8', 
-                    separator=',', explicit_format=None):
+    def read_file(filename, sheet=1, encoding='utf-8', separator=',', explicit_format=None):
         """
-        Read a file with automatic format detection and variable substitution.
+        Read a file with automatic format detection
         
         Args:
-            filename: Path to file (may contain variables like {date})
-            variables: Dictionary of custom variables for substitution
+            filename: Path to file
             sheet: Sheet name or 1-based index (1 for first sheet) - CONVERTS to 0-based internally
             encoding: Text encoding for CSV/TSV files (default: 'utf-8')
             separator: Column separator for CSV files (default: ',')
@@ -71,14 +68,11 @@ class FileReader:
         """
 
         try:
-            # Apply variable substitution
-            final_filename = FileReader._apply_variable_substitution(filename, variables)
-            
             # Validate file exists
-            FileReader._validate_file_exists(final_filename)
+            FileReader._validate_file_exists(filename)
             
             # Determine logical format
-            file_format = FileReader._determine_format(final_filename, explicit_format)
+            file_format = FileReader._determine_format(filename, explicit_format)
             
             # Convert 1-based sheet index to 0-based for Excel files
             if file_format in FileReader.EXCEL_FORMATS and isinstance(sheet, int):
@@ -93,11 +87,11 @@ class FileReader:
             
             # Delegate to appropriate reader based on logical format
             if file_format in FileReader.EXCEL_FORMATS:
-                return FileReader._read_excel_file(final_filename, sheet_for_excel)
+                return FileReader._read_excel_file(filename, sheet_for_excel)
             elif file_format in FileReader.CSV_FORMATS:
-                return FileReader._read_csv_file(final_filename, encoding, separator)
+                return FileReader._read_csv_file(filename, encoding, separator)
             elif file_format in FileReader.TSV_FORMATS:
-                return FileReader._read_tsv_file(final_filename, encoding)
+                return FileReader._read_tsv_file(filename, encoding)
             else:
                 raise FileReaderError(f"Unsupported file format: {file_format}")
                 
@@ -107,54 +101,50 @@ class FileReader:
             raise FileReaderError(f"Unexpected error reading file '{filename}': {e}")
     
     @staticmethod
-    def file_exists(filename, variables=None):
+    def file_exists(filename):
         """
-        Check if a file exists after applying variable substitution.
+        Check if a file exists
         
         Args:
-            filename: Path to file (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: Path to file
             
         Returns:
             True if file exists, False otherwise
         """
         try:
-            final_filename = FileReader._apply_variable_substitution(filename, variables)
-            return Path(final_filename).exists()
+            return Path(filename).exists()
         except Exception:
             return False
     
     @staticmethod
-    def get_file_info(filename, variables=None):
+    def get_file_info(filename):
         """
-        Get information about a file after variable substitution.
+        Get information about a file
         
         Args:
-            filename: Path to file (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: Path to file
             
         Returns:
             Dictionary with file information
         """
         try:
-            final_filename = FileReader._apply_variable_substitution(filename, variables)
-            file_path = Path(final_filename)
+            file_path = Path(filename)
             
             if not file_path.exists():
                 return {
                     'original_filename': filename,
-                    'final_filename': final_filename,
+                    'final_filename': filename,
                     'exists': False,
                     'error': 'File not found'
                 }
             
             return {
                 'original_filename': filename,
-                'final_filename': final_filename,
+                'final_filename': filename,
                 'exists': True,
                 'size_bytes': file_path.stat().st_size,
                 'extension': file_path.suffix.lower(),
-                'detected_format': FileReader._determine_format(final_filename, None)
+                'detected_format': FileReader._determine_format(filename, None)
             }
             
         except Exception as e:
@@ -166,13 +156,12 @@ class FileReader:
             }
     
     @staticmethod
-    def get_excel_sheets(filename, variables=None):
+    def get_excel_sheets(filename):
         """
         Get list of sheet names from an Excel file.
         
         Args:
-            filename: Path to Excel file (may contain variables)
-            variables: Dictionary of custom variables for substitution
+            filename: Path to Excel file
             
         Returns:
             List of sheet names
@@ -181,20 +170,17 @@ class FileReader:
             FileReaderError: If file is not Excel or cannot be read
         """
         try:
-            # Apply variable substitution
-            final_filename = FileReader._apply_variable_substitution(filename, variables)
-            
             # Validate file exists
-            FileReader._validate_file_exists(final_filename)
+            FileReader._validate_file_exists(filename)
             
             # Check if it's an Excel file
-            file_format = FileReader._determine_format(final_filename, None)
+            file_format = FileReader._determine_format(filename, None)
             if file_format not in FileReader.EXCEL_FORMATS:
-                raise FileReaderError(f"File '{final_filename}' is not an Excel file (format: {file_format})")
+                raise FileReaderError(f"File '{filename}' is not an Excel file (format: {file_format})")
             
             # Use ExcelReader to get sheet names
             excel_reader = ExcelReader()
-            return excel_reader.get_sheet_names(final_filename)
+            return excel_reader.get_sheet_names(filename)
             
         except ExcelReaderError as e:
             raise FileReaderError(f"Error reading Excel sheets from '{filename}': {e}")
@@ -233,30 +219,6 @@ class FileReader:
     # =============================================================================
     
     @staticmethod
-    def _apply_variable_substitution(filename, variables):
-        """Apply variable substitution to filename."""
-        if not variables:
-            variables = {}
-        
-        try:
-            variable_sub = VariableSubstitution(
-                input_path=None,
-                recipe_path=None,
-                custom_variables=variables
-            )
-            
-            substituted = variable_sub.substitute(filename)
-            
-            if substituted != filename:
-                logger.debug(f"Variable substitution: {filename} → {substituted}")
-            
-            return substituted
-            
-        except Exception as e:
-            logger.warning(f"Variable substitution failed for '{filename}': {e}")
-            return filename
-    
-    @staticmethod
     def _validate_file_exists(filename):
         """Validate that a file exists."""
         file_path = Path(filename)
@@ -268,7 +230,7 @@ class FileReader:
             raise FileReaderError(f"Path is not a file: {filename}")
     
     @staticmethod
-    def _determine_format(filename, explicit_format):
+    def _determine_format(filename, explicit_format: str):
         """
         Determine logical format from extension or explicit override.
         

@@ -311,10 +311,10 @@ class StageManager:
     def get_recipe_completion_report(cls) -> dict:
         """Generate comprehensive report after recipe completion."""
         return {
-            'stages_declared': len(cls._declared_stages),
-            'stages_created': len(cls._current_stages),
-            'stages_unused': cls.get_unused_stages(),
-            'protected_stages': list(cls._protected_stages),
+            'stages_declared':          list(cls._declared_stages.keys()),
+            'stages_created':           list(cls._current_stages.keys()),
+            'stages_unused':            cls.get_unused_stages(),
+            'protected_stages':         list(cls._protected_stages),
             'undeclared_stages_created': [
                 name for name in cls._current_stages.keys() 
                 if name not in cls._declared_stages

@@ -145,6 +145,38 @@ duplication_example:
         # REQ - Stage to save duplicated format
         save_to_stage: "comparison_format"
 
+numeric_references_example:
+  description: "Select columns by position using 1-based indexing"
+  yaml: |
+    # Numeric column references example (useful for headerless data)
+    
+    settings:
+      description: "Select columns from headerless or poorly named data using positions"
+      stages:
+        - stage_name: "headerless_import"
+          description: "Data imported without proper headers"
+          protected: false
+        - stage_name: "positioned_data"
+          description: "Selected columns by position"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Select columns by position (1-based indexing)"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from
+        source_stage: "headerless_import"
+        # REQ - Mix of names and 1-based positions
+        # Position 1 = first column (Excel column A)
+        # Position 2 = second column (Excel column B), etc.
+        columns_to_keep: [1, 3, "Status", 5]  # 1st, 3rd, named column, 5th
+        # OPT - Allow mixing names and positions
+        # Default value: true
+        allow_duplicates: true
+        # REQ - Stage to save positioned data
+        save_to_stage: "positioned_data"
+
 column_creation_example:
   description: "Create new empty columns alongside existing ones"
   yaml: |
@@ -255,12 +287,13 @@ parameter_details:
     type: list
     required: false
     default: null
-    description: "List of column names to keep in the specified order. Cannot use with columns_to_drop"
+    description: "List of columns to keep by name (string) or position (1-based integer). Cannot use with columns_to_drop"
     examples:
-      - ["Customer_ID", "Product_Name", "Price"]
-      - ["Price", "Product_Name", "Customer_ID"]  # Different order
+      - ["Customer_ID", "Product_Name", "Price"]  # By name
+      - [1, 2, 3]  # By position (1-based: 1=first column, 2=second, etc.)
+      - ["Price", 1, "Status", 3]  # Mixed names and positions
       - ["Name", "Email", "Email", "Phone"]  # Duplicates allowed
-    note: "Order matters - columns will appear in the DataFrame in this exact sequence"
+    note: "Order matters - columns appear in this exact sequence. Positions use 1-based indexing (1=first column, matching Excel)"
 
   columns_to_drop:
     type: list  

@@ -36,7 +36,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
             Dictionary with minimal configuration fields
         """
         return {
-            'columns_to_keep': ['test_column_1', 'test_column_2']
+            'columns_to_keep': ['test_column_1', 2, 'test_column_3']  # Mix of names and positions
         }
     
     def execute(self, data: Any) -> pd.DataFrame:
@@ -127,8 +127,14 @@ class SelectColumnsProcessor(BaseStepProcessor):
                 raise StepProcessorError("'columns_to_keep' cannot be empty")
             
             for col in columns_to_keep:
-                if not isinstance(col, str) or not col.strip():
-                    raise StepProcessorError(f"Column names must be non-empty strings, got: {col}")
+                if isinstance(col, str):
+                    if not col.strip():
+                        raise StepProcessorError(f"Column names must be non-empty strings, got: '{col}'")
+                elif isinstance(col, int):
+                    if col < 1:
+                        raise StepProcessorError(f"Column numbers must be 1-based (1, 2, 3...), got: {col}")
+                else:
+                    raise StepProcessorError(f"Column references must be strings or integers, got: {type(col)}")
         
         # Validate columns_to_drop if specified
         if columns_to_drop is not None:
@@ -191,9 +197,24 @@ class SelectColumnsProcessor(BaseStepProcessor):
         
         # Check each requested column
         for col in columns_to_keep:
-            if col in available_columns:
+            if isinstance(col, str) and col in available_columns:
+                # String column name exists - use it directly
                 selected_columns.append(col)
-            elif col in columns_to_create_set:
+            elif isinstance(col, int):
+                # Numeric reference - convert 1-based to 0-based
+                if col < 1:
+                    raise StepProcessorError(f"Column numbers must be 1-based (1, 2, 3...), got: {col}")
+                
+                pandas_col_idx = col - 1  # Convert to 0-based
+                if pandas_col_idx >= len(df.columns):
+                    raise StepProcessorError(f"Column number {col} exceeds available columns ({len(df.columns)})")
+                
+                # Get the actual column name at this position
+                actual_col_name = df.columns[pandas_col_idx]
+                selected_columns.append(actual_col_name)
+                logger.debug(f"Column {col} (1-based) → '{actual_col_name}' (position {pandas_col_idx})")
+                
+            elif isinstance(col, str) and col in columns_to_create_set:
                 # Column should be created - add to selected list
                 selected_columns.append(col)
             else:
@@ -231,6 +252,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
         result_columns = []
         
         for col in selected_columns:
+            # col is now always a string (column name)
             if col in available_columns:
                 # Use existing column
                 result_columns.append(df[col])
@@ -240,6 +262,9 @@ class SelectColumnsProcessor(BaseStepProcessor):
                 new_column = pd.Series([default_value] * len(df), index=df.index, name=col)
                 result_columns.append(new_column)
                 logger.debug(f"Created new column '{col}' with default value: {default_value}")
+            else:
+                # This shouldn't happen if our selection logic is correct
+                raise StepProcessorError(f"Internal error: column '{col}' not found and not in create list")
             # Note: genuinely missing columns were already handled above
         
         # Combine all columns into result DataFrame
@@ -359,7 +384,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
                 'inclusion_filtering', 'exclusion_filtering', 'missing_column_handling'
             ],
             'configuration_options': {
-                'columns_to_keep': 'List of columns to select in specified order',
+                'columns_to_keep': 'List of columns to select by name (string) or position (1-based integer)',
                 'columns_to_drop': 'List of columns to exclude from result',
                 'columns_to_create': 'List of columns to create if missing (used with columns_to_keep)',
                 'allow_duplicates': 'Allow same column to appear multiple times (default: true)',
@@ -371,14 +396,16 @@ class SelectColumnsProcessor(BaseStepProcessor):
             ],
             'features': [
                 'automatic_reordering', 'duplicate_column_support', 'missing_column_handling',
-                'column_type_analysis', 'smart_column_suggestions', 'dynamic_column_creation'
+                'column_type_analysis', 'smart_column_suggestions', 'dynamic_column_creation',
+                'numeric_position_references', '1_based_indexing'
             ],
             'examples': {
                 'basic_selection': "Keep only Customer_ID, Product_Name, Price columns",
                 'reordering': "Reorder columns by specifying them in desired sequence", 
                 'duplication': "Duplicate columns by listing them multiple times",
                 'exclusion': "Drop unwanted columns while keeping everything else",
-                'column_creation': "Create new empty columns alongside existing ones"
+                'column_creation': "Create new empty columns alongside existing ones",
+                'numeric_references': "Select columns by position: [1, 3, 5] (1-based indexing)"
             }
         }
     

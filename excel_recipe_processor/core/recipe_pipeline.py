@@ -155,7 +155,7 @@ class RecipePipeline:
             # Fallback to halt for unknown actions
             logger.error(f"❌ Step {step_num} failed - Unknown error action, halting: {error}")
             raise RecipePipelineError(f"Step {step_num} failed: {error}")
-
+    
     def execute_recipe(self) -> dict:
         """Execute recipe steps with enhanced logging and configurable error handling."""
         if not self.recipe_data:
@@ -173,7 +173,7 @@ class RecipePipeline:
         
         for step_index, step_config in enumerate(recipe_steps):
             step_desc = step_config.get('step_description', f'Step {step_index + 1}')
-            processor_type = step_config.get('processor_type')
+            # processor_type = step_config.get('processor_type')
             
             # Determine error handling for this step
             step_on_error_str = step_config.get('on_error', self._global_on_error.value)
@@ -270,7 +270,7 @@ class RecipePipeline:
         except InteractiveVariableError as e:
             logger.error(f"❌ Failed to collect external variables: {e}")
             raise RecipePipelineError(f"Failed to collect external variables: {e}")
-
+    
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
@@ -286,6 +286,9 @@ class RecipePipeline:
             for name, value in external_variables.items():
                 self.add_external_variable(name, value)
             
+            # NEW: Re-resolve custom variables once after all externals are added
+            self._validate_all_variables_resolved()
+            
             # Execute recipe
             logger.info("⚡ Starting recipe execution...")
             return self.execute_recipe()
@@ -298,7 +301,24 @@ class RecipePipeline:
             logger.error(f"❌ Unexpected error during recipe execution: {e}")
             raise RecipePipelineError(f"Unexpected error during recipe execution: {e}")
     
-    # ... [Rest of the existing methods remain unchanged] ...
+    def _validate_all_variables_resolved(self):
+        """Final validation that all custom variables are fully resolved."""
+        if not self.variable_substitution:
+            return
+        
+        available_vars = self.variable_substitution.get_available_variables()
+        unresolved_vars = []
+        
+        for name, value in available_vars.items():
+            if isinstance(value, str) and '{' in value and '}' in value:
+                # This variable still contains unresolved references
+                unresolved_vars.append(f"{name} = '{value}'")
+        
+        if unresolved_vars:
+            raise RecipePipelineError(
+                f"Unresolved variables detected before recipe execution:\n" + 
+                "\n".join(f"  - {var}" for var in unresolved_vars)
+            )
     
     def add_external_variable(self, name: str, value: str) -> None:
         """Add an external variable (e.g., from CLI or interactive prompt)."""
@@ -312,6 +332,19 @@ class RecipePipeline:
             self.variable_substitution.add_custom_variable(name, value)
         
         logger.debug(f"📝 Added external variable: {name} = {value}")
+
+        # NEW: Re-resolve any custom variables that might reference this external variable
+        self._re_resolve_custom_variables()
+    
+    def _re_resolve_custom_variables(self):
+        """Re-resolve custom variables that might contain external variable references."""
+        settings = self.recipe_data.get('settings', {})
+        custom_variables = settings.get('variables', {})
+        
+        for name, template_value in custom_variables.items():
+            if isinstance(template_value, str) and '{' in template_value:
+                resolved_value = self.variable_substitution.substitute(template_value)
+                self.variable_substitution.add_custom_variable(name, resolved_value)
     
     def get_available_variables(self) -> dict:
         """Get dictionary of all available variables."""

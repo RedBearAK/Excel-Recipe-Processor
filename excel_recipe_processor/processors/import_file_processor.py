@@ -61,19 +61,6 @@ class ImportFileProcessor(ImportBaseProcessor):
     def load_data(self):
         """Load data from file (implements ImportBaseProcessor abstract method)."""
         input_file = self.get_config_value('input_file')
-
-
-
-        # DEBUG: Check what variables the processor actually has
-        if hasattr(self, 'variable_substitution') and self.variable_substitution:
-            available_vars = self.variable_substitution.get_available_variables()
-            logger.info(f"DEBUG: Processor has variables: {list(available_vars.keys())}")
-            logger.info(f"DEBUG: file_date value: {available_vars.get('file_date', 'NOT FOUND')}")
-        else:
-            logger.info("DEBUG: Processor has no variable_substitution!")
-        
-
-
         sheet = self.get_config_value('sheet', 1)
         encoding = self.get_config_value('encoding', 'utf-8')
         separator = self.get_config_value('separator', ',')

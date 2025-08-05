@@ -11,6 +11,7 @@ import logging
 
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import (
@@ -66,7 +67,7 @@ class RecipePipeline:
             self._recipe_path = recipe_path
             
             # Load recipe data
-            self.recipe_data = self.recipe_loader.load_file(recipe_path)
+            self.recipe_data = self.recipe_loader.load_recipe_file(recipe_path)
             
             # Declare stages for execution (not just validation)
             StageManager.declare_recipe_stages(self.recipe_data)
@@ -407,6 +408,27 @@ class RecipePipeline:
         
         logger.debug(f"📝 Added custom variable: {name} = {value}")
     
+    # def _create_processor(self, step_config: dict):
+    #     """Create processor instance with variable injection."""
+    #     processor_type = step_config.get('processor_type')
+        
+    #     if processor_type not in registry._processors:
+    #         available_types = list(registry._processors.keys())
+    #         raise StepProcessorError(f"Unknown processor type: {processor_type}. Available: {available_types}")
+        
+    #     # Create processor instance
+    #     processor_class = registry._processors[processor_type]
+    #     processor = processor_class(step_config)
+        
+    #     # Set variables on processor for use in dynamic configurations
+    #     processor._variables = self.get_available_variables()
+        
+    #     # Set variable substitution object for processors that need it
+    #     processor.variable_substitution = self.variable_substitution
+        
+    #     logger.debug(f"🔧 Injected variables into processor {processor.__class__.__name__}")
+    #     return processor
+
     def _create_processor(self, step_config: dict):
         """Create processor instance with variable injection."""
         processor_type = step_config.get('processor_type')
@@ -415,9 +437,12 @@ class RecipePipeline:
             available_types = list(registry._processors.keys())
             raise StepProcessorError(f"Unknown processor type: {processor_type}. Available: {available_types}")
         
-        # Create processor instance
+        # APPLY RECURSIVE VARIABLE SUBSTITUTION TO STEP CONFIG BEFORE CREATING PROCESSOR
+        processed_step_config = self._substitute_variables_in_config(step_config)
+        
+        # Create processor instance with substituted config
         processor_class = registry._processors[processor_type]
-        processor = processor_class(step_config)
+        processor = processor_class(processed_step_config)
         
         # Set variables on processor for use in dynamic configurations
         processor._variables = self.get_available_variables()
@@ -425,9 +450,29 @@ class RecipePipeline:
         # Set variable substitution object for processors that need it
         processor.variable_substitution = self.variable_substitution
         
-        logger.debug(f"🔧 Injected variables into processor {processor.__class__.__name__}")
+        logger.debug(f"🔧 Applied variable substitution and injected into processor {processor.__class__.__name__}")
         return processor
-    
+
+    def _substitute_variables_in_config(self, config: Any) -> Any:
+        """
+        Recursively substitute variables in a configuration structure.
+        Handles nested dictionaries, lists, and string values.
+        """
+        if isinstance(config, dict):
+            return {key: self._substitute_variables_in_config(value) for key, value in config.items()}
+        elif isinstance(config, list):
+            return [self._substitute_variables_in_config(item) for item in config]
+        elif isinstance(config, str) and self.variable_substitution:
+            # Apply variable substitution to string values
+            try:
+                return self.variable_substitution.substitute(config)
+            except Exception as e:
+                # If substitution fails, return original value and let processor handle the error
+                logger.warning(f"Variable substitution failed for '{config}': {e}")
+                return config
+        else:
+            return config
+
     def _generate_completion_report(self) -> dict:
         """Generate completion report with execution statistics."""
         try:

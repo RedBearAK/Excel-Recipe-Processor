@@ -9,6 +9,8 @@ Tests all existing functionality (backward compatibility) plus new features:
 - Stage-based filtering enhancements
 
 Run with: python test_filter_data_comprehensive.py
+
+File: tests/test_filter_data_comprehensive.py
 """
 
 import pandas as pd
@@ -77,18 +79,20 @@ def test_backward_compatibility():
         print(f"✗ Basic equals crashed: {e}")
         success = False
     
-    # Test original in_list
+    # Test original in_list - FIXED: should be 5, not 4
+    # Data: ['Electronics', 'ELECTRONICS', 'electronics', 'Tools', 'Electronics']
+    # Filter: ['Electronics', 'Tools'] - all 5 rows match with case-insensitive
     try:
         processor = FilterDataProcessor({
             'processor_type': 'filter_data',
             'filters': [{'column': 'Category', 'condition': 'in_list', 'value': ['Electronics', 'Tools']}]
         })
         result = processor.execute(test_df)
-        # Should match case-insensitively: Electronics, ELECTRONICS, electronics, Tools
-        if len(result) == 4:
+        # Should match case-insensitively: all 5 rows (4 electronics variants + 1 tools)
+        if len(result) == 5:
             print("✓ Original in_list (case-insensitive by default)")
         else:
-            print(f"✗ Original in_list failed: expected 4, got {len(result)}")
+            print(f"✗ Original in_list failed: expected 5, got {len(result)}")
             success = False
     except Exception as e:
         print(f"✗ Original in_list crashed: {e}")
@@ -220,7 +224,7 @@ def test_enhanced_list_conditions():
     test_df = create_test_data()
     success = True
     
-    # Test contains_any_in_list (your original use case!)
+    # Test contains_any_in_list
     try:
         processor = FilterDataProcessor({
             'processor_type': 'filter_data',
@@ -236,7 +240,7 @@ def test_enhanced_list_conditions():
         print(f"✗ contains_any_in_list crashed: {e}")
         success = False
     
-    # Test not_contains_any_in_list (your original problem!)
+    # Test not_contains_any_in_list
     try:
         processor = FilterDataProcessor({
             'processor_type': 'filter_data',
@@ -326,17 +330,20 @@ def test_numeric_list_conditions():
         print(f"✗ greater_than_max_in_list crashed: {e}")
         success = False
     
-    # Test less_than_max_in_list
+    # Test less_than_max_in_list - FIXED: should be 3, not 4
+    # Data: [10.50, 25.00, 15.75, 8.25, 30.00]
+    # Filter: less_than_max_in_list with [15, 20, 25] (max = 25)
+    # Only values < 25: 10.50, 15.75, 8.25 = 3 items (25.00 is NOT < 25)
     try:
         processor = FilterDataProcessor({
             'processor_type': 'filter_data',
             'filters': [{'column': 'Price', 'condition': 'less_than_max_in_list', 'value': [15, 20, 25]}]
         })
         result = processor.execute(test_df)
-        if len(result) == 4:  # Should be < 25 (max): 10.50, 25.00, 15.75, 8.25
+        if len(result) == 3:  # Should be < 25 (max): 10.50, 15.75, 8.25 (NOT 25.00)
             print("✓ less_than_max_in_list condition")
         else:
-            print(f"✗ less_than_max_in_list failed: expected 4, got {len(result)}")
+            print(f"✗ less_than_max_in_list failed: expected 3, got {len(result)}")
             success = False
     except Exception as e:
         print(f"✗ less_than_max_in_list crashed: {e}")
@@ -353,7 +360,10 @@ def test_stage_based_filtering():
     test_df = create_test_data()
     success = True
     
-    # Test in_stage (case-insensitive by default)
+    # Test in_stage (case-insensitive by default) - FIXED: should be 5, not 4
+    # Valid categories: ['Electronics', 'Tools', 'Software']
+    # Test data categories: ['Electronics', 'ELECTRONICS', 'electronics', 'Tools', 'Electronics'] 
+    # With case-insensitive matching: all 5 rows match (4 electronics + 1 tools)
     try:
         processor = FilterDataProcessor({
             'processor_type': 'filter_data',
@@ -365,10 +375,10 @@ def test_stage_based_filtering():
             }]
         })
         result = processor.execute(test_df)
-        if len(result) == 4:  # Should match Electronics, ELECTRONICS, electronics, Tools
+        if len(result) == 5:  # Should match all Electronics variants + Tools
             print("✓ in_stage condition (case-insensitive)")
         else:
-            print(f"✗ in_stage failed: expected 4, got {len(result)}")
+            print(f"✗ in_stage failed: expected 5, got {len(result)}")
             success = False
     except Exception as e:
         print(f"✗ in_stage crashed: {e}")
@@ -470,6 +480,70 @@ def test_multiple_filters():
     return success
 
 
+def test_additional_coverage():
+    """Test additional conditions and edge cases for better coverage."""
+    print("\n=== Testing Additional Coverage ===")
+    
+    test_df = create_test_data()
+    success = True
+    
+    # Test not_in_list
+    try:
+        processor = FilterDataProcessor({
+            'processor_type': 'filter_data',
+            'filters': [{'column': 'Status', 'condition': 'not_in_list', 'value': ['Active', 'ACTIVE']}]
+        })
+        result = processor.execute(test_df)
+        # With case-insensitive (default): excludes Active, ACTIVE, active -> leaves Inactive, PENDING
+        if len(result) == 2:
+            print("✓ not_in_list condition")
+        else:
+            print(f"✗ not_in_list failed: expected 2, got {len(result)}")
+            success = False
+    except Exception as e:
+        print(f"✗ not_in_list crashed: {e}")
+        success = False
+    
+    # Test greater_equal and less_equal
+    try:
+        processor = FilterDataProcessor({
+            'processor_type': 'filter_data',
+            'filters': [
+                {'column': 'Price', 'condition': 'greater_equal', 'value': 15.75},
+                {'column': 'Price', 'condition': 'less_equal', 'value': 25.00}
+            ]
+        })
+        result = processor.execute(test_df)
+        # Should include: 15.75, 25.00 
+        if len(result) == 2:
+            print("✓ greater_equal and less_equal conditions")
+        else:
+            print(f"✗ greater_equal/less_equal failed: expected 2, got {len(result)}")
+            success = False
+    except Exception as e:
+        print(f"✗ greater_equal/less_equal crashed: {e}")
+        success = False
+    
+    # Test empty filter handling
+    try:
+        processor = FilterDataProcessor({
+            'processor_type': 'filter_data',
+            'filters': []
+        })
+        result = processor.execute(test_df)
+        # Should return all data unchanged when no filters
+        if len(result) == len(test_df):
+            print("✓ Empty filter list handling")
+        else:
+            print(f"✗ Empty filter failed: expected {len(test_df)}, got {len(result)}")
+            success = False
+    except Exception as e:
+        print(f"✗ Empty filter crashed: {e}")
+        success = False
+    
+    return success
+
+
 def main():
     """Run all tests and report results."""
     print("🧪 COMPREHENSIVE FILTER DATA PROCESSOR TEST")
@@ -483,7 +557,8 @@ def main():
         test_numeric_list_conditions,
         test_stage_based_filtering,
         test_error_handling,
-        test_multiple_filters
+        test_multiple_filters,
+        test_additional_coverage
     ]
     
     passed = 0
@@ -518,6 +593,7 @@ def main():
         print("  • Stage-based filtering enhanced")
         print("  • Error handling preserved")
         print("  • Multiple filters working together")
+        print("  • Additional edge cases covered")
         return 0
     else:
         print("❌ Some tests failed! Check the filter processor implementation.")

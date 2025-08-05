@@ -72,7 +72,7 @@ class GroupDataProcessor(BaseStepProcessor):
         replace_source = self.get_config_value('replace_source', False)
         unmatched_action = self.get_config_value('unmatched_action', 'keep_original')
         unmatched_value = self.get_config_value('unmatched_value', 'Other')
-        case_sensitive = self.get_config_value('case_sensitive', True)
+        case_sensitive = self.get_config_value('case_sensitive', False)     # default to False!
         save_to_stage = self.get_config_value('save_to_stage', None)
         stage_description = self.get_config_value('stage_description', '')
         
@@ -225,10 +225,23 @@ class GroupDataProcessor(BaseStepProcessor):
                         f"Available columns: {available_columns}"
                     )
                 
+                # # Group by group name and collect values
+                # groups = {}
+                # for group_name, group_data in stage_data.groupby(group_name_column):
+                #     values = group_data[values_column].dropna().astype(str).tolist()
+                #     if values:
+                #         groups[str(group_name)] = values
+
                 # Group by group name and collect values
                 groups = {}
                 for group_name, group_data in stage_data.groupby(group_name_column):
-                    values = group_data[values_column].dropna().astype(str).tolist()
+
+                    values_series = group_data[values_column]
+                    # Explicit check for expected Series type (var replaces group_data[values_column])
+                    if not isinstance(values_series, pd.Series):
+                        raise TypeError(f"Expected Series from {values_column}, got {type(values_series)}")
+
+                    values = values_series.dropna().astype(str).tolist()
                     if values:
                         groups[str(group_name)] = values
             
@@ -248,7 +261,8 @@ class GroupDataProcessor(BaseStepProcessor):
             raise StepProcessorError("File groups_source missing 'filename' field")
         
         filename = source_config['filename']
-        sheet = source_config.get('sheet', 0)
+        # Uses 1-based indexing, file reader converts to 0-based internally for pandas
+        sheet = source_config.get('sheet', 1)
         encoding = source_config.get('encoding', 'utf-8')
         separator = source_config.get('separator', ',')
         explicit_format = source_config.get('format_type', None)
@@ -262,8 +276,8 @@ class GroupDataProcessor(BaseStepProcessor):
         )
     
     def _load_groups_from_file(self, filename, sheet=0, encoding='utf-8', separator=',',
-                             explicit_format=None, group_name_column='Group_Name', 
-                             values_column='Values', file_format='wide') -> dict:
+                                        explicit_format=None, group_name_column='Group_Name', 
+                                            values_column='Values', file_format='wide') -> dict:
         """Load group definitions from file using FileReader."""
         
         # Get custom variables for substitution (from pipeline if available)
@@ -537,26 +551,6 @@ class GroupDataProcessor(BaseStepProcessor):
     # UTILITY METHODS FOR ADVANCED OPERATIONS
     # ============================================================================
     
-    def create_regional_groups(self, data: pd.DataFrame, origin_column: str) -> pd.DataFrame:
-        """Helper method to create the specific regional groups from the van report."""
-        
-        van_report_groups = {
-            'Bristol Bay': ['Dillingham', 'False Pass', 'Naknek', 'Naknek West', 'Wood River'],
-            'Kodiak': ['Kodiak', 'Kodiak West'],
-            'PWS': ['Cordova', 'Seward', 'Valdez'],
-            'SE': ['Craig', 'Ketchikan', 'Petersburg', 'Sitka']
-        }
-        
-        # Apply the grouping
-        value_to_group_map = self._create_mapping(van_report_groups, case_sensitive=True)
-        
-        result = self._apply_grouping(
-            data.copy(), origin_column, f'{origin_column}_Region', 
-            value_to_group_map, 'keep_original', 'Other', case_sensitive=True
-        )
-        
-        return result
-    
     def analyze_grouping_potential(self, df: pd.DataFrame, column: str) -> dict:
         """Analyze a column for potential grouping opportunities."""
         
@@ -587,9 +581,18 @@ class GroupDataProcessor(BaseStepProcessor):
         return analysis
     
     def create_hierarchical_groups(self, data: pd.DataFrame, source_column: str, 
-                                 hierarchy_levels: list) -> pd.DataFrame:
-        """Create hierarchical grouping with multiple levels."""
+                                hierarchy_levels: list, case_sensitive: bool = False) -> pd.DataFrame:
+        """Create hierarchical grouping with multiple levels.
         
+        Args:
+            data: DataFrame to apply hierarchical grouping to
+            source_column: Initial column to start grouping from
+            hierarchy_levels: List of dictionaries defining each level
+            case_sensitive: Whether grouping should be case sensitive (default: False)
+        
+        Returns:
+            DataFrame with hierarchical grouping columns added
+        """
         result = data.copy()
         
         for level_config in hierarchy_levels:
@@ -597,11 +600,11 @@ class GroupDataProcessor(BaseStepProcessor):
             level_groups = level_config['groups']
             parent_column = level_config.get('parent_column', source_column)
             
-            # Apply grouping for this level
-            value_to_group_map = self._create_mapping(level_groups, case_sensitive=True)
+            # Apply grouping for this level using the case_sensitive parameter
+            value_to_group_map = self._create_mapping(level_groups, case_sensitive)
             result = self._apply_grouping(
                 result, parent_column, level_name, value_to_group_map,
-                'keep_original', 'Other', case_sensitive=True
+                'keep_original', 'Other', case_sensitive
             )
         
         return result

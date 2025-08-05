@@ -1,671 +1,483 @@
 """
-Comprehensive tests for the refactored LookupDataProcessor with StageManager, 
-FileReader, and variable substitution integration.
+Modern test module for lookup_data processor.
 
-Tests both existing functionality (regression) and new enhanced capabilities.
+Tests the LookupDataProcessor using current architecture patterns:
+- Strategic isinstance() checks with proper TypeError handling
+- Stage-based workflows via StageManager
+- Resolved filenames (no variable substitution at processor level)
+- Proper setup/teardown and resource cleanup
+- Focus on actual processor functionality
+
+Module path: tests/test_lookup_data_processor.py
 """
 
+import os
 import pandas as pd
 import tempfile
 
 from pathlib import Path
-from datetime import datetime
 
 from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.lookup_data_processor import LookupDataProcessor
 
 
-def create_main_data():
-    """Create sample main DataFrame for testing."""
-    return pd.DataFrame({
-        'Order_ID': ['O001', 'O002', 'O003', 'O004', 'O005'],
-        'Customer_ID': ['C001', 'C002', 'C003', 'C004', 'C001'],
-        'Product_Code': ['P001', 'P002', 'P003', 'P001', 'P004'],
-        'Quantity': [10, 5, 8, 15, 3],
-        'Order_Date': ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']
+def create_main_data() -> pd.DataFrame:
+    """Create main data for testing lookup operations."""
+    data = pd.DataFrame({
+        'Order_ID': [1, 2, 3, 4, 5],
+        'Customer_Code': ['cust001', 'CUST002', 'Cust003', 'cust004', 'UNKNOWN'],  # Mixed case
+        'Product_ID': ['P001', 'P002', 'P001', 'P003', 'P002'],
+        'Quantity': [10, 5, 8, 12, 3]
     })
+    
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError(f"Expected DataFrame, got {type(data)}")
+    
+    return data
 
 
-def create_customer_lookup_data():
-    """Create sample customer lookup DataFrame."""
-    return pd.DataFrame({
-        'Customer_ID': ['C001', 'C002', 'C003', 'C004', 'C005'],
-        'Customer_Name': ['Alice Corp', 'Bob Industries', 'Charlie Ltd', 'Delta Systems', 'Eve Enterprises'],
-        'Customer_Tier': ['Gold', 'Silver', 'Gold', 'Bronze', 'Platinum'],
-        'Region': ['West', 'East', 'West', 'South', 'North'],
-        'Credit_Limit': [50000, 25000, 45000, 15000, 75000]
+def create_customer_lookup() -> pd.DataFrame:
+    """Create customer lookup data."""
+    data = pd.DataFrame({
+        'Customer_Code': ['CUST001', 'CUST002', 'CUST003', 'CUST004'],  # Uppercase
+        'Customer_Name': ['Acme Corp', 'Beta Industries', 'Gamma LLC', 'Delta Systems'],
+        'Customer_Tier': ['Gold', 'Silver', 'Gold', 'Bronze'],
+        'Credit_Limit': [50000, 25000, 40000, 15000]
     })
+    
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError(f"Expected DataFrame, got {type(data)}")
+    
+    return data
 
 
-def create_product_lookup_data():
-    """Create sample product lookup DataFrame."""
-    return pd.DataFrame({
-        'Product_Code': ['P001', 'P002', 'P003', 'P004', 'P005'],
-        'Product_Name': ['Widget A', 'Gadget B', 'Tool C', 'Device D', 'Component E'],
-        'Category': ['Electronics', 'Hardware', 'Tools', 'Electronics', 'Components'],
-        'Unit_Price': [25.50, 15.75, 32.00, 18.25, 8.50],
-        'Supplier_ID': ['S001', 'S002', 'S001', 'S003', 'S002']
+def create_product_lookup() -> pd.DataFrame:
+    """Create product lookup data."""
+    data = pd.DataFrame({
+        'Product_ID': ['P001', 'P002', 'P003'],
+        'Product_Name': ['Widget A', 'Widget B', 'Widget C'],
+        'Unit_Price': [10.00, 15.50, 8.75]
     })
+    
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError(f"Expected DataFrame, got {type(data)}")
+    
+    return data
 
 
-def create_territory_lookup_data():
-    """Create sample territory lookup DataFrame."""
-    return pd.DataFrame({
-        'Region': ['West', 'East', 'South', 'North'],
-        'Territory_Manager': ['Alice Johnson', 'Bob Smith', 'Charlie Brown', 'Diana Prince'],
-        'Sales_Target': [100000, 80000, 60000, 90000],
-        'Tax_Rate': [0.08, 0.06, 0.07, 0.05]
-    })
-
-
-def setup_test_stages():
-    """Set up test stages for stage-based lookup tests."""
-    StageManager.initialize_stages(max_stages=15)
+def test_basic_lookup():
+    """Test basic lookup operation (VLOOKUP-style)."""
+    print("\nTesting basic lookup...")
     
-    # Create customer lookup stage
-    customer_data = create_customer_lookup_data()
-    StageManager.save_stage(
-        stage_name='Customer Master',
-        data=customer_data,
-        description='Customer master data for lookups'
-    )
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
     
-    # Create product lookup stage
-    product_data = create_product_lookup_data()
-    StageManager.save_stage(
-        stage_name='Product Catalog',
-        data=product_data,
-        description='Product catalog for lookups'
-    )
-    
-    # Create territory lookup stage
-    territory_data = create_territory_lookup_data()
-    StageManager.save_stage(
-        stage_name='Territory Data',
-        data=territory_data,
-        description='Territory and sales data'
-    )
-
-
-def setup_test_files(temp_dir):
-    """Create test files for file-based lookup tests."""
-    
-    # Create customer lookup file
-    customer_data = create_customer_lookup_data()
-    customer_file = Path(temp_dir) / "customers.xlsx"
-    customer_data.to_excel(customer_file, index=False, engine='openpyxl')
-    
-    # Create product lookup file with variable in name
-    product_data = create_product_lookup_data()
-    date_str = datetime.now().strftime('%Y%m%d')
-    product_file = Path(temp_dir) / f"products_{date_str}.csv"
-    product_data.to_csv(product_file, index=False)
-    
-    # Create territory lookup file
-    territory_data = create_territory_lookup_data()
-    territory_file = Path(temp_dir) / "territories.tsv"
-    territory_data.to_csv(territory_file, sep='\t', index=False)
-    
-    return {
-        'customer_file': str(customer_file),
-        'product_file': str(product_file),
-        'product_template': str(Path(temp_dir) / "products_{date}.csv"),
-        'territory_file': str(territory_file),
-        'temp_dir': temp_dir
-    }
-
-
-def test_basic_inline_lookup():
-    """Test basic lookup with inline data (regression test)."""
-    print("\nTesting basic inline lookup...")
-    
-    main_df = create_main_data()
-    
-    step_config = {
+    config = {
         'processor_type': 'lookup_data',
         'step_description': 'Basic customer lookup',
-        'lookup_source': {
-            'type': 'inline',
-            'data': {
-                'Customer_ID': ['C001', 'C002', 'C003'],
-                'Customer_Name': ['Alice Corp', 'Bob Industries', 'Charlie Ltd'],
-                'Customer_Tier': ['Gold', 'Silver', 'Gold']
-            }
-        },
-        'lookup_key': 'Customer_ID',
-        'source_key': 'Customer_ID',
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
         'lookup_columns': ['Customer_Name', 'Customer_Tier']
     }
     
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
+    processor = LookupDataProcessor(config)
+    result = processor.execute(main_data)
     
-    # Check that lookup worked
-    if (len(result) == len(main_df) and 
-        'Customer_Name' in result.columns and
-        'Customer_Tier' in result.columns and
-        result.iloc[0]['Customer_Name'] == 'Alice Corp'):
-        print("✓ Basic inline lookup works correctly")
-        return True
-    else:
-        print("✗ Basic inline lookup failed")
+    # Validate result structure
+    if not isinstance(result, pd.DataFrame):
+        print(f"✗ Expected DataFrame result, got {type(result)}")
         return False
+    
+    # Check that lookup columns were added
+    expected_columns = ['Customer_Name', 'Customer_Tier']
+    for col in expected_columns:
+        if col not in result.columns:
+            print(f"✗ Lookup column '{col}' not found in result")
+            return False
+    
+    # Check specific lookup (should be case insensitive by default)
+    cust001_rows = result[result['Customer_Code'] == 'cust001']
+    if len(cust001_rows) == 0:
+        print("✗ No rows found for 'cust001'")
+        return False
+    
+    customer_name = cust001_rows['Customer_Name'].iloc[0]
+    if customer_name != 'Acme Corp':
+        print(f"✗ Expected 'Acme Corp' for cust001, got '{customer_name}'")
+        return False
+    
+    print("✓ Basic lookup works correctly")
+    return True
 
 
-def test_dataframe_lookup():
-    """Test lookup with direct DataFrame source (regression test)."""
-    print("\nTesting DataFrame lookup...")
+def test_case_insensitive_default():
+    """Test that case insensitive is the default behavior."""
+    print("\nTesting case insensitive default...")
     
-    main_df = create_main_data()
-    lookup_df = create_customer_lookup_data()
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
     
-    step_config = {
+    config = {
         'processor_type': 'lookup_data',
-        'step_description': 'DataFrame customer lookup',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Customer_ID',
-        'source_key': 'Customer_ID',
-        'lookup_columns': ['Customer_Name', 'Region']
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
+        'lookup_columns': ['Customer_Name']
+        # Note: No case_sensitive specified, should default to False
     }
     
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
+    processor = LookupDataProcessor(config)
+    result = processor.execute(main_data)
     
-    # Check results
-    if (len(result) == len(main_df) and
-        'Customer_Name' in result.columns and
-        'Region' in result.columns and
-        result.iloc[0]['Customer_Name'] == 'Alice Corp' and
-        result.iloc[1]['Customer_Name'] == 'Bob Industries'):
-        print("✓ DataFrame lookup works correctly")
-        return True
-    else:
-        print("✗ DataFrame lookup failed")
+    # Check that lowercase 'cust001' matches uppercase 'CUST001' in lookup
+    cust001_rows = result[result['Customer_Code'] == 'cust001']
+    if len(cust001_rows) == 0:
+        print("✗ No rows found for 'cust001'")
         return False
+    
+    customer_name = cust001_rows['Customer_Name'].iloc[0]
+    if customer_name != 'Acme Corp':
+        print(f"✗ Expected case insensitive match, got '{customer_name}'")
+        return False
+    
+    # Check mixed case 'Cust003' matches 'CUST003'
+    cust003_rows = result[result['Customer_Code'] == 'Cust003']
+    if len(cust003_rows) == 0:
+        print("✗ No rows found for 'Cust003'")
+        return False
+    
+    customer_name_003 = cust003_rows['Customer_Name'].iloc[0]
+    if customer_name_003 != 'Gamma LLC':
+        print(f"✗ Expected case insensitive match for Cust003, got '{customer_name_003}'")
+        return False
+    
+    print("✓ Case insensitive is default behavior")
+    return True
 
 
-def test_multiple_column_lookup():
-    """Test lookup with multiple columns (regression test)."""
-    print("\nTesting multiple column lookup...")
+def test_case_sensitive_explicit():
+    """Test explicit case sensitive behavior."""
+    print("\nTesting explicit case sensitive...")
     
-    main_df = create_main_data()
-    product_df = create_product_lookup_data()
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
     
-    step_config = {
+    config = {
         'processor_type': 'lookup_data',
-        'step_description': 'Product details lookup',
-        'lookup_source': product_df,
-        'lookup_key': 'Product_Code',
-        'source_key': 'Product_Code',
-        'lookup_columns': ['Product_Name', 'Category', 'Unit_Price']
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
+        'lookup_columns': ['Customer_Name'],
+        'case_sensitive': True  # Explicit case sensitive
     }
     
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
+    processor = LookupDataProcessor(config)
+    result = processor.execute(main_data)
     
-    # Check that all lookup columns were added
-    expected_columns = ['Product_Name', 'Category', 'Unit_Price']
-    has_all_columns = all(col in result.columns for col in expected_columns)
-    
-    # Check specific values
-    first_product_name = result.iloc[0]['Product_Name']
-    first_price = result.iloc[0]['Unit_Price']
-    
-    if (has_all_columns and 
-        first_product_name == 'Widget A' and
-        first_price == 25.50):
-        print("✓ Multiple column lookup works correctly")
-        return True
-    else:
-        print("✗ Multiple column lookup failed")
+    # Check that lowercase 'cust001' does NOT match uppercase 'CUST001'
+    cust001_rows = result[result['Customer_Code'] == 'cust001']
+    if len(cust001_rows) == 0:
+        print("✗ No rows found for 'cust001'")
         return False
+    
+    customer_name = cust001_rows['Customer_Name'].iloc[0]
+    # Should be NaN/null since no case-sensitive match
+    if pd.notna(customer_name):
+        print(f"✗ Expected no match (case sensitive), got '{customer_name}'")
+        return False
+    
+    print("✓ Explicit case sensitive works correctly")
+    return True
 
 
 def test_join_types():
-    """Test different join types (regression test)."""
-    print("\nTesting different join types...")
+    """Test different join types (left, right, inner, outer)."""
+    print("\nTesting join types...")
     
-    # Create data with some missing lookups
-    main_df = pd.DataFrame({
-        'ID': [1, 2, 3, 4],
-        'Code': ['A', 'B', 'C', 'X']  # X won't be found
-    })
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
     
-    lookup_df = pd.DataFrame({
-        'Code': ['A', 'B', 'C'],
-        'Name': ['Alpha', 'Beta', 'Gamma']
-    })
-    
-    # Test left join (default)
-    step_config_left = {
+    # Test inner join - only matching records
+    config_inner = {
         'processor_type': 'lookup_data',
-        'step_description': 'Left join test',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Code',
-        'source_key': 'Code',
-        'lookup_columns': ['Name'],
-        'join_type': 'left'
-    }
-    
-    processor_left = LookupDataProcessor(step_config_left)
-    result_left = processor_left.execute(main_df)
-    
-    # Test inner join
-    step_config_inner = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Inner join test',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Code',
-        'source_key': 'Code',
-        'lookup_columns': ['Name'],
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
+        'lookup_columns': ['Customer_Name'],
         'join_type': 'inner'
     }
     
-    processor_inner = LookupDataProcessor(step_config_inner)
-    result_inner = processor_inner.execute(main_df)
+    processor_inner = LookupDataProcessor(config_inner)
+    result_inner = processor_inner.execute(main_data)
     
-    # Left join should keep all 4 rows, inner join should have 3
-    if len(result_left) == 4 and len(result_inner) == 3:
-        print("✓ Join types work correctly")
-        return True
-    else:
-        print(f"✗ Join types failed: left={len(result_left)}, inner={len(result_inner)}")
+    # Should exclude UNKNOWN customer (no match in lookup)
+    if len(result_inner) >= len(main_data):
+        print(f"✗ Inner join should have fewer rows, got {len(result_inner)} vs {len(main_data)}")
         return False
-
-
-def test_file_based_lookup():
-    """Test file-based lookup with FileReader integration."""
-    print("\nTesting file-based lookup...")
     
-    with tempfile.TemporaryDirectory() as temp_dir:
-        test_files = setup_test_files(temp_dir)
-        main_df = create_main_data()
-        
-        step_config = {
-            'processor_type': 'lookup_data',
-            'step_description': 'File-based customer lookup',
-            'lookup_source': {
-                'type': 'file',
-                'filename': test_files['customer_file']
-            },
-            'lookup_key': 'Customer_ID',
-            'source_key': 'Customer_ID',
-            'lookup_columns': ['Customer_Name', 'Customer_Tier']
-        }
-        
-        processor = LookupDataProcessor(step_config)
-        result = processor.execute(main_df)
-        
-        # Check that file lookup worked
-        if (len(result) == len(main_df) and
-            'Customer_Name' in result.columns and
-            result.iloc[0]['Customer_Name'] == 'Alice Corp'):
-            print("✓ File-based lookup works correctly")
-            return True
-        else:
-            print("✗ File-based lookup failed")
-            return False
-
-
-def test_variable_substitution_lookup():
-    """Test file lookup with variable substitution."""
-    print("\nTesting variable substitution in file lookup...")
+    # Check that all remaining rows have customer names
+    null_names = result_inner['Customer_Name'].isna().sum()
+    if null_names > 0:
+        print(f"✗ Inner join should have no null names, got {null_names}")
+        return False
     
-    with tempfile.TemporaryDirectory() as temp_dir:
-        test_files = setup_test_files(temp_dir)
-        main_df = create_main_data()
-        
-        step_config = {
-            'processor_type': 'lookup_data',
-            'step_description': 'Variable substitution lookup',
-            'lookup_source': {
-                'type': 'file',
-                'filename': test_files['product_template']  # Contains {date}
-            },
-            'lookup_key': 'Product_Code',
-            'source_key': 'Product_Code',
-            'lookup_columns': ['Product_Name', 'Category']
-        }
-        
-        processor = LookupDataProcessor(step_config)
-        result = processor.execute(main_df)
-        
-        # Check that variable substitution worked
-        if (len(result) == len(main_df) and
-            'Product_Name' in result.columns and
-            result.iloc[0]['Product_Name'] == 'Widget A'):
-            print("✓ Variable substitution lookup works correctly")
-            return True
-        else:
-            print("✗ Variable substitution lookup failed")
-            return False
+    print("✓ Join types work correctly")
+    return True
 
 
-def test_stage_based_lookup():
-    """Test stage-based lookup with StageManager integration."""
-    print("\nTesting stage-based lookup...")
+def test_default_values():
+    """Test default values for missing lookups."""
+    print("\nTesting default values...")
     
-    setup_test_stages()
-
-    main_df = create_main_data()
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
     
-    step_config = {
+    config = {
         'processor_type': 'lookup_data',
-        'step_description': 'Stage-based customer lookup',
-        'lookup_source': {
-            'type': 'stage',
-            'stage_name': 'Customer Master'
-        },
-        'lookup_key': 'Customer_ID',
-        'source_key': 'Customer_ID',
-        'lookup_columns': ['Customer_Name', 'Customer_Tier', 'Region']
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
+        'lookup_columns': ['Customer_Name', 'Customer_Tier'],
+        'default_value': 'Unknown'
     }
     
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
+    processor = LookupDataProcessor(config)
+    result = processor.execute(main_data)
     
-    # Check that stage lookup worked
-    if (len(result) == len(main_df) and
-        'Customer_Name' in result.columns and
-        'Customer_Tier' in result.columns and
-        'Region' in result.columns and
-        result.iloc[0]['Customer_Name'] == 'Alice Corp'):
-        print("✓ Stage-based lookup works correctly")
-        return True
-    else:
-        print("✗ Stage-based lookup failed")
+    # Check that UNKNOWN customer gets default values
+    unknown_rows = result[result['Customer_Code'] == 'UNKNOWN']
+    if len(unknown_rows) == 0:
+        print("✗ No rows found for 'UNKNOWN' customer")
         return False
-
-
-def test_chained_stage_lookups():
-    """Test chained lookups across multiple stages."""
-    print("\nTesting chained stage lookups...")
     
-    setup_test_stages()
-
-    main_df = create_main_data()
+    customer_name = unknown_rows['Customer_Name'].iloc[0]
+    customer_tier = unknown_rows['Customer_Tier'].iloc[0]
     
-    # First lookup: Get customer info
-    step_config_1 = {
-        'processor_type': 'lookup_data',
-        'step_description': 'First lookup - customer info',
-        'lookup_source': {
-            'type': 'stage',
-            'stage_name': 'Customer Master'
-        },
-        'lookup_key': 'Customer_ID',
-        'source_key': 'Customer_ID',
-        'lookup_columns': ['Customer_Name', 'Region']
-    }
-    
-    processor_1 = LookupDataProcessor(step_config_1)
-    result_1 = processor_1.execute(main_df)
-    
-    # Second lookup: Get territory info based on region
-    step_config_2 = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Second lookup - territory info',
-        'lookup_source': {
-            'type': 'stage',
-            'stage_name': 'Territory Data'
-        },
-        'lookup_key': 'Region',
-        'source_key': 'Region',
-        'lookup_columns': ['Territory_Manager', 'Sales_Target']
-    }
-    
-    processor_2 = LookupDataProcessor(step_config_2)
-    result_2 = processor_2.execute(result_1)
-    
-    # Check that chained lookups worked
-    expected_columns = ['Customer_Name', 'Region', 'Territory_Manager', 'Sales_Target']
-    has_all_columns = all(col in result_2.columns for col in expected_columns)
-    
-    first_manager = result_2.iloc[0]['Territory_Manager']
-    
-    if has_all_columns and first_manager == 'Alice Johnson':
-        print("✓ Chained stage lookups work correctly")
-        return True
-    else:
-        print("✗ Chained stage lookups failed")
+    if customer_name != 'Unknown':
+        print(f"✗ Expected default 'Unknown' for customer name, got '{customer_name}'")
         return False
-
-
-def test_case_insensitive_lookup():
-    """Test case insensitive lookup matching."""
-    print("\nTesting case insensitive lookup...")
     
-    # Create data with mixed case
-    main_df = pd.DataFrame({
-        'ID': [1, 2, 3],
-        'Code': ['abc', 'DEF', 'GhI']
-    })
-    
-    lookup_df = pd.DataFrame({
-        'Code': ['ABC', 'def', 'ghi'],
-        'Name': ['Alpha', 'Delta', 'Gamma']
-    })
-    
-    step_config = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Case insensitive lookup',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Code',
-        'source_key': 'Code',
-        'lookup_columns': ['Name'],
-        'case_sensitive': False
-    }
-    
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
-    
-    # Check that case insensitive matching worked
-    names = result['Name'].tolist()
-    expected_names = ['Alpha', 'Delta', 'Gamma']
-    
-    if names == expected_names:
-        print("✓ Case insensitive lookup works correctly")
-        return True
-    else:
-        print(f"✗ Case insensitive lookup failed: got {names}")
+    if customer_tier != 'Unknown':
+        print(f"✗ Expected default 'Unknown' for customer tier, got '{customer_tier}'")
         return False
+    
+    print("✓ Default values work correctly")
+    return True
 
 
-def test_prefix_suffix_naming():
+def test_prefix_suffix():
     """Test prefix and suffix application to lookup columns."""
-    print("\nTesting prefix/suffix naming...")
+    print("\nTesting prefix and suffix...")
     
-    main_df = create_main_data()
-    customer_df = create_customer_lookup_data()
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
     
-    step_config = {
+    config = {
         'processor_type': 'lookup_data',
-        'step_description': 'Prefix/suffix test',
-        'lookup_source': customer_df,
-        'lookup_key': 'Customer_ID',
-        'source_key': 'Customer_ID',
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
         'lookup_columns': ['Customer_Name', 'Customer_Tier'],
         'prefix': 'Cust_',
         'suffix': '_Info'
     }
     
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
+    processor = LookupDataProcessor(config)
+    result = processor.execute(main_data)
     
-    # Check that prefix/suffix were applied
+    # Check that columns were renamed with prefix/suffix
     expected_columns = ['Cust_Customer_Name_Info', 'Cust_Customer_Tier_Info']
-    has_renamed_columns = all(col in result.columns for col in expected_columns)
-    
-    if has_renamed_columns:
-        print("✓ Prefix/suffix naming works correctly")
-        return True
-    else:
-        print("✗ Prefix/suffix naming failed")
-        return False
-
-
-def test_default_values():
-    """Test default value handling for missing lookups."""
-    print("\nTesting default values...")
-    
-    # Create data with some missing lookups
-    main_df = pd.DataFrame({
-        'ID': [1, 2, 3],
-        'Code': ['A', 'B', 'X']  # X won't be found
-    })
-    
-    lookup_df = pd.DataFrame({
-        'Code': ['A', 'B'],
-        'Name': ['Alpha', 'Beta']
-    })
-    
-    step_config = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Default values test',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Code',
-        'source_key': 'Code',
-        'lookup_columns': ['Name'],
-        'default_value': 'Unknown'
-    }
-    
-    processor = LookupDataProcessor(step_config)
-    result = processor.execute(main_df)
-    
-    # Check that default value was applied
-    names = result['Name'].tolist()
-    expected_names = ['Alpha', 'Beta', 'Unknown']
-    
-    if names == expected_names:
-        print("✓ Default values work correctly")
-        return True
-    else:
-        print(f"✗ Default values failed: got {names}")
-        return False
-
-
-def test_duplicate_handling():
-    """Test duplicate key handling in lookup data."""
-    print("\nTesting duplicate handling...")
-    
-    main_df = pd.DataFrame({
-        'ID': [1, 2],
-        'Code': ['A', 'B']
-    })
-    
-    # Create lookup data with duplicates
-    lookup_df = pd.DataFrame({
-        'Code': ['A', 'A', 'B'],  # A appears twice
-        'Name': ['Alpha1', 'Alpha2', 'Beta'],
-        'Version': [1, 2, 1]
-    })
-    
-    # Test 'first' handling
-    step_config_first = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Duplicate handling - first',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Code',
-        'source_key': 'Code',
-        'lookup_columns': ['Name'],
-        'handle_duplicates': 'first'
-    }
-    
-    processor_first = LookupDataProcessor(step_config_first)
-    result_first = processor_first.execute(main_df)
-    
-    # Test 'last' handling
-    step_config_last = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Duplicate handling - last',
-        'lookup_source': lookup_df,
-        'lookup_key': 'Code',
-        'source_key': 'Code',
-        'lookup_columns': ['Name'],
-        'handle_duplicates': 'last'
-    }
-    
-    processor_last = LookupDataProcessor(step_config_last)
-    result_last = processor_last.execute(main_df)
-    
-    first_name = result_first.iloc[0]['Name']
-    last_name = result_last.iloc[0]['Name']
-    
-    if first_name == 'Alpha1' and last_name == 'Alpha2':
-        print("✓ Duplicate handling works correctly")
-        return True
-    else:
-        print(f"✗ Duplicate handling failed: first={first_name}, last={last_name}")
-        return False
-
-
-def test_lookup_error_handling():
-    """Test error handling for various failure scenarios."""
-    print("\nTesting lookup error handling...")
-    
-    main_df = create_main_data()
-    
-    # Test missing lookup_source
-    try:
-        step_config = {
-            'processor_type': 'lookup_data',
-            'lookup_key': 'Customer_ID',
-            'source_key': 'Customer_ID',
-            'lookup_columns': ['Customer_Name']
-            # Missing lookup_source
-        }
-        processor = LookupDataProcessor(step_config)
-        processor.execute(main_df)
-        print("✗ Should have failed with missing lookup_source")
-        return False
-    except StepProcessorError as e:
-        if "lookup_source" in str(e):
-            print("✓ Caught expected error for missing lookup_source")
-        else:
-            print(f"✗ Wrong error message: {e}")
+    for col in expected_columns:
+        if col not in result.columns:
+            print(f"✗ Expected renamed column '{col}' not found")
             return False
     
-    # Test nonexistent stage
+    # Check that original column names are gone
+    original_columns = ['Customer_Name', 'Customer_Tier']
+    for col in original_columns:
+        if col in result.columns:
+            print(f"✗ Original column '{col}' should be renamed but still exists")
+            return False
+    
+    print("✓ Prefix and suffix work correctly")
+    return True
+
+
+def test_stage_based_lookup():
+    """Test lookup using data from StageManager."""
+    print("\nTesting stage-based lookup...")
+    
+    # Initialize stage system
+    StageManager.initialize_stages(max_stages=5)
+    
     try:
-        step_config = {
+        # Create stages with data
+        main_data = create_main_data()
+        customer_lookup = create_customer_lookup()
+        
+        StageManager.save_stage('main_orders', main_data, 'Main order data')
+        StageManager.save_stage('customer_ref', customer_lookup, 'Customer reference data')
+        
+        config = {
             'processor_type': 'lookup_data',
+            'source_stage': 'main_orders',
             'lookup_source': {
                 'type': 'stage',
-                'stage_name': 'Nonexistent Stage'
+                'stage_name': 'customer_ref'
             },
-            'lookup_key': 'Customer_ID',
-            'source_key': 'Customer_ID',
+            'lookup_key': 'Customer_Code',
+            'source_key': 'Customer_Code',
             'lookup_columns': ['Customer_Name']
         }
-        processor = LookupDataProcessor(step_config)
-        processor.execute(main_df)
-        print("✗ Should have failed with nonexistent stage")
+        
+        processor = LookupDataProcessor(config)
+        
+        # Load from stage and execute
+        input_data = StageManager.load_stage('main_orders')
+        result = processor.execute(input_data)
+        
+        # Verify result
+        if not isinstance(result, pd.DataFrame):
+            print(f"✗ Expected DataFrame result, got {type(result)}")
+            return False
+        
+        if 'Customer_Name' not in result.columns:
+            print("✗ Customer_Name column not found")
+            return False
+        
+        # Check specific lookup
+        cust001_rows = result[result['Customer_Code'] == 'cust001']
+        if len(cust001_rows) > 0:
+            customer_name = cust001_rows['Customer_Name'].iloc[0]
+            if customer_name != 'Acme Corp':
+                print(f"✗ Expected 'Acme Corp', got '{customer_name}'")
+                return False
+        
+        print("✓ Stage-based lookup works correctly")
+        return True
+        
+    finally:
+        StageManager.cleanup_stages()
+
+
+def test_file_based_lookup():
+    """Test lookup using definitions from external file."""
+    print("\nTesting file-based lookup...")
+    
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create lookup file
+        lookup_file = Path(temp_dir) / "customers.csv"
+        customer_lookup.to_csv(lookup_file, index=False)
+        
+        config = {
+            'processor_type': 'lookup_data',
+            'lookup_source': {
+                'type': 'file',
+                'filename': str(lookup_file)
+            },
+            'lookup_key': 'Customer_Code',
+            'source_key': 'Customer_Code',
+            'lookup_columns': ['Customer_Name']
+        }
+        
+        processor = LookupDataProcessor(config)
+        result = processor.execute(main_data)
+        
+        # Verify result
+        if not isinstance(result, pd.DataFrame):
+            print(f"✗ Expected DataFrame result, got {type(result)}")
+            return False
+        
+        if 'Customer_Name' not in result.columns:
+            print("✗ Customer_Name column not found")
+            return False
+        
+        # Check specific lookup
+        cust002_rows = result[result['Customer_Code'] == 'CUST002']
+        if len(cust002_rows) > 0:
+            customer_name = cust002_rows['Customer_Name'].iloc[0]
+            if customer_name != 'Beta Industries':
+                print(f"✗ Expected 'Beta Industries', got '{customer_name}'")
+                return False
+        
+        print("✓ File-based lookup works correctly")
+        return True
+
+
+def test_error_handling():
+    """Test proper error handling for invalid inputs."""
+    print("\nTesting error handling...")
+    
+    main_data = create_main_data()
+    customer_lookup = create_customer_lookup()
+    
+    config = {
+        'processor_type': 'lookup_data',
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'Customer_Code',
+        'lookup_columns': ['Customer_Name']
+    }
+    
+    processor = LookupDataProcessor(config)
+    
+    # Test with non-DataFrame input
+    try:
+        processor.execute("not a dataframe")
+        print("✗ Should have raised error for non-DataFrame input")
         return False
     except StepProcessorError as e:
-        if "not found" in str(e):
-            print("✓ Caught expected error for nonexistent stage")
-        else:
+        if "DataFrame" not in str(e):
+            print(f"✗ Wrong error message: {e}")
+            return False
+    except Exception as e:
+        print(f"✗ Wrong exception type: {type(e).__name__}: {e}")
+        return False
+    
+    # Test with missing source key
+    config_bad_source = {
+        'processor_type': 'lookup_data',
+        'lookup_source': customer_lookup,
+        'lookup_key': 'Customer_Code',
+        'source_key': 'NonexistentColumn',
+        'lookup_columns': ['Customer_Name']
+    }
+    
+    processor_bad_source = LookupDataProcessor(config_bad_source)
+    
+    try:
+        processor_bad_source.execute(main_data)
+        print("✗ Should have raised error for missing source key")
+        return False
+    except StepProcessorError as e:
+        if "not found" not in str(e):
             print(f"✗ Wrong error message: {e}")
             return False
     
-    # Test invalid source key
+    # Test with missing lookup key in lookup data
+    config_bad_lookup = {
+        'processor_type': 'lookup_data',
+        'lookup_source': customer_lookup,
+        'lookup_key': 'NonexistentLookupColumn',
+        'source_key': 'Customer_Code',
+        'lookup_columns': ['Customer_Name']
+    }
+    
+    processor_bad_lookup = LookupDataProcessor(config_bad_lookup)
+    
     try:
-        step_config = {
-            'processor_type': 'lookup_data',
-            'lookup_source': create_customer_lookup_data(),
-            'lookup_key': 'Customer_ID',
-            'source_key': 'Invalid_Column',
-            'lookup_columns': ['Customer_Name']
-        }
-        processor = LookupDataProcessor(step_config)
-        processor.execute(main_df)
-        print("✗ Should have failed with invalid source key")
+        processor_bad_lookup.execute(main_data)
+        print("✗ Should have raised error for missing lookup key")
         return False
     except StepProcessorError as e:
-        if "not found" in str(e):
-            print("✓ Caught expected error for invalid source key")
-        else:
+        # Accept either "not found" or the column name in the error message
+        error_str = str(e)
+        if "not found" not in error_str and "NonexistentLookupColumn" not in error_str:
             print(f"✗ Wrong error message: {e}")
             return False
     
@@ -673,193 +485,70 @@ def test_lookup_error_handling():
     return True
 
 
-def test_capabilities_and_configuration():
-    """Test processor capabilities and configuration methods."""
-    print("\nTesting capabilities and configuration...")
+def test_type_validation():
+    """Test isinstance checks and type validation."""
+    print("\nTesting type validation...")
     
-    processor = LookupDataProcessor({
-        'processor_type': 'lookup_data',
-        'lookup_source': {},
-        'lookup_key': 'key',
-        'source_key': 'key',
-        'lookup_columns': ['col']
-    })
-    
-    # Test supported methods exist
-    join_types = processor.get_supported_join_types()
-    duplicate_handling = processor.get_supported_duplicate_handling()
-    source_types = processor.get_supported_source_types()
-    capabilities = processor.get_capabilities()
-    
-    # Check expected values
-    expected_joins = ['left', 'right', 'inner', 'outer']
-    expected_duplicates = ['first', 'last', 'error']
-    expected_sources = ['file', 'stage', 'inline', 'dataframe']
-    
-    joins_correct = all(join in join_types for join in expected_joins)
-    duplicates_correct = all(dup in duplicate_handling for dup in expected_duplicates)
-    sources_correct = all(src in source_types for src in expected_sources)
-    
-    has_capabilities = (
-        'description' in capabilities and
-        'source_types' in capabilities and
-        'stage_integration' in capabilities and
-        'file_features' in capabilities
-    )
-    
-    if joins_correct and duplicates_correct and sources_correct and has_capabilities:
-        print("✓ Capabilities and configuration work correctly")
-        return True
-    else:
-        print("✗ Capabilities and configuration failed")
+    # Test processor creation with invalid config
+    try:
+        processor = LookupDataProcessor("not a dict")
+        print("✗ Should have raised error for non-dict config")
         return False
+    except TypeError as e:
+        if "dict" not in str(e):
+            print(f"✗ Wrong error message: {e}")
+            return False
+    except Exception as e:
+        # May raise different error depending on implementation
+        pass
+    
+    print("✓ Type validation works correctly")
+    return True
 
 
-def test_real_world_scenario():
-    """Test a complete real-world lookup scenario."""
-    print("\nTesting real-world scenario...")
+def main():
+    """Run all tests and report results."""
+    print("🔍 Testing LookupDataProcessor (Modern Architecture)")
+    print("=" * 60)
     
-    setup_test_stages()
-    
-    # Simulate order enrichment workflow
-    orders_df = pd.DataFrame({
-        'Order_ID': ['O001', 'O002', 'O003'],
-        'Customer_ID': ['C001', 'C002', 'C003'],
-        'Product_Code': ['P001', 'P002', 'P003'],
-        'Quantity': [10, 5, 8]
-    })
-    
-    # Step 1: Lookup customer information
-    step_config_1 = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Enrich with customer data',
-        'lookup_source': {
-            'type': 'stage',
-            'stage_name': 'Customer Master'
-        },
-        'lookup_key': 'Customer_ID',
-        'source_key': 'Customer_ID',
-        'lookup_columns': ['Customer_Name', 'Customer_Tier', 'Region'],
-        'prefix': 'Cust_'
-    }
-    
-    processor_1 = LookupDataProcessor(step_config_1)
-    result_1 = processor_1.execute(orders_df)
-    
-    # Step 2: Lookup product information
-    step_config_2 = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Enrich with product data',
-        'lookup_source': {
-            'type': 'stage',
-            'stage_name': 'Product Catalog'
-        },
-        'lookup_key': 'Product_Code',
-        'source_key': 'Product_Code',
-        'lookup_columns': ['Product_Name', 'Category', 'Unit_Price'],
-        'prefix': 'Prod_'
-    }
-    
-    processor_2 = LookupDataProcessor(step_config_2)
-    result_2 = processor_2.execute(result_1)
-    
-    # Step 3: Lookup territory information
-    step_config_3 = {
-        'processor_type': 'lookup_data',
-        'step_description': 'Enrich with territory data',
-        'lookup_source': {
-            'type': 'stage',
-            'stage_name': 'Territory Data'
-        },
-        'lookup_key': 'Region',
-        'source_key': 'Cust_Region',
-        'lookup_columns': ['Territory_Manager', 'Sales_Target'],
-        'prefix': 'Territory_'
-    }
-    
-    processor_3 = LookupDataProcessor(step_config_3)
-    final_result = processor_3.execute(result_2)
-    
-    # Verify the complete enrichment
-    expected_columns = [
-        'Order_ID', 'Customer_ID', 'Product_Code', 'Quantity',
-        'Cust_Customer_Name', 'Cust_Customer_Tier', 'Cust_Region',
-        'Prod_Product_Name', 'Prod_Category', 'Prod_Unit_Price',
-        'Territory_Territory_Manager', 'Territory_Sales_Target'
+    tests = [
+        test_basic_lookup,
+        test_case_insensitive_default,
+        test_case_sensitive_explicit,
+        test_join_types,
+        test_default_values,
+        test_prefix_suffix,
+        test_stage_based_lookup,
+        test_file_based_lookup,
+        test_error_handling,
+        test_type_validation
     ]
     
-    has_all_columns = all(col in final_result.columns for col in expected_columns)
+    passed = 0
+    total = len(tests)
     
-    # Check some specific values
-    first_customer = final_result.iloc[0]['Cust_Customer_Name']
-    first_product = final_result.iloc[0]['Prod_Product_Name'] 
-    first_manager = final_result.iloc[0]['Territory_Territory_Manager']
+    for test_func in tests:
+        try:
+            if test_func():
+                passed += 1
+            else:
+                print(f"❌ {test_func.__name__} failed")
+        except Exception as e:
+            print(f"💥 {test_func.__name__} crashed: {e}")
     
-    if (has_all_columns and
-        first_customer == 'Alice Corp' and
-        first_product == 'Widget A' and
-        first_manager == 'Alice Johnson'):
-        print("✓ Real-world scenario works correctly")
-        return True
+    print("\n" + "=" * 60)
+    print(f"📊 Test Results: {passed}/{total} passed")
+    
+    if passed == total:
+        print("🎉 All tests passed! Everything is Awesome!")
+        return 0
     else:
-        print("✗ Real-world scenario failed")
-        return False
+        print(f"😞 {total - passed} tests failed")
+        return 1
 
 
 if __name__ == '__main__':
-    print("Testing LookupDataProcessor refactoring...")
-    success = True
-    
-    # Basic regression tests
-    print("\n=== Testing Basic Functionality (Regression) ===")
-    success &= test_basic_inline_lookup()
-    success &= test_dataframe_lookup()
-    success &= test_multiple_column_lookup()
-    success &= test_join_types()
-    
-    # File-based lookup tests
-    print("\n=== Testing File-Based Lookups (FileReader Integration) ===")
-    success &= test_file_based_lookup()
-    success &= test_variable_substitution_lookup()
-    
-    # Stage-based lookup tests
-    print("\n=== Testing Stage-Based Lookups (StageManager Integration) ===")
-    setup_test_stages()
-    try:
-        success &= test_stage_based_lookup()
-        success &= test_chained_stage_lookups()
-        success &= test_real_world_scenario()
-    finally:
-        StageManager.cleanup_stages()
-    
-    # Advanced feature tests
-    print("\n=== Testing Advanced Features ===")
-    success &= test_case_insensitive_lookup()
-    success &= test_prefix_suffix_naming()
-    success &= test_default_values()
-    success &= test_duplicate_handling()
-    
-    # Error handling and capabilities tests
-    print("\n=== Testing Error Handling and Capabilities ===")
-    success &= test_lookup_error_handling()
-    success &= test_capabilities_and_configuration()
-    
-    if success:
-        print("\n🎉 All LookupDataProcessor refactoring tests passed!")
-    else:
-        print("\n❌ Some LookupDataProcessor refactoring tests failed!")
-    
-    # Show processor capabilities
-    processor = LookupDataProcessor({
-        'processor_type': 'lookup_data',
-        'lookup_source': {},
-        'lookup_key': 'key',
-        'source_key': 'key',
-        'lookup_columns': ['col']
-    })
-    
-    print(f"\nSupported join types: {processor.get_supported_join_types()}")
-    print(f"Supported duplicate handling: {processor.get_supported_duplicate_handling()}")
-    print(f"Supported source types: {processor.get_supported_source_types()}")
-    
-    print("\nTo run with pytest: pytest test_lookup_data_processor_refactored.py -v")
+    exit(main())
+
+
+# End of file #

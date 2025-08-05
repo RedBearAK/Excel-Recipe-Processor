@@ -523,3 +523,8 @@ class FillDataProcessor(BaseStepProcessor):
                 'conditional': "Fill based on other column values"
             }
         }
+    
+    def get_usage_examples(self) -> dict:
+        """Get complete usage examples for the fill_data processor."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('fill_data')

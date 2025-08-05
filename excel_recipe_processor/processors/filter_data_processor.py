@@ -95,6 +95,7 @@ class FilterDataProcessor(BaseStepProcessor):
         return filtered_data
     
     def _apply_filter(self, df: pd.DataFrame, filter_rule: dict, filter_index: int) -> pd.DataFrame:
+    
         """
         Apply a single filter rule to the DataFrame.
         
@@ -137,32 +138,83 @@ class FilterDataProcessor(BaseStepProcessor):
         # Get the value for comparison (not needed for all conditions)
         value = filter_rule.get('value')
         
+        # NEW: Get case sensitivity setting with user-friendly default
+        case_sensitive = filter_rule.get('case_sensitive', False)  # Default to case-INsensitive
+        
         # Apply the appropriate filter condition
         try:
             # Basic comparison conditions
             if condition == 'equals':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'equals' condition requires a 'value'")
-                mask = df[column] == value
+                if case_sensitive:
+                    mask = df[column] == value
+                else:
+                    # Case-insensitive equals comparison
+                    mask = df[column].astype(str).str.lower() == str(value).lower()
                 
             elif condition == 'not_equals':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'not_equals' condition requires a 'value'")
-                mask = df[column] != value
+                if case_sensitive:
+                    mask = df[column] != value
+                else:
+                    # Case-insensitive not equals comparison
+                    mask = df[column].astype(str).str.lower() != str(value).lower()
                 
             elif condition == 'contains':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'contains' condition requires a 'value'")
                 if not isinstance(value, str):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'contains' condition requires a string value")
-                mask = df[column].astype(str).str.contains(value, na=False)
+                mask = df[column].astype(str).str.contains(value, na=False, case=case_sensitive)
                 
             elif condition == 'not_contains':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'not_contains' condition requires a 'value'")
                 if not isinstance(value, str):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'not_contains' condition requires a string value")
-                mask = ~df[column].astype(str).str.contains(value, na=False)
+                mask = ~df[column].astype(str).str.contains(value, na=False, case=case_sensitive)
+                
+            elif condition == 'starts_with':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'starts_with' condition requires a 'value'")
+                if not isinstance(value, str):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'starts_with' condition requires a string value")
+                if case_sensitive:
+                    mask = df[column].astype(str).str.startswith(str(value), na=False)
+                else:
+                    mask = df[column].astype(str).str.lower().str.startswith(str(value).lower(), na=False)
+                    
+            elif condition == 'not_starts_with':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_starts_with' condition requires a 'value'")
+                if not isinstance(value, str):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_starts_with' condition requires a string value")
+                if case_sensitive:
+                    mask = ~df[column].astype(str).str.startswith(str(value), na=False)
+                else:
+                    mask = ~df[column].astype(str).str.lower().str.startswith(str(value).lower(), na=False)
+                
+            elif condition == 'ends_with':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'ends_with' condition requires a 'value'")
+                if not isinstance(value, str):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'ends_with' condition requires a string value")
+                if case_sensitive:
+                    mask = df[column].astype(str).str.endswith(str(value), na=False)
+                else:
+                    mask = df[column].astype(str).str.lower().str.endswith(str(value).lower(), na=False)
+                    
+            elif condition == 'not_ends_with':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_ends_with' condition requires a 'value'")
+                if not isinstance(value, str):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_ends_with' condition requires a string value")
+                if case_sensitive:
+                    mask = ~df[column].astype(str).str.endswith(str(value), na=False)
+                else:
+                    mask = ~df[column].astype(str).str.lower().str.endswith(str(value).lower(), na=False)
                 
             # Numeric comparison conditions
             elif condition == 'greater_than':
@@ -192,22 +244,191 @@ class FilterDataProcessor(BaseStepProcessor):
             elif condition == 'is_empty':
                 mask = df[column].isna() | (df[column].astype(str).str.strip() == '')
                 
-            # List membership conditions
+            # Original list membership conditions (backward compatible aliases)
             elif condition == 'in_list':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'in_list' condition requires a list value")
-                mask = df[column].isin(value)
+                # Alias for equals_any_in_list
+                if case_sensitive:
+                    mask = df[column].isin(value)
+                else:
+                    # Case-insensitive list membership
+                    value_lower = [str(v).lower() for v in value]
+                    mask = df[column].astype(str).str.lower().isin(value_lower)
                 
             elif condition == 'not_in_list':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'not_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'not_in_list' condition requires a list value")
-                mask = ~df[column].isin(value)
+                # Alias for not_equals_any_in_list
+                if case_sensitive:
+                    mask = ~df[column].isin(value)
+                else:
+                    # Case-insensitive list exclusion
+                    value_lower = [str(v).lower() for v in value]
+                    mask = ~df[column].astype(str).str.lower().isin(value_lower)
+            
+            # Enhanced list conditions with explicit min/max naming
+            elif condition == 'equals_any_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'equals_any_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'equals_any_in_list' condition requires a list value")
+                if case_sensitive:
+                    mask = df[column].isin(value)
+                else:
+                    # Case-insensitive list membership
+                    value_lower = [str(v).lower() for v in value]
+                    mask = df[column].astype(str).str.lower().isin(value_lower)
                 
-            # NEW: Stage-based filtering conditions
+            elif condition == 'not_equals_any_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_equals_any_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_equals_any_in_list' condition requires a list value")
+                if case_sensitive:
+                    mask = ~df[column].isin(value)
+                else:
+                    # Case-insensitive list exclusion
+                    value_lower = [str(v).lower() for v in value]
+                    mask = ~df[column].astype(str).str.lower().isin(value_lower)
+            
+            # Text pattern list conditions
+            elif condition == 'contains_any_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'contains_any_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'contains_any_in_list' condition requires a list value")
+                # Include if column contains ANY pattern from list (OR logic)
+                masks = []
+                for pattern in value:
+                    pattern_mask = df[column].astype(str).str.contains(str(pattern), na=False, case=case_sensitive)
+                    masks.append(pattern_mask)
+                mask = pd.concat(masks, axis=1).any(axis=1)
+                
+            elif condition == 'not_contains_any_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_contains_any_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'not_contains_any_in_list' condition requires a list value")
+                # Exclude if column contains ANY pattern from list (exclude if any match)
+                masks = []
+                for pattern in value:
+                    pattern_mask = df[column].astype(str).str.contains(str(pattern), na=False, case=case_sensitive)
+                    masks.append(pattern_mask)
+                mask = ~pd.concat(masks, axis=1).any(axis=1)
+                
+            elif condition == 'contains_all_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'contains_all_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'contains_all_in_list' condition requires a list value")
+                # Include if column contains ALL patterns from list (AND logic)
+                masks = []
+                for pattern in value:
+                    pattern_mask = df[column].astype(str).str.contains(str(pattern), na=False, case=case_sensitive)
+                    masks.append(pattern_mask)
+                mask = pd.concat(masks, axis=1).all(axis=1)
+                
+            elif condition == 'starts_with_any_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'starts_with_any_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'starts_with_any_in_list' condition requires a list value")
+                # Include if column starts with ANY pattern from list
+                masks = []
+                for pattern in value:
+                    if case_sensitive:
+                        pattern_mask = df[column].astype(str).str.startswith(str(pattern), na=False)
+                    else:
+                        pattern_mask = df[column].astype(str).str.lower().str.startswith(str(pattern).lower(), na=False)
+                    masks.append(pattern_mask)
+                mask = pd.concat(masks, axis=1).any(axis=1)
+                
+            elif condition == 'ends_with_any_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'ends_with_any_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'ends_with_any_in_list' condition requires a list value")
+                # Include if column ends with ANY pattern from list
+                masks = []
+                for pattern in value:
+                    if case_sensitive:
+                        pattern_mask = df[column].astype(str).str.endswith(str(pattern), na=False)
+                    else:
+                        pattern_mask = df[column].astype(str).str.lower().str.endswith(str(pattern).lower(), na=False)
+                    masks.append(pattern_mask)
+                mask = pd.concat(masks, axis=1).any(axis=1)
+                
+            # Numeric comparison list conditions (explicit min/max naming)
+            elif condition == 'greater_than_min_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_min_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_min_in_list' condition requires a list value")
+                min_value = min(value)
+                mask = pd.to_numeric(df[column], errors='coerce') > min_value
+                
+            elif condition == 'greater_than_max_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_max_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_max_in_list' condition requires a list value")
+                max_value = max(value)
+                mask = pd.to_numeric(df[column], errors='coerce') > max_value
+                
+            elif condition == 'greater_equal_min_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_min_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_min_in_list' condition requires a list value")
+                min_value = min(value)
+                mask = pd.to_numeric(df[column], errors='coerce') >= min_value
+                
+            elif condition == 'greater_equal_max_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_max_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_max_in_list' condition requires a list value")
+                max_value = max(value)
+                mask = pd.to_numeric(df[column], errors='coerce') >= max_value
+                
+            elif condition == 'less_than_max_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_max_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_max_in_list' condition requires a list value")
+                max_value = max(value)
+                mask = pd.to_numeric(df[column], errors='coerce') < max_value
+                
+            elif condition == 'less_than_min_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_min_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_min_in_list' condition requires a list value")
+                min_value = min(value)
+                mask = pd.to_numeric(df[column], errors='coerce') < min_value
+                
+            elif condition == 'less_equal_max_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_max_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_max_in_list' condition requires a list value")
+                max_value = max(value)
+                mask = pd.to_numeric(df[column], errors='coerce') <= max_value
+                
+            elif condition == 'less_equal_min_in_list':
+                if value is None:
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_min_in_list' condition requires a 'value'")
+                if not isinstance(value, list):
+                    raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_min_in_list' condition requires a list value")
+                min_value = min(value)
+                mask = pd.to_numeric(df[column], errors='coerce') <= min_value
+                
+            # Stage-based filtering conditions (now with case sensitivity support)
             elif condition == 'in_stage':
                 mask = self._apply_stage_filter(df, filter_rule, filter_index, include=True)
                 
@@ -245,7 +466,7 @@ class FilterDataProcessor(BaseStepProcessor):
                 raise
             else:
                 raise StepProcessorError(f"Error applying filter condition '{condition}' to column '{column}': {e}")
-    
+
     def _apply_stage_filter(self, df: pd.DataFrame, filter_rule: dict, filter_index: int, include: bool) -> pd.Series:
         """
         Apply stage-based inclusion/exclusion filter.
@@ -269,6 +490,9 @@ class FilterDataProcessor(BaseStepProcessor):
         if not stage_column:
             raise StepProcessorError(f"Filter {filter_index + 1} with stage condition requires 'stage_column'")
         
+        # NEW: Get case sensitivity setting with user-friendly default
+        case_sensitive = filter_rule.get('case_sensitive', False)  # Default to case-INsensitive
+        
         # Check if stage exists
         if not StageManager.stage_exists(stage_name):
             available_stages = list(StageManager.list_stages().keys())
@@ -280,6 +504,10 @@ class FilterDataProcessor(BaseStepProcessor):
         try:
             # Get stage data
             stage_data = StageManager.load_stage(stage_name)
+
+            # Explicitly type check to be a DataFrame as expected
+            if not isinstance(stage_data, pd.DataFrame):
+                raise TypeError(f"Expected DataFrame from stage '{stage_name}', got {type(stage_data)}")
             
             # Check if stage column exists
             if stage_column not in stage_data.columns:
@@ -290,18 +518,40 @@ class FilterDataProcessor(BaseStepProcessor):
                 )
             
             # Get unique values from stage column
-            stage_values = set(stage_data[stage_column].dropna().unique())
+            stage_series = stage_data[stage_column]
+
+            # Explicitly type check to be a pandas Series as expected (lights up dropna().unique())
+            if not isinstance(stage_series, pd.Series):
+                raise TypeError(f"Expected Series from stage '{stage_column}', got {type(stage_series)}")
+            stage_values = set(stage_series.dropna().unique())
             
             # Get the column to compare from current data
             comparison_column = filter_rule['column']
             
-            # Create mask based on inclusion/exclusion
-            if include:
-                mask = df[comparison_column].isin(stage_values)
-                operation = "in"
+            # Explicitly type check for a pandas Series as expected, use var in place of 
+            # df[comparison_column] (lights up isin() instances)
+            comparison_series = df[comparison_column]
+            if not isinstance(comparison_series, pd.Series):
+                raise TypeError(f"Expected Series from column '{comparison_column}', got {type(comparison_series)}")
+            
+            # NEW: Apply case sensitivity handling
+            if case_sensitive:
+                # Case-sensitive matching (original behavior)
+                if include:
+                    mask = comparison_series.isin(stage_values)
+                    operation = "in"
+                else:
+                    mask = ~comparison_series.isin(stage_values) 
+                    operation = "not in"
             else:
-                mask = ~df[comparison_column].isin(stage_values) 
-                operation = "not in"
+                # Case-insensitive matching
+                stage_values_lower = {str(v).lower() for v in stage_values}
+                if include:
+                    mask = comparison_series.astype(str).str.lower().isin(stage_values_lower)
+                    operation = "in (case-insensitive)"
+                else:
+                    mask = ~comparison_series.astype(str).str.lower().isin(stage_values_lower)
+                    operation = "not in (case-insensitive)"
             
             logger.debug(
                 f"Stage filter: {comparison_column} {operation} stage '{stage_name}[{stage_column}]' "
@@ -312,7 +562,7 @@ class FilterDataProcessor(BaseStepProcessor):
             
         except StageError as e:
             raise StepProcessorError(f"Filter {filter_index + 1} stage access error: {e}")
-    
+
     def _apply_stage_comparison_filter(self, df: pd.DataFrame, filter_rule: dict, filter_index: int) -> pd.Series:
         """
         Apply stage-based value comparison filter.
@@ -339,6 +589,9 @@ class FilterDataProcessor(BaseStepProcessor):
         stage_key_column = filter_rule['stage_key_column']  # Column in stage for matching
         stage_value_column = filter_rule['stage_value_column']  # Column in stage for comparison
         comparison_operator = filter_rule['comparison_operator']  # equals, greater_than, etc.
+        
+        # NEW: Get case sensitivity setting with user-friendly default
+        case_sensitive = filter_rule.get('case_sensitive', False)  # Default to case-INsensitive
         
         # Check if stage exists
         if not StageManager.stage_exists(stage_name):
@@ -370,26 +623,63 @@ class FilterDataProcessor(BaseStepProcessor):
                     f"Available columns: {available_columns}"
                 )
             
-            # Create lookup dictionary from stage
-            stage_lookup = dict(zip(stage_data[stage_key_column], stage_data[stage_value_column]))
+            key_series = df[key_column]
+            # Explicitly type check for pd.Series as expected (use var in place of df[key_column] 
+            # below, to light up map(), astype(), etc.)
+            if not isinstance(key_series, pd.Series):
+                raise TypeError(f"Expected Series from column '{key_column}', got {type(key_series)}")
             
-            # Map current data to stage values
+            # NEW: Create lookup dictionary with case sensitivity handling
+            if case_sensitive:
+                # Case-sensitive matching (original behavior)
+                stage_lookup = dict(zip(stage_data[stage_key_column], stage_data[stage_value_column]))
+                # stage_values = df[key_column].map(stage_lookup)
+                stage_values = key_series.map(stage_lookup)
+            else:
+                # Case-insensitive key matching
+                stage_lookup_lower = {}
+                for key, value in zip(stage_data[stage_key_column], stage_data[stage_value_column]):
+                    stage_lookup_lower[str(key).lower()] = value
+                
+                # stage_values = df[key_column].astype(str).str.lower().map(stage_lookup_lower)
+                stage_values = key_series.astype(str).str.lower().map(stage_lookup_lower)
+            
+            # Get current column for comparison
             current_column = filter_rule['column']
-            stage_values = df[key_column].map(stage_lookup)
             
-            # Apply comparison operator
+            current_series = df[current_column]
+            # Explicitly type check for pd.Series as expected (use var in place of df[current_column]
+            # below to light up astype() and str.lower() instances)
+            if not isinstance(current_series, pd.Series):
+                raise TypeError(f"Expected Series from column '{current_column}', got {type(current_series)}")
+            
+            # Apply comparison operator with case sensitivity
             if comparison_operator == 'equals':
-                mask = df[current_column] == stage_values
+                if case_sensitive:
+                    # mask = df[current_column] == stage_values
+                    mask = current_series == stage_values
+                else:
+                    # mask = df[current_column].astype(str).str.lower() == stage_values.astype(str).str.lower()
+                    mask = current_series.astype(str).str.lower() == stage_values.astype(str).str.lower()
             elif comparison_operator == 'not_equals':
-                mask = df[current_column] != stage_values
+                if case_sensitive:
+                    # mask = df[current_column] != stage_values
+                    mask = current_series != stage_values
+                else:
+                    # mask = df[current_column].astype(str).str.lower() != stage_values.astype(str).str.lower()
+                    mask = current_series.astype(str).str.lower() != stage_values.astype(str).str.lower()
             elif comparison_operator == 'greater_than':
-                mask = pd.to_numeric(df[current_column], errors='coerce') > pd.to_numeric(stage_values, errors='coerce')
+                # mask = pd.to_numeric(df[current_column], errors='coerce') > pd.to_numeric(stage_values, errors='coerce')
+                mask = pd.to_numeric(current_series, errors='coerce') > pd.to_numeric(stage_values, errors='coerce')
             elif comparison_operator == 'less_than':
-                mask = pd.to_numeric(df[current_column], errors='coerce') < pd.to_numeric(stage_values, errors='coerce')
+                # mask = pd.to_numeric(df[current_column], errors='coerce') < pd.to_numeric(stage_values, errors='coerce')
+                mask = pd.to_numeric(current_series, errors='coerce') < pd.to_numeric(stage_values, errors='coerce')
             elif comparison_operator == 'greater_equal':
-                mask = pd.to_numeric(df[current_column], errors='coerce') >= pd.to_numeric(stage_values, errors='coerce')
+                # mask = pd.to_numeric(df[current_column], errors='coerce') >= pd.to_numeric(stage_values, errors='coerce')
+                mask = pd.to_numeric(current_series, errors='coerce') >= pd.to_numeric(stage_values, errors='coerce')
             elif comparison_operator == 'less_equal':
-                mask = pd.to_numeric(df[current_column], errors='coerce') <= pd.to_numeric(stage_values, errors='coerce')
+                # mask = pd.to_numeric(df[current_column], errors='coerce') <= pd.to_numeric(stage_values, errors='coerce')
+                mask = pd.to_numeric(current_series, errors='coerce') <= pd.to_numeric(stage_values, errors='coerce')
             else:
                 raise StepProcessorError(
                     f"Filter {filter_index + 1} unsupported comparison operator: {comparison_operator}"
@@ -398,8 +688,9 @@ class FilterDataProcessor(BaseStepProcessor):
             # Handle missing stage values (no match found)
             mask = mask.fillna(False)
             
+            case_note = "" if case_sensitive else " (case-insensitive)"
             logger.debug(
-                f"Stage comparison: {current_column} {comparison_operator} stage '{stage_name}[{stage_value_column}]' "
+                f"Stage comparison: {current_column} {comparison_operator} stage '{stage_name}[{stage_value_column}]'{case_note} "
                 f"(matched {mask.sum()} rows)"
             )
             
@@ -407,7 +698,7 @@ class FilterDataProcessor(BaseStepProcessor):
             
         except StageError as e:
             raise StepProcessorError(f"Filter {filter_index + 1} stage access error: {e}")
-    
+
     def get_supported_conditions(self) -> list:
         """
         Get list of supported filter conditions.

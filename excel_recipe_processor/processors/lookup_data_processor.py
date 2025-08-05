@@ -75,7 +75,7 @@ class LookupDataProcessor(BaseStepProcessor):
         # Optional configuration
         join_type = self.get_config_value('join_type', 'left')
         handle_duplicates = self.get_config_value('handle_duplicates', 'first')
-        case_sensitive = self.get_config_value('case_sensitive', True)
+        case_sensitive = self.get_config_value('case_sensitive', False)  # default to False!
         prefix = self.get_config_value('prefix', '')
         suffix = self.get_config_value('suffix', '')
         default_value = self.get_config_value('default_value', None)
@@ -296,8 +296,8 @@ class LookupDataProcessor(BaseStepProcessor):
             )
     
     def _perform_lookup(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                       lookup_key: str, source_key: str, lookup_columns: list, 
-                       join_type: str) -> pd.DataFrame:
+                                lookup_key: str, source_key: str, lookup_columns: list, 
+                                                            join_type: str) -> pd.DataFrame:
         """Perform the actual lookup/join operation."""
         
         # Validate lookup key exists in lookup data
@@ -340,13 +340,19 @@ class LookupDataProcessor(BaseStepProcessor):
                 lookup_subset,
                 left_on=source_key_to_use,
                 right_on=lookup_key_to_use,
-                how=join_type
+                how=join_type,
+                suffixes=('', '_lookup_temp')
             )
             
+
             # Clean up temporary columns
-            temp_columns = [col for col in result.columns if col.startswith('_temp_')]
+            temp_columns = [col for col in result.columns if col.startswith('_temp_') or col.endswith('_lookup_temp')]
             if temp_columns:
                 result = result.drop(columns=temp_columns)
+
+            # temp_columns = [col for col in result.columns if col.startswith('_temp_')]
+            # if temp_columns:
+            #     result = result.drop(columns=temp_columns)
             
             # Remove duplicate lookup key column if different from source key
             if lookup_key in result.columns and lookup_key != source_key:
@@ -358,7 +364,7 @@ class LookupDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Error during lookup merge operation: {e}")
     
     def _apply_column_naming(self, data: pd.DataFrame, lookup_columns: list, 
-                           prefix: str, suffix: str) -> pd.DataFrame:
+                            prefix: str, suffix: str) -> pd.DataFrame:
         """Apply prefix/suffix to lookup columns."""
         
         if not prefix and not suffix:
@@ -412,8 +418,8 @@ class LookupDataProcessor(BaseStepProcessor):
     # ============================================================================
     
     def vlookup_style_join(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                          lookup_key: str, source_key: str, return_columns: list,
-                          exact_match: bool = True) -> pd.DataFrame:
+                            lookup_key: str, source_key: str, return_columns: list,
+                            exact_match: bool = True) -> pd.DataFrame:
         """
         Perform VLOOKUP-style join operation.
         
@@ -451,8 +457,8 @@ class LookupDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Error in VLOOKUP-style operation: {e}")
     
     def index_match_style_join(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                             lookup_key: str, source_key: str, return_columns: list,
-                             exact_match: bool = True) -> pd.DataFrame:
+                                lookup_key: str, source_key: str, return_columns: list,
+                                exact_match: bool = True) -> pd.DataFrame:
         """
         Perform INDEX-MATCH style join operation.
         
@@ -490,7 +496,7 @@ class LookupDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Error in INDEX-MATCH style operation: {e}")
     
     def create_multi_column_lookup(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                                 lookup_keys: list, source_keys: list, return_columns: list) -> pd.DataFrame:
+                                    lookup_keys: list, source_keys: list, return_columns: list) -> pd.DataFrame:
         """
         Create a multi-column lookup operation.
         
@@ -522,7 +528,7 @@ class LookupDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Error in multi-column lookup: {e}")
     
     def analyze_lookup_potential(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                               main_key: str, lookup_key: str) -> dict:
+                                main_key: str, lookup_key: str) -> dict:
         """
         Analyze the potential for a successful lookup operation.
         
@@ -627,7 +633,7 @@ class LookupDataProcessor(BaseStepProcessor):
                 'lookup_columns': 'List of columns to retrieve from lookup data',
                 'join_type': 'Type of join operation (left, right, inner, outer)',
                 'handle_duplicates': 'How to handle duplicate keys (first, last, error)',
-                'case_sensitive': 'Whether matching should be case sensitive',
+                'case_sensitive': 'Whether matching should be case sensitive (default is false)',
                 'prefix': 'Prefix to add to lookup column names',
                 'suffix': 'Suffix to add to lookup column names',
                 'default_value': 'Default value for missing lookups'

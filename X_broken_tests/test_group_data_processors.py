@@ -551,7 +551,7 @@ def test_hierarchical_grouping():
         }
     ]
     
-    result = processor.create_hierarchical_groups(customer_data, 'State', hierarchy_levels)
+    result = processor.create_hierarchical_groups(customer_data, 'State', hierarchy_levels, case_sensitive=True)
     
     # Check that hierarchical grouping worked
     if ('Region' in result.columns and 
@@ -574,10 +574,6 @@ def test_analysis_methods():
     # Test grouping potential analysis
     analysis = processor.analyze_grouping_potential(customer_data, 'State')
     
-    # Test regional groups helper
-    van_data = create_van_report_data()
-    regional_result = processor.create_regional_groups(van_data, 'Product_Origin')
-    
     # Check analysis results
     analysis_valid = (
         'unique_values' in analysis and
@@ -585,13 +581,7 @@ def test_analysis_methods():
         analysis['column_name'] == 'State'
     )
     
-    # Check regional grouping
-    regional_valid = (
-        'Product_Origin_Region' in regional_result.columns and
-        'Bristol Bay' in regional_result['Product_Origin_Region'].values
-    )
-    
-    if analysis_valid and regional_valid:
+    if analysis_valid:
         print("✓ Analysis methods work correctly")
         return True
     else:

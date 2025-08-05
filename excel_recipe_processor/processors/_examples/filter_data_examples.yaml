@@ -1,17 +1,17 @@
-# Revision date: 2025-07-30
+# Revision date: 2025-08-04
 
-description: "Filter DataFrame rows using various conditions with stage-based data flow"
+description: "Filter DataFrame rows using enhanced conditions with stage-based data flow and case sensitivity control"
 
 basic_example:
-  description: "Simple equals filter with stage-based processing"
+  description: "Simple equals filter with case-insensitive matching (default behavior)"
   yaml: |
-    # Complete recipe with filter processor
+    # Complete recipe with basic filter processor
     
     settings:
-      description: "Filter for active customers using basic equality condition"
+      description: "Filter for active customers using case-insensitive equality condition"
       stages:
         - stage_name: "raw_data"
-          description: "Raw imported data"
+          description: "Raw imported customer data"
           protected: false
         - stage_name: "active_customers"
           description: "Filtered active customers only"
@@ -36,11 +36,268 @@ basic_example:
             condition: "equals"
             # REQ - Value to compare against
             value: "Active"
+            # OPT - Case sensitivity control for text comparisons
+            # Default value: false (case-insensitive matching)
+            case_sensitive: false
+
+case_sensitivity_example:
+  description: "Case sensitivity control for precise text matching"
+  yaml: |
+    # Control case sensitivity in text comparisons
+    
+    settings:
+      description: "Filter products with precise case-sensitive and case-insensitive matching"
+      stages:
+        - stage_name: "all_products"
+          description: "Complete product catalog"
+          protected: false
+        - stage_name: "exact_products"
+          description: "Products with exact case matching"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter with case-sensitive product matching"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "all_products"
+        # REQ - Stage to save filtered results
+        save_to_stage: "exact_products"
+        # REQ - List of filter conditions
+        filters:
+          # Case-insensitive by default (matches Active, ACTIVE, active)
+          - # REQ - Column name to filter on
+            column: "Status"
+            # REQ - Filter condition type
+            condition: "equals"
+            # REQ - Value to compare against
+            value: "Active"
+          # Case-sensitive matching (only matches exact "Premium")
+          - # REQ - Column name to filter on
+            column: "Tier"
+            # REQ - Filter condition type
+            condition: "equals"
+            # REQ - Value to compare against
+            value: "Premium"
+            # OPT - Enable case-sensitive matching
+            # Default value: false
+            case_sensitive: true
+
+pattern_matching_example:
+  description: "Enhanced pattern matching with starts_with, ends_with, and negation"
+  yaml: |
+    # Advanced text pattern matching conditions
+    
+    settings:
+      description: "Filter data using advanced text pattern matching and exclusions"
+      stages:
+        - stage_name: "raw_inventory"
+          description: "Raw inventory data"
+          protected: false
+        - stage_name: "filtered_inventory"
+          description: "Inventory matching specific patterns"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter inventory using pattern matching"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "raw_inventory"
+        # REQ - Stage to save filtered results
+        save_to_stage: "filtered_inventory"
+        # REQ - List of filter conditions
+        filters:
+          # Include products starting with "PROD-"
+          - # REQ - Column name to filter on
+            column: "Product_Code"
+            # REQ - Pattern matching condition
+            condition: "starts_with"
+            # REQ - Text pattern to match (case-insensitive by default)
+            value: "PROD-"
+          # Include Excel files only
+          - # REQ - Column name to filter on
+            column: "Source_File"
+            # REQ - Pattern matching condition
+            condition: "ends_with"
+            # REQ - File extension pattern
+            value: ".xlsx"
+          # Exclude test products
+          - # REQ - Column name to filter on
+            column: "Product_Code"
+            # REQ - Negated pattern matching condition
+            condition: "not_starts_with"
+            # REQ - Pattern to exclude
+            value: "TEST-"
+
+enhanced_list_conditions_example:
+  description: "Advanced list operations with contains_any_in_list and contains_all_in_list"
+  yaml: |
+    # Enhanced list-based filtering with flexible pattern matching
+    
+    settings:
+      description: "Filter products using advanced list conditions and pattern containment"
+      stages:
+        - stage_name: "product_catalog"
+          description: "Complete product catalog"
+          protected: false
+        - stage_name: "targeted_products"
+          description: "Products matching complex criteria"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Apply advanced list-based filtering"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "product_catalog"
+        # REQ - Stage to save filtered results
+        save_to_stage: "targeted_products"
+        # REQ - List of filter conditions
+        filters:
+          # Include if description contains ANY of these terms
+          - # REQ - Column name to filter on
+            column: "Description"
+            # REQ - List condition for ANY match (OR logic)
+            condition: "contains_any_in_list"
+            # REQ - List of patterns to search for
+            value: ["premium", "wireless", "bluetooth"]
+          # Include only if tags contain ALL required terms
+          - # REQ - Column name to filter on
+            column: "Tags"
+            # REQ - List condition for ALL matches (AND logic)
+            condition: "contains_all_in_list"
+            # REQ - List of patterns that must all be present
+            value: ["certified", "warranty"]
+          # Exclude products with unwanted terms
+          - # REQ - Column name to filter on
+            column: "Description"
+            # REQ - Exclusion condition for ANY match
+            condition: "not_contains_any_in_list"
+            # REQ - List of patterns to exclude
+            value: ["discontinued", "legacy", "deprecated"]
+
+numeric_list_conditions_example:
+  description: "Numeric list operations with min/max comparisons"
+  yaml: |
+    # Numeric filtering using list-based minimum and maximum values
+    
+    settings:
+      description: "Filter orders using numeric list conditions for flexible range checking"
+      stages:
+        - stage_name: "all_orders"
+          description: "Complete order history"
+          protected: false
+        - stage_name: "qualifying_orders"
+          description: "Orders meeting numeric criteria"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter orders using numeric list conditions"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "all_orders"
+        # REQ - Stage to save filtered results
+        save_to_stage: "qualifying_orders"
+        # REQ - List of filter conditions
+        filters:
+          # Orders above the minimum threshold in any region
+          - # REQ - Column name to filter on
+            column: "Order_Amount"
+            # REQ - Greater than minimum value in list
+            condition: "greater_than_min_in_list"
+            # REQ - List of threshold values (uses minimum: 500)
+            value: [500, 1000, 1500]
+          # Orders below the maximum limit for any tier
+          - # REQ - Column name to filter on
+            column: "Order_Amount"
+            # REQ - Less than maximum value in list
+            condition: "less_than_max_in_list"
+            # REQ - List of limit values (uses maximum: 5000)
+            value: [2000, 3500, 5000]
+          # High-value orders exceeding all regional targets
+          - # REQ - Column name to filter on
+            column: "Order_Amount"
+            # REQ - Greater than maximum value in list
+            condition: "greater_than_max_in_list"
+            # REQ - List of target values (uses maximum: 10000)
+            value: [5000, 7500, 10000]
+
+stage_based_filtering_example:
+  description: "Stage-based filtering with cross-stage data validation"
+  yaml: |
+    # Advanced stage-based filtering with case sensitivity and comparisons
+    
+    settings:
+      description: "Filter orders using stage-based validation and cross-stage comparisons"
+      stages:
+        - stage_name: "all_orders"
+          description: "Complete order dataset"
+          protected: false
+        - stage_name: "approved_customers"
+          description: "Pre-approved customer list"
+          protected: false
+        - stage_name: "price_history"
+          description: "Historical pricing data"
+          protected: false
+        - stage_name: "validated_orders"
+          description: "Orders from approved customers with price validation"
+          protected: false
+    
+    recipe:
+      # Previous steps would populate approved_customers and price_history stages
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed filter_data step"
+        step_description: "Filter orders using stage-based validation"
+        # REQ - Must be "filter_data" for this processor type
+        processor_type: "filter_data"
+        # REQ - Stage to read data from
+        source_stage: "all_orders"
+        # REQ - Stage to save filtered results
+        save_to_stage: "validated_orders"
+        # REQ - List of filter conditions
+        filters:
+          # Include only orders from approved customers
+          - # REQ - Column name in current data
+            column: "Customer_ID"
+            # REQ - Stage-based inclusion condition
+            condition: "in_stage"
+            # REQ - Stage name containing valid values
+            stage_name: "approved_customers"
+            # REQ - Column name in referenced stage
+            stage_column: "Customer_ID"
+            # OPT - Case sensitivity for stage comparison
+            # Default value: false
+            case_sensitive: false
+          # Include orders with prices below historical maximum
+          - # REQ - Current data column for comparison key
+            column: "Product_ID"
+            # REQ - Stage comparison condition
+            condition: "stage_comparison"
+            # REQ - Stage containing comparison data
+            stage_name: "price_history"
+            # REQ - Key column in current data
+            key_column: "Product_ID"
+            # REQ - Key column in stage data
+            stage_key_column: "Product_ID"
+            # REQ - Value column in stage for comparison
+            stage_value_column: "Max_Price"
+            # REQ - Comparison operator to apply
+            comparison_operator: "less_than"
 
 multiple_filters_example:
-  description: "Multiple filter conditions with different operators"
+  description: "Multiple filter conditions with different operators and logic"
   yaml: |
-    # Apply multiple filters in sequence (AND logic)
+    # Apply multiple filters in sequence (AND logic between all conditions)
     
     settings:
       description: "Apply multiple filter conditions to extract premium recent orders"
@@ -72,13 +329,13 @@ multiple_filters_example:
             condition: "greater_than"
             # REQ - Numeric value for comparison
             value: 1000
-          # Filter 2: Customer tier is Premium or VIP
+          # Filter 2: Premium product categories
           - # REQ - Column name to filter on
-            column: "Customer_Tier"
-            # REQ - List membership condition
-            condition: "in_list"
-            # REQ - List of acceptable values
-            value: ["Premium", "VIP"]
+            column: "Product_Category"
+            # REQ - Enhanced list condition for ANY match
+            condition: "contains_any_in_list"
+            # REQ - List of category patterns
+            value: ["Premium", "VIP", "Platinum"]
           # Filter 3: Recent orders only
           - # REQ - Column name to filter on
             column: "Order_Date"
@@ -86,279 +343,135 @@ multiple_filters_example:
             condition: "greater_than"
             # REQ - Date value in YYYY-MM-DD format
             value: "2024-01-01"
-
-text_filtering_example:
-  description: "Text-based filtering with contains and pattern matching"
-  yaml: |
-    # Filter using text conditions
-    
-    settings:
-      description: "Filter products using text pattern matching and exclusions"
-      stages:
-        - stage_name: "all_products"
-          description: "Complete product catalog"
-          protected: false
-        - stage_name: "canned_products"
-          description: "Canned products only"
-          protected: false
-    
-    recipe:
-      - # OPT - Human-readable step description
-        # Default value: "Unnamed filter_data step"
-        step_description: "Filter for canned products"
-        # REQ - Must be "filter_data" for this processor type
-        processor_type: "filter_data"
-        # REQ - Stage to read data from
-        source_stage: "all_products"
-        # REQ - Stage to save filtered results
-        save_to_stage: "canned_products"
-        # REQ - List of filter conditions
-        filters:
-          # Text contains filter
-          - # REQ - Column name to filter on
-            column: "Product_Name"
-            # REQ - Text containment condition
-            condition: "contains"
-            # REQ - Text pattern to search for
-            value: "CANNED"
-          # Exclude test products
-          - # REQ - Column name to filter on
-            column: "Product_Name"
-            # REQ - Text exclusion condition
-            condition: "not_contains"
-            # REQ - Text pattern to exclude
-            value: "TEST"
-
-numeric_filtering_example:
-  description: "Numeric range and comparison filtering"
-  yaml: |
-    # Filter using numeric conditions
-    
-    settings:
-      description: "Identify inventory items needing reorder using numeric thresholds"
-      stages:
-        - stage_name: "inventory_data"
-          description: "Full inventory data"
-          protected: false
-        - stage_name: "reorder_needed"
-          description: "Items needing reorder"
-          protected: false
-    
-    recipe:
-      - # OPT - Human-readable step description
-        # Default value: "Unnamed filter_data step"
-        step_description: "Identify items needing reorder"
-        # REQ - Must be "filter_data" for this processor type
-        processor_type: "filter_data"
-        # REQ - Stage to read data from
-        source_stage: "inventory_data"
-        # REQ - Stage to save filtered results
-        save_to_stage: "reorder_needed"
-        # REQ - List of filter conditions
-        filters:
-          # Low stock filter
-          - # REQ - Column name to filter on
-            column: "Quantity_On_Hand"
-            # REQ - Numeric comparison condition
-            condition: "less_than"
-            # REQ - Numeric threshold value
-            value: 50
-          # Exclude discontinued items
+          # Filter 4: Exclude cancelled orders
           - # REQ - Column name to filter on
             column: "Status"
-            # REQ - Exact match exclusion condition
+            # REQ - Negation condition
             condition: "not_equals"
-            # REQ - Value to exclude
-            value: "Discontinued"
-          # Only items with value
-          - # REQ - Column name to filter on
-            column: "Unit_Price"
-            # REQ - Numeric comparison condition
-            condition: "greater_than"
-            # REQ - Minimum value threshold
-            value: 0
-
-variable_substitution_example:
-  description: "Using recipe variables in filter values"
-  yaml: |
-    # Filter using variable substitution for dynamic values
-    
-    settings:
-      description: "Demonstrate dynamic filtering using recipe variables"
-      variables:
-        min_amount: "500"
-        target_region: "west"
-      stages:
-        - stage_name: "all_sales"
-          description: "All sales data"
-          protected: false
-        - stage_name: "qualified_sales"
-          description: "Sales meeting criteria"
-          protected: false
-    
-    recipe:
-      - # OPT - Human-readable step description
-        # Default value: "Unnamed filter_data step"
-        step_description: "Filter using dynamic variables"
-        # REQ - Must be "filter_data" for this processor type
-        processor_type: "filter_data"
-        # REQ - Stage to read data from
-        source_stage: "all_sales"
-        # REQ - Stage to save filtered results
-        save_to_stage: "qualified_sales"
-        # REQ - List of filter conditions with variable substitution
-        filters:
-          # Use variable in filter value
-          - # REQ - Column name to filter on
-            column: "Sale_Amount"
-            # REQ - Numeric comparison condition
-            condition: "greater_than"
-            # REQ - Variable reference substituted at runtime
-            value: "{min_amount}"
-          # Use variable for region filtering
-          - # REQ - Column name to filter on
-            column: "Region"
-            # REQ - Exact match condition
-            condition: "equals"
-            # REQ - Variable reference for dynamic region
-            value: "{target_region}"
-
-complete_workflow_example:
-  description: "Complete import → filter → export workflow"
-  yaml: |
-    # Complete recipe with import, filter, and export
-    
-    settings:
-      description: "Complete data processing workflow from import to export with filtering"
-      variables:
-        min_amount: "500"
-        region: "west"
-      stages:
-        - stage_name: "raw_sales"
-          description: "Raw sales data from import"
-          protected: false
-        - stage_name: "qualified_sales"
-          description: "Sales meeting qualification criteria"
-          protected: false
-    
-    recipe:
-      # Step 1: Import sales data
-      - # OPT - Human-readable step description
-        # Default value: "Unnamed import_file step"
-        step_description: "Import regional sales data"
-        # REQ - Must be "import_file" for this processor type
-        processor_type: "import_file"
-        # REQ - Input file path with variable substitution support
-        input_file: "sales/{region}_sales_data.xlsx"
-        # REQ - Stage to save imported data
-        save_to_stage: "raw_sales"
-      
-      # Step 2: Filter for qualified sales
-      - # OPT - Human-readable step description
-        # Default value: "Unnamed filter_data step"
-        step_description: "Filter for qualified high-value sales"
-        # REQ - Must be "filter_data" for this processor type
-        processor_type: "filter_data"
-        # REQ - Stage to read data from
-        source_stage: "raw_sales"
-        # REQ - Stage to save filtered results
-        save_to_stage: "qualified_sales"
-        # REQ - List of filter conditions
-        filters:
-          # Use variable in filter value
-          - # REQ - Column name to filter on
-            column: "Amount"
-            # REQ - Numeric comparison condition
-            condition: "greater_than"
-            # REQ - Variable reference substituted at runtime
-            value: "{min_amount}"
-          # Filter for current year only
-          - # REQ - Column name to filter on
-            column: "Date"
-            # REQ - Date comparison condition
-            condition: "greater_than"
-            # REQ - Date value in YYYY-MM-DD format
-            value: "2024-01-01"
-      
-      # Step 3: Export results
-      - # OPT - Human-readable step description
-        # Default value: "Unnamed export_file step"
-        step_description: "Export qualified sales report"
-        # REQ - Must be "export_file" for this processor type
-        processor_type: "export_file"
-        # REQ - Stage to read data from
-        source_stage: "qualified_sales"
-        # REQ - Output file path with variable substitution support
-        output_file: "reports/qualified_sales_{region}_{date}.xlsx"
+            # REQ - Status to exclude
+            value: "Cancelled"
 
 parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'filter_data' for this processor type"
+    examples: ["filter_data"]
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed filter_data step"
+    description: "Human-readable description of the filtering operation"
+    examples: ["Filter for active customers", "Remove test data", "Extract premium orders"]
+
   source_stage:
     type: string
     required: true
     description: "Stage name to read data from (must be declared in settings.stages)"
-    examples:
-      - "raw_data"
-      - "imported_customers"
-      - "cleaned_products"
-    note: "Stage must exist and contain data before filter step"
+    examples: ["raw_data", "imported_customers", "all_orders"]
+    note: "Stage must exist and contain data before processing step"
 
   save_to_stage:
     type: string
     required: true
     description: "Stage name to save filtered results (must be declared in settings.stages)"
-    examples:
-      - "active_customers"
-      - "qualified_orders"
-      - "validated_data"
-    note: "Stage will be created if data filtering succeeds"
+    examples: ["active_customers", "filtered_data", "validated_orders"]
+    note: "Stage will be created or overwritten with filtered data"
 
   filters:
     type: list
     required: true
-    description: "List of filter conditions applied with AND logic"
-    minimum_items: 1
-    note: "All conditions must be true for a row to be included"
+    description: "List of filter conditions to apply (AND logic between conditions)"
+    structure:
+      column:
+        type: string
+        required: true
+        description: "Column name to filter on (must exist in source data)"
+        examples: ["Status", "Customer_Tier", "Order_Amount", "Product_Code"]
 
-  column:
-    type: string
-    required: true
-    context: "Within filters list items"
-    description: "Name of the column to filter on - must exist in source data"
-    examples: ["Status", "Amount", "Date", "Customer_Type"]
-    validation: "Column name is case-sensitive and must match exactly"
+      condition:
+        type: string
+        required: true
+        description: "Type of comparison or condition to apply"
+        options:
+          basic_text: ["equals", "not_equals", "contains", "not_contains"]
+          pattern_matching: ["starts_with", "ends_with", "not_starts_with", "not_ends_with"]
+          numeric: ["greater_than", "less_than", "greater_equal", "less_equal"]
+          enhanced_list: ["contains_any_in_list", "not_contains_any_in_list", "contains_all_in_list", "starts_with_any_in_list"]
+          numeric_list: ["greater_than_min_in_list", "greater_than_max_in_list", "less_than_min_in_list", "less_than_max_in_list"]
+          stage_based: ["in_stage", "not_in_stage", "stage_comparison"]
+          legacy_list: ["in_list", "not_in_list"]
+        examples:
+          equals: "Exact text or numeric match (case-insensitive by default)"
+          contains: "Text contains substring"
+          starts_with: "Text starts with pattern"
+          contains_any_in_list: "Text contains ANY pattern from list (OR logic)"
+          greater_than_min_in_list: "Numeric value greater than minimum in list"
+          in_stage: "Value exists in specified stage column"
 
-  condition:
-    type: string
-    required: true
-    context: "Within filters list items"
-    description: "Type of comparison or condition to apply"
-    options:
-      text_conditions: ["equals", "not_equals", "contains", "not_contains", "not_empty", "is_empty"]
-      numeric_conditions: ["equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal"]
-      list_conditions: ["in_list", "not_in_list"]
-    examples:
-      equals: "Exact text or numeric match"
-      contains: "Text contains substring (case-sensitive)"
-      greater_than: "Numeric or date comparison"
-      in_list: "Value exists in provided list"
+      value:
+        type: any
+        required: true
+        description: "Value to compare against (supports variable substitution)"
+        data_types:
+          string: "For text comparisons and exact matches"
+          number: "For numeric comparisons"
+          list: "For list-based conditions"
+          date: "For date comparisons (YYYY-MM-DD format)"
+        variable_support: "Use {variable_name} for dynamic values from recipe settings"
+        examples:
+          text: ["Active", "Premium", "CANNED"]
+          numeric: [100, 1000, 0]
+          list: ["[\"Premium\", \"VIP\"]", "[\"wireless\", \"bluetooth\"]"]
+          date: ["2024-01-01", "2024-12-31"]
+          variables: ["{min_amount}", "{target_status}", "{current_year}"]
 
-  value:
-    type: any
-    required: true
-    context: "Within filters list items"
-    description: "Value to compare against (supports variable substitution)"
-    data_types:
-      string: "For text comparisons and exact matches"
-      number: "For numeric comparisons"
-      list: "For in_list and not_in_list conditions"
-      date: "For date comparisons (YYYY-MM-DD format)"
-    variable_support: "Use {variable_name} for dynamic values from recipe settings"
-    examples:
-      text: ["Active", "Premium", "CANNED"]
-      numeric: [100, 1000, 0]
-      list: ["[\"Premium\", \"VIP\"]", "[\"Active\", \"Pending\"]"]
-      date: ["2024-01-01", "2024-12-31"]
-      variables: ["{min_amount}", "{target_status}", "{current_year}"]
+      case_sensitive:
+        type: boolean
+        required: false
+        default: false
+        description: "Control case sensitivity for text comparisons (false = case-insensitive)"
+        examples: [true, false]
+        note: "Affects text conditions: equals, contains, starts_with, in_stage, etc."
+
+      stage_name:
+        type: string
+        required: "conditional (for stage-based conditions)"
+        description: "Stage name for stage-based filtering conditions"
+        examples: ["approved_customers", "valid_categories", "price_history"]
+        note: "Required for in_stage, not_in_stage, and stage_comparison conditions"
+
+      stage_column:
+        type: string
+        required: "conditional (for in_stage, not_in_stage)"
+        description: "Column name in referenced stage containing values to compare"
+        examples: ["Customer_ID", "Category", "Product_Code"]
+
+      key_column:
+        type: string
+        required: "conditional (for stage_comparison)"
+        description: "Column name in current data for joining with stage data"
+        examples: ["Product_ID", "Customer_ID", "Order_ID"]
+
+      stage_key_column:
+        type: string
+        required: "conditional (for stage_comparison)"
+        description: "Column name in stage data for joining with current data"
+        examples: ["Product_ID", "Customer_ID", "Reference_ID"]
+
+      stage_value_column:
+        type: string
+        required: "conditional (for stage_comparison)"
+        description: "Column name in stage data containing values for comparison"
+        examples: ["Max_Price", "Credit_Limit", "Target_Value"]
+
+      comparison_operator:
+        type: string
+        required: "conditional (for stage_comparison)"
+        description: "Comparison operator for stage-based value comparison"
+        options: ["equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal"]
+        examples: ["less_than", "greater_equal", "equals"]
 
 integration_notes:
   stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"
@@ -366,6 +479,19 @@ integration_notes:
   data_preservation: "Original source stage data remains unchanged - filter creates new stage"
   pipeline_flow: "Pure stage-based architecture - filters transform data between named stages"
   performance: "Filtering early in workflow reduces memory usage and processing time for subsequent steps"
+  case_sensitivity: "Default case-insensitive behavior is user-friendly while case-sensitive option provides precision"
+
+new_features_summary:
+  case_sensitivity: "Control case sensitivity with case_sensitive parameter (default: false for user-friendly behavior)"
+  pattern_matching: "Enhanced text pattern matching with starts_with, ends_with, and negation variants"
+  enhanced_lists: "Flexible list operations: contains_any_in_list (OR), contains_all_in_list (AND), starts_with_any_in_list"
+  numeric_lists: "Numeric list operations with explicit min/max naming for clarity"
+  stage_enhancements: "Case sensitivity support in stage-based filtering and improved error handling"
+
+legacy_support:
+  deprecated_conditions: "in_list and not_in_list conditions are deprecated in examples but still supported"
+  migration_path: "Use contains_any_in_list instead of in_list for better clarity and enhanced functionality"
+  backward_compatibility: "All existing recipes continue to work unchanged"
 
 stage_architecture_notes:
   required_stages: "Both source_stage and save_to_stage must be declared in settings.stages"
@@ -379,3 +505,5 @@ common_use_cases:
   data_reduction: "Reduce dataset size early to improve performance of subsequent processing steps"
   conditional_processing: "Create different processing branches based on data characteristics"
   report_filtering: "Extract specific subsets of data for targeted reporting and analysis"
+  pattern_matching: "Filter based on text patterns, file extensions, product codes, etc."
+  cross_validation: "Validate data against reference lists and historical data in other stages"

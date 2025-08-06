@@ -125,18 +125,18 @@ class ExcelWriter:
         if not output_path.suffix:
             output_path = output_path.with_suffix('.xlsx')
         
-        logger.info(f"Writing {len(data_dict)} sheets to Excel: {output_path}")
+        logger.info(f"Writing {len(data_dict)} sheets to Excel: '{output_path}'")
         
         try:
             with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
                 for sheet_name, df in data_dict.items():
                     # Guard clauses for each sheet
                     if not isinstance(sheet_name, str) or not sheet_name.strip():
-                        logger.warning(f"Skipping invalid sheet name: {sheet_name}")
+                        logger.warning(f"Skipping invalid sheet name: '{sheet_name}'")
                         continue
                     
                     if not isinstance(df, pd.DataFrame):
-                        logger.warning(f"Skipping non-DataFrame data for sheet: {sheet_name}")
+                        logger.warning(f"Skipping non-DataFrame data for sheet: '{sheet_name}'")
                         continue
                     
                     # Write this sheet
@@ -154,7 +154,7 @@ class ExcelWriter:
         except Exception as e:
             raise ExcelWriterError(f"Error writing multi-sheet Excel file: {e}")
     
-    def append_to_file(self, df: pd.DataFrame, output_path, sheet_name: str) -> None:
+    def append_sheet_to_excel_file(self, df: pd.DataFrame, output_path, sheet_name: str) -> None:
         """
         Append a DataFrame to an existing Excel file as a new sheet.
         

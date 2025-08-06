@@ -48,7 +48,7 @@ class FileWriter:
     
     @staticmethod
     def write_file(data, filename, sheet_name='Data', index=False, 
-                    create_backup=False, explicit_format=None,
+                    create_backup=True, explicit_format=None,
                     encoding='utf-8', separator=','):
         """
         Write a DataFrame to file with automatic format detection
@@ -58,7 +58,7 @@ class FileWriter:
             filename: Output file path
             sheet_name: Sheet name for Excel files (default: 'Data')
             index: Whether to include DataFrame index (default: False)
-            create_backup: Create backup if file exists (default: False)
+            create_backup: Create backup if file exists (default: True)
             explicit_format: Override format detection ('xlsx', 'csv', 'tsv')
             encoding: Text encoding for CSV/TSV files (default: 'utf-8')
             separator: Column separator for CSV files (default: ',')
@@ -102,14 +102,14 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing file '{filename}': {e}")
     
     @staticmethod
-    def write_multi_sheet_excel(sheets_data, filename, create_backup=False, active_sheet=None):
+    def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None):
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
         Args:
             sheets_data: Dictionary mapping sheet names to DataFrames
             filename: Output Excel file path
-            create_backup: Create backup if file exists (default: False)
+            create_backup: Create backup if file exists (default: True)
             active_sheet: Sheet to set as active (default: first sheet)
             
         Returns:

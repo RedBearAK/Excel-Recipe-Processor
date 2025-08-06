@@ -334,37 +334,31 @@ class RecipePipeline:
                 "\n".join(f"  - {var}" for var in unresolved_vars)
             )
     
-    def add_external_variable(self, name: str, value: Any) -> None:
+    def add_external_variable(self, name: str, value: str) -> None:
         """Add an external variable (e.g., from CLI or interactive prompt)."""
         if not isinstance(name, str) or not name.strip():
             raise RecipePipelineError("Variable name must be a non-empty string")
         
-        # Store original value without conversion
-        self._external_variables[name] = value
+        self._external_variables[name] = str(value)
         
         # Also add to variable substitution system
         if self.variable_substitution:
             self.variable_substitution.add_custom_variable(name, value)
         
-        value_repr = repr(value) if not isinstance(value, str) else value
-        logger.debug(f"📝 Added external variable: {name} = {value_repr} (type: {type(value).__name__})")
+        logger.debug(f"📝 Added external variable: {name} = {value}")
 
-        # Re-resolve any custom variables that might reference this external variable
+        # NEW: Re-resolve any custom variables that might reference this external variable
         self._re_resolve_custom_variables()
     
     def _re_resolve_custom_variables(self):
-        """Re-resolve custom variables that might contain variable references."""
+        """Re-resolve custom variables that might contain external variable references."""
         settings = self.recipe_data.get('settings', {})
         custom_variables = settings.get('variables', {})
         
         for name, template_value in custom_variables.items():
-            # Only try to resolve if it's a string with variable references
             if isinstance(template_value, str) and '{' in template_value:
-                try:
-                    resolved_value = self.variable_substitution.substitute(template_value)
-                    self.variable_substitution.add_custom_variable(name, resolved_value)
-                except Exception as e:
-                    logger.warning(f"Failed to re-resolve variable '{name}': {e}")
+                resolved_value = self.variable_substitution.substitute(template_value)
+                self.variable_substitution.add_custom_variable(name, resolved_value)
     
     def get_available_variables(self) -> dict:
         """Get dictionary of all available variables."""
@@ -399,29 +393,47 @@ class RecipePipeline:
         # Create variable system
         self.variable_substitution = VariableSubstitution()
         
-        # Add recipe-defined variables (preserving original types)
+        # Add recipe-defined variables
         settings = self.recipe_data.get('settings', {})
         custom_variables = settings.get('variables', {})
         
         for name, value in custom_variables.items():
             self.add_custom_variable(name, value)
     
-    def add_custom_variable(self, name: str, value: Any) -> None:
-        """Add a custom variable defined in the recipe (any type)."""
+    def add_custom_variable(self, name: str, value: str) -> None:
+        """Add a custom variable defined in the recipe."""
         if not isinstance(name, str) or not name.strip():
             raise RecipePipelineError("Variable name must be a non-empty string")
         
-        # Store original value without conversion
-        self._custom_variables[name] = value
+        self._custom_variables[name] = str(value)
         
         # Also add to variable substitution system
         if self.variable_substitution:
             self.variable_substitution.add_custom_variable(name, value)
         
-        # Log with type information  
-        value_repr = repr(value) if not isinstance(value, str) else value
-        logger.debug(f"📝 Added custom variable: {name} = {value_repr} (type: {type(value).__name__})")
+        logger.debug(f"📝 Added custom variable: {name} = {value}")
     
+    # def _create_processor(self, step_config: dict):
+    #     """Create processor instance with variable injection."""
+    #     processor_type = step_config.get('processor_type')
+        
+    #     if processor_type not in registry._processors:
+    #         available_types = list(registry._processors.keys())
+    #         raise StepProcessorError(f"Unknown processor type: {processor_type}. Available: {available_types}")
+        
+    #     # Create processor instance
+    #     processor_class = registry._processors[processor_type]
+    #     processor = processor_class(step_config)
+        
+    #     # Set variables on processor for use in dynamic configurations
+    #     processor._variables = self.get_available_variables()
+        
+    #     # Set variable substitution object for processors that need it
+    #     processor.variable_substitution = self.variable_substitution
+        
+    #     logger.debug(f"🔧 Injected variables into processor {processor.__class__.__name__}")
+    #     return processor
+
     def _create_processor(self, step_config: dict):
         """Create processor instance with variable injection."""
         processor_type = step_config.get('processor_type')
@@ -450,16 +462,20 @@ class RecipePipeline:
         """
         Recursively substitute variables in a configuration structure.
         Handles nested dictionaries, lists, and string values.
-        Now supports both string and structure replacement.
         """
-        if not self.variable_substitution:
-            return config
-        
-        try:
-            return self.variable_substitution.substitute_structure(config)
-        except Exception as e:
-            # If substitution fails, log warning and return original
-            logger.warning(f"Variable substitution failed for config: {e}")
+        if isinstance(config, dict):
+            return {key: self._substitute_variables_in_config(value) for key, value in config.items()}
+        elif isinstance(config, list):
+            return [self._substitute_variables_in_config(item) for item in config]
+        elif isinstance(config, str) and self.variable_substitution:
+            # Apply variable substitution to string values
+            try:
+                return self.variable_substitution.substitute(config)
+            except Exception as e:
+                # If substitution fails, return original value and let processor handle the error
+                logger.warning(f"Variable substitution failed for '{config}': {e}")
+                return config
+        else:
             return config
 
     def _generate_completion_report(self) -> dict:

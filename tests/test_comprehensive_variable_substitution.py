@@ -921,6 +921,120 @@ def test_variable_interdependencies():
     return success == tests
 
 
+def test_comprehensive_datetime_patterns():
+    """Test all new date/time patterns from master list."""
+    print("\nTesting comprehensive date/time patterns...")
+    
+    substitution = VariableSubstitution()
+    
+    # Test new patterns that should exist
+    new_patterns = [
+        'YYYYMMDD', 'YYMMDD', 'MMDDYYYY', 'DDMMYYYY', 
+        'HHMMSS', 'YYYYMMDDHHMMSS', 'YYYY_MM_DD', 
+        'YYYYMMDD_HHMM', 'YYYYWW', 'MonthName'
+    ]
+    
+    success = 0
+    for pattern in new_patterns:
+        template = f"file_{{{pattern}}}.xlsx"
+        try:
+            result = substitution.substitute(template)
+            if f'{{{pattern}}}' not in result:  # Should be substituted
+                print(f"  ✓ {pattern} -> {result}")
+                success += 1
+            else:
+                print(f"  ✗ {pattern} not substituted")
+        except Exception as e:
+            print(f"  ✗ {pattern} error: {e}")
+    
+    print(f"  New patterns: {success}/{len(new_patterns)} passed")
+    return success == len(new_patterns)
+
+
+def test_enhanced_formatted_variables():
+    """Test both {date:format} and {time:format} work with same formats."""
+    print("\nTesting enhanced formatted variables...")
+    
+    substitution = VariableSubstitution()
+    
+    test_formats = ['YYYYMMDD', 'HHMMSS', 'YYYY_MM_DD', 'MonthDay']
+    success = 0
+    
+    for fmt in test_formats:
+        # Test both date: and time: prefixes work
+        date_template = f"{{date:{fmt}}}"
+        time_template = f"{{time:{fmt}}}"
+        
+        try:
+            date_result = substitution.substitute(date_template)
+            time_result = substitution.substitute(time_template)
+            
+            if date_result == time_result:  # Should be same result
+                print(f"  ✓ {fmt}: date and time formats match")
+                success += 1
+            else:
+                print(f"  ✗ {fmt}: date/time mismatch")
+        except Exception as e:
+            print(f"  ✗ {fmt} error: {e}")
+    
+    print(f"  Formatted variables: {success}/{len(test_formats)} passed")
+    return success == len(test_formats)
+
+
+def test_dynamic_documentation():
+    """Test the new dynamic documentation generator."""
+    print("\nTesting dynamic documentation...")
+    
+    from excel_recipe_processor.core.variable_substitution import get_variable_documentation
+    
+    try:
+        docs = get_variable_documentation()
+        
+        # Check structure
+        required_keys = ['date_time_variables', 'formatted_variables', 'file_variables']
+        if all(key in docs for key in required_keys):
+            print("  ✓ Documentation structure correct")
+            
+            # Check it includes new patterns
+            datetime_vars = docs['date_time_variables']
+            if 'YYYYMMDD' in datetime_vars and 'HHMMSS' in datetime_vars:
+                print("  ✓ New patterns in documentation")
+                
+                # Check formatted examples are generated
+                formatted_vars = docs['formatted_variables']
+                if (any('{date:YYYYMMDD}' in str(fmt) for fmt in formatted_vars) and
+                    any('{time:HHMMSS}' in str(fmt) for fmt in formatted_vars)):
+                    print("  ✓ Formatted examples generated correctly")
+                    return True
+                else:
+                    print(f"  ✗ Formatted examples issue: {formatted_vars[:5]}...")  # Debug
+        
+        print("  ✗ Documentation validation failed")
+        return False
+        
+    except Exception as e:
+        print(f"  ✗ Documentation error: {e}")
+        return False
+
+
+def test_backward_compatibility():
+    """Ensure all legacy patterns still work."""
+    print("\nTesting backward compatibility...")
+    
+    substitution = VariableSubstitution()
+    
+    legacy_patterns = [
+        'year', 'month', 'day', 'hour', 'minute', 'second',
+        'date', 'time', 'timestamp', 'YYYY', 'MM', 'DD', 'HH', 'HHMM'
+    ]
+    
+    success = sum(1 for pattern in legacy_patterns 
+                    if f'{{{pattern}}}' not in substitution.substitute(f'{{{pattern}}}'))
+    
+    print(f"  Legacy compatibility: {success}/{len(legacy_patterns)} passed")
+    return success == len(legacy_patterns)
+
+
 def main():
     """Run comprehensive tests and return pass/fail status."""
     print("Comprehensive Variable Substitution Tests")
@@ -935,7 +1049,13 @@ def main():
         test_malformed_syntax,
         test_performance_stress,
         test_integration_with_pipeline,
-        test_variable_interdependencies  # Added new test
+        test_variable_interdependencies,
+
+        # NEW TESTS:
+        test_comprehensive_datetime_patterns,
+        test_enhanced_formatted_variables,
+        test_dynamic_documentation,
+        test_backward_compatibility,
     ]
     
     test_results = []

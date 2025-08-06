@@ -502,6 +502,7 @@ from excel_recipe_processor.processors.diff_data_processor              import D
 from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
 from excel_recipe_processor.processors.fill_data_processor              import FillDataProcessor
 from excel_recipe_processor.processors.filter_data_processor            import FilterDataProcessor
+from excel_recipe_processor.processors.filter_terms_detector_processor  import FilterTermsDetectorProcessor
 from excel_recipe_processor.processors.format_excel_processor           import FormatExcelProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
@@ -531,6 +532,7 @@ def register_standard_processors():
     registry.register('export_file',                    ExportFileProcessor                 )
     registry.register('fill_data',                      FillDataProcessor                   )
     registry.register('filter_data',                    FilterDataProcessor                 )
+    registry.register('filter_terms_detector',          FilterTermsDetectorProcessor        )
     registry.register('format_excel',                   FormatExcelProcessor                )
     registry.register('group_data',                     GroupDataProcessor                  )
     registry.register('import_file',                    ImportFileProcessor                 )

@@ -6,11 +6,6 @@ excel_recipe_processor/core/variable_substitution.py
 Handles dynamic variable replacement in filenames and other strings
 using date/time variables, file-based variables, and custom variables.
 Now supports structured data types with explicit type declarations.
-
-# Potential future extensions:
-price_display: "{float:cost:,.2f}"     # 1234.56 → "1,234.56"  
-item_count: "{int:quantity:,}"         # 1000 → "1,000"
-file_size: "{int:bytes:size}"          # Custom formatters
 """
 
 import re
@@ -91,6 +86,9 @@ class VariableSubstitution:
             return template
         
         try:
+            # Check for potential typos before processing
+            self._detect_variable_syntax_typos(template)
+            
             # Handle typed variables first: {type:variable}
             result = self._substitute_typed_variables_in_string(template)
             
@@ -105,6 +103,18 @@ class VariableSubstitution:
             
         except Exception as e:
             raise VariableSubstitutionError(f"Error substituting variables in '{template}': {e}")
+    
+    def substitute_variables(self, template: str) -> str:
+        """
+        Alias for substitute() method for backward compatibility.
+        
+        Args:
+            template: Template string with {variable} placeholders
+            
+        Returns:
+            String with variables substituted
+        """
+        return self.substitute(template)
     
     def substitute_structure(self, value: Any) -> Any:
         """
@@ -135,7 +145,13 @@ class VariableSubstitution:
         If the entire string is a single typed variable like "{list:columns}",
         return the actual structure. Otherwise, do string substitution.
         """
-        if not isinstance(template, str) or '{' not in template:
+        if not isinstance(template, str):
+            return template
+        
+        # Check for potential typos in variable syntax
+        self._detect_variable_syntax_typos(template)
+        
+        if '{' not in template:
             return template
         
         # Check if entire string is a single typed variable: "{type:variable}"
@@ -262,6 +278,64 @@ class VariableSubstitution:
         
         return value
     
+    def _detect_variable_syntax_typos(self, template: str) -> None:
+        """
+        Detect potential typos in variable syntax using simple checks.
+        
+        Args:
+            template: Template string to check for typos
+            
+        Raises:
+            VariableSubstitutionError: If likely typos are detected
+        """
+        # Simple check 1: If we see "word:word}" check if there's a "{" to the left
+        if ':' in template and '}' in template:
+            for i in range(len(template)):
+                if template[i] == ':':
+                    # Look for closing brace after this colon
+                    for j in range(i + 1, len(template)):
+                        if template[j] == '}':
+                            # Found colon followed by closing brace
+                            # Check if there's an opening brace before the colon
+                            has_opening_brace = False
+                            for k in range(i - 1, -1, -1):
+                                if template[k] == '{':
+                                    has_opening_brace = True
+                                    break
+                                if template[k] == '}':
+                                    # Hit another closing brace first, stop looking
+                                    break
+                            
+                            if not has_opening_brace:
+                                # Extract the problematic part for error message
+                                start = max(0, i - 10)
+                                end = min(len(template), j + 1)
+                                problem_part = template[start:end]
+                                raise VariableSubstitutionError(
+                                    f"Missing opening brace: found '{problem_part}' - "
+                                    f"add '{{' before the colon"
+                                )
+                            break  # Found matching pattern, move to next colon
+        
+        # Simple check 2: Count braces to make sure they're balanced
+        open_count = template.count('{')
+        close_count = template.count('}')
+        if open_count != close_count:
+            raise VariableSubstitutionError(
+                f"Unbalanced braces: {open_count} opening, {close_count} closing"
+            )
+        
+        # Simple check 3: Look for obviously empty patterns
+        if '{:' in template:
+            raise VariableSubstitutionError(
+                f"Empty type name: found '{{:' - specify type like '{{list:variable}}'"
+            )
+        
+        if ':}' in template:
+            raise VariableSubstitutionError(
+                f"Empty variable name: found ':}}' - specify variable like '{{type:variable}}'"
+            )
+    
     def _build_string_variable_dict(self) -> dict:
         """
         Build dictionary of variables as strings (for backwards compatibility).
@@ -363,8 +437,8 @@ class VariableSubstitution:
         pattern = r'\{(\w+):([^}]+)\}'
         
         def replace_formatted(match):
-            var_name            = match.group(1)
-            format_spec         = match.group(2)
+            var_name = match.group(1)
+            format_spec = match.group(2)
             
             if var_name == 'date':
                 return self._format_date(format_spec)
@@ -445,15 +519,36 @@ class VariableSubstitution:
             elif var_name not in available_vars:
                 unknown_vars.append(var_name)
         
-        # Find simple variables: {variable} (excluding already processed typed ones)
-        simple_pattern = r'\{(\w+)\}'
-        simple_vars = re.findall(simple_pattern, template)
+        # Find simple variables: {variable} (but exclude typed ones we already processed)
+        simple_vars = re.findall(r'\{(\w+)\}', template)
         for var_name in simple_vars:
-            # Skip if this is part of a typed variable or formatted variable
-            if f'{{{var_name}:' not in template and var_name not in available_vars:
+            # Skip if this variable was already processed as part of a typed variable
+            is_typed_var = any(f'{{{t}:{var_name}}}' in template for t in self.SUPPORTED_TYPES.keys())
+            if not is_typed_var and var_name not in available_vars:
+                # Check if it's a formatted variable like {date:MMDD}
+                is_formatted = f'{{{var_name}:' in template
+                if not is_formatted:
+                    unknown_vars.append(var_name)
+        
+        # Also check for formatted variables: {variable:format}
+        formatted_vars = re.findall(r'\{(\w+):[^}]+\}', template)
+        for var_name in formatted_vars:
+            if var_name not in available_vars and var_name not in ['date', 'time']:
                 unknown_vars.append(var_name)
         
         return list(set(unknown_vars))  # Remove duplicates
+    
+    def has_variables(self, text: str) -> bool:
+        """
+        Check if a text string contains variable placeholders.
+        
+        Args:
+            text: Text to check
+            
+        Returns:
+            True if text contains variables
+        """
+        return isinstance(text, str) and '{' in text and '}' in text
     
     def add_custom_variable(self, name: str, value: Any) -> None:
         """
@@ -488,18 +583,6 @@ class VariableSubstitution:
             Dictionary mapping variable names to their current values
         """
         return self._build_variable_dict()
-    
-    def has_variables(self, text: str) -> bool:
-        """
-        Check if a text string contains variable placeholders.
-        
-        Args:
-            text: Text to check
-            
-        Returns:
-            True if text contains variables
-        """
-        return isinstance(text, str) and '{' in text and '}' in text
     
     def get_supported_types(self) -> list:
         """Get list of supported variable types."""
@@ -593,20 +676,20 @@ def get_variable_documentation() -> dict:
     """
     return {
         'string_variables': {
-            'untyped_syntax':   '{variable}',
-            'typed_syntax':     '{str:variable}',
-            'description':      'Backwards compatible string substitution'
+            'untyped_syntax': '{variable}',
+            'typed_syntax': '{str:variable}',
+            'description': 'Backwards compatible string substitution'
         },
         'structured_variables': {
-            'list_syntax':      '{list:variable}',
-            'dict_syntax':      '{dict:variable}',
-            'description':      'Direct structure replacement (lists, dicts)'
+            'list_syntax': '{list:variable}',
+            'dict_syntax': '{dict:variable}',
+            'description': 'Direct structure replacement (lists, dicts)'
         },
         'convertible_variables': {
-            'int_syntax':       '{int:variable}',
-            'float_syntax':     '{float:variable}', 
-            'bool_syntax':      '{bool:variable}',
-            'description':      'Type conversion from string or compatible types'
+            'int_syntax': '{int:variable}',
+            'float_syntax': '{float:variable}', 
+            'bool_syntax': '{bool:variable}',
+            'description': 'Type conversion from string or compatible types'
         },
         'date_time_variables': [
             'year', 'month', 'day', 'hour', 'minute', 'second',
@@ -617,18 +700,18 @@ def get_variable_documentation() -> dict:
             '{time:HHMM}', '{time:HHMMSS}'
         ],
         'file_variables': [
-            'input_filename',   'input_basename', 'input_extension',
-            'recipe_filename',  'recipe_basename'
+            'input_filename', 'input_basename', 'input_extension',
+            'recipe_filename', 'recipe_basename'
         ],
-        'custom_variables':     'Any variables defined in settings.variables section',
+        'custom_variables': 'Any variables defined in settings.variables section',
         'examples': {
             'string_usage': {
-                'untyped':      'output_file: "report_{timestamp}.xlsx"',
-                'typed':        'output_file: "{str:filename_template}"'
+                'untyped': 'output_file: "report_{timestamp}.xlsx"',
+                'typed': 'output_file: "{str:filename_template}"'
             },
             'structure_usage': {
-                'list':         'columns_to_keep: "{list:customer_columns}"',
-                'dict':         'lookup_mapping: "{dict:status_codes}"'
+                'list': 'columns_to_keep: "{list:customer_columns}"',
+                'dict': 'lookup_mapping: "{dict:status_codes}"'
             },
             'mixed_recipe': '''
 settings:

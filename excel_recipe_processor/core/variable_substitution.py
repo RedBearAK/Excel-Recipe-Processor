@@ -43,7 +43,37 @@ class VariableSubstitution:
         'float': float,
         'bool': bool
     }
-    
+
+    # Master format definitions - single source of truth
+    DATE_TIME_FORMATS = {
+        # Individual components
+        'YYYY': '%Y',     'YY': '%y',      'MM': '%m',      'DD': '%d',      'HH': '%H',
+        
+        # Date combinations
+        'YYYYMMDD': '%Y%m%d',         'YYMMDD': '%y%m%d',           'MMDDYYYY': '%m%d%Y',        
+        'MMDDYY': '%m%d%y',           'DDMMYYYY': '%d%m%Y',         'DDMMYY': '%d%m%y',
+        'MMDD': '%m%d',               'DDMM': '%d%m',               'YYYYMM': '%Y%m',            
+        'YYMM': '%y%m',
+        
+        # Time combinations
+        'HHMM': '%H%M',               'HHMMSS': '%H%M%S',           'HHSS': '%H%S',              
+        'MMSS': '%M%S',
+        
+        # DateTime combinations
+        'YYYYMMDDHH': '%Y%m%d%H',     'YYYYMMDDHHMM': '%Y%m%d%H%M', 'YYYYMMDDHHMMSS': '%Y%m%d%H%M%S',
+        'YYMMDDHHMMSS': '%y%m%d%H%M%S', 'YYMMDDHHMM': '%y%m%d%H%M',
+        
+        # Alternative separators
+        'YYYY_MM_DD': '%Y_%m_%d',     'YYYY_MM': '%Y_%m',           'HH_MM_SS': '%H_%M_%S',      
+        'HH_MM': '%H_%M',             'YYYYMMDD_HHMM': '%Y%m%d_%H%M', 'YYYYMMDD_HHMMSS': '%Y%m%d_%H%M%S',
+        
+        # Week-based
+        'YYYYWW': '%Y%W',
+        
+        # Special text formats
+        'MonthDay': '%b%d',           'Month': '%b',                'MonthName': '%B'
+    }
+
     def __init__(self, input_path=None, recipe_path=None, custom_variables=None):
         """
         Initialize variable substitution system.
@@ -173,6 +203,14 @@ class VariableSubstitution:
         def replace_typed_var(match):
             type_name = match.group(1)
             var_name = match.group(2)
+            
+            # Skip formatted variables like {date:format} and {time:format}
+            if type_name in ['date', 'time']:
+                return match.group(0)  # Return unchanged, let _substitute_formatted_variables handle it
+            
+            # Only process actual supported types
+            if type_name not in self.SUPPORTED_TYPES:
+                return match.group(0)  # Return unchanged if not a supported type
             
             # Only string type allowed in string context
             if type_name != 'str':
@@ -335,49 +373,51 @@ class VariableSubstitution:
             raise VariableSubstitutionError(
                 f"Empty variable name: found ':}}' - specify variable like '{{type:variable}}'"
             )
-    
-    def _build_string_variable_dict(self) -> dict:
-        """
-        Build dictionary of variables as strings (for backwards compatibility).
-        """
+
+    def _build_base_variables(self) -> dict:
+        """Build base date/time and file variables (always strings) - single source of truth."""
         variables = {}
         
-        # Date and time variables
+        # Legacy individual components (backward compatibility)
         variables.update({
-            'year':             self.now.strftime('%Y'),
-            'month':            self.now.strftime('%m'),
-            'day':              self.now.strftime('%d'),
-            'hour':             self.now.strftime('%H'),
-            'minute':           self.now.strftime('%M'),
-            'second':           self.now.strftime('%S'),
-            'date':             self.now.strftime('%Y%m%d'),
-            'time':             self.now.strftime('%H%M%S'),
-            'timestamp':        self.now.strftime('%Y%m%d_%H%M%S'),
-            'MMDD':             self.now.strftime('%m%d'),
-            'YYYY':             self.now.strftime('%Y'),
-            'YY':               self.now.strftime('%y'),
-            'MM':               self.now.strftime('%m'),
-            'DD':               self.now.strftime('%d'),
-            'HH':               self.now.strftime('%H'),
-            'HHMM':             self.now.strftime('%H%M')
+            'year':      self.now.strftime('%Y'),
+            'month':     self.now.strftime('%m'), 
+            'day':       self.now.strftime('%d'),
+            'hour':      self.now.strftime('%H'),
+            'minute':    self.now.strftime('%M'),
+            'second':    self.now.strftime('%S'),
+            'date':      self.now.strftime('%Y%m%d'),           # 20250806
+            'time':      self.now.strftime('%H%M%S'),           # 144530  
+            'timestamp': self.now.strftime('%Y%m%d_%H%M%S'),    # 20250806_144530
         })
+        
+        # All patterns from master format list
+        for pattern_name, strftime_code in self.DATE_TIME_FORMATS.items():
+            variables[pattern_name] = self.now.strftime(strftime_code)
         
         # Input file variables
         if self.input_path:
             variables.update({
-                'input_filename':   self.input_path.name,
-                'input_basename':   self.input_path.stem,
-                'input_extension':  self.input_path.suffix
+                'input_filename': self.input_path.name,
+                'input_basename': self.input_path.stem,
+                'input_extension': self.input_path.suffix
             })
         
         # Recipe file variables
         if self.recipe_path:
             variables.update({
-                'recipe_filename':  self.recipe_path.name,
-                'recipe_basename':  self.recipe_path.stem
+                'recipe_filename': self.recipe_path.name,
+                'recipe_basename': self.recipe_path.stem
             })
         
-        # Custom variables - convert to strings for backwards compatibility
+        return variables
+    
+    def _build_string_variable_dict(self) -> dict:
+        """Build dictionary of variables as strings (for backwards compatibility)."""
+        # Start with base variables (all strings)
+        variables = self._build_base_variables()
+        
+        # Add custom variables - convert to strings for backwards compatibility
         for name, value in self.custom_variables.items():
             try:
                 variables[name] = str(value)
@@ -389,48 +429,14 @@ class VariableSubstitution:
     
     def _build_variable_dict(self) -> dict:
         """Build dictionary of all available variables (preserving original types)."""
-        variables = {}
+        # Start with base variables (all strings)
+        variables = self._build_base_variables()
         
-        # Date and time variables (always strings)
-        variables.update({
-            'year':             self.now.strftime('%Y'),
-            'month':            self.now.strftime('%m'),
-            'day':              self.now.strftime('%d'),
-            'hour':             self.now.strftime('%H'),
-            'minute':           self.now.strftime('%M'),
-            'second':           self.now.strftime('%S'),
-            'date':             self.now.strftime('%Y%m%d'),
-            'time':             self.now.strftime('%H%M%S'),
-            'timestamp':        self.now.strftime('%Y%m%d_%H%M%S'),
-            'MMDD':             self.now.strftime('%m%d'),
-            'YYYY':             self.now.strftime('%Y'),
-            'YY':               self.now.strftime('%y'),
-            'MM':               self.now.strftime('%m'),
-            'DD':               self.now.strftime('%d'),
-            'HH':               self.now.strftime('%H'),
-            'HHMM':             self.now.strftime('%H%M')
-        })
-        
-        # Input file variables (always strings)
-        if self.input_path:
-            variables.update({
-                'input_filename':   self.input_path.name,
-                'input_basename':   self.input_path.stem,
-                'input_extension':  self.input_path.suffix
-            })
-        
-        # Recipe file variables (always strings)
-        if self.recipe_path:
-            variables.update({
-                'recipe_filename':  self.recipe_path.name,
-                'recipe_basename':  self.recipe_path.stem
-            })
-        
-        # Custom variables (preserve original types)
+        # Add custom variables (preserve original types)
         variables.update(self.custom_variables)
         
         return variables
-    
+
     def _substitute_formatted_variables(self, text: str) -> str:
         """Handle formatted variables like {date:MMDD}."""
         # Pattern to match {variable:format}
@@ -440,61 +446,27 @@ class VariableSubstitution:
             var_name = match.group(1)
             format_spec = match.group(2)
             
-            if var_name == 'date':
-                return self._format_date(format_spec)
-            elif var_name == 'time':
-                return self._format_time(format_spec)
+            if var_name in ['date', 'time']:
+                return self._format_date_or_time(format_spec)
             else:
                 # For other variables, just return the variable value
                 variables = self._build_string_variable_dict()
                 return variables.get(var_name, match.group(0))
         
         return re.sub(pattern, replace_formatted, text)
-    
-    def _format_date(self, format_spec: str) -> str:
-        """Format date according to specification."""
-        format_map = {
-            'YYYY': '%Y',
-            'YY': '%y', 
-            'MM': '%m',
-            'DD': '%d',
-            'MMDD': '%m%d',
-            'YYYYMMDD': '%Y%m%d',
-            'MonthDay': '%b%d',
-            'Month': '%b',
-            'MonthName': '%B'
-        }
+
+    def _format_date_or_time(self, format_spec: str) -> str:
+        """Format date using master format definitions."""
+        if format_spec in self.DATE_TIME_FORMATS:
+            return self.now.strftime(self.DATE_TIME_FORMATS[format_spec])
         
-        # Try direct mapping first
-        if format_spec in format_map:
-            return self.now.strftime(format_map[format_spec])
-        
-        # Try as direct strftime format
+        # Fallback to direct strftime format
         try:
             return self.now.strftime(format_spec)
         except ValueError:
             logger.warning(f"Invalid date format: {format_spec}")
-            return format_spec  # Return original if format invalid
-    
-    def _format_time(self, format_spec: str) -> str:
-        """Format time according to specification."""
-        format_map = {
-            'HH': '%H',
-            'MM': '%M',
-            'SS': '%S',
-            'HHMM': '%H%M',
-            'HHMMSS': '%H%M%S'
-        }
-        
-        if format_spec in format_map:
-            return self.now.strftime(format_map[format_spec])
-        
-        try:
-            return self.now.strftime(format_spec)
-        except ValueError:
-            logger.warning(f"Invalid time format: {format_spec}")
             return format_spec
-    
+
     def validate_template(self, template: str) -> list:
         """
         Validate a template string and return any unknown variables.
@@ -669,11 +641,15 @@ def validate_template(template: str, input_path=None, recipe_path=None,
 
 def get_variable_documentation() -> dict:
     """
-    Get documentation of all available variable types.
+    Get documentation of all available variable types - dynamically generated.
     
     Returns:
         Dictionary with variable documentation
     """
+
+    # Generate format list from master definitions automatically
+    available_formats = list(VariableSubstitution.DATE_TIME_FORMATS.keys())
+
     return {
         'string_variables': {
             'untyped_syntax': '{variable}',
@@ -691,19 +667,27 @@ def get_variable_documentation() -> dict:
             'bool_syntax': '{bool:variable}',
             'description': 'Type conversion from string or compatible types'
         },
+
         'date_time_variables': [
+            # Legacy components (backward compatibility)
             'year', 'month', 'day', 'hour', 'minute', 'second',
-            'date', 'time', 'timestamp', 'MMDD', 'YYYY', 'YY', 'MM', 'DD', 'HH', 'HHMM'
-        ],
-        'formatted_variables': [
-            '{date:MMDD}', '{date:YYYYMMDD}', '{date:MonthDay}', 
-            '{time:HHMM}', '{time:HHMMSS}'
-        ],
+            'date', 'time', 'timestamp'
+        ] + available_formats,  # ← Auto-generated from master list!
+
+        'formatted_variables': {
+            'description': 'Both {date:format} and {time:format} use the same format specifications',
+            'date_formats': [f'{{date:{fmt}}}' for fmt in available_formats],
+            'time_formats': [f'{{time:{fmt}}}' for fmt in available_formats],
+            'examples': ['{date:YYYYMMDD}', '{time:HHMMSS}', '{date:YYYY_MM_DD}']
+        },
+
         'file_variables': [
             'input_filename', 'input_basename', 'input_extension',
             'recipe_filename', 'recipe_basename'
         ],
+
         'custom_variables': 'Any variables defined in settings.variables section',
+
         'examples': {
             'string_usage': {
                 'untyped': 'output_file: "report_{timestamp}.xlsx"',

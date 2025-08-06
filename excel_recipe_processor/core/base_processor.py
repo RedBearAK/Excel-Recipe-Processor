@@ -150,7 +150,7 @@ class BaseStepProcessor(ABC):
     
     def log_step_start(self) -> None:
         """Log the start of step execution."""
-        logger.info(f"Starting step: {self.step_name} ({self.step_type})")
+        logger.info(f"Starting step: '{self.step_name}' ({self.step_type})")
     
     def log_step_complete(self, result_info: str = "") -> None:
         """
@@ -160,9 +160,10 @@ class BaseStepProcessor(ABC):
             result_info: Optional information about the result
         """
         if result_info:
-            logger.info(f"Completed step: {self.step_name} - {result_info}")
+            logger.info(f"Completed step: '{self.step_name}'")
+            logger.info(f" - {result_info}")
         else:
-            logger.info(f"Completed step: {self.step_name}")
+            logger.info(f"Completed step: '{self.step_name}'")
     
     def log_step_error(self, error: Exception) -> None:
         """

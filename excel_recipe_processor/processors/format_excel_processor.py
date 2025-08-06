@@ -236,7 +236,9 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Freeze top row (shortcut)
         if formatting.get('freeze_top_row', False):
-            worksheet.freeze_panes = 'A2'
+            # worksheet.freeze_panes = 'A2'
+            # Fix logging for freeze_top_row alias?
+            self._freeze_panes(worksheet, 'A2')
         
         # Set row heights
         row_heights = formatting.get('row_heights', {})
@@ -307,12 +309,150 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         logger.debug(f"Applied background color {color} to header row")
     
     def _freeze_panes(self, worksheet, freeze_ref: str) -> None:
-        """Freeze panes at specified cell reference."""
+        """
+        Freeze panes at specified cell reference with comprehensive validation.
+        
+        Args:
+            worksheet: openpyxl worksheet object
+            freeze_ref: Cell reference like 'A2', 'B3', 'D10', etc.
+                        Special case: 'A1' unfreezes all panes
+        
+        Raises:
+            StepProcessorError: If freeze_ref is invalid or out of bounds
+        """
+        import re
+        from openpyxl.utils import column_index_from_string, get_column_letter
+        
+        # Get sheet name for detailed logging
+        sheet_name = getattr(worksheet, 'title', 'Unknown')
+        
+        # Validate input type and clean up
+        if not isinstance(freeze_ref, str):
+            error_msg = f"freeze_panes must be a string cell reference, got {type(freeze_ref).__name__}: {freeze_ref}"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        freeze_ref_clean = freeze_ref.strip().upper()
+        if not freeze_ref_clean:
+            error_msg = "freeze_panes cannot be empty string"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        # Handle special case: A1 means unfreeze everything
+        if freeze_ref_clean == 'A1':
+            worksheet.freeze_panes = None
+            logger.info(f"🔓 [{sheet_name}] Unfroze all panes (A1 removes all freezing)")
+            return
+        
+        # Validate cell reference format using regex
+        cell_pattern = r'^([A-Z]+)(\d+)$'
+        match = re.match(cell_pattern, freeze_ref_clean)
+        
+        if not match:
+            error_msg = f"Invalid freeze_panes format '{freeze_ref}'. Must be cell reference like 'A2', 'B3', 'D10', etc."
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        column_letters, row_str = match.groups()
+        
+        # Parse row number with validation
         try:
-            worksheet.freeze_panes = freeze_ref
-            logger.debug(f"Froze panes at {freeze_ref}")
+            row_num = int(row_str)
+        except ValueError:
+            error_msg = f"Invalid row number in freeze_panes '{freeze_ref}': '{row_str}' is not a valid integer"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        # Validate row bounds (no row 0 or negative)
+        if row_num < 1:
+            error_msg = f"freeze_panes row cannot be 0 or negative. Got row {row_num} in '{freeze_ref}'. Rows start at 1."
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        # Parse and validate column reference
+        try:
+            column_idx = column_index_from_string(column_letters)
+        except ValueError as e:
+            error_msg = f"Invalid column letters in freeze_panes '{freeze_ref}': '{column_letters}' - {e}"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        # Determine Excel format bounds based on file extension or default to XLSX
+        try:
+            # Try to get file extension from workbook path
+            workbook = worksheet.parent
+            if hasattr(workbook, 'path') and workbook.path:
+                file_extension = Path(workbook.path).suffix.lower()
+            else:
+                file_extension = '.xlsx'  # Default to modern format
+        except:
+            file_extension = '.xlsx'  # Fallback to modern format
+        
+        # Set bounds based on Excel format
+        if file_extension == '.xls':
+            max_rows = 65536
+            max_cols = 256
+            max_col_name = 'IV'
+            format_name = 'XLS (legacy)'
+        else:
+            max_rows = 1048576
+            max_cols = 16384
+            max_col_name = 'XFD'
+            format_name = 'XLSX (modern)'
+        
+        # Validate against Excel format limits
+        if row_num > max_rows:
+            error_msg = f"freeze_panes row {row_num:,} exceeds {format_name} format limit of {max_rows:,} rows"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        if column_idx > max_cols:
+            error_msg = f"freeze_panes column '{column_letters}' (index {column_idx:,}) exceeds {format_name} format limit of {max_cols:,} columns (max column: {max_col_name})"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        # Apply the freeze panes operation
+        try:
+            worksheet.freeze_panes = freeze_ref_clean
         except Exception as e:
-            logger.error(f"Failed to freeze panes at {freeze_ref}: {e}")
+            error_msg = f"openpyxl failed to set freeze_panes to '{freeze_ref_clean}': {e}"
+            logger.error(f"❌ [{sheet_name}] {error_msg}")
+            raise StepProcessorError(error_msg)
+        
+        # Generate detailed success logging
+        rows_frozen = row_num - 1
+        cols_frozen = column_idx - 1
+        
+        if rows_frozen > 0 and cols_frozen > 0:
+            # Both rows and columns frozen
+            if rows_frozen == 1:
+                row_desc = "row 1"
+            else:
+                row_desc = f"rows 1-{rows_frozen}"
+            
+            if cols_frozen == 1:
+                col_desc = "column A"
+            else:
+                col_desc = f"columns A-{get_column_letter(cols_frozen)}"
+            
+            logger.info(f"🧊 [{sheet_name}] Froze {row_desc} and {col_desc} at '{freeze_ref_clean}'")
+            
+        elif rows_frozen > 0:
+            # Only rows frozen
+            if rows_frozen == 1:
+                logger.info(f"🧊 [{sheet_name}] Froze row 1 at '{freeze_ref_clean}' (header row stays visible while scrolling down)")
+            else:
+                logger.info(f"🧊 [{sheet_name}] Froze rows 1-{rows_frozen} at '{freeze_ref_clean}' (top {rows_frozen} rows stay visible while scrolling down)")
+                
+        elif cols_frozen > 0:
+            # Only columns frozen
+            if cols_frozen == 1:
+                logger.info(f"🧊 [{sheet_name}] Froze column A at '{freeze_ref_clean}' (first column stays visible while scrolling right)")
+            else:
+                logger.info(f"🧊 [{sheet_name}] Froze columns A-{get_column_letter(cols_frozen)} at '{freeze_ref_clean}' (first {cols_frozen} columns stay visible while scrolling right)")
+        else:
+            # This shouldn't happen given our validation, but just in case
+            logger.warning(f"⚠️  [{sheet_name}] freeze_panes '{freeze_ref_clean}' resulted in no actual freezing")
     
     def _set_row_heights(self, worksheet, row_heights: dict) -> None:
         """Set specific row heights."""

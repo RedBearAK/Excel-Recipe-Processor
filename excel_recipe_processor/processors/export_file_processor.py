@@ -67,6 +67,8 @@ class ExportFileProcessor(ExportBaseProcessor):
         sheet_name = self.get_config_value('sheet_name', 'Data')
         explicit_format = self.get_config_value('format', None)
         sheets = self.get_config_value('sheets', None)
+        # See if user wants to disable the creation of a backup file to avoid clobbering same name
+        create_backup = self.get_config_value('create_backup', True)
         
         # Apply variable substitution BEFORE calling FileWriter
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -75,20 +77,26 @@ class ExportFileProcessor(ExportBaseProcessor):
             resolved_file = output_file
         
         try:
+
             if sheets:
                 # Multi-sheet export
                 sheets_data = self._build_sheets_data(sheets)
-                FileWriter.write_multi_sheet_excel(sheets_data, resolved_file)  # No variables parameter
+                FileWriter.write_multi_sheet_excel(
+                    sheets_data,
+                    resolved_file,
+                    create_backup=create_backup
+                )  # No variables parameter
             else:
                 # Single file export
                 FileWriter.write_file(
                     data,
                     resolved_file,  # No variables parameter needed
                     sheet_name=sheet_name,
-                    explicit_format=explicit_format
+                    explicit_format=explicit_format,
+                    create_backup=create_backup
                 )
             
-            logger.info(f"Exported {len(data)} rows to {resolved_file}")
+            logger.info(f"Exported {len(data)} rows to '{resolved_file}'")
             
         except FileWriterError as e:
             raise StepProcessorError(f"Failed to export to '{output_file}': {e}")

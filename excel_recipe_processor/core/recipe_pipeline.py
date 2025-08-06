@@ -80,7 +80,7 @@ class RecipePipeline:
             # Initialize variable substitution
             self._initialize_variable_substitution()
             
-            logger.info(f"✓ Recipe loaded successfully: {recipe_path}")
+            logger.info(f"✓ Recipe loaded successfully: '{recipe_path}'")
             if self._global_on_error != ErrorAction.HALT:
                 logger.info(f"⚙️ Global error handling: {self._global_on_error.value}")
             
@@ -113,12 +113,13 @@ class RecipePipeline:
     def _log_step_separator(self, step_index: int, step_desc: str) -> None:
         """Log a clean separator before each step for better readability."""
         # Add blank line before step (except for first step)
-        if step_index > 0:
-            logger.info("")  # Blank line
+        if step_index >= 0:
+            # logger.info("")  # Blank line
+            print() # real blank line!
         
-        # Add START STEP marker
-        separator = f" -- START STEP '{step_desc}' -- "
-        logger.info(separator)
+        # # Add START STEP marker
+        # separator = f" -- START STEP '{step_desc}' -- "
+        # logger.info(separator)
     
     def _handle_step_error(self, step_index: int, step_desc: str, error: Exception, 
                             step_on_error: ErrorAction) -> bool:
@@ -170,7 +171,8 @@ class RecipePipeline:
         if not recipe_steps:
             raise RecipePipelineError("Recipe contains no steps")
         
-        logger.info(f"🚀 Executing {len(recipe_steps)} recipe steps")
+        recipe_steps_cnt = len(recipe_steps)
+        logger.info(f"🚀 Executing {recipe_steps_cnt} recipe steps")
         
         # Reset execution state
         self.steps_executed = 0
@@ -189,9 +191,9 @@ class RecipePipeline:
             
             # Log step start with error handling info if non-default
             if step_on_error != ErrorAction.HALT:
-                logger.info(f"📍 Step {step_index + 1}: {step_desc} [on_error: {step_on_error.value}]")
+                logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
             else:
-                logger.info(f"📍 Step {step_index + 1}: {step_desc}")
+                logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}'")
             
             try:
                 # Create processor with variable injection
@@ -283,11 +285,13 @@ class RecipePipeline:
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
+            print()     # blank line to separate from parsing log line (if present) or command line
             # Load recipe
-            logger.info(f"📖 Loading recipe: {recipe_path}")
+            logger.info(f"📖 Loading recipe: '{recipe_path}'")
             self.load_recipe(recipe_path)
             
             # Collect external variables
+            print()     # blank line to separate from recipe loading logging
             logger.info("🔧 Processing external variables...")
             external_variables = self.collect_external_variables(cli_variables)
             
@@ -299,6 +303,7 @@ class RecipePipeline:
             self._validate_all_variables_resolved()
             
             # Execute recipe
+            print()     # blank line to separate from earlier meta-info (here we go!)
             logger.info("⚡ Starting recipe execution...")
             return self.execute_recipe()
             

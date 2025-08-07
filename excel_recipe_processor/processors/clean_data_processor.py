@@ -20,7 +20,7 @@ class CleanDataProcessor(BaseStepProcessor):
     Supports various cleaning operations like find/replace, case conversion,
     removing special characters, fixing data types, and conditional operations.
     """
-    
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         """
@@ -32,12 +32,12 @@ class CleanDataProcessor(BaseStepProcessor):
         return {
             'rules': [
                 {
-                    'column': 'test_column',
+                    'columns': ['test_column'],  # Changed from 'column' to 'columns' as list
                     'action': 'strip_whitespace'
                 }
             ]
         }
-    
+
     def execute(self, data) -> pd.DataFrame:
         """
         Execute the data cleaning operations on the provided DataFrame.
@@ -89,7 +89,7 @@ class CleanDataProcessor(BaseStepProcessor):
         self.log_step_complete(result_info)
         
         return cleaned_data
-    
+
     def _apply_cleaning_rule(self, df: pd.DataFrame, rule: dict, rule_index: int) -> pd.DataFrame:
         """
         Apply a single cleaning rule to the DataFrame.
@@ -107,99 +107,149 @@ class CleanDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Cleaning rule {rule_index + 1} must be a dictionary")
         
         # Validate required rule fields
-        required_fields = ['column', 'action']
+        required_fields = ['columns', 'action']  # Changed from 'column' to 'columns'
         for field in required_fields:
             if field not in rule:
                 raise StepProcessorError(f"Cleaning rule {rule_index + 1} missing required field: {field}")
         
-        column = rule['column']
+        columns = rule['columns']
         action = rule['action']
         
         # Guard clauses for rule parameters
-        if not isinstance(column, str) or not column.strip():
-            raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'column' must be a non-empty string")
+        if not isinstance(columns, list):
+            raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns' must be a list")
+        
+        if len(columns) == 0:
+            raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns' list cannot be empty")
+        
+        # Validate each column name in the list
+        for i, column in enumerate(columns):
+            if not isinstance(column, str) or not column.strip():
+                raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns[{i}]' must be a non-empty string")
         
         if not isinstance(action, str) or not action.strip():
             raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'action' must be a non-empty string")
         
-        # Check if column exists
-        if column not in df.columns:
-            available_columns = list(df.columns)
-            raise StepProcessorError(
-                f"Cleaning rule {rule_index + 1} column '{column}' not found. "
-                f"Available columns: {available_columns}"
+        # Check conditional column exists if this is a conditional rule
+        conditional_fields = ['condition_column', 'condition', 'condition_value']
+        has_any_conditional = any(field in rule for field in conditional_fields)
+        
+        if has_any_conditional:
+            # If any conditional field is present, all must be present
+            missing_conditional = [field for field in conditional_fields if field not in rule]
+            if missing_conditional:
+                raise StepProcessorError(
+                    f"Cleaning rule {rule_index + 1} has partial conditional replacement config. "
+                    f"Missing required fields: {missing_conditional}. "
+                    f"For conditional replacement, all of {conditional_fields} are required."
+                )
+            
+            # Validate condition column exists
+            condition_column = rule['condition_column']
+            if condition_column not in df.columns:
+                available_columns = list(df.columns)
+                raise StepProcessorError(
+                    f"Cleaning rule {rule_index + 1} condition column '{condition_column}' not found. "
+                    f"Available columns: {available_columns}"
+                )
+        
+        # Check which target columns exist and apply rule to existing ones
+        existing_columns = []
+        missing_columns = []
+        
+        for column in columns:
+            if column in df.columns:
+                existing_columns.append(column)
+            else:
+                missing_columns.append(column)
+        
+        # Warn about missing columns but continue with existing ones
+        if missing_columns:
+            logger.warning(
+                f"Cleaning rule {rule_index + 1}: columns not found (skipping): {missing_columns}. "
+                f"Available columns: {list(df.columns)}"
             )
         
-        # Apply the appropriate cleaning action
-        try:
-            if action == 'replace':
-                return self._apply_replace(df, rule, column, rule_index)
-            
-            elif action == 'regex_replace':
-                return self._apply_regex_replace(df, rule, column, rule_index)
-            
-            elif action == 'uppercase':
-                df[column] = df[column].astype(str).str.upper()
-                logger.debug(f"Applied uppercase to column '{column}'")
-                
-            elif action == 'lowercase':
-                df[column] = df[column].astype(str).str.lower()
-                logger.debug(f"Applied lowercase to column '{column}'")
-                
-            elif action == 'title_case':
-                df[column] = df[column].astype(str).str.title()
-                logger.debug(f"Applied title case to column '{column}'")
-                
-            elif action == 'strip_whitespace':
-                df[column] = df[column].astype(str).str.strip()
-                logger.debug(f"Stripped whitespace from column '{column}'")
-                
-            elif action == 'remove_special_chars':
-                pattern = rule.get('pattern', r'[^a-zA-Z0-9\s]')
-                replacement = rule.get('replacement', '')
-                df[column] = df[column].astype(str).str.replace(pattern, replacement, regex=True)
-                logger.debug(f"Removed special characters from column '{column}' using pattern: {pattern}")
-                
-            elif action == 'fix_numeric':
-                return self._apply_fix_numeric(df, rule, column, rule_index)
-                
-            elif action == 'fix_dates':
-                return self._apply_fix_dates(df, rule, column, rule_index)
-                
-            elif action == 'fill_empty':
-                return self._apply_fill_empty(df, rule, column, rule_index)
-                
-            elif action == 'remove_duplicates':
-                # This operates on the whole DataFrame, not just one column
-                initial_count = len(df)
-                df = df.drop_duplicates(subset=[column] if rule.get('subset_column', True) else None)
-                removed_count = initial_count - len(df)
-                logger.debug(f"Removed {removed_count} duplicate rows based on column '{column}'")
-                
-            elif action == 'standardize_values':
-                return self._apply_standardize_values(df, rule, column, rule_index)
-                
-            elif action == 'remove_invisible_chars':
-                return self._apply_remove_invisible_chars(df, rule, column, rule_index)
-            
-            elif action == 'normalize_whitespace':
-                return self._apply_normalize_whitespace(df, rule, column, rule_index)
-            
-            else:
-                available_actions = self.get_supported_actions()  # Use dynamic list
-                raise StepProcessorError(
-                    f"Cleaning rule {rule_index + 1} unknown action: '{action}'. "
-                    f"Available actions: {', '.join(available_actions)}"
-                )
+        if not existing_columns:
+            logger.warning(f"Cleaning rule {rule_index + 1}: no target columns found, skipping rule")
             return df
-            
-        except Exception as e:
-            # Re-raise our own errors, wrap pandas errors
-            if isinstance(e, StepProcessorError):
-                raise
-            else:
-                raise StepProcessorError(f"Error applying cleaning action '{action}' to column '{column}': {e}")
-    
+        
+        # Apply the cleaning action to each existing column
+        successful_columns = []
+        failed_columns = []
+        
+        for column in existing_columns:
+            try:
+                # Create a temporary rule for this single column (for compatibility with existing methods)
+                single_column_rule = rule.copy()
+                single_column_rule['column'] = column  # Individual methods still expect 'column' key
+                
+                # Apply the appropriate cleaning action
+                if action == 'replace':
+                    df = self._apply_replace(df, single_column_rule, column, rule_index)
+                elif action == 'regex_replace':
+                    df = self._apply_regex_replace(df, single_column_rule, column, rule_index)
+                elif action == 'uppercase':
+                    df[column] = df[column].astype(str).str.upper()
+                    logger.debug(f"Applied uppercase to column '{column}'")
+                elif action == 'lowercase':
+                    df[column] = df[column].astype(str).str.lower()
+                    logger.debug(f"Applied lowercase to column '{column}'")
+                elif action == 'title_case':
+                    df[column] = df[column].astype(str).str.title()
+                    logger.debug(f"Applied title case to column '{column}'")
+                elif action == 'strip_whitespace':
+                    df[column] = df[column].astype(str).str.strip()
+                    logger.debug(f"Stripped whitespace from column '{column}'")
+                elif action == 'remove_special_chars':
+                    pattern = rule.get('pattern', r'[^a-zA-Z0-9\s]')
+                    replacement = rule.get('replacement', '')
+                    df[column] = df[column].astype(str).str.replace(pattern, replacement, regex=True)
+                    logger.debug(f"Removed special characters from column '{column}' using pattern: {pattern}")
+                elif action == 'fix_numeric':
+                    df = self._apply_fix_numeric(df, single_column_rule, column, rule_index)
+                elif action == 'fix_dates':
+                    df = self._apply_fix_dates(df, single_column_rule, column, rule_index)
+                elif action == 'fill_empty':
+                    df = self._apply_fill_empty(df, single_column_rule, column, rule_index)
+                elif action == 'remove_duplicates':
+                    # This operates on the whole DataFrame, not just one column
+                    initial_count = len(df)
+                    df = df.drop_duplicates(subset=[column] if rule.get('subset_column', True) else None)
+                    removed_count = initial_count - len(df)
+                    logger.debug(f"Removed {removed_count} duplicate rows based on column '{column}'")
+                elif action == 'standardize_values':
+                    df = self._apply_standardize_values(df, single_column_rule, column, rule_index)
+                elif action == 'remove_invisible_chars':
+                    df = self._apply_remove_invisible_chars(df, single_column_rule, column, rule_index)
+                elif action == 'normalize_whitespace':
+                    df = self._apply_normalize_whitespace(df, single_column_rule, column, rule_index)
+                else:
+                    available_actions = self.get_supported_actions()  # Use dynamic list
+                    raise StepProcessorError(
+                        f"Cleaning rule {rule_index + 1} unknown action: '{action}'. "
+                        f"Available actions: {', '.join(available_actions)}"
+                    )
+                
+                successful_columns.append(column)
+                
+            except Exception as e:
+                # Log the failure but continue with other columns
+                if isinstance(e, StepProcessorError):
+                    logger.warning(f"Cleaning rule {rule_index + 1} failed on column '{column}': {e}")
+                else:
+                    logger.warning(f"Cleaning rule {rule_index + 1} failed on column '{column}': {e}")
+                failed_columns.append(column)
+        
+        # Log summary of what was applied
+        if successful_columns:
+            logger.debug(f"Cleaning rule {rule_index + 1} applied '{action}' to columns: {successful_columns}")
+        
+        if failed_columns:
+            logger.warning(f"Cleaning rule {rule_index + 1} failed on columns: {failed_columns}")
+        
+        return df
+
     def _apply_replace(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
         """Apply find and replace operation, with optional conditional logic."""
         if 'old_value' not in rule or 'new_value' not in rule:
@@ -496,7 +546,7 @@ class CleanDataProcessor(BaseStepProcessor):
             ],
             'case_conversions': ['upper', 'lower', 'title'],
             'examples': {
-                'conditional_replace': "Replace 'FLESH' with 'CANS' only in rows where Product_Name contains 'CANNED'",
+                'conditional_replace': "Replace 'FLESH' with 'CANS' in rows where Product_Name contains 'Canned'",
                 'clean_price': "Remove $ signs and convert to numeric",
                 'standardize': "Map various status values to standard terms"
             }

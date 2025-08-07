@@ -1,9 +1,9 @@
-# Revision date: 2025-07-30
+# Revision date: 2025-08-07
 
-description: "Order DataFrame rows by one or multiple columns with flexible sorting options. Perfect for organizing data for reports, prioritizing records, and creating meaningful data sequences with stage-based data flow."
+description: "Order DataFrame rows by one or multiple columns with intuitive sort type specification. Perfect for organizing data for reports, prioritizing records, and creating meaningful data sequences with stage-based data flow."
 
 basic_example:
-  description: "Simple single column sort in ascending order"
+  description: "Simple single column sort using clear sort_type specification"
   yaml: |
     settings:
       description: "Sort customer data by name alphabetically"
@@ -32,22 +32,25 @@ basic_example:
         source_stage: "customer_data"
         # REQ - Column(s) to sort by (accepts single string or list)
         columns: ["Customer_Name"]
-        # OPT - Sort direction(s) (single boolean or list matching columns)
-        # Default value: true
-        ascending: true
+        # REQ - Type of sorting to apply
+        # Valid values: "ascending", "descending", "custom"
+        sort_type: "ascending"
         # REQ - Stage to save sorted data
         save_to_stage: "sorted_customers"
 
 multi_column_example:
-  description: "Multi-column sort with different directions for each column"
+  description: "Multi-column sort with mixed directions using new API"
   yaml: |
     settings:
-      description: "Sort sales data by region and amount for analysis"
+      description: "Sort sales data by region ascending and amount descending"
       stages:
         - stage_name: "sales_data"
           description: "Raw sales transaction data"
           protected: false
-        - stage_name: "sorted_sales"
+        - stage_name: "region_sorted"
+          description: "Sales sorted by region ascending"
+          protected: false
+        - stage_name: "final_sorted"
           description: "Sales sorted by region and amount"
           protected: false
 
@@ -58,20 +61,24 @@ multi_column_example:
         input_file: "data/sales_transactions.xlsx"
         save_to_stage: "sales_data"
 
-      - # Step 2: Sort by region (A-Z) then by amount (highest first)
-        step_description: "Sort sales by region and amount for regional analysis"
+      - # Step 2: Sort by region (A-Z)
+        step_description: "Sort sales by region ascending"
         processor_type: "sort_data"
         source_stage: "sales_data"
-        # REQ - Multiple columns for hierarchical sorting
-        columns: ["Sales_Region", "Sale_Amount", "Sale_Date"]
-        # OPT - Different sort directions for each column
-        # List must match length of columns list
-        ascending: [true, false, false]
-        # Region A-Z, Amount high to low, Date newest first
-        save_to_stage: "sorted_sales"
+        columns: ["Sales_Region"]
+        sort_type: "ascending"
+        save_to_stage: "region_sorted"
+
+      - # Step 3: Sort by amount (highest first) within regions
+        step_description: "Sort by amount descending within regions"
+        processor_type: "sort_data"
+        source_stage: "region_sorted"
+        columns: ["Sales_Region", "Sale_Amount"]
+        sort_type: "descending"
+        save_to_stage: "final_sorted"
 
 custom_order_example:
-  description: "Sort using custom value ordering for categorical data"
+  description: "Sort using custom business logic ordering for categorical data"
   yaml: |
     settings:
       description: "Sort orders by priority and status using business logic"
@@ -95,20 +102,20 @@ custom_order_example:
         processor_type: "sort_data"
         source_stage: "order_data"
         # REQ - Sort by multiple columns with custom orders
-        columns: ["Customer_Tier", "Order_Status", "Order_Value"]
-        # OPT - Define custom sort order for specific columns
-        # Default value: {} (empty - use standard sorting)
+        columns: ["Customer_Tier", "Order_Status"]
+        # REQ - Use custom ordering
+        sort_type: "custom"
+        # REQ - Define custom sort order for specified columns
+        # Required when sort_type is "custom"
         custom_orders:
           # Define business priority for customer tiers
           Customer_Tier: ["Platinum", "Gold", "Silver", "Bronze"]
           # Define processing priority for statuses
           Order_Status: ["Urgent", "Rush", "Standard", "Deferred"]
-        # OPT - Custom orders use defined sequence, value descending
-        ascending: [true, true, false]
         save_to_stage: "prioritized_orders"
 
 van_report_example:
-  description: "Van Report style regional sorting with null handling"
+  description: "Van Report style regional sorting with custom Alaska regional ordering"
   yaml: |
     settings:
       description: "Sort Van Report data by region and origin for matrix display"
@@ -132,6 +139,7 @@ van_report_example:
         processor_type: "sort_data"
         source_stage: "van_data"
         columns: ["Regional_Group", "Product_Origin", "Carrier"]
+        sort_type: "custom"
         # OPT - Custom Alaska regional ordering
         custom_orders:
           Regional_Group: [
@@ -142,7 +150,6 @@ van_report_example:
             "Other Alaska"
           ]
           Carrier: ["Matson", "CMA", "MSC", "ONE", "Other"]
-        ascending: [true, true, true]
         # OPT - Position of null/missing values
         # Default value: "last"
         # Valid values: "first", "last"
@@ -174,65 +181,14 @@ case_insensitive_example:
         processor_type: "sort_data"
         source_stage: "product_catalog"
         columns: ["Product_Name", "Category"]
-        # OPT - Ignore case when sorting text columns
+        sort_type: "ascending"
+        # OPT - Ignore case differences when sorting text columns
         # Default value: false
         ignore_case: true
-        ascending: [true, true]
         save_to_stage: "sorted_catalog"
 
-frequency_sort_example:
-  description: "Sort by value frequency to show most common items first"
-  yaml: |
-    settings:
-      description: "Analyze customer locations by frequency"
-      variables:
-        analysis_month: "2024-07"
-      stages:
-        - stage_name: "customer_transactions"
-          description: "Customer transaction data"
-          protected: false
-        - stage_name: "frequency_sorted"
-          description: "Transactions sorted by location frequency"
-          protected: false
-
-    recipe:
-      - # Step 1: Import transaction data
-        step_description: "Import customer transactions for analysis"
-        processor_type: "import_file"
-        input_file: "data/transactions_{analysis_month}.xlsx"
-        save_to_stage: "customer_transactions"
-
-      - # Step 2: Sort by city frequency (most common first)
-        step_description: "Identify most active customer locations"
-        processor_type: "sort_data"
-        source_stage: "customer_transactions"
-        # Note: For frequency sorting, you might need to use a custom approach
-        # This example shows standard sorting that could be enhanced
-        columns: ["Customer_City", "Transaction_Date"]
-        ascending: [true, false]
-        save_to_stage: "city_analysis"
-
-      - # Step 3: Create frequency summary (alternative approach)
-        step_description: "Group by city and count transactions"
-        processor_type: "aggregate_data"
-        source_stage: "customer_transactions"
-        group_by: ["Customer_City"]
-        aggregations:
-          - column: "Transaction_ID"
-            function: "count"
-            output_name: "Transaction_Count"
-        save_to_stage: "city_frequency"
-
-      - # Step 4: Sort by frequency count
-        step_description: "Sort cities by transaction frequency"
-        processor_type: "sort_data"
-        source_stage: "city_frequency"
-        columns: ["Transaction_Count", "Customer_City"]
-        ascending: [false, true]  # Highest count first, then city A-Z
-        save_to_stage: "frequency_sorted"
-
 complex_business_sort_example:
-  description: "Complex multi-level sort for business reporting"
+  description: "Complex multi-step sort for business reporting"
   yaml: |
     settings:
       description: "Create executive dashboard with complex sorting logic"
@@ -258,7 +214,8 @@ complex_business_sort_example:
         step_description: "Sort by executive org structure"
         processor_type: "sort_data"
         source_stage: "performance_data"
-        columns: ["Division", "Department", "Team"]
+        columns: ["Division", "Department"]
+        sort_type: "custom"
         custom_orders:
           Division: ["Executive", "Sales", "Operations", "Support", "Admin"]
           Department: [
@@ -267,19 +224,15 @@ complex_business_sort_example:
             "Customer Success", "Technical Support",
             "HR", "Finance", "IT"
           ]
-        ascending: [true, true, true]
         save_to_stage: "dept_sorted"
 
-      - # Step 3: Final sort with performance metrics
+      - # Step 3: Final sort with performance metrics descending
         step_description: "Sort by performance within organizational hierarchy"
         processor_type: "sort_data"
         source_stage: "dept_sorted"
-        columns: ["Division", "Performance_Rating", "Revenue_Impact", "Employee_Name"]
-        custom_orders:
-          Division: ["Executive", "Sales", "Operations", "Support", "Admin"]
-          Performance_Rating: ["Exceeds", "Meets", "Below", "Needs Improvement"]
-        ascending: [true, true, false, true]
-        # Division order, Rating order, Revenue descending, Name A-Z
+        columns: ["Revenue_Impact"]
+        sort_type: "descending"
+        # OPT - Position of null/missing values
         na_position: "last"
         save_to_stage: "final_dashboard"
 
@@ -307,10 +260,8 @@ date_time_sort_example:
         step_description: "Create timeline with newest events first"
         processor_type: "sort_data"
         source_stage: "event_log"
-        columns: ["Event_Date", "Event_Time", "Severity"]
-        custom_orders:
-          Severity: ["Critical", "Error", "Warning", "Info", "Debug"]
-        ascending: [false, false, true]  # Newest dates/times first, severity by priority
+        columns: ["Event_Date", "Event_Time"]
+        sort_type: "descending"  # Newest dates/times first
         # OPT - Put records with missing timestamps at the beginning for investigation
         na_position: "first"
         save_to_stage: "timeline_sorted"
@@ -354,29 +305,29 @@ parameter_details:
   columns:
     type: string or list of strings
     required: true
-    description: "Column(s) to sort by. Order matters for multi-column sorting"
+    description: "Column(s) to sort by. For multi-column sorts, order matters for hierarchy"
     examples:
       - "Customer_Name"
       - ["Region", "Sales_Amount"]
       - ["Priority", "Date", "ID"]
     note: "First column is primary sort, subsequent columns break ties"
 
-  ascending:
-    type: boolean or list of booleans
-    required: false
-    default: true
-    description: "Sort direction(s). Single value applies to all columns, or list matching columns length"
+  sort_type:
+    type: string
+    required: true
+    description: "Type of sorting to apply. Determines the sort algorithm and direction"
+    valid_values: ["ascending", "descending", "custom"]
     examples:
-      - true
-      - false
-      - [true, false, true]
-    note: "true = A-Z/low-high/old-new, false = Z-A/high-low/new-old"
+      - "ascending"
+      - "descending"
+      - "custom"
+    note: "Use 'custom' for business logic ordering with custom_orders"
 
   custom_orders:
     type: object
-    required: false
-    default: {}
-    description: "Define custom sort sequences for categorical columns"
+    required: false (required when sort_type is "custom")
+    default: {} 
+    description: "Define custom sort sequences for categorical columns. Only used with sort_type 'custom'"
     examples:
       - Priority: ["High", "Medium", "Low"]
       - Status: ["Active", "Pending", "Complete", "Cancelled"]
@@ -396,7 +347,7 @@ parameter_details:
   ignore_case:
     type: boolean
     required: false
-    default: false
+    default: true
     description: "Ignore case differences when sorting text columns"
     examples:
       - true

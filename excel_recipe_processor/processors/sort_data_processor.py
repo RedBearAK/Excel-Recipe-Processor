@@ -25,8 +25,10 @@ class SortDataProcessor(BaseStepProcessor):
     
     @classmethod
     def get_minimal_config(cls) -> dict:
+        """Updated minimal config for new API."""
         return {
-            'columns': ['test_column']
+            'columns': ['test_column'],
+            'sort_type': 'ascending'
         }
     
     def execute(self, data: Any) -> pd.DataFrame:
@@ -51,29 +53,34 @@ class SortDataProcessor(BaseStepProcessor):
         self.validate_data_not_empty(data)
         
         # Validate required configuration
-        self.validate_required_fields(['columns'])
+        self.validate_required_fields(['columns', 'sort_type'])
         
         columns = self.get_config_value('columns')
-        ascending = self.get_config_value('ascending', True)
-        na_position = self.get_config_value('na_position', 'last')
+        sort_type = self.get_config_value('sort_type')
         custom_orders = self.get_config_value('custom_orders', {})
-        ignore_case = self.get_config_value('ignore_case', False)
+        na_position = self.get_config_value('na_position', 'last')
+        # Changed to 'True' to align with default case_sensitive=False in other processors
+        ignore_case = self.get_config_value('ignore_case', True)
         
         # Validate configuration
-        self._validate_sort_config(data, columns, ascending, na_position, custom_orders)
+        self._validate_sort_config(data, columns, sort_type, custom_orders, na_position)
         
         # Work on a copy
         result_data = data.copy()
         
         try:
-            # Apply custom sorting if specified
-            if custom_orders:
-                result_data = self._apply_custom_sort(result_data, columns, custom_orders, ascending, na_position)
-            else:
-                # Apply standard sorting
+            # Apply sorting based on sort_type
+            if sort_type == "custom":
+                if not custom_orders:
+                    raise StepProcessorError(f"sort_type 'custom' requires custom_orders to be specified")
+                result_data = self._apply_custom_sort(result_data, columns, custom_orders, na_position)
+            elif sort_type in ["ascending", "descending"]:
+                ascending = (sort_type == "ascending")
                 result_data = self._apply_standard_sort(result_data, columns, ascending, na_position, ignore_case)
+            else:
+                raise StepProcessorError(f"Invalid sort_type '{sort_type}'. Must be 'ascending', 'descending', or 'custom'")
             
-            result_info = f"sorted by {len(columns) if isinstance(columns, list) else 1} column(s)"
+            result_info = f"sorted by {len(columns) if isinstance(columns, list) else 1} column(s) using {sort_type} order"
             self.log_step_complete(result_info)
             
             return result_data
@@ -84,16 +91,16 @@ class SortDataProcessor(BaseStepProcessor):
             else:
                 raise StepProcessorError(f"Error sorting data in step '{self.step_name}': {e}")
     
-    def _validate_sort_config(self, df: pd.DataFrame, columns, ascending, na_position, custom_orders) -> None:
+    def _validate_sort_config(self, df: pd.DataFrame, columns, sort_type, custom_orders, na_position) -> None:
         """
         Validate sorting configuration parameters.
         
         Args:
             df: Input DataFrame
             columns: Column(s) to sort by
-            ascending: Sort direction(s)
+            sort_type: Type of sorting to apply
+            custom_orders: Custom sort orders (when sort_type is 'custom')
             na_position: Position for null values
-            custom_orders: Custom sort orders
         """
         # Validate columns
         if isinstance(columns, str):
@@ -115,44 +122,39 @@ class SortDataProcessor(BaseStepProcessor):
                     f"Available columns: {available_columns}"
                 )
         
-        # Validate ascending
-        if isinstance(ascending, bool):
-            # Single value applies to all columns
-            pass
-        elif isinstance(ascending, list):
-            if len(ascending) != len(columns):
-                raise StepProcessorError(
-                    f"Length of 'ascending' list ({len(ascending)}) must match "
-                    f"number of columns ({len(columns)})"
-                )
-            for val in ascending:
-                if not isinstance(val, bool):
-                    raise StepProcessorError("All values in 'ascending' list must be boolean")
-        else:
-            raise StepProcessorError("'ascending' must be a boolean or list of booleans")
+        # Validate sort_type
+        valid_sort_types = ['ascending', 'descending', 'custom']
+        if sort_type not in valid_sort_types:
+            raise StepProcessorError(f"'sort_type' must be one of: {valid_sort_types}")
+        
+        # Validate custom_orders when sort_type is custom
+        if sort_type == 'custom':
+            if not isinstance(custom_orders, dict):
+                raise StepProcessorError("'custom_orders' must be a dictionary when sort_type is 'custom'")
+            
+            if not custom_orders:
+                raise StepProcessorError("'custom_orders' cannot be empty when sort_type is 'custom'")
+            
+            for col, order in custom_orders.items():
+                if col not in columns:
+                    raise StepProcessorError(f"Custom order specified for column '{col}' which is not in sort columns")
+                if not isinstance(order, list):
+                    raise StepProcessorError(f"Custom order for column '{col}' must be a list")
+                if len(order) == 0:
+                    raise StepProcessorError(f"Custom order for column '{col}' cannot be empty")
         
         # Validate na_position
         if na_position not in ['first', 'last']:
             raise StepProcessorError("'na_position' must be 'first' or 'last'")
-        
-        # Validate custom_orders
-        if not isinstance(custom_orders, dict):
-            raise StepProcessorError("'custom_orders' must be a dictionary")
-        
-        for col, order in custom_orders.items():
-            if col not in columns:
-                raise StepProcessorError(f"Custom order specified for column '{col}' which is not in sort columns")
-            if not isinstance(order, list):
-                raise StepProcessorError(f"Custom order for column '{col}' must be a list")
     
-    def _apply_standard_sort(self, df: pd.DataFrame, columns, ascending, na_position, ignore_case) -> pd.DataFrame:
+    def _apply_standard_sort(self, df: pd.DataFrame, columns, ascending: bool, na_position, ignore_case) -> pd.DataFrame:
         """
         Apply standard pandas sorting.
         
         Args:
             df: DataFrame to sort
             columns: Column(s) to sort by
-            ascending: Sort direction(s)
+            ascending: Sort direction (True for ascending, False for descending)
             na_position: Position for null values
             ignore_case: Whether to ignore case for string sorting
             
@@ -193,7 +195,7 @@ class SortDataProcessor(BaseStepProcessor):
         logger.debug(f"Applied standard sort: columns={columns}, ascending={ascending}")
         return result
     
-    def _apply_custom_sort(self, df: pd.DataFrame, columns, custom_orders, ascending, na_position) -> pd.DataFrame:
+    def _apply_custom_sort(self, df: pd.DataFrame, columns, custom_orders, na_position) -> pd.DataFrame:
         """
         Apply custom sorting with specified value orders.
         
@@ -201,7 +203,6 @@ class SortDataProcessor(BaseStepProcessor):
             df: DataFrame to sort
             columns: Column(s) to sort by
             custom_orders: Custom sort orders for specified columns
-            ascending: Sort direction(s)
             na_position: Position for null values
             
         Returns:
@@ -226,7 +227,7 @@ class SortDataProcessor(BaseStepProcessor):
         # Sort using the categorical columns
         result = sort_data.sort_values(
             by=columns,
-            ascending=ascending,
+            ascending=True,  # Custom orders always use ascending sort of the categorical
             na_position=na_position
         )
         
@@ -322,7 +323,8 @@ class SortDataProcessor(BaseStepProcessor):
             col = criterion['column']
             ascending = criterion.get('ascending', True)
             custom_order = criterion.get('custom_order', None)
-            ignore_case = criterion.get('ignore_case', False)
+            # Changed to 'True' to align with default case_sensitive=False in other processors
+            ignore_case = criterion.get('ignore_case', True)
             
             if col not in df.columns:
                 raise StepProcessorError(f"Column '{col}' not found in criterion {i+1}")

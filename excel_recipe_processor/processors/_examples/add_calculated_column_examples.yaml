@@ -1,14 +1,16 @@
-# Revision date: 2025-07-30
+# Revision date: 2025-08-07
 
-description: "Create new columns with calculated values using expressions, math operations, conditionals, and text manipulation"
+description: >
+  "Create new columns with calculated values using robust formula components, 
+  expressions, math operations, conditionals, and text manipulation"
 
-basic_example:
-  description: "Simple mathematical calculation using pandas-style expression"
+basic_formula_components_example:
+  description: "Simple mathematical calculation using robust formula_components syntax"
   yaml: |
-    # Create a total value column by multiplying price and quantity
+    # Create a total value column by multiplying price and quantity with explicit components
     
     settings:
-      description: "Calculate order totals from price and quantity"
+      description: "Calculate order totals from price and quantity using formula_components"
       stages:
         - stage_name: "order_data"
           description: "Raw order data"
@@ -19,7 +21,7 @@ basic_example:
     
     recipe:
       # Previous steps populate order_data stage
-      - step_description: "Calculate total order value"
+      - step_description: "Calculate total order value using formula_components"
         # REQ - Must be "add_calculated_column" for this processor type
         processor_type: "add_calculated_column"
         # REQ - Stage to read data from
@@ -29,253 +31,263 @@ basic_example:
         # REQ - Name of the new column to create
         new_column: "Total_Value"
         # OPT - Type of calculation to perform
-        # Valid values: "expression", "concat", "conditional", "math", "date", "text"
         # Default value: "expression"
         calculation_type: "expression"
         # REQ - Calculation configuration dictionary
         calculation:
-          # REQ - Pandas-style formula using column names
-          # Column references: Use exact column names from your data
-          # Valid operators: +, -, *, /, %, **, ==, !=, <, >, <=, >=
-          formula: "Price * Quantity"
+          # REQ - Robust list-based formula (recommended for all column names)
+          # Each element is either a column name, operator, or value
+          # No quoting needed - handles spaces and special characters perfectly
+          formula_components: ["Price", "*", "Quantity"]
 
-advanced_example:
-  description: "Complex multi-type calculations showing all calculation types"
+complex_formula_components_example:
+  description: "Complex calculations with grouping and multiple operations"
   yaml: |
-    # Advanced example demonstrating various calculation types
+    # Calculate profit margin percentage with proper grouping
     
     settings:
-      description: "Calculate complex business metrics with profit margin"
-      stages:
-        - stage_name: "sales_data"
-          description: "Raw sales data"
-          protected: false
-        - stage_name: "enriched_sales"
-          description: "Sales with calculated business metrics"
-          protected: false
-    
-    recipe:
-      # Previous steps populate sales_data
-      - step_description: "Calculate gross revenue with complex formula"
-        processor_type: "add_calculated_column"
-        source_stage: "sales_data"
-        save_to_stage: "enriched_sales"
-        # REQ - New column name
-        new_column: "Gross_Revenue"
-        # REQ - Expression calculation type
-        calculation_type: "expression"
-        # REQ - Complex expression calculation
-        calculation:
-          # REQ - Multi-column formula with arithmetic and conditional logic
-          # Advanced syntax: supports pandas methods and conditional expressions
-          # Multiple conditions: Use parentheses for complex logic
-          formula: "Weight * 2.50 if Weight < 50 else Weight * 1.80"
-
-conditional_example:
-  description: "If-then-else logic for business categorization"
-  yaml: |
-    # Create customer categories based on order values
-    
-    settings:
-      description: "Categorize customers based on order value thresholds"
-      stages:
-        - stage_name: "customer_orders"
-          description: "Customer order data"
-          protected: false
-        - stage_name: "categorized_customers"
-          description: "Customers with value-based categories"
-          protected: false
-    
-    recipe:
-      - step_description: "Assign customer tier based on order value"
-        processor_type: "add_calculated_column"
-        source_stage: "customer_orders"
-        save_to_stage: "categorized_customers"
-        # REQ - New column name
-        new_column: "Customer_Tier"
-        # REQ - Conditional calculation type
-        calculation_type: "conditional"
-        # REQ - Conditional logic configuration
-        calculation:
-          # REQ - Column to evaluate for condition
-          condition_column: "Order_Value"
-          # REQ - Type of condition to test
-          # Valid conditions: "equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal", "contains", "not_contains"
-          condition: "greater_than"
-          # REQ - Value to compare against
-          condition_value: 1000
-          # REQ - Value when condition is true
-          value_if_true: "Premium"
-          # REQ - Value when condition is false
-          value_if_false: "Standard"
-
-concatenation_example:
-  description: "Combine text columns with custom separators"
-  yaml: |
-    # Create full names from first and last name columns
-    
-    settings:
-      description: "Combine customer name fields into full names"
-      stages:
-        - stage_name: "customer_data"
-          description: "Raw customer data with separate name fields"
-          protected: false
-        - stage_name: "formatted_customers"
-          description: "Customers with formatted full names"
-          protected: false
-    
-    recipe:
-      - step_description: "Create full customer names"
-        processor_type: "add_calculated_column"
-        source_stage: "customer_data"
-        save_to_stage: "formatted_customers"
-        # REQ - New column name
-        new_column: "Full_Name"
-        # REQ - Concatenation calculation type
-        calculation_type: "concat"
-        # REQ - Concatenation configuration
-        calculation:
-          # REQ - List of columns to combine
-          columns: ["First_Name", "Last_Name"]
-          # OPT - Text separator between values
-          # Default value: ""
-          separator: " "
-
-math_operations_example:
-  description: "Specific mathematical operations between columns"
-  yaml: |
-    # Calculate profit margin from revenue and cost columns
-    
-    settings:
-      description: "Calculate profit metrics from financial data"
+      description: "Calculate complex profit metrics using formula_components"
       stages:
         - stage_name: "financial_data"
-          description: "Revenue and cost data"
+          description: "Revenue and cost data with spaces in column names"
           protected: false
         - stage_name: "profit_analysis"
-          description: "Financial data with profit calculations"
+          description: "Financial data with calculated profit margins"
           protected: false
     
     recipe:
-      - step_description: "Calculate profit amount"
+      - step_description: "Calculate profit margin percentage"
         processor_type: "add_calculated_column"
         source_stage: "financial_data"
         save_to_stage: "profit_analysis"
-        # REQ - New column name
-        new_column: "Profit"
-        # REQ - Math operation type
-        calculation_type: "math"
-        # REQ - Math operation configuration
+        new_column: "Profit_Margin_Percent"
+        calculation_type: "expression"
         calculation:
-          # REQ - Mathematical operation to perform
-          # Valid operations: "add", "subtract", "multiply", "divide", "sum", "mean", "min", "max"
-          operation: "subtract"
-          # REQ - First column for binary operations
-          column1: "Revenue"
-          # REQ - Second column for binary operations
-          column2: "Cost"
+          # Complex formula: ((Revenue - Cost) / Revenue) * 100
+          # Nested lists create grouping (parentheses)
+          formula_components: [
+            [["Revenue", "-", "Total Cost"], "/", "Revenue"], "*", "100"
+          ]
 
-overwrite_column_example:
-  description: "Replace existing column with calculated values"
+conditional_formula_components_example:
+  description: "Conditional logic with formula_components for business rules"
   yaml: |
-    # Update existing column with modified values
+    # Apply different pricing based on order quantity with complex conditions
     
     settings:
-      description: "Apply 10% price increase to existing prices"
+      description: "Dynamic pricing based on quantity tiers"
       stages:
-        - stage_name: "product_data"
-          description: "Current product pricing"
+        - stage_name: "order_data"
+          description: "Order data with quantities"
           protected: false
-        - stage_name: "updated_pricing"
-          description: "Products with increased prices"
+        - stage_name: "priced_orders"
+          description: "Orders with tier-based pricing"
           protected: false
     
     recipe:
-      - step_description: "Apply 10% price increase to existing prices"
+      - step_description: "Apply quantity-based pricing tiers"
+        processor_type: "add_calculated_column"
+        source_stage: "order_data"
+        save_to_stage: "priced_orders"
+        new_column: "Final_Price"
+        calculation_type: "expression"
+        calculation:
+          # Conditional pricing: if quantity >= 100 then bulk rate, else standard rate
+          formula_components: [
+            {
+              "condition": {
+                "column": "Order Quantity",
+                "operator": ">=", 
+                "value": 100
+              },
+              "if_true": ["Unit Price", "*", "Order Quantity", "*", "0.85"],
+              "if_false": ["Unit Price", "*", "Order Quantity"]
+            }
+          ]
+
+mixed_conditional_example:
+  description: "Complex business logic with multiple conditions and calculations"
+  yaml: |
+    # Calculate shipping cost with customer tier discounts and weight factors
+    
+    settings:
+      description: "Complex shipping calculation with multiple business rules"
+      stages:
+        - stage_name: "shipping_data"
+          description: "Orders with customer and weight data"
+          protected: false
+        - stage_name: "final_shipping"
+          description: "Orders with calculated shipping costs"
+          protected: false
+    
+    recipe:
+      - step_description: "Calculate shipping with tier discounts and weight factors"
+        processor_type: "add_calculated_column"
+        source_stage: "shipping_data"
+        save_to_stage: "final_shipping"
+        new_column: "Shipping_Cost"
+        calculation_type: "expression"
+        calculation:
+          # Base shipping + weight surcharge - customer discount
+          formula_components: [
+            "15.00", "+",
+            {
+              "condition": {
+                "column": "Package Weight (lbs)",
+                "operator": ">",
+                "value": 50
+              },
+              "if_true": [["Package Weight (lbs)", "-", "50"], "*", "0.25"],
+              "if_false": "0"
+            },
+            "-",
+            {
+              "condition": {
+                "column": "Customer Tier",
+                "operator": "==",
+                "value": "Premium"
+              },
+              "if_true": "5.00",
+              "if_false": "0"
+            }
+          ]
+
+string_conditions_example:
+  description: "String-based conditions with contains and membership operations"
+  yaml: |
+    # Categorize products based on name patterns and categories
+    
+    settings:
+      description: "Product categorization using string matching"
+      stages:
+        - stage_name: "product_data"
+          description: "Product catalog data"
+          protected: false
+        - stage_name: "categorized_products"
+          description: "Products with calculated categories"
+          protected: false
+    
+    recipe:
+      - step_description: "Assign product categories based on name and type"
         processor_type: "add_calculated_column"
         source_stage: "product_data"
-        save_to_stage: "updated_pricing"
-        # REQ - Existing column name to overwrite
-        new_column: "Price"
-        # REQ - Expression type for formula
+        save_to_stage: "categorized_products"
+        new_column: "Product_Category"
         calculation_type: "expression"
-        # REQ - Calculation to modify existing values
         calculation:
-          # REQ - Formula referencing the same column being overwritten
-          # Self-reference: Use the column name in its own calculation
-          formula: "Price * 1.1"
-        # REQ - Must be true to overwrite existing column
-        # Default value: false
-        overwrite: true
+          formula_components: [
+            {
+              "condition": {
+                "column": "Product Name",
+                "operator": "contains",
+                "value": "Premium"
+              },
+              "if_true": "'High-End'",
+              "if_false": {
+                "condition": {
+                  "column": "Product Type",
+                  "operator": "in",
+                  "value": ["Electronics", "Computers", "Mobile"]
+                },
+                "if_true": "'Technology'",
+                "if_false": "'Standard'"
+              }
+            }
+          ]
+
+legacy_formula_example:
+  description: "Legacy formula syntax (still supported but limited)"
+  yaml: |
+    # Legacy string-based formula (has limitations with column names containing spaces)
+    
+    settings:
+      description: "Legacy formula approach for simple cases"
+      stages:
+        - stage_name: "simple_data"
+          description: "Data with simple column names"
+          protected: false
+        - stage_name: "calculated_data"
+          description: "Data with calculations"
+          protected: false
+    
+    recipe:
+      - step_description: "Calculate using legacy formula syntax"
+        processor_type: "add_calculated_column"
+        source_stage: "simple_data"
+        save_to_stage: "calculated_data"
+        new_column: "Total"
+        calculation_type: "expression"
+        calculation:
+          # Legacy formula - works only with simple column names (no spaces/special chars)
+          # For robust column name handling, use formula_components instead
+          formula: "Price * Quantity"
 
 parameter_details:
-  new_column:
-    type: string
-    required: true
-    description: "Name of the new column to create in the DataFrame"
-    examples: ["Total_Value", "Customer_Category", "Full_Name", "Profit_Margin"]
+  formula_components:
+    type: list
+    required: false (alternative to formula)
+    description: "Robust list-based formula specification that handles any column names"
+    examples:
+      - ["Price", "*", "Quantity"]
+      - [["Revenue", "-", "Cost"], "/", "Revenue", "*", "100"]
+      - [{"condition": {...}, "if_true": [...], "if_false": [...]}]
+    note: "Recommended over 'formula' for reliability with complex column names"
   
-  calculation_type:
-    type: string
-    required: false
-    default: "expression"
-    description: "Type of calculation to perform on the data"
-    valid_values: ["expression", "concat", "conditional", "math", "date", "text"]
-  
-  calculation:
-    type: dict
-    required: true
-    description: "Configuration dictionary containing calculation parameters specific to the calculation_type"
-    structure: "Content varies by calculation_type - see examples above"
-  
-  overwrite:
-    type: boolean
-    required: false
-    default: false
-    description: "Whether to overwrite an existing column with the same name as new_column"
+  formula:
+    type: string  
+    required: false (alternative to formula_components)
+    description: "Legacy string-based formula (limited column name support)"
+    examples: ["Price * Quantity", "Revenue - Cost"]
+    note: "Use formula_components for column names with spaces or special characters"
 
-calculation_types:
-  expression:
-    description: "General pandas-style calculations using column names and operators"
-    required_fields: ["formula"]
-    examples: ["Price * Quantity", "Revenue - Cost", "Column1 + Column2 * 0.1"]
+formula_components_syntax:
+  basic_operations:
+    description: "Simple arithmetic between columns and values"
+    examples:
+      - ["Column_A", "+", "Column_B"]
+      - ["Price", "*", "1.1"]
+      - ["Quantity", "-", "5"]
   
-  concat:
-    description: "Combine text columns with optional separators"
-    required_fields: ["columns"]
-    optional_fields: ["separator"]
-    examples: ["First_Name + Last_Name", "City, State combination"]
+  grouping:
+    description: "Use nested lists to create grouped operations (parentheses)"
+    examples:
+      - [["A", "+", "B"], "*", "C"]  # (A + B) * C
+      - [["Revenue", "-", "Cost"], "/", ["Units", "+", "1"]]  # (Revenue - Cost) / (Units + 1)
   
-  conditional:
-    description: "If-then-else logic based on column values"
-    required_fields: ["condition_column", "condition", "condition_value", "value_if_true", "value_if_false"]
-    examples: ["Customer tier assignment", "Status categorization"]
+  conditionals:
+    description: "If-then-else logic using dictionary structure"
+    structure: |
+      {
+        "condition": {
+          "column": "column_name",
+          "operator": "comparison_operator", 
+          "value": "comparison_value"
+        },
+        "if_true": formula_components_for_true_case,
+        "if_false": formula_components_for_false_case  
+      }
+    operators: ["==", "!=", "<", ">", "<=", ">=", "in", "not_in", "contains", "not_contains"]
   
-  math:
-    description: "Specific mathematical operations between columns"
-    required_fields: ["operation", "column1", "column2"]
-    valid_operations: ["add", "subtract", "multiply", "divide", "sum", "mean", "min", "max"]
-  
-  date:
-    description: "Date arithmetic and calculations"
-    required_fields: ["operation"]
-    valid_operations: ["days_between", "add_days", "subtract_days"]
-  
-  text:
-    description: "String manipulation operations"
-    required_fields: ["operation", "column"]
-    valid_operations: ["length", "upper", "lower", "title"]
+  nested_conditions:
+    description: "Complex nested conditional logic"
+    example: |
+      {
+        "condition": {"column": "Tier", "operator": "==", "value": "Premium"},
+        "if_true": ["Base_Price", "*", "0.9"], 
+        "if_false": {
+          "condition": {"column": "Quantity", "operator": ">", "value": 100},
+          "if_true": ["Base_Price", "*", "0.95"],
+          "if_false": "Base_Price"
+        }
+      }
 
-integration_notes:
-  stage_manager: "Uses stage-based architecture for data flow - requires source_stage and save_to_stage"
-  variable_substitution: "All parameters support recipe variables and built-in date/time variables"
-  data_types: "Automatically handles data type conversion for most operations"
-  memory_efficiency: "Creates new stage copy with added column - original stage remains unchanged"
-  stage_validation: "Both source_stage and save_to_stage must be declared in settings.stages"
-
-common_use_cases:
-  financial_calculations: "Revenue totals, profit margins, tax calculations"
-  customer_analytics: "Customer lifetime value, tier assignments, behavior scoring"
-  data_transformation: "Unit conversions, percentage calculations, normalization"
-  text_processing: "Full name creation, address formatting, description cleanup"
-  business_logic: "Status assignments, category mapping, threshold-based flags"
+migration_guide:
+  from_legacy_formula:
+    old_syntax: 'formula: "Price * Net Weight"'
+    new_syntax: 'formula_components: ["Price", "*", "Net Weight"]'
+    benefits: "Handles column names with spaces, quotes, and special characters"
+  
+  complex_migration:
+    old_syntax: 'formula: "(Revenue - Cost) / Revenue * 100"'
+    new_syntax: 'formula_components: [["Revenue", "-", "Cost"], "/", "Revenue", "*", "100"]'
+    benefits: "Explicit grouping, no parsing ambiguity"

@@ -245,14 +245,7 @@ class RecipePipeline:
         """
         Collect external variables from CLI arguments and interactive prompts.
         
-        Args:
-            cli_variables: Variables provided via CLI --var arguments
-            
-        Returns:
-            Dictionary of collected external variables
-            
-        Raises:
-            RecipePipelineError: If variable collection fails
+        Enhanced to resolve CLI variables that contain template variables.
         """
         if not self.recipe_data:
             raise RecipePipelineError("No recipe loaded. Call load_recipe() first.")
@@ -263,11 +256,23 @@ class RecipePipeline:
         required_external_vars = self.recipe_loader.get_required_external_vars()
         
         if not required_external_vars:
-            # No external variables required
+            # No external variables required by recipe
             if cli_variables:
                 logger.warning("⚠️ CLI variables provided but recipe doesn't require external variables")
-                # Use CLI variables anyway for flexibility
-                return cli_variables
+                # ENHANCEMENT: Still resolve CLI variables for flexibility
+                resolved_cli_vars = {}
+                for name, value in cli_variables.items():
+                    if isinstance(value, str) and self.variable_substitution and '{' in value:
+                        try:
+                            resolved_value = self.variable_substitution.substitute(value)
+                            resolved_cli_vars[name] = resolved_value
+                            logger.debug(f"📝 Resolved CLI variable '{name}': '{value}' → '{resolved_value}'")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Could not resolve CLI variable '{name}': {e}")
+                            resolved_cli_vars[name] = value
+                    else:
+                        resolved_cli_vars[name] = value
+                return resolved_cli_vars
             return {}
         
         try:
@@ -281,7 +286,7 @@ class RecipePipeline:
         except InteractiveVariableError as e:
             logger.error(f"❌ Failed to collect external variables: {e}")
             raise RecipePipelineError(f"Failed to collect external variables: {e}")
-    
+
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
@@ -295,11 +300,17 @@ class RecipePipeline:
             logger.info("🔧 Processing external variables...")
             external_variables = self.collect_external_variables(cli_variables)
             
-            # Add external variables to pipeline
+            # Add external variables to pipeline (now with resolution)
             for name, value in external_variables.items():
                 self.add_external_variable(name, value)
             
-            # NEW: Re-resolve custom variables once after all externals are added
+            # Log resolved variables for transparency
+            if external_variables:
+                logger.info(f"✓ Resolved {len(external_variables)} external variables:")
+                for name, value in external_variables.items():
+                    logger.info(f"  {name} = {value}")
+            
+            # Final validation that all custom variables are fully resolved
             self._validate_all_variables_resolved()
             
             # Execute recipe
@@ -333,25 +344,38 @@ class RecipePipeline:
                 f"Unresolved variables detected before recipe execution:\n" + 
                 "\n".join(f"  - {var}" for var in unresolved_vars)
             )
-    
+
     def add_external_variable(self, name: str, value: Any) -> None:
-        """Add an external variable (e.g., from CLI or interactive prompt)."""
+        """Add an external variable (e.g., from CLI or interactive prompt) with immediate resolution."""
         if not isinstance(name, str) or not name.strip():
             raise RecipePipelineError("Variable name must be a non-empty string")
         
-        # Store original value without conversion
-        self._external_variables[name] = value
+        # ENHANCEMENT: Resolve variables in CLI values immediately
+        if isinstance(value, str) and self.variable_substitution and '{' in value:
+            try:
+                # Resolve template variables in the CLI variable value
+                resolved_value = self.variable_substitution.substitute(value)
+                logger.debug(f"📝 Resolved CLI variable '{name}': '{value}' → '{resolved_value}'")
+            except Exception as e:
+                # If resolution fails, use original value and let validation catch it later
+                logger.warning(f"⚠️ Could not resolve CLI variable '{name}': {e}")
+                resolved_value = value
+        else:
+            resolved_value = value
+        
+        # Store resolved value
+        self._external_variables[name] = resolved_value
         
         # Also add to variable substitution system
         if self.variable_substitution:
-            self.variable_substitution.add_custom_variable(name, value)
+            self.variable_substitution.add_custom_variable(name, resolved_value)
         
-        value_repr = repr(value) if not isinstance(value, str) else value
-        logger.debug(f"📝 Added external variable: {name} = {value_repr} (type: {type(value).__name__})")
+        value_repr = repr(resolved_value) if not isinstance(resolved_value, str) else resolved_value
+        logger.debug(f"📝 Added external variable: {name} = {value_repr} (type: {type(resolved_value).__name__})")
 
         # Re-resolve any custom variables that might reference this external variable
         self._re_resolve_custom_variables()
-    
+
     def _re_resolve_custom_variables(self):
         """Re-resolve custom variables that might contain variable references."""
         settings = self.recipe_data.get('settings', {})

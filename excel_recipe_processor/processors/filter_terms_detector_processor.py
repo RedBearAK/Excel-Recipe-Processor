@@ -43,7 +43,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
             'filtered_stage': 'stg_filtered_data_final',
             'text_columns': ['notes', 'description']
         }
-    
+
     def __init__(self, step_config: dict):
         """Initialize the filter terms detector processor."""
         super().__init__(step_config)
@@ -64,18 +64,168 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         self.score_threshold = self.get_config_value('score_threshold', 0.1)
         self.categorical_columns = self.get_config_value('categorical_columns', [])
         self.custom_stop_words = self.get_config_value('custom_stop_words', [])
+        self.exclude_columns = self.get_config_value('exclude_columns', [])
         
-        # Validate that at least one analysis type is specified
-        if not self.text_columns and not self.categorical_columns:
-            # If neither specified, enable auto-discovery of text columns
+        # NEW: Read auto_detect_columns configuration
+        self.auto_detect_columns = self.get_config_value('auto_detect_columns', False)
+        
+        # Determine if auto-discovery should be enabled
+        if self.auto_detect_columns or (not self.text_columns and not self.categorical_columns):
             self.auto_discover_columns = True
-            logger.info("No text_columns or categorical_columns specified - will auto-discover text columns")
+            logger.info("Auto-detection enabled - will discover text and categorical columns")
         else:
             self.auto_discover_columns = False
         
         # Validate configuration
         self._validate_config()
-    
+
+    def _auto_detect_column_types(self, raw_data: pd.DataFrame, filtered_data: pd.DataFrame, common_columns: list) -> tuple[list, list]:
+        """
+        Auto-detect text and categorical columns based on data content and types.
+        
+        Args:
+            raw_data: Raw dataset for analysis
+            filtered_data: Filtered dataset for analysis
+            common_columns: List of string column names that exist in both datasets
+            
+        Returns:
+            Tuple of (detected_text_columns, detected_categorical_columns)
+        """
+        logger.info("Starting auto-detection of column types...")
+        
+        # Filter out excluded columns
+        available_columns = [col for col in common_columns if col not in self.exclude_columns]
+        logger.info(f"Available columns after exclusions: {len(available_columns)} of {len(common_columns)}")
+        
+        detected_text_columns = []
+        detected_categorical_columns = []
+        
+        for column in available_columns:
+            try:
+                # Access column data using string column name
+                # (The actual DataFrame might have datetime column names that we converted to strings)
+                column_data = None
+                
+                # Try to find the actual column in the raw data
+                for actual_col in raw_data.columns:
+                    if str(actual_col) == column:
+                        column_data = raw_data[actual_col].dropna()
+                        break
+                
+                if column_data is None or len(column_data) == 0:
+                    logger.debug(f"Column '{column}': not found or empty - skipping")
+                    continue
+                
+                # Determine data type
+                dtype = column_data.dtype
+                unique_count = column_data.nunique()
+                total_count = len(column_data)
+                
+                # Calculate uniqueness ratio
+                uniqueness_ratio = unique_count / total_count if total_count > 0 else 0
+                
+                # Check if column contains primarily text content
+                is_text_like = self._is_text_column(column_data, column)
+                is_categorical_like = self._is_categorical_column(column_data, column, uniqueness_ratio)
+                
+                if is_text_like:
+                    detected_text_columns.append(column)
+                    logger.info(f"Column '{column}': detected as TEXT (dtype={dtype}, unique_ratio={uniqueness_ratio:.3f})")
+                elif is_categorical_like:
+                    detected_categorical_columns.append(column)
+                    logger.info(f"Column '{column}': detected as CATEGORICAL (dtype={dtype}, unique={unique_count}, ratio={uniqueness_ratio:.3f})")
+                else:
+                    logger.debug(f"Column '{column}': not suitable for analysis (dtype={dtype}, unique_ratio={uniqueness_ratio:.3f})")
+                    
+            except Exception as e:
+                logger.warning(f"Error analyzing column '{column}' for auto-detection: {e}")
+                continue
+        
+        logger.info(f"Auto-detection completed: {len(detected_text_columns)} text columns, {len(detected_categorical_columns)} categorical columns")
+        return detected_text_columns, detected_categorical_columns
+
+    def _is_text_column(self, column_data: pd.Series, column_name: str) -> bool:
+        """
+        Determine if a column should be treated as a text column for n-gram analysis.
+        
+        Args:
+            column_data: Column data to analyze
+            column_name: Name of the column
+            
+        Returns:
+            True if column should be analyzed as text
+        """
+        # Check for obvious text column names
+        text_indicators = ['note', 'comment', 'description', 'name', 'title', 'component', 
+                        'contract', 'customer', 'destination', 'origin', 'product']
+        
+        column_lower = column_name.lower()
+        has_text_indicator = any(indicator in column_lower for indicator in text_indicators)
+        
+        # Analyze content
+        if column_data.dtype == 'object':
+            # Sample some values to check text characteristics
+            sample_values = column_data.head(100).astype(str)
+            
+            # Calculate average length
+            avg_length = sample_values.str.len().mean()
+            
+            # Check for multi-word content
+            has_spaces = sample_values.str.contains(' ').any()
+            
+            # Text columns typically have longer strings and/or spaces
+            is_text_content = avg_length > 10 or has_spaces
+            
+            return has_text_indicator or is_text_content
+        
+        return False
+
+    def _is_categorical_column(self, column_data: pd.Series, column_name: str, uniqueness_ratio: float) -> bool:
+        """
+        Determine if a column should be treated as categorical for filter detection.
+        Enhanced to avoid problematic mixed-type columns.
+        
+        Args:
+            column_data: Column data to analyze
+            column_name: Name of the column
+            uniqueness_ratio: Ratio of unique values to total values
+            
+        Returns:
+            True if column should be analyzed as categorical
+        """
+        # Check for obvious categorical column names
+        categorical_indicators = ['status', 'type', 'category', 'species', 'carrier', 'workflow', 
+                                'uom', 'term', 'region', 'priority', 'grade']
+        
+        column_lower = column_name.lower()
+        has_categorical_indicator = any(indicator in column_lower for indicator in categorical_indicators)
+        
+        # Categorical columns should have relatively few unique values
+        is_low_cardinality = uniqueness_ratio < 0.1  # Less than 10% unique values
+        
+        # For small datasets, use absolute thresholds
+        unique_count = column_data.nunique()
+        is_small_vocabulary = unique_count <= 50
+        
+        # Must be object type or string-like to be meaningful for filtering
+        is_suitable_type = column_data.dtype == 'object'
+        
+        # ENHANCED: Check for problematic mixed types
+        if is_suitable_type:
+            # Sample some values to check for datetime contamination
+            sample_values = column_data.dropna().head(20)
+            has_datetime_objects = any(hasattr(val, 'strftime') for val in sample_values)
+            has_string_objects = any(isinstance(val, str) for val in sample_values)
+            
+            # If we have both datetime and string objects, this might be problematic
+            # Only include if it's clearly categorical by name or very low cardinality
+            if has_datetime_objects and has_string_objects:
+                if not has_categorical_indicator and not (unique_count <= 20):
+                    logger.debug(f"Skipping mixed datetime/string column '{column_name}' for categorical analysis")
+                    return False
+        
+        return is_suitable_type and (has_categorical_indicator or is_low_cardinality or is_small_vocabulary)
+
     def _normalize_text_columns(self, text_columns) -> list:
         """
         Normalize text_columns to always be a list.
@@ -133,79 +283,78 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         if not isinstance(self.score_threshold, (int, float)) or self.score_threshold < 0:
             raise StepProcessorError("score_threshold must be a non-negative number")
 
-    def execute(self, data: Any) -> pd.DataFrame:
-            """
-            Execute the filter terms detection analysis.
-            
-            Args:
-                data: Input data (not used, loads from configured stages)
-                
-            Returns:
-                DataFrame with detected filter terms and analysis results
-                
-            Raises:
-                StepProcessorError: If analysis fails
-            """
+    def execute(self, source_stage_data: Optional[pd.DataFrame]) -> pd.DataFrame:
+        """Execute filter terms detection analysis."""
+        try:
             self.log_step_start()
             
-            try:
-                # Load the two datasets for comparison
-                raw_data = StageManager.load_stage(self.raw_stage)
-                filtered_data = StageManager.load_stage(self.filtered_stage)
+            # Load datasets
+            raw_data = StageManager.load_stage(self.raw_stage)
+            filtered_data = StageManager.load_stage(self.filtered_stage)
+            
+            logger.info(f"Loaded raw data: {len(raw_data)} rows, {len(raw_data.columns)} columns")
+            logger.info(f"Loaded filtered data: {len(filtered_data)} rows, {len(filtered_data.columns)} columns")
+            
+            # Find common columns - SAFELY CONVERT ALL COLUMN NAMES TO STRINGS
+            raw_columns = set(str(col) for col in raw_data.columns)
+            filtered_columns = set(str(col) for col in filtered_data.columns)
+            common_columns = list(raw_columns.intersection(filtered_columns))
+            
+            # Now we can safely sort string column names
+            logger.info(f"Raw data columns: {sorted(raw_columns)}")
+            logger.info(f"Filtered data columns: {sorted(filtered_columns)}")
+            logger.info(f"Common columns ({len(common_columns)}): {sorted(common_columns)}")
+            logger.info(f"Raw-only columns: {sorted(raw_columns - filtered_columns)}")
+            logger.info(f"Filtered-only columns: {sorted(filtered_columns - raw_columns)}")
+            
+            # Determine which columns to analyze
+            if self.auto_discover_columns:
+                # Auto-detect column types - pass original DataFrames but use string column names
+                detected_text_columns, detected_categorical_columns = self._auto_detect_column_types(
+                    raw_data, filtered_data, common_columns)
                 
-                # Normalize column names to strings immediately (handle datetime headers from Excel)
-                raw_data.columns = [str(col) for col in raw_data.columns]
-                filtered_data.columns = [str(col) for col in filtered_data.columns]
+                # Use detected columns, but also include any explicitly specified columns
+                valid_text_columns = list(set(self.text_columns + detected_text_columns))
+                valid_categorical_columns = list(set(self.categorical_columns + detected_categorical_columns))
+            else:
+                # Use only explicitly specified columns - ensure they're strings for comparison
+                valid_text_columns = [col for col in self.text_columns if str(col) in common_columns]
+                valid_categorical_columns = [col for col in self.categorical_columns if str(col) in common_columns]
+            
+            logger.info(f"Configured text_columns: {self.text_columns}")
+            logger.info(f"Configured categorical_columns: {self.categorical_columns}")
+            logger.info(f"Valid text columns (exist in both datasets): {valid_text_columns}")
+            logger.info(f"Valid categorical columns (exist in both datasets): {valid_categorical_columns}")
+            
+            # Update instance variables for analysis methods
+            self.text_columns = valid_text_columns
+            self.categorical_columns = valid_categorical_columns
+            
+            # Validate that we have columns to analyze
+            if not valid_text_columns and not valid_categorical_columns:
+                logger.warning("No valid columns found for analysis - will return empty results")
+                logger.warning("Suggestion: Check if your text_columns and categorical_columns match the common columns listed above")
                 
-                logger.info(f"Loaded raw data: {len(raw_data)} rows, {len(raw_data.columns)} columns")
-                logger.info(f"Loaded filtered data: {len(filtered_data)} rows, {len(filtered_data.columns)} columns")
-                
-                # DEBUG: Show what columns we have
-                raw_columns = set(raw_data.columns)
-                filtered_columns = set(filtered_data.columns)
-                common_columns = raw_columns & filtered_columns
-                
-                logger.info(f"Raw data columns: {sorted(list(raw_columns))}")
-                logger.info(f"Filtered data columns: {sorted(list(filtered_columns))}")
-                logger.info(f"Common columns ({len(common_columns)}): {sorted(list(common_columns))}")
-                logger.info(f"Raw-only columns: {sorted(list(raw_columns - filtered_columns))}")
-                logger.info(f"Filtered-only columns: {sorted(list(filtered_columns - raw_columns))}")
-                
-                # DEBUG: Show configured analysis columns
-                logger.info(f"Configured text_columns: {self.text_columns}")
-                logger.info(f"Configured categorical_columns: {self.categorical_columns}")
-                
-                # Find which configured columns actually exist in both datasets
-                valid_text_columns = [col for col in self.text_columns if col in common_columns]
-                valid_categorical_columns = [col for col in self.categorical_columns if col in common_columns]
-                
-                logger.info(f"Valid text columns (exist in both datasets): {valid_text_columns}")
-                logger.info(f"Valid categorical columns (exist in both datasets): {valid_categorical_columns}")
-                
-                if not valid_text_columns and not valid_categorical_columns:
-                    logger.warning("No valid columns found for analysis - will return empty results")
-                    logger.warning("Suggestion: Check if your text_columns and categorical_columns match the common columns listed above")
-                
-                # Perform the analysis
-                analysis_results = self._analyze_filter_patterns(raw_data, filtered_data)
-                
-                # DEBUG: Show analysis results summary
-                logger.info(f"Analysis results keys: {list(analysis_results.keys())}")
-                for key, value in analysis_results.items():
-                    if isinstance(value, dict):
-                        logger.info(f"Analysis results['{key}']: {len(value)} items")
-                    else:
-                        logger.info(f"Analysis results['{key}']: {value}")
-                
-                # Convert results to DataFrame format
-                results_df = self._create_results_dataframe(analysis_results)
-                
-                self.log_step_complete(f"detected {len(results_df)} potential filter terms")
-                return results_df
-                
-            except Exception as e:
-                self.log_step_error(e)
-                raise StepProcessorError(f"Filter terms detection failed: {e}")
+            # Perform the analysis
+            analysis_results = self._analyze_filter_patterns(raw_data, filtered_data)
+            
+            # DEBUG: Show analysis results summary
+            logger.info(f"Analysis results keys: {list(analysis_results.keys())}")
+            for key, value in analysis_results.items():
+                if isinstance(value, dict):
+                    logger.info(f"Analysis results['{key}']: {len(value)} items")
+                else:
+                    logger.info(f"Analysis results['{key}']: {value}")
+            
+            # Convert results to DataFrame format
+            results_df = self._create_results_dataframe(analysis_results)
+            
+            self.log_step_complete(f"detected {len(results_df)} potential filter terms")
+            return results_df
+            
+        except Exception as e:
+            self.log_step_error(e)
+            raise StepProcessorError(f"Filter terms detection failed: {e}")
 
     def _analyze_filter_patterns(self, raw_data: pd.DataFrame, filtered_data: pd.DataFrame):
             """
@@ -297,6 +446,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
     def _analyze_categorical_columns(self, raw_data: pd.DataFrame, filtered_data: pd.DataFrame):
         """
         Analyze categorical columns with enhanced vocabulary-aware scoring.
+        Fixed to handle mixed datetime/string data types safely.
         
         Args:
             raw_data: Original dataset
@@ -327,32 +477,24 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
                 continue
             
             try:
-                # Get column data and safely convert to strings
+                logger.debug(f"Analyzing categorical column: '{column}'")
+                
+                # Get column data
                 raw_column_data = raw_data[column]
                 filtered_column_data = filtered_data[column]
                 
-                # Safely convert all values to strings, handling datetime objects
+                # Safely convert all values to strings, handling ALL datetime-like objects
                 raw_values = set()
                 for val in raw_column_data.dropna():
-                    try:
-                        if hasattr(val, 'strftime'):  # datetime-like object
-                            str_val = val.strftime('%Y-%m-%d %H:%M:%S') if hasattr(val, 'hour') else val.strftime('%Y-%m-%d')
-                        else:
-                            str_val = str(val)
+                    str_val = self._safe_value_to_string(val)
+                    if str_val is not None:
                         raw_values.add(str_val)
-                    except Exception:
-                        continue
                 
                 filtered_values = set()
                 for val in filtered_column_data.dropna():
-                    try:
-                        if hasattr(val, 'strftime'):  # datetime-like object
-                            str_val = val.strftime('%Y-%m-%d %H:%M:%S') if hasattr(val, 'hour') else val.strftime('%Y-%m-%d')
-                        else:
-                            str_val = str(val)
+                    str_val = self._safe_value_to_string(val)
+                    if str_val is not None:
                         filtered_values.add(str_val)
-                    except Exception:
-                        continue
                 
                 # Calculate vocabulary metrics for enhanced scoring
                 total_vocabulary_size = len(raw_values)
@@ -371,12 +513,14 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
                     # Enhanced confidence calculation
                     enhanced_confidence = base_confidence + (vocabulary_boost * 20.0) + (removal_ratio * 30.0)
                     
-                    # Safe sorting with fallback
+                    # Safe sorting with comprehensive error handling
                     try:
-                        sorted_removed = sorted(list(removed_values))
-                        sorted_retained = sorted(list(retained_values))
+                        # All values should be strings now, but double-check
+                        sorted_removed = self._safe_sort_values(list(removed_values))
+                        sorted_retained = self._safe_sort_values(list(retained_values))
                     except Exception as sort_error:
                         logger.warning(f"Could not sort values for column '{column}': {sort_error}")
+                        # Fallback: convert to list without sorting
                         sorted_removed = list(removed_values)
                         sorted_retained = list(retained_values)
                     
@@ -397,14 +541,92 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
                     
             except Exception as column_error:
                 logger.error(f"Error analyzing categorical column '{column}': {column_error}")
+                # Continue with other columns instead of failing completely
                 continue
         
         logger.info(f"Enhanced categorical analysis completed: {len(categorical_results)} columns with results")
         return categorical_results
 
+    def _safe_value_to_string(self, val) -> str:
+        """
+        Safely convert any value to a string, handling all datetime types and edge cases.
+        
+        Args:
+            val: Value to convert (any type)
+            
+        Returns:
+            String representation of the value, or None if conversion fails
+        """
+        try:
+            # Handle pandas NaT and NaN
+            if pd.isna(val):
+                return None
+            
+            # Handle datetime objects (including pandas Timestamp)
+            if hasattr(val, 'strftime'):
+                if hasattr(val, 'hour'):  # datetime with time
+                    return val.strftime('%Y-%m-%d %H:%M:%S')
+                else:  # date only
+                    return val.strftime('%Y-%m-%d')
+            
+            # Handle pandas Timestamp specifically (redundant but safe)
+            if hasattr(val, 'isoformat'):
+                try:
+                    return val.isoformat()
+                except:
+                    pass
+            
+            # Handle numeric types that might be confused as datetime
+            if isinstance(val, (int, float)) and not pd.isna(val):
+                return str(val)
+            
+            # Convert everything else to string
+            str_val = str(val).strip()
+            
+            # Filter out empty strings and obvious invalid values
+            if str_val and str_val.lower() not in ['nan', 'none', 'null', '']:
+                return str_val
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Could not convert value to string: {val} ({type(val)}) - {e}")
+            return None
+
+    def _safe_sort_values(self, values: list) -> list:
+        """
+        Safely sort a list of values, handling mixed types gracefully.
+        
+        Args:
+            values: List of values to sort
+            
+        Returns:
+            Sorted list of values (all converted to strings)
+        """
+        try:
+            # Ensure all values are strings
+            string_values = []
+            for val in values:
+                if isinstance(val, str):
+                    string_values.append(val)
+                else:
+                    # Convert non-string values using our safe converter
+                    str_val = self._safe_value_to_string(val)
+                    if str_val is not None:
+                        string_values.append(str_val)
+            
+            # Sort the string values
+            return sorted(string_values)
+            
+        except Exception as e:
+            logger.warning(f"Failed to sort values safely: {e}")
+            # Ultimate fallback: return unsorted list of string representations
+            return [str(val) for val in values]
+
     def _analyze_text_columns(self, raw_data: pd.DataFrame, filtered_data: pd.DataFrame):
         """
         Analyze text columns using n-gram analysis to detect filter patterns.
+        Enhanced with better error handling for sparse matrix operations.
         
         Args:
             raw_data: Original dataset
@@ -434,25 +656,35 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
             
             logger.info(f"Analyzing text column: {column}")
             
-            # Prepare text data for vectorization
-            raw_column_data = raw_data[column]
-            filtered_column_data = filtered_data[column]
-            
-            raw_text = self._prepare_text_data(raw_column_data)
-            filtered_text = self._prepare_text_data(filtered_column_data)
-            
-            if not raw_text or not filtered_text:
-                logger.warning(f"Insufficient text data in column '{column}' for analysis")
+            try:
+                # Prepare text data for vectorization
+                raw_column_data = raw_data[column]
+                filtered_column_data = filtered_data[column]
+                
+                raw_text = self._prepare_text_data(raw_column_data)
+                filtered_text = self._prepare_text_data(filtered_column_data)
+                
+                if not raw_text or not filtered_text:
+                    logger.warning(f"Insufficient text data in column '{column}' for analysis")
+                    continue
+                
+                # Perform n-gram analysis with improved error handling
+                column_results = self._perform_ngram_analysis(raw_text, filtered_text, column)
+                
+                if column_results:
+                    text_results[column] = column_results
+                    logger.info(f"Column '{column}': analysis successful")
+                else:
+                    logger.info(f"Column '{column}': no results from analysis")
+                    
+            except Exception as e:
+                logger.warning(f"Text analysis failed for column '{column}': {e}")
+                # Continue with other columns instead of stopping completely
                 continue
-            
-            # Perform n-gram analysis
-            column_results = self._perform_ngram_analysis(raw_text, filtered_text, column)
-            
-            if column_results:
-                text_results[column] = column_results
         
+        logger.info(f"Text analysis completed: {len(text_results)} columns processed")
         return text_results
-    
+
     def _prepare_text_data(self, text_series: pd.Series) -> list:
             """
             Prepare text data for vectorization analysis, safely handling mixed data types.
@@ -502,6 +734,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
     def _perform_ngram_analysis(self, raw_text: list, filtered_text: list, column_name: str):
         """
         Perform n-gram analysis with enhanced vocabulary-aware and rarity-based scoring.
+        Fixed to handle sparse matrix operations properly.
         
         Args:
             raw_text: List of raw text documents
@@ -556,65 +789,72 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
             filtered_matrix = vectorizer.transform(filtered_text)
             filtered_frequencies = filtered_matrix.sum(axis=0).A1
             
-            # Calculate vocabulary metrics for enhanced scoring
-            total_vocabulary_size = len(raw_feature_names)
+            # Calculate scoring factors
             total_raw_documents = len(raw_text)
+            total_vocabulary_size = len(raw_feature_names)
+            vocabulary_boost = max(1.0, 1000.0 / max(total_vocabulary_size, 1))
+            score_threshold = max(self.score_threshold, 0.001)
             
-            logger.info(f"Column '{column_name}' vocabulary: {total_vocabulary_size} unique terms, {total_raw_documents} documents")
-            
-            # Calculate filter term scores with enhanced algorithm
             filter_candidates = []
-            min_freq = self.min_frequency
-            score_threshold = self.score_threshold
             
+            # Analyze each n-gram
             for i, term in enumerate(raw_feature_names):
                 raw_freq = raw_frequencies[i]
                 filtered_freq = filtered_frequencies[i]
                 
-                # Calculate enhanced disappearance score
-                if raw_freq >= min_freq:
-                    # Basic disappearance metrics
-                    disappearance_ratio = (raw_freq - filtered_freq) / raw_freq
+                # Calculate disappearance ratio and absolute reduction
+                if raw_freq > 0:
+                    disappearance_ratio = max(0.0, (raw_freq - filtered_freq) / raw_freq)
                     absolute_reduction = raw_freq - filtered_freq
-                    
-                    # Enhanced scoring factors
-                    
-                    # 1. Vocabulary complexity factor - simpler columns get higher scores
-                    vocabulary_boost = max(1.0, 1000.0 / total_vocabulary_size)
-                    
-                    # 2. Term rarity factor - rarer terms get higher scores  
-                    # Count how many documents contain this term
-                    term_doc_frequency = (raw_matrix[:, i] > 0).sum()
-                    rarity_boost = max(1.0, total_raw_documents / max(term_doc_frequency, 1))
-                    
-                    # 3. Frequency importance - higher frequency terms get modest boost
-                    frequency_boost = 1.0 + (absolute_reduction / 100.0)
-                    
-                    # 4. Combined enhanced score
-                    enhanced_score = (
-                        disappearance_ratio *          # How much was removed (0.0-1.0)
-                        vocabulary_boost *             # Simpler columns score higher  
-                        rarity_boost *                 # Rarer terms score higher
-                        frequency_boost                # Higher frequency gets modest boost
-                    )
-                    
-                    if enhanced_score >= score_threshold:
-                        term_words = term.split()
-                        filter_candidates.append({
-                            'term': term,
-                            'raw_frequency': int(raw_freq),
-                            'filtered_frequency': int(filtered_freq),
-                            'disappearance_ratio': round(disappearance_ratio, 3),
-                            'absolute_reduction': int(absolute_reduction),
-                            'vocabulary_boost': round(vocabulary_boost, 2),
-                            'rarity_boost': round(rarity_boost, 2), 
-                            'frequency_boost': round(frequency_boost, 2),
-                            'enhanced_score': round(enhanced_score, 3),
-                            'filter_score': round(enhanced_score, 3),  # For backward compatibility
-                            'ngram_length': len(term_words),
-                            'term_doc_frequency': int(term_doc_frequency),
-                            'column_vocabulary_size': total_vocabulary_size
-                        })
+                else:
+                    continue  # Skip terms with zero frequency
+                
+                # Skip terms that weren't actually reduced
+                if disappearance_ratio < 0.1:  # Must lose at least 10% to be considered
+                    continue
+                
+                # 1. Vocabulary boost - simpler columns (fewer unique terms) get higher scores
+                # 2. Term rarity factor - rarer terms get higher scores  
+                # Count how many documents contain this term - FIXED VERSION
+                try:
+                    # Convert sparse matrix column to dense array and count non-zero entries
+                    term_column = raw_matrix[:, i].toarray().flatten()
+                    term_doc_frequency = (term_column > 0).sum()
+                except Exception as matrix_error:
+                    logger.debug(f"Matrix operation fallback for term '{term}': {matrix_error}")
+                    # Fallback: estimate based on frequency
+                    term_doc_frequency = min(int(raw_freq), total_raw_documents)
+                
+                rarity_boost = max(1.0, total_raw_documents / max(term_doc_frequency, 1))
+                
+                # 3. Frequency importance - higher frequency terms get modest boost
+                frequency_boost = 1.0 + (absolute_reduction / 100.0)
+                
+                # 4. Combined enhanced score
+                enhanced_score = (
+                    disappearance_ratio *          # How much was removed (0.0-1.0)
+                    vocabulary_boost *             # Simpler columns score higher  
+                    rarity_boost *                 # Rarer terms score higher
+                    frequency_boost                # Higher frequency gets modest boost
+                )
+                
+                if enhanced_score >= score_threshold:
+                    term_words = term.split()
+                    filter_candidates.append({
+                        'term': term,
+                        'raw_frequency': int(raw_freq),
+                        'filtered_frequency': int(filtered_freq),
+                        'disappearance_ratio': round(disappearance_ratio, 3),
+                        'absolute_reduction': int(absolute_reduction),
+                        'vocabulary_boost': round(vocabulary_boost, 2),
+                        'rarity_boost': round(rarity_boost, 2), 
+                        'frequency_boost': round(frequency_boost, 2),
+                        'enhanced_score': round(enhanced_score, 3),
+                        'filter_score': round(enhanced_score, 3),  # For backward compatibility
+                        'ngram_length': len(term_words),
+                        'term_doc_frequency': int(term_doc_frequency),
+                        'column_vocabulary_size': total_vocabulary_size
+                    })
             
             # Sort by enhanced score descending
             filter_candidates.sort(key=lambda x: x['enhanced_score'], reverse=True)

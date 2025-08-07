@@ -1,0 +1,308 @@
+# Export Filter Step Examples
+# Revision date: 2025-08-06
+
+description: "Generate copy-paste ready filter_data recipe steps from reviewed filter terms"
+
+basic_example:
+  description: "Generate complete YAML recipe from reviewed filter terms"
+  yaml: |
+    # Generate complete recipe from Excel-reviewed filter terms
+    
+    settings:
+      description: "Export filter step from manually reviewed filter terms"
+      stages:
+        - stage_name: "filter_terms_reviewed"
+          description: "Filter terms reviewed in Excel with KEEP/REJECT decisions"
+          protected: false
+    
+    recipe:
+      # Previous steps would populate filter_terms_reviewed stage
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed export_filter_step step"
+        step_description: "Generate filter recipe from reviewed terms"
+        # REQ - Must be "export_filter_step" for this processor type
+        processor_type: "export_filter_step"
+        # REQ - Stage containing reviewed filter terms with acceptance decisions
+        source_stage: "filter_terms_reviewed"
+        # REQ - Output file path for generated recipe
+        output_file: "generated_filter_recipe.yaml"
+        # OPT - Stage name that filter should read from
+        # Default value: "stg_data_to_filter"
+        target_stage: "stg_raw_data_imported"
+        # OPT - Stage name that filter should save to
+        # Default value: "stg_data_filtered"
+        output_stage: "stg_data_cleaned"
+
+step_only_example:
+  description: "Generate just the filter step for insertion into existing recipes"
+  yaml: |
+    # Generate filter step only (not complete recipe) for copy-paste
+    
+    settings:
+      description: "Export filter step only for insertion into existing recipes"
+      stages:
+        - stage_name: "reviewed_terms"
+          description: "Filter terms with user acceptance decisions"
+          protected: false
+    
+    recipe:
+      - step_description: "Export filter step for insertion into existing recipe"
+        processor_type: "export_filter_step"
+        source_stage: "reviewed_terms"
+        output_file: "filter_step_only.yaml"
+        # OPT - Generate complete recipe or step only
+        # Default value: true
+        include_full_recipe: false
+        # OPT - Description for the generated filter step
+        # Default value: "Filter data using detected terms"
+        step_description: "Remove cancelled and problematic records"
+        target_stage: "stg_processed_data"
+        output_stage: "stg_clean_data"
+
+json_format_example:
+  description: "Generate JSON format for programmatic recipe creation"
+  yaml: |
+    # Generate JSON format for programmatic use or JSON-based recipes
+    
+    settings:
+      description: "Export filter configuration in JSON format"
+      stages:
+        - stage_name: "filter_analysis_results"
+          description: "Reviewed filter terms ready for export"
+          protected: false
+    
+    recipe:
+      - step_description: "Generate JSON filter configuration"
+        processor_type: "export_filter_step"
+        source_stage: "filter_analysis_results"
+        output_file: "filter_config.json"
+        # OPT - Output format selection
+        # Default value: "yaml"
+        output_format: "json"
+        # OPT - Custom acceptance column name
+        # Default value: "User_Verified"
+        acceptance_column: "Keep_Filter"
+        # OPT - Values that indicate acceptance
+        # Default value: ["KEEP", "YES", "TRUE"]
+        acceptance_values: ["KEEP", "ACCEPT", "Y"]
+
+custom_column_mapping_example:
+  description: "Handle custom column names in reviewed filter terms"
+  yaml: |
+    # Handle cases where reviewed data has different column names
+    
+    settings:
+      description: "Export filters with custom column mappings for different review formats"
+      stages:
+        - stage_name: "custom_review_results"
+          description: "Filter terms reviewed with custom column structure"
+          protected: false
+    
+    recipe:
+      - step_description: "Export filters with custom column mapping"
+        processor_type: "export_filter_step"
+        source_stage: "custom_review_results"
+        output_file: "customized_filter_step.yaml"
+        # OPT - Column containing user decisions
+        # Default value: "User_Verified"
+        acceptance_column: "Review_Decision"
+        # OPT - Column containing source column names
+        # Default value: "Column_Name"
+        column_name_field: "Source_Column"
+        # OPT - Column containing filter terms/values
+        # Default value: "Filter_Term"
+        filter_term_field: "Term_Value"
+        # OPT - Column containing term classification
+        # Default value: "Term_Type"
+        term_type_field: "Filter_Type"
+        # Custom acceptance values
+        acceptance_values: ["APPROVED", "KEEP", "GOOD"]
+
+complete_workflow_example:
+  description: "Complete workflow from detection through review to export"
+  yaml: |
+    # Complete workflow: detect → review → export → apply
+    
+    settings:
+      description: "Complete filter development workflow from detection to application"
+      variables:
+        review_file: "filter_terms_for_review.xlsx"
+        reviewed_file: "filter_terms_reviewed.xlsx"
+      stages:
+        - stage_name: "raw_data"
+          description: "Original unfiltered data"
+          protected: false
+        - stage_name: "filtered_reference"
+          description: "Manually filtered reference data"
+          protected: false
+        - stage_name: "detected_terms"
+          description: "Auto-detected filter term candidates"
+          protected: false
+        - stage_name: "reviewed_terms"
+          description: "Human-reviewed filter terms"
+          protected: false
+        - stage_name: "auto_filtered_data"
+          description: "Data filtered using generated rules"
+          protected: false
+    
+    recipe:
+      # Step 1: Auto-detect filter terms
+      - step_description: "Auto-detect potential filter terms"
+        processor_type: "filter_terms_detector"
+        raw_stage: "raw_data"
+        filtered_stage: "filtered_reference"
+        auto_detect_columns: true
+        save_to_stage: "detected_terms"
+      
+      # Step 2: Export for human review
+      - step_description: "Export terms for Excel review"
+        processor_type: "export_file"
+        source_stage: "detected_terms"
+        output_file: "{review_file}"
+      
+      # Step 3: Import human-reviewed terms
+      - step_description: "Import reviewed filter terms"
+        processor_type: "import_file"
+        input_file: "{reviewed_file}"
+        save_to_stage: "reviewed_terms"
+      
+      # Step 4: Generate filter recipe
+      - step_description: "Generate filter recipe from reviewed terms"
+        processor_type: "export_filter_step"
+        source_stage: "reviewed_terms"
+        output_file: "auto_generated_filter.yaml"
+        target_stage: "raw_data"
+        output_stage: "auto_filtered_data"
+        step_description: "Auto-generated filter from human-reviewed terms"
+
+parameter_details:
+  source_stage:
+    type: string
+    required: true
+    description: "Stage containing reviewed filter terms with acceptance decisions"
+    
+  output_file:
+    type: string
+    required: true
+    description: "Path for generated YAML or JSON file (creates directories if needed)"
+    examples:
+      - "generated_filter_step.yaml"
+      - "filters/auto_generated.json" 
+      - "recipes/filter_recipe.yaml"
+    
+  target_stage:
+    type: string
+    required: false
+    default: "stg_data_to_filter"
+    description: "Stage name that generated filter should read from"
+    
+  output_stage:
+    type: string
+    required: false
+    default: "stg_data_filtered"
+    description: "Stage name that generated filter should save to"
+    
+  step_description:
+    type: string
+    required: false
+    default: "Filter data using detected terms"
+    description: "Human-readable description for the generated filter step"
+    
+  output_format:
+    type: string
+    required: false
+    default: "yaml"
+    description: "Output format for generated configuration"
+    options: ["yaml", "json"]
+    
+  include_full_recipe:
+    type: boolean
+    required: false
+    default: true
+    description: "Generate complete recipe with settings, or just the filter step"
+    
+  acceptance_column:
+    type: string
+    required: false
+    default: "User_Verified"
+    description: "Column name containing user acceptance decisions"
+    
+  acceptance_values:
+    type: list
+    required: false
+    default: ["KEEP", "YES", "TRUE"]
+    description: "Values indicating user accepted the filter term"
+    
+  column_name_field:
+    type: string
+    required: false
+    default: "Column_Name"
+    description: "Column containing source column names for filtering"
+    
+  filter_term_field:
+    type: string
+    required: false
+    default: "Filter_Term"
+    description: "Column containing the filter terms/values"
+    
+  term_type_field:
+    type: string
+    required: false
+    default: "Term_Type"
+    description: "Column containing term classification (categorical_value or text_ngram)"
+
+output_examples:
+  yaml_full_recipe:
+    description: "Complete YAML recipe with settings and filter step"
+    content: |
+      # Generated Filter Recipe
+      # Created from 15 accepted filter terms
+      # Affects 4 columns with 15 filter conditions
+      
+      settings:
+        description: "Auto-generated filter from detected terms"
+        stages:
+          - stage_name: "stg_raw_data"
+            description: "Source data to be filtered"
+            protected: false
+          - stage_name: "stg_data_filtered"
+            description: "Filtered data output"
+            protected: false
+      
+      recipe:
+        - step_description: "Filter data using detected terms"
+          processor_type: "filter_data"
+          source_stage: "stg_raw_data"
+          filters:
+            - column: "Status"
+              condition: "not_equals"
+              value: "Cancelled"
+            - column: "Notes"
+              condition: "not_contains"
+              value: "cancelled"
+          save_to_stage: "stg_data_filtered"
+  
+  yaml_step_only:
+    description: "Filter step only for insertion into existing recipes"
+    content: |
+      # Generated filter step - copy into your recipe
+      # Based on 8 accepted filter terms
+      
+      - step_description: "Filter data using detected terms"
+        processor_type: "filter_data"
+        source_stage: "stg_raw_data"
+        filters:
+          - column: "Workflow"
+            condition: "not_equals"
+            value: "Hold"
+          - column: "Product Name"
+            condition: "not_contains"
+            value: "test"
+        save_to_stage: "stg_data_filtered"
+
+integration_notes:
+  workflow_integration: "Designed to follow filter_terms_detector processor in pipeline"
+  human_review_requirement: "Requires human review step between detection and export"
+  column_quoting: "Automatically handles column names with spaces and special characters"
+  filter_mapping: "Maps categorical_value terms to not_equals, text_ngram terms to not_contains"
+  file_output: "Creates output directories automatically, suitable for immediate use"

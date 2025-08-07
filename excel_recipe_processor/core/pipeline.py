@@ -500,6 +500,7 @@ from excel_recipe_processor.processors.create_stage_processor           import C
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
 from excel_recipe_processor.processors.diff_data_processor              import DiffDataProcessor
 from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
+from excel_recipe_processor.processors.export_filter_step_processor     import ExportFilterStepProcessor
 from excel_recipe_processor.processors.fill_data_processor              import FillDataProcessor
 from excel_recipe_processor.processors.filter_data_processor            import FilterDataProcessor
 from excel_recipe_processor.processors.filter_terms_detector_processor  import FilterTermsDetectorProcessor
@@ -530,6 +531,7 @@ def register_standard_processors():
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
     registry.register('diff_data',                      DiffDataProcessor                   )
     registry.register('export_file',                    ExportFileProcessor                 )
+    registry.register('export_filter_step',             ExportFilterStepProcessor           )
     registry.register('fill_data',                      FillDataProcessor                   )
     registry.register('filter_data',                    FilterDataProcessor                 )
     registry.register('filter_terms_detector',          FilterTermsDetectorProcessor        )

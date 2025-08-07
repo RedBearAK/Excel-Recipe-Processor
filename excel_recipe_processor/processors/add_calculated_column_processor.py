@@ -136,15 +136,18 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         
         if len(calculation) == 0:
             raise StepProcessorError("'calculation' dictionary cannot be empty")
-    
+
     def _apply_expression_calculation(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
         """
-        Apply a general expression calculation.
-        
-        This is the most flexible type - allows pandas-style operations.
+        Apply expression calculation with support for both legacy formula and new formula_components.
         """
+        # Check for new formula_components syntax first
+        if 'formula_components' in calculation:
+            return self._apply_formula_components(df, new_column, calculation)
+        
+        # Fall back to legacy formula syntax
         if 'formula' not in calculation:
-            raise StepProcessorError("Expression calculation requires 'formula' field")
+            raise StepProcessorError("Expression calculation requires either 'formula' or 'formula_components' field")
         
         formula = calculation['formula']
         
@@ -152,19 +155,227 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         if not isinstance(formula, str):
             raise StepProcessorError("Formula must be a string")
         
-        # Replace column references in formula
+        # Replace column references in formula (legacy method)
         safe_formula = self._make_formula_safe(df, formula)
         
         try:
             # Evaluate the formula
             df[new_column] = eval(safe_formula)
-            logger.debug(f"Applied expression formula: {formula}")
+            logger.debug(f"Applied legacy expression formula: {formula}")
             
         except Exception as e:
             raise StepProcessorError(f"Error evaluating formula '{formula}': {e}")
         
         return df
-    
+
+    def _apply_formula_components(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
+        """
+        Apply formula using the new robust components-based approach.
+        
+        Supports:
+        - Simple operations: ["Price", "*", "Net Weight"]
+        - Complex math: [["Revenue", "-", "Cost"], "/", "Revenue", "*", "100"]
+        - Conditionals: [{"condition": {...}, "if_true": [...], "if_false": [...]}]
+        - Mixed expressions with any combination of the above
+        """
+        formula_components = calculation['formula_components']
+        
+        # Validate components
+        if not isinstance(formula_components, list):
+            raise StepProcessorError("'formula_components' must be a list")
+        
+        if len(formula_components) == 0:
+            raise StepProcessorError("'formula_components' cannot be empty")
+        
+        try:
+            # Build and evaluate the expression
+            pandas_expression = self._build_pandas_expression(df, formula_components)
+            
+            # Execute the expression
+            df[new_column] = eval(pandas_expression)
+            
+            logger.debug(f"Applied formula_components: {formula_components}")
+            logger.debug(f"Generated pandas expression: {pandas_expression}")
+            
+        except Exception as e:
+            raise StepProcessorError(f"Error evaluating formula_components: {e}")
+        
+        return df
+
+    def _build_pandas_expression(self, df: pd.DataFrame, components) -> str:
+        """
+        Recursively build a pandas expression from formula components.
+        
+        Args:
+            df: DataFrame for column validation
+            components: List or dict of formula components
+            
+        Returns:
+            String pandas expression ready for eval()
+        """
+        if isinstance(components, list):
+            return self._build_list_expression(df, components)
+        elif isinstance(components, dict):
+            return self._build_conditional_expression(df, components)
+        elif isinstance(components, str):
+            return self._build_column_or_operator(df, components)
+        elif isinstance(components, (int, float)):
+            return str(components)
+        else:
+            raise StepProcessorError(f"Invalid component type: {type(components)}")
+
+    def _build_list_expression(self, df: pd.DataFrame, components: list) -> str:
+        """
+        Build expression from a list of components.
+        
+        Examples:
+        - ["Price", "*", "Net Weight"] → "df['Price'] * df['Net Weight']"
+        - [["A", "+", "B"], "*", "C"] → "(df['A'] + df['B']) * df['C']"
+        """
+        if len(components) == 1:
+            # Single component - could be nested
+            return self._build_pandas_expression(df, components[0])
+        
+        # Multiple components - alternate between operands and operators
+        expression_parts = []
+        
+        for i, component in enumerate(components):
+            if isinstance(component, list):
+                # Nested list - wrap in parentheses
+                nested_expr = self._build_list_expression(df, component)
+                expression_parts.append(f"({nested_expr})")
+            elif isinstance(component, dict):
+                # Conditional logic
+                conditional_expr = self._build_conditional_expression(df, component)
+                expression_parts.append(f"({conditional_expr})")
+            else:
+                # Simple component
+                expression_parts.append(self._build_column_or_operator(df, component))
+        
+        return " ".join(expression_parts)
+
+    def _build_conditional_expression(self, df: pd.DataFrame, conditional: dict) -> str:
+        """
+        Build conditional expression from dictionary specification.
+        
+        Example:
+        {
+            "condition": {"column": "Weight", "operator": "<", "value": 50},
+            "if_true": ["Weight", "*", "2.50"],
+            "if_false": ["Weight", "*", "1.80"]
+        }
+        → "np.where(df['Weight'] < 50, df['Weight'] * 2.50, df['Weight'] * 1.80)"
+        """
+        required_keys = ['condition', 'if_true', 'if_false']
+        for key in required_keys:
+            if key not in conditional:
+                raise StepProcessorError(f"Conditional expression missing required key: '{key}'")
+        
+        # Build condition
+        condition_expr = self._build_condition_expression(df, conditional['condition'])
+        
+        # Build true and false branches
+        true_expr = self._build_pandas_expression(df, conditional['if_true'])
+        false_expr = self._build_pandas_expression(df, conditional['if_false'])
+        
+        # Return numpy.where expression
+        return f"np.where({condition_expr}, {true_expr}, {false_expr})"
+
+    def _build_condition_expression(self, df: pd.DataFrame, condition: dict) -> str:
+        """
+        Build condition expression for use in np.where.
+        
+        Example:
+        {"column": "Weight", "operator": "<", "value": 50}
+        → "df['Weight'] < 50"
+        """
+        required_keys = ['column', 'operator', 'value']
+        for key in required_keys:
+            if key not in condition:
+                raise StepProcessorError(f"Condition missing required key: '{key}'")
+        
+        column = condition['column']
+        operator = condition['operator']
+        value = condition['value']
+        
+        # Validate column exists
+        if column not in df.columns:
+            available_columns = list(df.columns)
+            raise StepProcessorError(
+                f"Condition column '{column}' not found. Available columns: {available_columns}"
+            )
+        
+        # Validate operator
+        valid_operators = ['==', '!=', '<', '>', '<=', '>=', 'in', 'not_in', 'contains', 'not_contains']
+        if operator not in valid_operators:
+            raise StepProcessorError(f"Invalid operator '{operator}'. Valid operators: {valid_operators}")
+        
+        # Build column reference
+        column_ref = f"df['{column}']"
+        
+        # Handle different operators
+        if operator in ['==', '!=', '<', '>', '<=', '>=']:
+            if isinstance(value, str):
+                return f"{column_ref} {operator} '{value}'"
+            else:
+                return f"{column_ref} {operator} {value}"
+        
+        elif operator == 'in':
+            if not isinstance(value, list):
+                raise StepProcessorError("'in' operator requires a list value")
+            return f"{column_ref}.isin({value})"
+        
+        elif operator == 'not_in':
+            if not isinstance(value, list):
+                raise StepProcessorError("'not_in' operator requires a list value")
+            return f"~{column_ref}.isin({value})"
+        
+        elif operator == 'contains':
+            return f"{column_ref}.astype(str).str.contains('{value}', na=False)"
+        
+        elif operator == 'not_contains':
+            return f"~{column_ref}.astype(str).str.contains('{value}', na=False)"
+
+    def _build_column_or_operator(self, df: pd.DataFrame, component: str) -> str:
+        """
+        Convert a string component to either a column reference or validate as operator.
+        
+        Args:
+            df: DataFrame for column validation
+            component: String component (column name or operator)
+            
+        Returns:
+            Either df['column'] reference or validated operator
+        """
+        # Check if it's a column name
+        if component in df.columns:
+            return f"df['{component}']"
+        
+        # Check if it's a valid operator
+        valid_operators = ['+', '-', '*', '/', '//', '%', '**', '&', '|', '^', '==', '!=', '<', '>', '<=', '>=']
+        if component in valid_operators:
+            return component
+        
+        # Check if it's a number (quoted)
+        try:
+            float(component)
+            return component
+        except ValueError:
+            pass
+        
+        # Check if it's a quoted string value
+        if component.startswith('"') and component.endswith('"'):
+            return component
+        elif component.startswith("'") and component.endswith("'"):
+            return component
+        
+        # If we get here, it's an unknown component
+        available_columns = list(df.columns)
+        raise StepProcessorError(
+            f"Unknown component '{component}'. Must be a column name, operator, or quoted value. "
+            f"Available columns: {available_columns}"
+        )
+
     def _apply_concatenation(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
         """
         Apply string concatenation calculation.

@@ -1,9 +1,9 @@
-# Revision date: 2025-07-30
+# Revision date: 2025-08-07
 
-description: "Clean and standardize messy data with find/replace, case conversion, whitespace cleanup, and conditional business logic"
+description: "Clean and standardize messy data with find/replace, case conversion, whitespace cleanup, and conditional business logic using columns lists"
 
 basic_example:
-  description: "Simple data cleaning with whitespace and case fixes"
+  description: "Simple data cleaning with whitespace and case fixes using new columns list syntax"
   yaml: |
     # Clean common data quality issues
     
@@ -29,18 +29,64 @@ basic_example:
         # REQ - List of cleaning rules to apply in sequence
         rules:
           # First rule: remove extra whitespace
-          - # REQ - Column name to clean
-            column: "Customer_Name"
+          - # REQ - List of column names to clean
+            columns: ["Customer_Name"]
             # REQ - Action type to perform
             # Valid actions: "strip_whitespace", "normalize_whitespace", "remove_invisible_chars"
             action: "strip_whitespace"
           
           # Second rule: standardize case
-          - # REQ - Column name to clean
-            column: "Customer_Name"
+          - # REQ - List of column names to clean
+            columns: ["Customer_Name"]
             # REQ - Case conversion action
             # Valid case actions: "uppercase", "lowercase", "title_case"
             action: "title_case"
+
+multiple_columns_example:
+  description: "Apply same cleaning rule to multiple columns simultaneously"
+  yaml: |
+    # Clean multiple columns with the same rule - major usability improvement
+    
+    settings:
+      description: "Clean multiple date and numeric columns efficiently"
+      stages:
+        - stage_name: "raw_data"
+          description: "Raw data with formatting issues"
+          protected: false
+        - stage_name: "cleaned_data"
+          description: "Data with standardized formatting"
+          protected: false
+    
+    recipe:
+      - step_description: "Clean multiple columns efficiently"
+        processor_type: "clean_data"
+        source_stage: "raw_data"
+        save_to_stage: "cleaned_data"
+        rules:
+          # Clean multiple date columns at once
+          - # REQ - List of date columns to standardize
+            columns: ["Invoice_Date", "Ship_Date", "ETD", "ETA_Destination", "Paid_Date"]
+            # REQ - Standardize date formats
+            action: "fix_dates"
+            # OPT - Expected date format pattern
+            # Default value: auto-detect common formats
+            format: "%Y-%m-%d"
+          
+          # Clean multiple numeric columns at once
+          - # REQ - List of numeric columns to format
+            columns: ["Packages", "Cases", "Units", "Net_Weight", "Gross_Weight"]
+            # REQ - Clean and convert numeric data
+            action: "fix_numeric"
+            # OPT - Decimal places for formatting
+            decimal_places: 0
+            # OPT - Use thousands separator
+            thousands_separator: true
+          
+          # Remove invisible characters from multiple text columns
+          - # REQ - List of text columns to clean
+            columns: ["Product_Origin", "Species", "Component", "Customer"]
+            # REQ - Remove invisible Unicode characters
+            action: "normalize_whitespace"
 
 advanced_example:
   description: "Complex cleaning with conditional business rules and multiple data types"
@@ -65,15 +111,15 @@ advanced_example:
         # REQ - List of cleaning rules (processed in order)
         rules:
           # Rule 1: Fix invisible characters from SQL exports
-          - # REQ - Column to clean
-            column: "Product_Origin"
+          - # REQ - List of columns to clean
+            columns: ["Product_Origin"]
             # REQ - Remove invisible Unicode characters that break filtering
             # Fixes: zero-width spaces, non-breaking spaces, BOM characters
             action: "normalize_whitespace"
           
           # Rule 2: Conditional replacement based on business logic
-          - # REQ - Column to modify
-            column: "Component"
+          - # REQ - Column to modify (must be a list)
+            columns: ["Component"]
             # REQ - Find and replace action
             action: "replace"
             # REQ - Value to find and replace
@@ -83,7 +129,8 @@ advanced_example:
             # OPT - Column to check for condition
             condition_column: "Product_Name"
             # OPT - Type of condition to evaluate
-            # Valid conditions: "equals", "not_equals", "contains", "not_contains", "greater_than", "less_than"
+            # Valid conditions: "equals", "not_equals", "contains", "not_contains", 
+            # "greater_than", "less_than"
             condition: "contains"
             # OPT - Value to test condition against
             condition_value: "CANNED"
@@ -92,12 +139,12 @@ advanced_example:
             case_sensitive: false
           
           # Rule 3: Standardize case for consistency
-          - column: "Status"
+          - columns: ["Status"]
             # REQ - Convert all text to uppercase
             action: "uppercase"
           
           # Rule 4: Fix numeric data formatting
-          - column: "Price"
+          - columns: ["Price"]
             # REQ - Clean and convert numeric data
             # Removes: $, commas, spaces, converts to float
             # Handles: "$1,234.56" → 1234.56
@@ -105,6 +152,45 @@ advanced_example:
             # OPT - Value for non-numeric entries
             # Default value: NaN
             fill_na: 0.0
+
+value_standardization_example:
+  description: "Map inconsistent values to standard terms"
+  yaml: |
+    # Standardize inconsistent values using mapping tables
+    
+    settings:
+      description: "Standardize status and category values"
+      stages:
+        - stage_name: "inconsistent_data"
+          description: "Data with inconsistent value formats"
+          protected: false
+        - stage_name: "standardized_data"
+          description: "Data with standardized values"
+          protected: false
+    
+    recipe:
+      - step_description: "Standardize status and category values"
+        processor_type: "clean_data"
+        source_stage: "inconsistent_data"
+        save_to_stage: "standardized_data"
+        rules:
+          # Map multiple variations to standard values
+          - # REQ - List of columns to standardize
+            columns: ["Status"]
+            # REQ - Value mapping action
+            action: "standardize_values"
+            # REQ - Mapping dictionary from old values to new values
+            # All variations of input will be mapped to the standard output
+            mapping:
+              "ACTIVE": "Active"
+              "active": "Active"
+              "Act": "Active"
+              "INACTIVE": "Inactive"
+              "inactive": "Inactive"
+              "Inc": "Inactive"
+              "PENDING": "Pending"
+              "pending": "Pending"
+              "Pend": "Pending"
 
 sql_export_cleanup_example:
   description: "Fix common SQL export issues that break filtering operations"
@@ -128,19 +214,13 @@ sql_export_cleanup_example:
         save_to_stage: "filtering_ready_data"
         rules:
           # Critical: Fix invisible characters that break exact matching
-          - column: "Product_Origin"
+          - columns: ["Product_Origin", "Major_Species", "Component"]
             # REQ - Remove all invisible Unicode characters
             # Essential for SQL exports that contain zero-width spaces
             action: "normalize_whitespace"
           
-          - column: "Major_Species"
-            action: "normalize_whitespace"
-          
-          - column: "Component"
-            action: "normalize_whitespace"
-          
           # Standardize case for consistent filtering
-          - column: "Status"
+          - columns: ["Status"]
             action: "uppercase"
 
 data_type_cleaning_example:
@@ -165,8 +245,8 @@ data_type_cleaning_example:
         save_to_stage: "typed_data"
         rules:
           # Fix numeric columns with formatting
-          - # REQ - Column with numeric data
-            column: "Price"
+          - # REQ - List of columns with numeric data
+            columns: ["Price"]
             # REQ - Clean and convert numeric data
             # Removes: $, commas, spaces, converts to float
             # Handles: "$1,234.56" → 1234.56
@@ -176,8 +256,8 @@ data_type_cleaning_example:
             fill_na: 0.0
           
           # Fix date formatting
-          - # REQ - Column with date data
-            column: "Order_Date"
+          - # REQ - List of columns with date data
+            columns: ["Order_Date"]
             # REQ - Parse and standardize date formats
             action: "fix_dates"
             # OPT - Expected date format pattern
@@ -186,51 +266,12 @@ data_type_cleaning_example:
             format: "%Y-%m-%d"
           
           # Fill empty/null values
-          - # REQ - Column to fill
-            column: "Customer_Category"
+          - # REQ - List of columns to fill
+            columns: ["Customer_Category"]
             # REQ - Fill empty cells with value
             action: "fill_empty"
             # REQ - Value to use for empty cells
             fill_value: "Standard"
-
-value_standardization_example:
-  description: "Map inconsistent values to standard terms"
-  yaml: |
-    # Standardize inconsistent values using mapping tables
-    
-    settings:
-      description: "Standardize status and category values"
-      stages:
-        - stage_name: "inconsistent_data"
-          description: "Data with inconsistent value formats"
-          protected: false
-        - stage_name: "standardized_data"
-          description: "Data with standardized values"
-          protected: false
-    
-    recipe:
-      - step_description: "Standardize status and category values"
-        processor_type: "clean_data"
-        source_stage: "inconsistent_data"
-        save_to_stage: "standardized_data"
-        rules:
-          # Map multiple variations to standard values
-          - # REQ - Column to standardize
-            column: "Status"
-            # REQ - Value mapping action
-            action: "standardize_values"
-            # REQ - Mapping dictionary from old values to new values
-            # All variations of input will be mapped to the standard output
-            mapping:
-              "ACTIVE": "Active"
-              "active": "Active"
-              "Act": "Active"
-              "INACTIVE": "Inactive"
-              "inactive": "Inactive"
-              "Inc": "Inactive"
-              "PENDING": "Pending"
-              "pending": "Pending"
-              "Pend": "Pending"
 
 multiple_rules_example:
   description: "Apply multiple cleaning operations in sequence"
@@ -254,19 +295,19 @@ multiple_rules_example:
         save_to_stage: "production_ready_data"
         rules:
           # Step 1: Remove invisible characters
-          - column: "Product_Name"
+          - columns: ["Product_Name"]
             action: "remove_invisible_chars"
           
           # Step 2: Normalize whitespace
-          - column: "Product_Name"
+          - columns: ["Product_Name"]
             action: "strip_whitespace"
           
           # Step 3: Standardize case
-          - column: "Product_Name"
+          - columns: ["Product_Name"]
             action: "title_case"
           
           # Step 4: Clean phone numbers
-          - column: "Phone"
+          - columns: ["Phone"]
             action: "regex_replace"
             # REQ - Regular expression pattern to match
             pattern: "[^0-9]"
@@ -274,12 +315,12 @@ multiple_rules_example:
             replacement: ""
           
           # Step 5: Fix pricing data
-          - column: "Price"
+          - columns: ["Price"]
             action: "fix_numeric"
             fill_na: 0.0
           
           # Step 6: Conditional business rule
-          - column: "Priority"
+          - columns: ["Priority"]
             action: "replace"
             old_value: "Standard"
             new_value: "High"
@@ -292,141 +333,29 @@ parameter_details:
     type: list
     required: true
     description: "List of cleaning operations to apply in sequence"
-    structure: "Each rule must contain 'column' and 'action', plus action-specific parameters"
+    structure: "Each rule must contain 'columns' and 'action', plus action-specific parameters"
   
-  column:
-    type: string
+  columns:
+    type: list
     required: true
     context: "Within each rule"
-    description: "Name of the column to clean - must exist in source data"
-    examples: ["Customer_Name", "Product_Origin", "Price", "Status"]
+    description: "List of column names to clean - must exist in source data. Can contain single column."
+    examples: [
+      ["Customer_Name"],
+      ["Product_Origin", "Species"],
+      ["Invoice_Date", "Ship_Date", "ETD"]
+      ]
   
   action:
     type: string
     required: true
     context: "Within each rule"
     description: "Type of cleaning operation to perform"
-    valid_actions: ["strip_whitespace", "normalize_whitespace", "remove_invisible_chars", "uppercase", "lowercase", "title_case", "replace", "regex_replace", "fix_numeric", "fix_dates", "fill_empty", "standardize_values"]
-  
-  old_value:
-    type: string
-    required: true
-    context: "Required when action is 'replace'"
-    description: "Value to find and replace"
-    examples: ["FLESH", "INACTIVE", "old_status"]
-  
-  new_value:
-    type: string
-    required: true
-    context: "Required when action is 'replace'"
-    description: "Replacement value"
-    examples: ["CANS", "CANCELLED", "new_status"]
-  
-  condition_column:
-    type: string
-    required: false
-    context: "Used for conditional replacement"
-    description: "Column to evaluate for conditional replacement"
-    requires: "Must also specify 'condition' and 'condition_value'"
-  
-  condition:
-    type: string
-    required: false
-    context: "Used for conditional replacement"
-    description: "Type of condition to evaluate"
-    valid_values: ["equals", "not_equals", "contains", "not_contains", "greater_than", "less_than", "greater_equal", "less_equal", "is_null", "not_null"]
-  
-  condition_value:
-    type: any
-    required: false
-    context: "Required when condition is specified (except for is_null/not_null)"
-    description: "Value to compare against when testing the condition"
-    examples: ["CANNED", 1000, "Alaska", "2024-01-01"]
-  
-  case_sensitive:
-    type: boolean
-    required: false
-    default: true
-    context: "Used with text operations"
-    description: "Whether text operations should be case sensitive"
-  
-  pattern:
-    type: string
-    required: true
-    context: "Required when action is 'regex_replace'"
-    description: "Regular expression pattern to match"
-    examples: ["[^0-9]", "\\s+", "[A-Z]+-[0-9]+"]
-  
-  replacement:
-    type: string
-    required: true
-    context: "Required when action is 'regex_replace'"
-    description: "Text to replace matched patterns with"
-    examples: ["", " ", "_"]
-  
-  fill_na:
-    type: any
-    required: false
-    default: "NaN"
-    context: "Used with 'fix_numeric' action"
-    description: "Value to use for unparseable numeric data"
-    examples: [0.0, -1, "N/A"]
-  
-  fill_value:
-    type: any
-    required: true
-    context: "Required when action is 'fill_empty'"
-    description: "Value to use for empty or null cells"
-    examples: ["Unknown", "Standard", 0, "N/A"]
-  
-  format:
-    type: string
-    required: false
-    default: "auto-detect"
-    context: "Used with 'fix_dates' action"
-    description: "Expected date format pattern for parsing dates"
-    examples: ["%Y-%m-%d", "%m/%d/%Y", "%d-%b-%Y"]
-  
-  mapping:
-    type: dict
-    required: true
-    context: "Required when action is 'standardize_values'"
-    description: "Dictionary mapping old values to new standardized values"
-    structure: "Keys are values to find, values are replacement values"
+    valid_actions: [
+      "strip_whitespace", "normalize_whitespace", "remove_invisible_chars", 
+      "uppercase", "lowercase", "title_case", "replace", "regex_replace", 
+      "fix_numeric", "fix_dates", "fill_empty", "standardize_values", 
+      "remove_special_chars", "remove_duplicates"
+      ]
 
-cleaning_actions:
-  text_cleaning:
-    strip_whitespace: "Remove leading and trailing spaces"
-    normalize_whitespace: "Fix invisible Unicode characters and normalize spacing"
-    remove_invisible_chars: "Remove zero-width and invisible Unicode characters"
-    remove_special_chars: "Remove special characters but keep alphanumeric"
-  
-  case_conversion:
-    uppercase: "Convert all text to UPPERCASE"
-    lowercase: "Convert all text to lowercase"
-    title_case: "Convert To Title Case"
-  
-  find_replace:
-    replace: "Simple find and replace operations"
-    regex_replace: "Pattern-based replacement using regular expressions"
-    standardize_values: "Map multiple variations to standard values"
-  
-  data_types:
-    fix_numeric: "Clean and convert text to numeric values"
-    fix_dates: "Parse and standardize date formats"
-    fill_empty: "Replace empty/null values with specified value"
-
-integration_notes:
-  stage_manager: "Uses stage-based architecture - requires source_stage and save_to_stage"
-  variable_substitution: "All parameters support recipe variables"
-  sql_exports: "Essential for cleaning SQL export data that contains invisible characters"
-  filter_preparation: "Run clean_data before filter_data for reliable exact matching"
-  sequential_processing: "Rules are applied in order - plan sequence carefully"
-  stage_validation: "Both source_stage and save_to_stage must be declared in settings.stages"
-
-common_use_cases:
-  sql_export_cleanup: "Fix invisible characters that break filtering operations"
-  customer_data_standardization: "Normalize names, addresses, and contact information"
-  financial_data_preparation: "Clean currency formatting and convert to numeric"
-  status_value_mapping: "Standardize inconsistent status and category values"
-  text_normalization: "Consistent case and formatting for text analysis"
+# End of file #

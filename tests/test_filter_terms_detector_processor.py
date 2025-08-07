@@ -95,7 +95,7 @@ def test_basic_filter_detection():
             'Column_Name',
             'Filter_Term',
             'Term_Type',
-            'Confidence_Percentage'
+            'Confidence_Score'
         ]
         
         for col in expected_columns:
@@ -195,7 +195,7 @@ def test_text_ngram_analysis():
         print(f"✓ Total terms detected: {len(text_results)}")
         
         # Check confidence scores are reasonable
-        high_confidence_terms = text_results[text_results['Confidence_Percentage'] > 50.0]
+        high_confidence_terms = text_results[text_results['Confidence_Score'] > 50.0]
         if len(high_confidence_terms) == 0:
             print("✗ Expected some high-confidence terms")
             return False

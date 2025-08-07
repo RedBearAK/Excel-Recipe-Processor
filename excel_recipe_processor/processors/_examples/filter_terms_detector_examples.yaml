@@ -204,8 +204,8 @@ output_columns:
   Disappearance_Ratio:
     description: "Ratio of term removal (1.0 = completely removed, 0.0 = unchanged)"
     
-  Confidence_Percentage:
-    description: "Overall confidence that this term was used as a filter (0-100%, higher = more likely)"
+  Confidence_Score:
+    description: "Overall confidence that this term was used as a filter (0-100+, higher = more likely)"
     
   Analysis_Method:
     description: "Analysis method used: 'categorical_comparison' or 'ngram_analysis'"

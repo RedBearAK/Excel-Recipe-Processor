@@ -233,26 +233,76 @@ class VariableSubstitution:
         # Pattern for typed variables: {type:variable}
         pattern = r'\{(\w+):(\w+)\}'
         return re.sub(pattern, replace_typed_var, template)
-    
+
+    # def _substitute_untyped_variables(self, template: str) -> str:
+    #     """
+    #     Substitute untyped variables (backwards compatible string substitution).
+    #     """
+    #     try:
+    #         # Build variable dictionary (string values only for compatibility)
+    #         variables = self._build_string_variable_dict()
+            
+    #         # Simple variable substitution: {variable}
+    #         return template.format(**variables)
+            
+    #     except KeyError as e:
+    #         # Provide helpful error message
+    #         available_vars = list(self._build_string_variable_dict().keys())
+    #         raise VariableSubstitutionError(
+    #             f"Unknown variable {e} in template '{template}'. "
+    #             f"Available variables: {available_vars}"
+    #         )
+
     def _substitute_untyped_variables(self, template: str) -> str:
         """
         Substitute untyped variables (backwards compatible string substitution).
+        Only handles simple {variable} patterns, not {variable:format} patterns.
         """
         try:
             # Build variable dictionary (string values only for compatibility)
             variables = self._build_string_variable_dict()
             
-            # Simple variable substitution: {variable}
-            return template.format(**variables)
+            # Use regex to find and replace only simple variables {variable}
+            # Exclude patterns that contain colons like {date:YYYY} 
+            def replace_simple_variable(match):
+                var_name = match.group(1)
+                full_match = match.group(0)
+                
+                # Check if there's a colon immediately after this variable
+                # by looking at what comes after the closing brace
+                match_end = match.end()
+                if match_end < len(template):
+                    # Look for colon pattern: {variable}:something or {variable:something}
+                    remaining = template[match_end:]
+                    if remaining.startswith(':') or ':' in template[match.start():match_end]:
+                        # This is part of a formatted variable, skip it
+                        return full_match
+                
+                # Also skip if the variable name is followed by colon inside the braces
+                if ':' in full_match:
+                    return full_match
+                    
+                # Replace with variable value if it exists
+                if var_name in variables:
+                    return variables[var_name]
+                else:
+                    # Variable not found - leave unchanged for error handling
+                    return full_match
             
-        except KeyError as e:
+            # Pattern matches {word} but not {word:anything}
+            simple_pattern = r'\{([a-zA-Z_]\w*)\}'
+            result = re.sub(simple_pattern, replace_simple_variable, template)
+            
+            return result
+            
+        except Exception as e:
             # Provide helpful error message
             available_vars = list(self._build_string_variable_dict().keys())
             raise VariableSubstitutionError(
-                f"Unknown variable {e} in template '{template}'. "
+                f"Error in untyped variable substitution for '{template}': {e}. "
                 f"Available variables: {available_vars}"
             )
-    
+
     def _get_typed_variable_value(self, type_name: str, var_name: str) -> Any:
         """
         Get a typed variable value with validation.
@@ -315,7 +365,7 @@ class VariableSubstitution:
                 )
         
         return value
-    
+
     def _detect_variable_syntax_typos(self, template: str) -> None:
         """
         Detect potential typos in variable syntax using simple checks.

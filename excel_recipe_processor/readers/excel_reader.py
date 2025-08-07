@@ -72,7 +72,7 @@ class ExcelReader:
                 "or a specific sheet name/index, or use read_multiple_sheets() for all sheets."
             )
         
-        logger.info(f"Reading Excel file: {file_path}")
+        logger.info(f"Reading Excel file: '{file_path}'")
         
         try:
             # Store file info for debugging

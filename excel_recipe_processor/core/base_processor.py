@@ -363,7 +363,7 @@ class ImportBaseProcessor(BaseStepProcessor):
         StageManager.save_stage(
             stage_name=self.save_to_stage,
             data=data,
-            description=f"Imported from {self.step_name}",
+            description=f"Imported via step: '{self.step_name}'",
             step_name=self.step_name,
             confirm_replacement=self.confirm_stage_replacement
         )

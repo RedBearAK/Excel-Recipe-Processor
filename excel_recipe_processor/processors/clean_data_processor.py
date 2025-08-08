@@ -394,16 +394,128 @@ class CleanDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Error fixing numeric data in column '{column}': {e}")
     
     def _apply_fix_dates(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
-        """Fix date formats and convert to datetime."""
+        """
+        Intelligent date parsing with data preservation and Excel compatibility.
+        """
+        try:
+            # Import dateutil for flexible parsing
+            from dateutil import parser as dateutil_parser
+        except ImportError:
+            # Fall back to basic implementation if dateutil not available
+            logger.warning("dateutil not available, using basic date parsing")
+            return self._apply_fix_dates_basic(df, rule, column, rule_index)
+        
+        # Configuration from rule
+        target_format = rule.get('format', 'excel_friendly')
+        preserve_original = rule.get('preserve_original_on_failure', True)
+        
+        # Common date formats to try (in order of preference)
+        COMMON_FORMATS = [
+            '%Y-%m-%d',      # 2025-07-25
+            '%m/%d/%Y',      # 07/25/2025  
+            '%m/%d/%y',      # 07/25/25
+            '%d/%m/%Y',      # 25/07/2025
+            '%d/%m/%y',      # 25/07/25
+            '%Y/%m/%d',      # 2025/07/25
+            '%d-%m-%Y',      # 25-07-2025
+            '%d-%m-%y',      # 25-07-25
+            '%b %d, %Y',     # Jul 25, 2025
+            '%d %b %Y',      # 25 Jul 2025
+            '%Y%m%d',        # 20250725
+        ]
+        
+        # Excel-friendly output formats
+        EXCEL_FORMATS = {
+            'excel_friendly': '%m/%d/%Y',    # MM/DD/YYYY - Excel's preferred
+            'iso': '%Y-%m-%d',               # YYYY-MM-DD - ISO standard
+            'us': '%m/%d/%Y',                # MM/DD/YYYY 
+            'european': '%d/%m/%Y',          # DD/MM/YYYY
+        }
+        
+        # Default to excel_friendly if invalid format specified
+        if target_format not in EXCEL_FORMATS:
+            target_format = 'excel_friendly'
+        
+        output_format = EXCEL_FORMATS[target_format]
+        converted_count = 0
+        failed_values = []
+        
+        def convert_single_date(value):
+            nonlocal converted_count, failed_values
+            
+            # Skip if already null/empty
+            if pd.isna(value) or str(value).strip() == '':
+                return value
+                
+            # Clean the input value
+            clean_value = str(value).strip()
+            
+            # Strategy 1: Try user-specified format first (if it's a strftime format)
+            if 'format' in rule and rule['format'] not in EXCEL_FORMATS:
+                try:
+                    parsed = pd.to_datetime(clean_value, format=rule['format'])
+                    converted_count += 1
+                    return parsed.strftime(output_format)
+                except:
+                    pass  # Fall through to other methods
+            
+            # Strategy 2: Try common formats
+            for fmt in COMMON_FORMATS:
+                try:
+                    parsed = pd.to_datetime(clean_value, format=fmt)
+                    converted_count += 1
+                    return parsed.strftime(output_format)
+                except:
+                    continue
+            
+            # Strategy 3: Use dateutil.parser as flexible fallback
+            try:
+                parsed = dateutil_parser.parse(clean_value)
+                converted_count += 1
+                return parsed.strftime(output_format)
+            except:
+                pass
+            
+            # Strategy 4: All parsing failed
+            failed_values.append(clean_value)
+            if preserve_original:
+                return value  # Keep original data
+            else:
+                return pd.NA   # Return pandas NA
+        
+        # Apply conversion to entire column
+        df[column] = df[column].apply(convert_single_date)
+        
+        # Logging and warnings
+        total_non_null = len(df[column].dropna())
+        success_rate = (converted_count / total_non_null * 100) if total_non_null > 0 else 0
+        
+        if converted_count > 0:
+            logger.debug(f"Converted {converted_count}/{total_non_null} dates in column '{column}' ({success_rate:.1f}% success) to {target_format} format")
+        
+        if failed_values:
+            unique_failures = list(set(failed_values))[:5]  # Show first 5 unique failures
+            logger.warning(f"Could not parse {len(failed_values)} date values in column '{column}'. "
+                        f"Sample failed values: {unique_failures}")
+            if preserve_original:
+                logger.info(f"Original values preserved for failed conversions in column '{column}'")
+        
+        return df
+
+    def _apply_fix_dates_basic(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
+        """
+        Fallback to basic date parsing if dateutil is not available.
+        This is the current implementation behavior.
+        """
         date_format = rule.get('format', None)
         
         try:
             df[column] = pd.to_datetime(df[column], format=date_format, errors='coerce')
-            logger.debug(f"Fixed date format in column '{column}'")
+            logger.debug(f"Fixed date format in column '{column}' using basic parsing")
             return df
         except Exception as e:
             raise StepProcessorError(f"Error fixing date data in column '{column}': {e}")
-    
+
     def _apply_fill_empty(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
         """Fill empty/null values."""
         if 'fill_value' not in rule:

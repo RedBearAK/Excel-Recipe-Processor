@@ -1,5 +1,5 @@
 # excel_recipe_processor/processors/_examples/select_columns_examples.yaml
-# Revision date: 2025-08-04
+# Revision date: 2025-08-07
 
 description: "Select and reorder DataFrame columns with flexible inclusion/exclusion patterns and stage-based data flow"
 
@@ -58,31 +58,42 @@ reordering_example:
         columns_to_keep: ["Price", "Customer_ID", "Product_Name", "Description", "Category"]
         # OPT - Allow duplicate columns if same column listed multiple times
         # Default value: true
-        columns_to_create:
-    type: list
-    required: false
-    default: []
-    description: "List of column names to create if they don't exist in source data. Can only be used with columns_to_keep"
-    examples:
-      - ["Notes", "Follow_Up_Date"]
-      - ["Status_Override", "Manual_Flag", "Comments"]
-    note: "Columns listed here must also appear in columns_to_keep. Used to distinguish intentional column creation from typos"
-
-  default_value:
-    type: any
-    required: false
-    default: "pd.NA"
-    description: "Default value to use when creating new columns"
-    examples:
-      - ""        # Empty string
-      - 0         # Zero
-      - "TBD"     # Placeholder text
-      - "pd.NA"   # Pandas NA value
-    note: "Only applies to columns being created via columns_to_create"
-
-  allow_duplicates: true
+        allow_duplicates: true
         # REQ - Stage to save reordered data
         save_to_stage: "ordered_data"
+
+flexible_selection_example:
+  description: "Flexible selection with error handling for missing columns" 
+  yaml: |
+    # Flexible selection with missing column handling
+    
+    settings:
+      description: "Select columns that may or may not exist in import data"
+      stages:
+        - stage_name: "variable_import"
+          description: "Import data with varying column structure"
+          protected: false
+        - stage_name: "standardized_output"
+          description: "Standardized output with available columns"
+          protected: false
+    
+    recipe:
+      - # OPT - Human-readable step description
+        step_description: "Select standard columns, skip missing ones"
+        # REQ - Must be "select_columns" for this processor type
+        processor_type: "select_columns"
+        # REQ - Stage to read data from
+        source_stage: "variable_import"
+        # REQ - Preferred columns (some may not exist in all imports)
+        columns_to_keep: ["ID", "Name", "Email", "Phone", "Address", "Notes", "Created_Date"]
+        # OPT - Don't fail if some columns are missing, just skip them
+        # Default value: true (fail on missing)
+        strict_mode: false
+        # OPT - No duplicates needed for this case
+        # Default value: true
+        allow_duplicates: false
+        # REQ - Stage to save available columns
+        save_to_stage: "standardized_output"
 
 exclusion_example:
   description: "Drop unwanted columns while keeping everything else"
@@ -212,39 +223,6 @@ column_creation_example:
         # REQ - Stage to save template-ready data
         save_to_stage: "template_ready"
 
-flexible_selection_example:
-  description: "Flexible selection with error handling for missing columns" 
-  yaml: |
-    # Flexible selection with missing column handling
-    
-    settings:
-      description: "Select columns that may or may not exist in import data"
-      stages:
-        - stage_name: "variable_import"
-          description: "Import data with varying column structure"
-          protected: false
-        - stage_name: "standardized_output"
-          description: "Standardized output with available columns"
-          protected: false
-    
-    recipe:
-      - # OPT - Human-readable step description
-        step_description: "Select standard columns, skip missing ones"
-        # REQ - Must be "select_columns" for this processor type
-        processor_type: "select_columns"
-        # REQ - Stage to read data from
-        source_stage: "variable_import"
-        # REQ - Preferred columns (some may not exist in all imports)
-        columns_to_keep: ["ID", "Name", "Email", "Phone", "Address", "Notes", "Created_Date"]
-        # OPT - Don't fail if some columns are missing, just skip them
-        # Default value: true (fail on missing)
-        strict_mode: false
-        # OPT - No duplicates needed for this case
-        # Default value: true
-        allow_duplicates: false
-        # REQ - Stage to save available columns
-        save_to_stage: "standardized_output"
-
 parameter_details:
   processor_type:
     type: string
@@ -324,3 +302,25 @@ parameter_details:
       - true   # Fail if any specified column is missing
       - false  # Skip missing columns and continue with available ones
     note: "false mode is useful when column structure varies between data sources"
+
+  columns_to_create:
+    type: list
+    required: false
+    default: []
+    description: "List of column names to create if they don't exist in source data. Can only be used with columns_to_keep"
+    examples:
+      - ["Notes", "Follow_Up_Date"]
+      - ["Status_Override", "Manual_Flag", "Comments"]
+    note: "Columns listed here must also appear in columns_to_keep. Used to distinguish intentional column creation from typos"
+
+  default_value:
+    type: any
+    required: false
+    default: "pd.NA"
+    description: "Default value to use when creating new columns"
+    examples:
+      - ""        # Empty string
+      - 0         # Zero
+      - "TBD"     # Placeholder text
+      - "pd.NA"   # Pandas NA value
+    note: "Only applies to columns being created via columns_to_create"

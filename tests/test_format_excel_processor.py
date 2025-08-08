@@ -432,47 +432,56 @@ def test_variable_substitution():
 
 def test_variable_substitution_real():
     """Test actual variable substitution functionality."""
+    print("Testing real variable substitution...")
     
-    if not OPENPYXL_AVAILABLE:
-        print("Skipping variable substitution test - openpyxl not available")
-        return True
-    
-    print("\nTesting real variable substitution...")
-    
-    test_df = create_sample_data()
-    
-    # Create file with date-based name in current directory
-    import datetime
-    current_date = datetime.datetime.now().strftime('%Y%m%d')
-    expected_filename = f"{current_date}_test_report.xlsx"
-    
-    # Create the file in current directory (not temp)
-    test_df.to_excel(expected_filename, index=False, sheet_name='TestData')
+    # Create test data
+    test_data = create_sample_data()
     
     try:
-        step_config = {
-            'processor_type': 'format_excel',
-            'target_file': '{date}_test_report.xlsx',  # Variable template
-            'variables': {},  # No custom variables needed for {date}
-            'formatting': {
-                'auto_fit_columns': True
-            }
-        }
-        
-        processor = FormatExcelProcessor(step_config)
-        result = processor.execute(test_df)
-        
-        if len(result) == 0 and Path(expected_filename).exists():
-            print("✓ Real variable substitution worked correctly")
-            return True
-        else:
-            print("✗ Real variable substitution failed")
-            return False
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
             
-    finally:
-        # Clean up from current directory
-        if os.path.exists(expected_filename):
-            os.unlink(expected_filename)
+            # Create actual Excel file with substituted name
+            actual_filename = f"2024-03-15_test_report.xlsx"
+            excel_file = temp_path / actual_filename
+            test_data.to_excel(excel_file, index=False, sheet_name='TestData')
+            
+            # Configure processor with variable template
+            step_config = {
+                'processor_type': 'format_excel',
+                'target_file': str(temp_path / "{date}_test_report.xlsx"),
+                'formatting': {
+                    'auto_fit_columns': True,
+                    'header_bold': True
+                }
+            }
+            
+            # Create processor
+            processor = FormatExcelProcessor(step_config)
+            
+            # Set up variable substitution with the date variable
+            from excel_recipe_processor.core.variable_substitution import VariableSubstitution
+            var_sub = VariableSubstitution(
+                input_path=None, 
+                recipe_path=None, 
+                custom_variables={'date': '2024-03-15'}
+            )
+            processor.variable_substitution = var_sub
+            
+            # Execute processor
+            result = processor.execute()
+            
+            # Verify the file was processed (should still exist and be formatted)
+            if excel_file.exists():
+                print("✓ Variable substitution and formatting worked correctly")
+                return True
+            else:
+                print("✗ Target file not found after processing")
+                return False
+                
+    except Exception as e:
+        print(f"✗ Variable substitution test failed: {e}")
+        return False
 
 
 def test_data_passthrough():

@@ -6,16 +6,17 @@ Handles formatting existing Excel files with auto-fit columns, header styling, a
 
 # import pandas as pd
 import logging
+import openpyxl
 
 from pathlib import Path
 
-try:
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.utils import get_column_letter
-    OPENPYXL_AVAILABLE = True
-except ImportError:
-    OPENPYXL_AVAILABLE = False
+# try:
+#     OPENPYXL_AVAILABLE = True
+# except ImportError:
+#     OPENPYXL_AVAILABLE = False
+
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
@@ -37,38 +38,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         return {
             'target_file': 'output.xlsx'
         }
-    
-    # def perform_file_operation(self) -> str:
-    #     """Format the target Excel file."""
-    #     # Check openpyxl availability
-    #     if not OPENPYXL_AVAILABLE:
-    #         raise StepProcessorError("openpyxl is required for Excel formatting but not installed")
-        
-    #     target_file = self.get_config_value('target_file')
-    #     formatting = self.get_config_value('formatting', {})
-        
-    #     # Validate configuration
-    #     self._validate_format_config(target_file, formatting)
-        
-    #     # Apply variable substitution to target filename
-    #     final_target_file = self._apply_variable_substitution(target_file)
-        
-    #     # Check file exists
-    #     if not Path(final_target_file).exists():
-    #         raise StepProcessorError(f"Target file not found: {final_target_file}")
-        
-    #     # Load and format the workbook
-    #     formatted_sheets = self._format_excel_file(final_target_file, formatting)
-        
-    #     return f"formatted {final_target_file} ({formatted_sheets} sheets processed)"
-
-
 
     def perform_file_operation(self) -> str:
         """Format the target Excel file."""
-        # Check openpyxl availability
-        if not OPENPYXL_AVAILABLE:
-            raise StepProcessorError("openpyxl is required for Excel formatting but not installed")
+        # # Check openpyxl availability
+        # if not OPENPYXL_AVAILABLE:
+        #     raise StepProcessorError("openpyxl is required for Excel formatting but not installed")
         
         target_file = self.get_config_value('target_file')
         formatting = self.get_config_value('formatting', {})

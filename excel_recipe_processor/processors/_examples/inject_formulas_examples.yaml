@@ -1,0 +1,328 @@
+# Revision date: 2025-08-08
+
+description: >
+  Inject formulas into Excel files with support for live (dynamic) and 
+  dead (text) formulas. Can target specific cells, ranges, or auto-scan 
+  entire sheets. This is a file operation utility that doesn't participate 
+  in data flow - it manipulates external Excel files.
+
+basic_example:
+  description: "Inject live formulas into specific cells after exporting data"
+  yaml: |
+    settings:
+      description: "Export sales data and add live calculation formulas"
+      stages:
+        - stage_name: "sales_data"
+          description: "Processed sales data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import sales data
+        step_description: "Import monthly sales report"
+        processor_type: "import_file"
+        input_file: "data/sales_march_2024.xlsx"
+        save_to_stage: "sales_data"
+
+      - # Step 2: Export data to Excel file
+        step_description: "Export processed data to Excel"
+        processor_type: "export_file"
+        source_stage: "sales_data"
+        output_file: "reports/sales_report.xlsx"
+
+      - # Step 3: Inject live formulas into the Excel file
+        # OPT - Human-readable step description
+        # Default value: "Unnamed inject_formulas step"
+        step_description: "Add dynamic calculation formulas to Excel report"
+        # REQ - Must be "inject_formulas" for this processor type
+        processor_type: "inject_formulas"
+        # REQ - Excel file to inject formulas into (must already exist)
+        # File path supports variable substitution
+        target_file: "reports/sales_report.xlsx"
+        # REQ - Formula injection mode
+        # Values: "live" (dynamic formulas), "dead" (text formulas), "awaken" (convert dead to live)
+        # Default value: "live"
+        mode: "live"
+        # OPT - List of formulas to inject with cell locations
+        # Default value: [] (no formulas injected)
+        formulas:
+          # Individual cell formula
+          - cell: "D2"
+            formula: "=B2*C2"
+          # Another cell with percentage calculation
+          - cell: "E2"
+            formula: "=D2*0.1"
+          # Sum formula in total row
+          - cell: "D6"
+            formula: "=SUM(D2:D5)"
+
+range_formulas_example:
+  description: "Apply formulas to ranges and multiple sheets"
+  yaml: |
+    settings:
+      description: "Create comprehensive financial model with range formulas"
+      variables:
+        tax_rate: "0.08"
+        discount_rate: "0.05"
+      stages:
+        - stage_name: "financial_data"
+          description: "Financial model data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import financial data
+        step_description: "Import quarterly financial data"
+        processor_type: "import_file"
+        input_file: "data/q1_financials.xlsx"
+        save_to_stage: "financial_data"
+
+      - # Step 2: Export to multi-sheet Excel workbook
+        step_description: "Export data to formatted workbook"
+        processor_type: "export_file"
+        source_stage: "financial_data"
+        output_file: "reports/financial_model.xlsx"
+        sheets:
+          Revenue: "financial_data"
+          Expenses: "financial_data"
+
+      - # Step 3: Inject range formulas across multiple sheets
+        step_description: "Add calculation formulas to financial model"
+        processor_type: "inject_formulas"
+        target_file: "reports/financial_model.xlsx"
+        mode: "live"
+        # OPT - Which sheets to process
+        # Values: None (active sheet), "all" (all sheets), sheet name, or list of sheet names
+        # Default value: None (active sheet only)
+        sheets: ["Revenue", "Expenses"]
+        formulas:
+          # Apply formula to entire column range
+          - range: "D2:D50"
+            formula: "=B2*C2"
+          # Tax calculation column
+          - range: "E2:E50"
+            formula: "=D2*{tax_rate}"
+          # Total formulas
+          - cell: "D51"
+            formula: "=SUM(D2:D50)"
+          - cell: "E51"
+            formula: "=SUM(E2:E50)"
+
+awaken_dead_formulas_example:
+  description: "Convert dead formula text to live calculations"
+  yaml: |
+    settings:
+      description: "Convert budget template with dead formulas to live calculations"
+      stages:
+        - stage_name: "template_data"
+          description: "Budget template data with dead formulas"
+          protected: false
+
+    recipe:
+      - # Step 1: Import template with dead formulas
+        step_description: "Import budget template with formula documentation"
+        processor_type: "import_file"
+        input_file: "templates/budget_template.xlsx"
+        save_to_stage: "template_data"
+
+      - # Step 2: Export template to working file
+        step_description: "Create working copy of template"
+        processor_type: "export_file"
+        source_stage: "template_data"
+        output_file: "working/budget_working.xlsx"
+
+      - # Step 3: Awaken all dead formulas in the workbook
+        step_description: "Convert template formulas to live calculations"
+        processor_type: "inject_formulas"
+        target_file: "working/budget_working.xlsx"
+        # Mode: "awaken" scans for dead formulas and makes them live
+        mode: "awaken"
+        # Process all sheets in the workbook
+        sheets: "all"
+        # OPT - Enable automatic scanning for formula-like text
+        # Default value: false (only processes explicit formulas list)
+        auto_scan: true
+
+dead_formula_documentation_example:
+  description: "Create dead formulas for documentation and training"
+  yaml: |
+    settings:
+      description: "Create model documentation with formula examples"
+      stages:
+        - stage_name: "model_data"
+          description: "Financial model base data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import model data
+        step_description: "Import financial model base data"
+        processor_type: "import_file"
+        input_file: "data/model_base.xlsx"
+        save_to_stage: "model_data"
+
+      - # Step 2: Export to documentation file
+        step_description: "Create model documentation file"
+        processor_type: "export_file"
+        source_stage: "model_data"
+        output_file: "docs/model_documentation.xlsx"
+
+      - # Step 3: Add formula documentation as text
+        step_description: "Add formula documentation for training"
+        processor_type: "inject_formulas"
+        target_file: "docs/model_documentation.xlsx"
+        # Mode: "dead" creates text formulas for documentation
+        mode: "dead"
+        formulas:
+          # Documentation formulas show expected calculations
+          - cell: "F1"
+            formula: "Revenue Calculation: =Units_Sold * Unit_Price"
+          - cell: "F2"
+            formula: "Tax Calculation: =Revenue * Tax_Rate"
+          - cell: "F3"
+            formula: "Lookup Example: =VLOOKUP(Product_ID, Product_Table, 3, FALSE)"
+          - cell: "F4"
+            formula: "Conditional Logic: =IF(Revenue > Target, 'Met', 'Missed')"
+
+comprehensive_dual_mode_example:
+  description: "Create both documentation and live calculation versions"
+  yaml: |
+    settings:
+      description: "Comprehensive workflow with documentation and live calculation versions"
+      variables:
+        output_dir: "reports"
+        date_suffix: "{date}"
+      stages:
+        - stage_name: "sales_data"
+          description: "Sales analysis data"
+          protected: false
+
+    recipe:
+      - # Step 1: Import and process data
+        step_description: "Import sales data for analysis"
+        processor_type: "import_file"
+        input_file: "data/sales_data.xlsx"
+        save_to_stage: "sales_data"
+
+      - # Step 2: Export to documentation version
+        step_description: "Create documentation version"
+        processor_type: "export_file"
+        source_stage: "sales_data"
+        output_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
+
+      - # Step 3: Export to calculation version
+        step_description: "Create calculation version"
+        processor_type: "export_file"
+        source_stage: "sales_data"
+        output_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
+
+      - # Step 4: Add dead formulas to documentation version
+        step_description: "Add formula documentation for training"
+        processor_type: "inject_formulas"
+        target_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
+        mode: "dead"
+        formulas:
+          - cell: "E1"
+            formula: "Commission Rate: =Sales_Amount * 0.05"
+          - cell: "E2"
+            formula: "Performance Rating: =IF(Sales_Amount > Target, 'Exceeds', 'Below')"
+
+      - # Step 5: Add live formulas to calculation version
+        step_description: "Add live formulas for dynamic calculations"
+        processor_type: "inject_formulas"
+        target_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
+        mode: "live"
+        formulas:
+          - range: "E2:E100"
+            formula: "=D2*0.05"
+          - range: "F2:F100"
+            formula: "=IF(D2>C2,'Exceeds','Below')"
+          - cell: "E101"
+            formula: "=SUM(E2:E100)"
+
+parameter_details:
+  target_file:
+    type: string
+    required: true
+    description: "Path to existing Excel file to inject formulas into"
+    supports_variables: true
+    examples:
+      - "reports/sales_report.xlsx"
+      - "output/{date}_calculations.xlsx"
+      - "{output_dir}/financial_model.xlsx"
+
+  mode:
+    type: string
+    required: false
+    default: "live"
+    description: "Formula injection mode determining formula behavior"
+    valid_values: ["live", "dead", "awaken"]
+    examples:
+      - "live"    # Creates dynamic formulas that recalculate automatically
+      - "dead"    # Creates text formulas for documentation/templates  
+      - "awaken"  # Converts existing dead formulas to live formulas
+
+  formulas:
+    type: list of objects
+    required: false
+    default: []
+    description: "List of formulas to inject with target locations"
+    formula_object_structure:
+      cell: "Single cell reference (e.g., 'A1', 'D5')"
+      range: "Cell range reference (e.g., 'A1:A10', 'D2:F20')"
+      formula: "Excel formula to inject (with or without leading =)"
+    examples:
+      - - cell: "D2"
+          formula: "=B2*C2"
+        - range: "E2:E10"
+          formula: "=D2*0.1"
+        - cell: "E11"
+          formula: "=SUM(E2:E10)"
+
+  sheets:
+    type: string or list
+    required: false
+    default: null
+    description: "Which sheets to process in the workbook"
+    valid_values: [null, "all", "sheet_name", ["sheet1", "sheet2"]]
+    examples:
+      - null           # Active sheet only (default)
+      - "all"          # All sheets in workbook
+      - "Revenue"      # Single sheet by name
+      - ["Sales", "Expenses"]  # Multiple specific sheets
+
+  auto_scan:
+    type: boolean
+    required: false
+    default: false
+    description: "Automatically scan for and process formula-like text (used with 'awaken' mode)"
+    note: "Only relevant when mode is 'awaken' - scans entire sheet for dead formulas"
+    examples:
+      - true   # Scan all cells for dead formulas to awaken
+      - false  # Only process explicitly listed formulas
+
+integration_notes:
+  timing: "Must be used AFTER export_file step - requires existing Excel file to modify"
+  file_operations: "This is a FileOpsBaseProcessor - doesn't use stage system for data flow"
+  openpyxl_dependency: "Requires openpyxl library for Excel file manipulation"
+  formula_validation: "Validates cell references but not formula syntax - Excel will show errors for invalid formulas"
+  variable_substitution: "Supports variable substitution in target_file path and formula content"
+
+workflow_patterns:
+  template_activation: "Export dead formulas → Copy file → Awaken formulas for live calculations"
+  documentation_and_calculation: "Create identical files → Add dead formulas to one, live to other"
+  progressive_enhancement: "Export basic data → Format with format_excel → Add formulas with inject_formula"
+  dynamic_models: "Export data with inject_formula for self-updating Excel dashboards"
+
+formula_features:
+  cell_targeting: "Target individual cells with specific formulas"
+  range_application: "Apply base formula to entire ranges (auto-adjusts for each cell)"
+  multi_sheet_support: "Process single sheet, specific sheets, or entire workbook"
+  formula_awakening: "Convert text that looks like formulas into live Excel formulas"
+  mode_flexibility: "Choose live (dynamic), dead (documentation), or awaken (conversion) modes"
+
+common_use_cases:
+  financial_models: "Create self-calculating Excel financial models and dashboards"
+  template_creation: "Build Excel templates with embedded calculation logic"
+  documentation: "Create training materials showing formula examples as text"
+  report_automation: "Generate Excel reports with dynamic formulas for end-user interaction"
+  model_conversion: "Convert static data exports into interactive Excel models"
+
+# End of file #

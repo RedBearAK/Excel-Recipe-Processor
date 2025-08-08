@@ -223,13 +223,15 @@ class StageManager:
         # Log with appropriate level based on declaration status
         if stage_name in cls._declared_stages:
             logger.info(
-                f"Stage '{stage_name}' saved: {len(data)} rows, {len(data.columns)} columns"
-                + (f" - {description}" if description else "")
+                f"Stage '{stage_name}' saved: {len(data)} rows, {len(data.columns)} columns")
+            logger.info(
+                (f" - {description}" if description else "")
             )
         else:
             logger.info(
-                f"Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns"
-                + (f" - {description}" if description else "")
+                f"Stage '{stage_name}' saved (undeclared): {len(data)} rows, {len(data.columns)} columns")
+            logger.info(
+                (f" - {description}" if description else "")
             )
 
     @classmethod

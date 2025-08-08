@@ -191,7 +191,7 @@ class BaseStepProcessor(ABC):
         StageManager.save_stage(
             stage_name=self.save_to_stage,
             data=data,
-            description=f"Result from {self.step_name}",
+            description=f"Result from '{self.step_name}'",
             step_name=self.step_name,
             confirm_replacement=self.confirm_stage_replacement
         )

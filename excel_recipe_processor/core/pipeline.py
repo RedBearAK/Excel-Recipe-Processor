@@ -507,6 +507,7 @@ from excel_recipe_processor.processors.filter_terms_detector_processor  import F
 from excel_recipe_processor.processors.format_excel_processor           import FormatExcelProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
+from excel_recipe_processor.processors.inject_formulas_processor        import InjectFormulasProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
@@ -538,6 +539,7 @@ def register_standard_processors():
     registry.register('format_excel',                   FormatExcelProcessor                )
     registry.register('group_data',                     GroupDataProcessor                  )
     registry.register('import_file',                    ImportFileProcessor                 )
+    registry.register('inject_formulas',                InjectFormulasProcessor             )
     registry.register('lookup_data',                    LookupDataProcessor                 )
     registry.register('merge_data',                     MergeDataProcessor                  )
     registry.register('pivot_table',                    PivotTableProcessor                 )

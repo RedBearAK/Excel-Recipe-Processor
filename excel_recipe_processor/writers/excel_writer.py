@@ -84,8 +84,8 @@ class ExcelWriter:
             
             logger.info(
                 f"Successfully wrote {len(df)} rows, {len(df.columns)} columns "
-                f"to sheet '{sheet_name}' in {output_path}"
-            )
+                f"to sheet '{sheet_name}' in ")
+            logger.info(f"{output_path}")
             
         except PermissionError:
             raise ExcelWriterError(

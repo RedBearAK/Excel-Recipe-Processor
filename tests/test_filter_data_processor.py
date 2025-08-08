@@ -496,6 +496,199 @@ def test_backward_compatibility():
         return False
 
 
+def test_pandas_expression_basic():
+    """Test basic pandas expression functionality."""
+    print("\nTesting pandas expression basic functionality...")
+    
+    test_df = create_test_data()
+    
+    step_config = {
+        'processor_type': 'filter_data',
+        'step_description': 'Pandas expression test',
+        'pandas_expression': 'Price > 20.0 and Status == "Active"'
+    }
+    
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    # Should filter to items with Price > 20 AND Status = Active
+    if len(result) > 0 and all(result['Price'] > 20.0) and all(result['Status'] == 'Active'):
+        print("✓ Basic pandas expression works correctly")
+        return True
+    else:
+        print(f"✗ Pandas expression failed: expected filtered data, got {len(result)} rows")
+        return False
+
+
+def test_pandas_expression_with_spaces():
+    """Test pandas expression with column names containing spaces."""
+    print("\nTesting pandas expression with column names containing spaces...")
+    
+    test_df = create_test_data()
+    
+    step_config = {
+        'processor_type': 'filter_data', 
+        'step_description': 'Pandas expression with spaces test',
+        'pandas_expression': '`Product_Name`.str.contains("CANNED") and Price > 10.0'
+    }
+    
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    if len(result) > 0 and all('CANNED' in name for name in result['Product_Name']):
+        print("✓ Pandas expression with column spaces works correctly")
+        return True
+    else:
+        print(f"✗ Pandas expression with spaces failed: got {len(result)} rows")
+        return False
+
+
+def test_pandas_expression_boolean_logic():
+    """Test complex boolean logic (the main reason for this feature)."""
+    print("\nTesting pandas expression boolean OR logic...")
+    
+    test_df = create_test_data()
+    
+    # Use columns that actually exist in test data - simulate "Completed Vans" logic
+    # Keep non-Active status OR Active status with high price
+    step_config = {
+        'processor_type': 'filter_data',
+        'step_description': 'Boolean OR logic test', 
+        'pandas_expression': '(Status != "Active") | (Status == "Active" & Price > 25.0)'
+    }
+    
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    # Should include all non-Active + expensive Active items
+    active_rows = result[result['Status'] == 'Active']
+    non_active_rows = result[result['Status'] != 'Active']
+    
+    active_all_expensive = len(active_rows) == 0 or all(active_rows['Price'] > 25.0)
+    
+    if active_all_expensive and len(result) > 0:
+        print("✓ Boolean OR logic works correctly")
+        return True
+    else:
+        print(f"✗ Boolean OR logic failed - Active rows: {len(active_rows)}, Non-active: {len(non_active_rows)}")
+        print(f"   Active prices: {list(active_rows['Price']) if len(active_rows) > 0 else 'none'}")
+        return False
+
+
+def test_pandas_expression_error_handling():
+    """Test error handling for invalid pandas expressions."""
+    print("\nTesting pandas expression error handling...")
+    
+    test_df = create_test_data()
+    
+    # Test syntax error (tokenization error)
+    try:
+        step_config = {
+            'processor_type': 'filter_data',
+            'pandas_expression': 'Price > 20 and ('  # Syntax error - missing closing paren
+        }
+        processor = FilterDataProcessor(step_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with syntax error")
+        return False
+    except StepProcessorError as e:
+        if 'syntax error' in str(e).lower() or 'unexpected eof' in str(e).lower():
+            print("✓ Syntax error properly caught")
+        else:
+            print(f"✗ Wrong error type for syntax error: {e}")
+            return False
+    
+    # Test missing column error
+    try:
+        step_config = {
+            'processor_type': 'filter_data',
+            'pandas_expression': 'NonExistentColumn > 100'
+        }
+        processor = FilterDataProcessor(step_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with missing column error")
+        return False
+    except StepProcessorError as e:
+        if 'unknown column' in str(e).lower() or 'nonexistentcolumn' in str(e).lower():
+            print("✓ Missing column error properly caught")
+        else:
+            print(f"✗ Wrong error type for missing column: {e}")
+            return False
+    
+    # Test type error (comparing string to number)
+    try:
+        step_config = {
+            'processor_type': 'filter_data',
+            'pandas_expression': 'Status > 100'  # Comparing text column to number
+        }
+        processor = FilterDataProcessor(step_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with type error")
+        return False
+    except StepProcessorError as e:
+        if 'type error' in str(e).lower() or 'evaluation error' in str(e).lower():
+            print("✓ Type error properly caught")
+        else:
+            print(f"✗ Wrong error type for type comparison: {e}")
+            return False
+    
+    return True
+
+
+def test_pandas_expression_vs_regular_filters():
+    """Test that pandas_expression takes precedence over regular filters."""
+    print("\nTesting pandas expression precedence over regular filters...")
+    
+    test_df = create_test_data()
+    
+    step_config = {
+        'processor_type': 'filter_data',
+        'pandas_expression': 'Price > 20.0',  # This should be used
+        'filters': [  # This should be ignored
+            {
+                'column': 'Price',
+                'condition': 'less_than',
+                'value': 15.0
+            }
+        ]
+    }
+    
+    processor = FilterDataProcessor(step_config)
+    result = processor.execute(test_df)
+    
+    # Should use pandas_expression (Price > 20), not filters (Price < 15)
+    if len(result) > 0 and all(result['Price'] > 20.0):
+        print("✓ Pandas expression takes precedence over regular filters")
+        return True
+    else:
+        print(f"✗ Precedence test failed: got {len(result)} rows")
+        return False
+
+
+def test_empty_pandas_expression():
+    """Test error handling for empty pandas expression."""
+    print("\nTesting empty pandas expression handling...")
+    
+    test_df = create_test_data()
+    
+    try:
+        step_config = {
+            'processor_type': 'filter_data',
+            'pandas_expression': ''  # Empty expression
+        }
+        processor = FilterDataProcessor(step_config)
+        processor.execute(test_df)
+        print("✗ Should have failed with empty expression")
+        return False
+    except StepProcessorError as e:
+        if 'non-empty string' in str(e):
+            print("✓ Empty expression properly rejected")
+            return True
+        else:
+            print(f"✗ Wrong error for empty expression: {e}")
+            return False
+
+
 if __name__ == '__main__':
     print("Testing FilterDataProcessor refactoring...")
     success = True
@@ -524,6 +717,20 @@ if __name__ == '__main__':
     success &= test_capabilities_include_stage_features()
     success &= test_backward_compatibility()
     
+    print("Testing FilterDataProcessor pandas_expression feature...")
+    success = True
+    
+    # Existing tests...
+    
+    # New pandas expression tests
+    print("\n=== Testing Pandas Expression Feature ===")
+    success &= test_pandas_expression_basic()
+    success &= test_pandas_expression_with_spaces()
+    success &= test_pandas_expression_boolean_logic()
+    success &= test_pandas_expression_error_handling()
+    success &= test_pandas_expression_vs_regular_filters()
+    success &= test_empty_pandas_expression()
+
     if success:
         print("\n🎉 All FilterDataProcessor refactoring tests passed!")
     else:

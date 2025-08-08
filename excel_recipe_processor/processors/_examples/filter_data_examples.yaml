@@ -351,6 +351,118 @@ multiple_filters_example:
             # REQ - Status to exclude
             value: "Cancelled"
 
+pandas_expression_basic_example:
+  description: "Use pandas expression for complex boolean logic"
+  yaml: |
+    settings:
+      description: "Filter using pandas expression syntax for complex conditions"
+      stages:
+        - stage_name: "raw_data"
+          description: "Source data"
+          protected: false
+        - stage_name: "filtered_data"
+          description: "Filtered using pandas expression"
+          protected: false
+
+    recipe:
+      - step_description: "Import source data"
+        processor_type: "import_file"
+        input_file: "data/orders.xlsx"
+        save_to_stage: "raw_data"
+
+      - step_description: "Filter using pandas boolean logic"
+        processor_type: "filter_data"
+        source_stage: "raw_data"
+        # Use pandas expression for complex logic that would be impossible with regular filters
+        pandas_expression: '(Status == "Active") & ((Priority == "High") | (Amount > 1000))'
+        save_to_stage: "filtered_data"
+
+pandas_expression_completed_vans_example:
+  description: "Real-world example: Keep recent Completed Vans entries"
+  yaml: |
+    settings:
+      description: "Filter out old Completed Vans while keeping recent ones"
+      variables:
+        week_start_date: "2024-08-04"
+      stages:
+        - stage_name: "all_orders"
+          description: "All order data"
+          protected: false
+        - stage_name: "filtered_orders"
+          description: "Filtered to exclude old Completed Vans"
+          protected: false
+
+    recipe:
+      - step_description: "Import all orders"
+        processor_type: "import_file"
+        input_file: "data/orders.xlsx"
+        save_to_stage: "all_orders"
+
+      - step_description: "Keep recent Completed Vans and all other entries"
+        processor_type: "filter_data"
+        source_stage: "all_orders"
+        # Logic: NOT (Completed Vans AND old date) = Keep everything except old Completed Vans
+        pandas_expression: '~(Workflow.str.contains("Completed Vans") & (`Paid Date` < "{week_start_date}"))'
+        save_to_stage: "filtered_orders"
+
+pandas_expression_string_operations_example:
+  description: "Use pandas string methods in expressions"
+  yaml: |
+    settings:
+      description: "Complex text filtering using pandas string operations"
+      stages:
+        - stage_name: "products"
+          description: "Product data"
+          protected: false
+        - stage_name: "filtered_products"
+          description: "Filtered products"
+          protected: false
+
+    recipe:
+      - step_description: "Filter products with complex text conditions"
+        processor_type: "filter_data"
+        source_stage: "products"
+        # Multiple string conditions with different logic
+        pandas_expression: '`Product Name`.str.contains("Premium|Deluxe", case=False) & ~`Product Name`.str.startswith("Test")'
+        save_to_stage: "filtered_products"
+
+pandas_expression_vs_regular_filters_example:
+  description: "When to use pandas expressions vs regular filters"
+  yaml: |
+    settings:
+      description: "Comparison of pandas expressions vs regular filter conditions"
+      stages:
+        - stage_name: "orders"
+          description: "Order data"
+          protected: false
+        - stage_name: "simple_filtered"
+          description: "Simple filter results"
+          protected: false
+        - stage_name: "complex_filtered"
+          description: "Complex filter results"
+          protected: false
+
+    recipe:
+      - step_description: "Simple filtering (use regular filters)"
+        processor_type: "filter_data"
+        source_stage: "orders"
+        # For simple AND conditions, regular filters are cleaner
+        filters:
+          - column: "Status"
+            condition: "equals"
+            value: "Active"
+          - column: "Amount"
+            condition: "greater_than"
+            value: 1000
+        save_to_stage: "simple_filtered"
+
+      - step_description: "Complex filtering (use pandas expression)"
+        processor_type: "filter_data"
+        source_stage: "orders"
+        # For OR logic or complex conditions, use pandas expressions
+        pandas_expression: '(Status == "Active" & Amount > 1000) | (Status == "Pending" & Priority == "High")'
+        save_to_stage: "complex_filtered"
+
 parameter_details:
   processor_type:
     type: string
@@ -507,3 +619,31 @@ common_use_cases:
   report_filtering: "Extract specific subsets of data for targeted reporting and analysis"
   pattern_matching: "Filter based on text patterns, file extensions, product codes, etc."
   cross_validation: "Validate data against reference lists and historical data in other stages"
+
+parameter_details_update:
+  pandas_expression:
+    type: string
+    required: false
+    description: "Pandas expression for complex filtering logic (alternative to 'filters')"
+    syntax: "Use pandas.eval() syntax with column names and boolean operators"
+    operators:
+      comparison: ["==", "!=", ">", "<", ">=", "<="]
+      boolean: ["&", "|", "~"]  # Note: use & | ~ not 'and or not'
+      string_methods: [".str.contains()", ".str.startswith()", ".str.endswith()", ".isin()"]
+    examples:
+      basic: 'Status == "Active" & Amount > 1000'
+      string_ops: '`Product Name`.str.contains("Premium") & ~`Product Name`.str.startswith("Test")'
+      boolean_or: '(Category == "Electronics") | (Category == "Tools" & Price < 50)'
+      column_spaces: 'Use backticks for spaces: `Order Date` > "2024-01-01"'
+    notes:
+      - "If pandas_expression is provided, 'filters' list is ignored"
+      - "Supports variable substitution: {variable_name}"
+      - "Use backticks for column names with spaces or special characters"
+      - "Boolean operators: & (and), | (or), ~ (not) - NOT Python 'and/or/not'"
+      - "String comparisons are case-sensitive unless using .str methods with case=False"
+
+integration_notes:
+  precedence: "If both pandas_expression and filters are provided, pandas_expression takes precedence"
+  error_handling: "Provides specific error messages for syntax, missing columns, and type mismatches"
+  performance: "Generally faster than multiple filter steps for complex logic"
+  learning_curve: "Requires pandas syntax knowledge for complex expressions"

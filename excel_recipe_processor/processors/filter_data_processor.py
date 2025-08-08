@@ -9,6 +9,7 @@ import pandas as pd
 import logging
 
 from typing import Any
+from tokenize import TokenError
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
@@ -61,6 +62,53 @@ class FilterDataProcessor(BaseStepProcessor):
         
         self.validate_data_not_empty(data)
         
+        # NEW: Handle pandas_expression if provided (before filter validation)
+        if 'pandas_expression' in self.step_config:
+            expression = self.get_config_value('pandas_expression')
+            
+            if not expression or not isinstance(expression, str):
+                raise StepProcessorError(f"Step '{self.step_name}' pandas_expression must be a non-empty string")
+            
+            try:
+                logger.debug(f"Step '{self.step_name}': Applying pandas expression: {expression}")
+                
+                filtered_data = data.copy()
+                initial_row_count = len(filtered_data)
+                
+                mask = filtered_data.eval(expression)
+                filtered_data = filtered_data[mask]
+                
+                final_row_count = len(filtered_data)
+                removed_count = initial_row_count - final_row_count
+                
+                result_info = f"pandas expression filtered {initial_row_count} → {final_row_count} rows (removed {removed_count})"
+                self.log_step_complete(result_info)
+                
+                return filtered_data
+                
+            except (SyntaxError, TokenError) as e:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}' pandas expression syntax error: {e}. "
+                    f"Check your expression syntax: '{expression}'"
+                )
+            except (KeyError, pd.errors.UndefinedVariableError) as e:
+                # Extract column name from error message if possible
+                column_name = str(e).replace("name '", "").replace("' is not defined", "").replace("'", "")
+                raise StepProcessorError(
+                    f"Step '{self.step_name}' pandas expression references unknown column: {column_name}. "
+                    f"Available columns: {list(data.columns)}"
+                )
+            except ValueError as e:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}' pandas expression evaluation error: {e}. "
+                    f"Expression: '{expression}'"
+                )
+            except TypeError as e:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}' pandas expression type error: {e}. "
+                    f"Check data types in expression: '{expression}'"
+                )
+
         # Validate required configuration
         self.validate_required_fields(['filters'])
         
@@ -707,18 +755,14 @@ class FilterDataProcessor(BaseStepProcessor):
             List of supported condition strings
         """
         return [
-            # Basic comparisons
-            'equals', 'not_equals', 'contains', 'not_contains',
-            'greater_than', 'less_than', 'greater_equal', 'less_equal',
-            
-            # Empty/null conditions
-            'not_empty', 'is_empty', 
-            
-            # List membership
-            'in_list', 'not_in_list',
-            
-            # Stage-based conditions (NEW)
-            'in_stage', 'not_in_stage', 'stage_comparison'
+            'equals', 'not_equals', 'contains', 'not_contains', 'starts_with', 'ends_with', 
+            'not_starts_with', 'not_ends_with', 'greater_than', 'less_than', 'greater_equal', 
+            'less_equal', 'not_empty', 'is_empty', 'in_list', 'not_in_list', 
+            'contains_any_in_list', 'not_contains_any_in_list', 'contains_all_in_list', 
+            'starts_with_any_in_list', 'ends_with_any_in_list', 'greater_than_min_in_list', 
+            'greater_than_max_in_list', 'less_than_min_in_list', 'less_than_max_in_list', 
+            'greater_equal_min_in_list', 'greater_equal_max_in_list', 'less_equal_min_in_list', 
+            'less_equal_max_in_list', 'in_stage', 'not_in_stage', 'stage_comparison'
         ]
     
     def get_stage_based_conditions(self) -> list:

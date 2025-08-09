@@ -116,10 +116,161 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         cell_ranges = formatting.get('cell_ranges', {})
         if cell_ranges:
             self._validate_cell_ranges(cell_ranges)
-    
+
+    def _is_valid_range_format(self, range_spec: str) -> bool:
+        """
+        Check if range specification follows valid Excel range format.
+        
+        Args:
+            range_spec: Range specification to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        import re
+        
+        # Patterns for valid Excel ranges
+        patterns = [
+            r'^[A-Z]+[0-9]+$',              # Single cell: A1, AB10
+            r'^[A-Z]+[0-9]+:[A-Z]+[0-9]+$', # Cell range: A1:B2, AA1:AB10
+            r'^[A-Z]+:[A-Z]+$',             # Column range: A:A, A:C
+            r'^[0-9]+:[0-9]+$'              # Row range: 1:1, 1:5
+        ]
+        
+        for pattern in patterns:
+            if re.match(pattern, range_spec.upper()):
+                return True
+        
+        return False
+
+    def _validate_range_formatting_options(self, range_spec: str, formatting: dict) -> None:
+        """
+        Validate formatting options for a specific cell range.
+        
+        Args:
+            range_spec: Range specification being validated
+            formatting: Formatting options dict for this range
+        """
+        # Validate colors
+        for color_field in ['text_color', 'background_color']:
+            color_value = formatting.get(color_field)
+            if color_value is not None:
+                self._validate_color_format(color_value, f"{range_spec}.{color_field}")
+        
+        # Validate font size
+        font_size = formatting.get('font_size')
+        if font_size is not None:
+            if not isinstance(font_size, (int, float)) or font_size <= 0:
+                raise StepProcessorError(f"{range_spec}.font_size must be a positive number, got: {font_size}")
+        
+        # Validate font name
+        font_name = formatting.get('font_name')
+        if font_name is not None:
+            if not isinstance(font_name, str) or not font_name.strip():
+                raise StepProcessorError(f"{range_spec}.font_name must be a non-empty string, got: {font_name}")
+        
+        # Validate boolean options
+        for bool_field in ['bold', 'italic']:
+            bool_value = formatting.get(bool_field)
+            if bool_value is not None:
+                if not isinstance(bool_value, bool):
+                    raise StepProcessorError(f"{range_spec}.{bool_field} must be a boolean (true/false), got: {bool_value}")
+        
+        # Validate alignment options
+        h_align = formatting.get('alignment_horizontal')
+        if h_align is not None:
+            valid_h_alignments = ['general', 'left', 'center', 'right', 'fill', 'justify', 'centerContinuous', 'distributed']
+            if h_align not in valid_h_alignments:
+                raise StepProcessorError(f"{range_spec}.alignment_horizontal must be one of {valid_h_alignments}, got: {h_align}")
+        
+        v_align = formatting.get('alignment_vertical')
+        if v_align is not None:
+            valid_v_alignments = ['top', 'center', 'bottom', 'justify', 'distributed']
+            if v_align not in valid_v_alignments:
+                raise StepProcessorError(f"{range_spec}.alignment_vertical must be one of {valid_v_alignments}, got: {v_align}")
+        
+        # Validate border options (basic validation for now)
+        border = formatting.get('border')
+        if border is not None:
+            self._validate_border_specification(range_spec, border)
+
+    def _validate_border_specification(self, range_spec: str, border) -> None:
+        """
+        Validate border specification format.
+        
+        Args:
+            range_spec: Range specification being validated  
+            border: Border specification (string or dict)
+        """
+        if isinstance(border, str):
+            # Simple border style
+            valid_styles = ['thin', 'thick', 'medium', 'dashed', 'dotted', 'double', 'hair']
+            if border not in valid_styles:
+                raise StepProcessorError(f"{range_spec}.border style must be one of {valid_styles}, got: {border}")
+        
+        elif isinstance(border, dict):
+            # Complex border specification
+            valid_sides = ['top', 'bottom', 'left', 'right', 'all']
+            for side, side_spec in border.items():
+                if side not in valid_sides:
+                    raise StepProcessorError(f"{range_spec}.border side must be one of {valid_sides}, got: {side}")
+                
+                if isinstance(side_spec, str):
+                    # Simple side style
+                    valid_styles = ['thin', 'thick', 'medium', 'dashed', 'dotted', 'double', 'hair']
+                    if side_spec not in valid_styles:
+                        raise StepProcessorError(f"{range_spec}.border.{side} style must be one of {valid_styles}, got: {side_spec}")
+                
+                elif isinstance(side_spec, dict):
+                    # Detailed side specification with style and color
+                    style = side_spec.get('style')
+                    if style is not None:
+                        valid_styles = ['thin', 'thick', 'medium', 'dashed', 'dotted', 'double', 'hair']
+                        if style not in valid_styles:
+                            raise StepProcessorError(f"{range_spec}.border.{side}.style must be one of {valid_styles}, got: {style}")
+                    
+                    color = side_spec.get('color')
+                    if color is not None:
+                        self._validate_color_format(color, f"{range_spec}.border.{side}.color")
+                
+                else:
+                    raise StepProcessorError(f"{range_spec}.border.{side} must be a string or dict, got: {type(side_spec).__name__}")
+        
+        else:
+            raise StepProcessorError(f"{range_spec}.border must be a string or dict, got: {type(border).__name__}")
+
+    def _validate_cell_ranges(self, cell_ranges: dict) -> None:
+        """
+        Validate cell range formatting configuration (Phase 3 enhancement).
+        
+        Args:
+            cell_ranges: Dict mapping range specs to formatting options
+        """
+        if not isinstance(cell_ranges, dict):
+            raise StepProcessorError(f"cell_ranges must be a dictionary, got: {type(cell_ranges).__name__}")
+        
+        for range_spec, range_formatting in cell_ranges.items():
+            # Validate range specification format
+            if not isinstance(range_spec, str):
+                raise StepProcessorError(f"Range specification must be a string, got: {type(range_spec).__name__}")
+            
+            range_spec_clean = range_spec.strip()
+            if not range_spec_clean:
+                raise StepProcessorError("Range specification cannot be empty")
+            
+            # Basic range format validation (A1, A1:B2, A:A, 1:1)
+            if not self._is_valid_range_format(range_spec_clean):
+                raise StepProcessorError(f"Invalid range format: '{range_spec}'. Use formats like 'A1', 'A1:B2', 'A:A', or '1:1'")
+            
+            # Validate formatting options for this range
+            if not isinstance(range_formatting, dict):
+                raise StepProcessorError(f"Range formatting for '{range_spec}' must be a dictionary, got: {type(range_formatting).__name__}")
+            
+            self._validate_range_formatting_options(range_spec, range_formatting)
+
     def _validate_color_format(self, color_value: str, field_name: str) -> None:
         """
-        Validate color format - currently supports hex colors.
+        Validate color format - enhanced to support webcolors (Phase 3).
         
         Args:
             color_value: Color value to validate
@@ -128,26 +279,18 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         if not isinstance(color_value, str):
             raise StepProcessorError(f"{field_name} must be a string, got: {type(color_value).__name__}")
         
-        # Simple hex validation (will be enhanced with webcolors in later phases)
         color_clean = color_value.strip()
         
         # Check for empty string after stripping
         if not color_clean:
             raise StepProcessorError(f"{field_name} cannot be empty")
         
-        if color_clean.startswith('#'):
-            color_clean = color_clean[1:]
-        
-        # Check for empty string after removing hash
-        if not color_clean:
-            raise StepProcessorError(f"{field_name} cannot be just a hash symbol")
-        
-        if not all(c in '0123456789ABCDEFabcdef' for c in color_clean):
-            raise StepProcessorError(f"{field_name} must be a valid hex color (e.g., 'FF0000', '#FF0000'), got: {color_value}")
-        
-        if len(color_clean) not in [3, 6]:
-            raise StepProcessorError(f"{field_name} hex color must be 3 or 6 digits, got: {color_value}")
-    
+        # Try to normalize the color - this will validate all supported formats
+        try:
+            self._normalize_color(color_clean)
+        except Exception as e:
+            raise StepProcessorError(f"{field_name} must be a valid color format (hex, CSS name, or RGB), got: {color_value}. Error: {e}")
+
     def _normalize_color(self, color_value: str) -> str:
         """
         Normalize color to 6-digit uppercase hex format for openpyxl (Phase 3 enhanced).
@@ -160,38 +303,38 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         """
         color_clean = color_value.strip()
         
-        # Try webcolors first for comprehensive color support
         try:
             
-            # Handle different input formats
-            if color_clean.startswith('#'):
-                # Hex format: #FF0000, #F00
-                hex_color = webcolors.normalize_hex(color_clean)
-                return hex_color[1:].upper()  # Remove # and uppercase
-            elif color_clean.startswith('rgb(') and color_clean.endswith(')'):
-                # RGB format: rgb(255, 0, 0)
+            # 1. RGB format: rgb(255, 0, 0)
+            if color_clean.startswith('rgb(') and color_clean.endswith(')'):
                 rgb_str = color_clean[4:-1]  # Remove 'rgb(' and ')'
                 rgb_parts = [int(x.strip()) for x in rgb_str.split(',')]
-                if len(rgb_parts) != 3:
+                if len(rgb_parts) == 3:
+                    hex_color = webcolors.rgb_to_hex(tuple(rgb_parts))
+                    return hex_color[1:].upper()  # Remove # and uppercase
+                else:
                     raise ValueError("RGB format must have exactly 3 values")
-                hex_color = webcolors.rgb_to_hex(tuple(rgb_parts))
+            
+            # 2. Hex format with hash: #FF0000, #F00
+            elif color_clean.startswith('#'):
+                hex_color = webcolors.normalize_hex(color_clean)
                 return hex_color[1:].upper()  # Remove # and uppercase
-            elif color_clean.lower() in webcolors.CSS3_NAMES_TO_HEX:
-                # CSS color names: red, blue, forestgreen, etc.
+            
+            # 3. Check if it contains any non-hex characters
+            elif self._contains_non_hex_chars(color_clean):
+                # Must be a color name: white, red, forestgreen, etc.
                 hex_color = webcolors.name_to_hex(color_clean.lower())
                 return hex_color[1:].upper()  # Remove # and uppercase
-            elif all(c in '0123456789ABCDEFabcdef' for c in color_clean):
-                # Plain hex without #: FF0000, F00
+            
+            # 4. Only hex characters - treat as plain hex: FF0000, F00
+            else:
                 if len(color_clean) == 3:
-                    # Expand 3-digit to 6-digit hex
-                    expanded = ''.join([c*2 for c in color_clean])
-                    return expanded.upper()
+                    # Expand 3-digit to 6-digit hex: F00 -> FF0000
+                    return ''.join([c*2 for c in color_clean]).upper()
                 elif len(color_clean) == 6:
                     return color_clean.upper()
                 else:
                     raise ValueError(f"Hex color must be 3 or 6 digits, got {len(color_clean)}")
-            else:
-                raise ValueError(f"Unrecognized color format: '{color_value}'")
                 
         except ImportError:
             # Fallback to basic hex parsing if webcolors not available
@@ -203,7 +346,20 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 return self._normalize_color_basic(color_clean)
             except Exception:
                 raise ValueError(f"Invalid color format '{color_value}': {e}")
-    
+
+    def _contains_non_hex_chars(self, text: str) -> bool:
+        """
+        Check if text contains any characters that are NOT valid hex digits.
+        
+        Args:
+            text: Text to check
+            
+        Returns:
+            True if contains non-hex characters, False if only hex characters
+        """
+        hex_chars = set('0123456789ABCDEFabcdef')
+        return any(c not in hex_chars for c in text)
+
     def _normalize_color_basic(self, color_clean: str) -> str:
         """
         Basic color normalization (fallback when webcolors unavailable).
@@ -489,7 +645,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 raise StepProcessorError(f"Error formatting cell range '{range_spec}': {e}")
         
         logger.info(f"Applied cell range formatting to {ranges_processed} ranges")
-    
+
     def _parse_range_spec(self, worksheet, range_spec: str):
         """
         Parse a range specification and return list of cells.
@@ -517,7 +673,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         else:
             # Single cell specification: B2
             return [worksheet[range_spec_clean]]
-    
+
     def _apply_cell_formatting(self, cells, formatting: dict) -> None:
         """
         Apply formatting to a list of cells.
@@ -557,8 +713,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 font_kwargs['italic'] = formatting['italic']
             
             # Apply font formatting
-            if any(font_kwargs.values()):
-                cell.font = Font(**font_kwargs)
+            cell.font = Font(**font_kwargs)
             
             # Build alignment formatting
             alignment_kwargs = {}
@@ -582,8 +737,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 alignment_kwargs['vertical'] = formatting['alignment_vertical']
             
             # Apply alignment formatting
-            if any(alignment_kwargs.values()):
-                cell.alignment = Alignment(**alignment_kwargs)
+            cell.alignment = Alignment(**alignment_kwargs)
             
             # Apply background color
             if 'background_color' in formatting and formatting['background_color']:
@@ -595,7 +749,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if 'border' in formatting and formatting['border']:
                 border = self._create_border(formatting['border'])
                 cell.border = border
-    
+
     def _create_border(self, border_spec):
         """
         Create an openpyxl Border object from specification.
@@ -606,8 +760,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         Returns:
             openpyxl Border object
         """
-        from openpyxl.styles import Border, Side
-        
         if isinstance(border_spec, str):
             # Simple border: apply same style to all sides
             side = Side(style=border_spec)
@@ -641,7 +793,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         else:
             raise ValueError(f"Invalid border specification: {border_spec}")
-    
+
     def _auto_fit_columns(self, worksheet, formatting: dict) -> None:
         """Auto-fit column widths based on content."""
         max_width = formatting.get('max_column_width', 50)

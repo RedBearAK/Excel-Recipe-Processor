@@ -150,7 +150,7 @@ class BaseStepProcessor(ABC):
     
     def log_step_start(self) -> None:
         """Log the start of step execution."""
-        logger.info(f"Starting step: '{self.step_name}' ({self.step_type})")
+        logger.info(f"Executing step: '{self.step_name}' ({self.step_type})")
     
     def log_step_complete(self, result_info: str = "") -> None:
         """
@@ -198,7 +198,9 @@ class BaseStepProcessor(ABC):
     
     def execute_stage_to_stage(self) -> pd.DataFrame:
         """Execute complete stage-to-stage operation."""
-        self.log_step_start()
+
+        # Processors call this themselves when executed:
+        # self.log_step_start()
         
         # Load input
         input_data = self.load_input_data()

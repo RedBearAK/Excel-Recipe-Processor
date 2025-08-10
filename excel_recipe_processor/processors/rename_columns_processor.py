@@ -99,11 +99,13 @@ class RenameColumnsProcessor(BaseStepProcessor):
                     f"Available types: {', '.join(available_types)}"
                 )
             
-            new_columns = list(result_data.columns)
-            renamed_count = sum(1 for old, new in zip(original_columns, new_columns) if old != new)
+            # new_columns = list(result_data.columns)
+            # renamed_count = sum(1 for old, new in zip(original_columns, new_columns) if old != new)
+            # result_info = f"renamed {renamed_count}/{len(original_columns)} columns"
+            # self.log_step_complete(result_info)
             
-            result_info = f"renamed {renamed_count}/{len(original_columns)} columns"
-            self.log_step_complete(result_info)
+            # Enhanced logging instead of using "self.log_step_complete"
+            self._log_detailed_results(mapping, len(data.columns))
             
             return result_data
             
@@ -113,6 +115,17 @@ class RenameColumnsProcessor(BaseStepProcessor):
             else:
                 raise StepProcessorError(f"Error renaming columns in step '{self.step_name}': {e}")
     
+    def _log_detailed_results(self, rename_mapping: dict, total_columns: int) -> None:
+        """Log detailed renaming results."""
+        
+        if rename_mapping:
+            logger.info("📊 Column Renaming Results:")
+            for old_name, new_name in rename_mapping.items():
+                logger.info(f"   🔄 '{old_name}' → '{new_name}'")
+        
+        renamed_count = len(rename_mapping)
+        # self.log_step_complete(f"renamed {renamed_count}/{total_columns} columns")
+
     def _validate_rename_config(self, df: pd.DataFrame, rename_type: str, mapping: dict) -> None:
         """
         Validate renaming configuration parameters.

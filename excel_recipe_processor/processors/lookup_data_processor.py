@@ -264,7 +264,7 @@ class LookupDataProcessor(BaseStepProcessor):
             
         except StageError as e:
             raise StepProcessorError(f"Failed to load lookup stage '{stage_name}': {e}")
-    
+
     def _apply_case_insensitive_matching(self, lookup_data: pd.DataFrame, main_data: pd.DataFrame,
                                         match_col_in_lookup_data: str,
                                         match_col_in_main_data: str) -> tuple:
@@ -277,11 +277,65 @@ class LookupDataProcessor(BaseStepProcessor):
         temp_lookup_key = f"_temp_{match_col_in_lookup_data}_lower"
         temp_source_key = f"_temp_{match_col_in_main_data}_lower"
         
+        # Handle data type mismatches BEFORE converting to lowercase strings
+        main_key_type = main_data_copy[match_col_in_main_data].dtype
+        lookup_key_type = lookup_data_copy[match_col_in_lookup_data].dtype
+        
+        # If data types don't match, convert to compatible types first
+        if main_key_type != lookup_key_type:
+            logger.info(f"Data type mismatch: main ({main_key_type}) vs lookup ({lookup_key_type})")
+            
+            # Skip int64 conversion - just clean up the string conversion directly
+            # Handle float to string conversion by removing .0 for whole numbers
+            if pd.api.types.is_numeric_dtype(main_data_copy[match_col_in_main_data]):
+                # Convert float to string, but remove .0 for whole numbers
+                main_str = main_data_copy[match_col_in_main_data].apply(
+                    lambda x: str(int(x)) if pd.notna(x) and float(x).is_integer() else str(x)
+                )
+                main_data_copy[match_col_in_main_data] = main_str
+                logger.info(f"Converted main float column to string with .0 cleanup")
+            else:
+                main_data_copy[match_col_in_main_data] = main_data_copy[match_col_in_main_data].astype(str)
+                logger.info(f"Converted main column to string")
+                
+            # Convert lookup data to string
+            if pd.api.types.is_numeric_dtype(lookup_data_copy[match_col_in_lookup_data]):
+                lookup_str = lookup_data_copy[match_col_in_lookup_data].apply(
+                    lambda x: str(int(x)) if pd.notna(x) and float(x).is_integer() else str(x)
+                )
+                lookup_data_copy[match_col_in_lookup_data] = lookup_str
+                logger.info(f"Converted lookup numeric column to string with .0 cleanup")
+            else:
+                lookup_data_copy[match_col_in_lookup_data] = lookup_data_copy[match_col_in_lookup_data].astype(str)
+                logger.info(f"Converted lookup column to string")
+        
+        # Now create lowercase columns for case insensitive matching
         lookup_data_copy[temp_lookup_key] = lookup_data_copy[match_col_in_lookup_data].astype(str).str.lower()
         main_data_copy[temp_source_key] = main_data_copy[match_col_in_main_data].astype(str).str.lower()
+
+        # Add comprehensive debugging to understand the data
+        logger.info(f"After type conversion - Main: {main_data_copy[match_col_in_main_data].dtype}, Lookup: {lookup_data_copy[match_col_in_lookup_data].dtype}")
+        logger.info(f"Sample main values after conversion: {main_data_copy[match_col_in_main_data].head(3).tolist()}")
+        logger.info(f"Sample lookup values after conversion: {lookup_data_copy[match_col_in_lookup_data].head(3).tolist()}")
         
+        # Check for any potential matches
+        main_values = set(main_data_copy[match_col_in_main_data].dropna().astype(str))
+        lookup_values = set(lookup_data_copy[match_col_in_lookup_data].dropna().astype(str))
+        overlapping = main_values.intersection(lookup_values)
+        
+        logger.info(f"Main data has {len(main_values)} unique values, Lookup has {len(lookup_values)} unique values")
+        logger.info(f"Found {len(overlapping)} overlapping values: {list(overlapping)[:10]}")  # Show first 10 matches
+        
+        if len(overlapping) == 0:
+            logger.info(f"NO MATCHES FOUND! Sample main: {list(main_values)[:10]}")
+            logger.info(f"NO MATCHES FOUND! Sample lookup: {list(lookup_values)[:10]}")
+        
+        # Now show what the temporary lowercase columns will look like
+        logger.info(f"Sample temp main values (lowercase): {main_data_copy[match_col_in_main_data].astype(str).str.lower().head(3).tolist()}")
+        logger.info(f"Sample temp lookup values (lowercase): {lookup_data_copy[match_col_in_lookup_data].astype(str).str.lower().head(3).tolist()}")
+
         return lookup_data_copy, main_data_copy
-    
+
     def _handle_duplicates(self, lookup_data: pd.DataFrame, lookup_key: str, 
                             handle_method: str) -> pd.DataFrame:
         """Handle duplicate keys in lookup data."""
@@ -303,11 +357,11 @@ class LookupDataProcessor(BaseStepProcessor):
                 f"Duplicate keys found in lookup data: {list(duplicate_keys)}. "
                 f"Use handle_duplicates='first' or 'last' to handle duplicates automatically."
             )
-    
+
     def _perform_lookup(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                                match_col_in_lookup_data: str, 
-                                match_col_in_main_data: str, 
-                                lookup_columns: list, join_type: str) -> pd.DataFrame:
+                        match_col_in_lookup_data: str, 
+                        match_col_in_main_data: str, 
+                        lookup_columns: list, join_type: str) -> pd.DataFrame:
         """Perform the actual lookup/join operation."""
         
         # Validate lookup key exists in lookup data
@@ -344,7 +398,57 @@ class LookupDataProcessor(BaseStepProcessor):
         
         lookup_subset = lookup_data[merge_columns]
         
+        # DEBUG: Check what's actually in the lookup columns BEFORE merge
+        logger.info(f"LOOKUP DATA ANALYSIS - Checking lookup columns before merge:")
+        logger.info(f"Lookup subset shape: {lookup_subset.shape}")
+        logger.info(f"Lookup subset columns: {list(lookup_subset.columns)}")
+        
+        for col in lookup_columns:
+            if col in lookup_subset.columns:
+                non_null_count = lookup_subset[col].notna().sum()
+                total_count = len(lookup_subset)
+                logger.info(f"  Column '{col}': {non_null_count}/{total_count} non-null values")
+                
+                if non_null_count > 0:
+                    sample_values = lookup_subset[col].dropna().head(5).tolist()
+                    logger.info(f"    Sample values: {sample_values}")
+                else:
+                    logger.info(f"    *** COLUMN IS COMPLETELY EMPTY! ***")
+                    # Show what's actually in there
+                    sample_raw = lookup_subset[col].head(10).tolist()
+                    logger.info(f"    Raw sample (including nulls): {sample_raw}")
+            else:
+                logger.info(f"  Column '{col}': *** NOT FOUND IN LOOKUP DATA ***")
+        
         try:
+            # Add comprehensive debugging before merge
+            logger.info(f"About to merge - Main data shape: {main_data.shape}, Lookup data shape: {lookup_subset.shape}")
+            logger.info(f"Merge keys: left_on='{source_key_to_use}', right_on='{lookup_key_to_use}'")
+            logger.info(f"Using temp columns: {source_key_to_use in main_data.columns and lookup_key_to_use in lookup_subset.columns}")
+            
+            # Check what the merge keys actually contain
+            if source_key_to_use in main_data.columns:
+                main_sample = main_data[source_key_to_use].head(5).tolist()
+                main_unique = main_data[source_key_to_use].nunique()
+                logger.info(f"Main merge key '{source_key_to_use}' - Sample: {main_sample}, Unique count: {main_unique}")
+            
+            if lookup_key_to_use in lookup_subset.columns:
+                lookup_sample = lookup_subset[lookup_key_to_use].head(5).tolist()
+                lookup_unique = lookup_subset[lookup_key_to_use].nunique()
+                logger.info(f"Lookup merge key '{lookup_key_to_use}' - Sample: {lookup_sample}, Unique count: {lookup_unique}")
+            
+            # Check for potential matches in merge keys
+            if (source_key_to_use in main_data.columns and lookup_key_to_use in lookup_subset.columns):
+                main_keys = set(main_data[source_key_to_use].dropna().astype(str))
+                lookup_keys = set(lookup_subset[lookup_key_to_use].dropna().astype(str))
+                potential_matches = main_keys.intersection(lookup_keys)
+                logger.info(f"MERGE KEY ANALYSIS: {len(potential_matches)} potential matches out of {len(main_keys)} main and {len(lookup_keys)} lookup keys")
+                if len(potential_matches) > 0:
+                    logger.info(f"Sample matches: {list(potential_matches)[:5]}")
+                else:
+                    logger.info(f"NO MATCHES FOUND - Sample main keys: {list(main_keys)[:5]}")
+                    logger.info(f"NO MATCHES FOUND - Sample lookup keys: {list(lookup_keys)[:5]}")
+
             # Perform the merge operation
             result = main_data.merge(
                 lookup_subset,
@@ -354,15 +458,93 @@ class LookupDataProcessor(BaseStepProcessor):
                 suffixes=('', '_lookup_temp')
             )
             
+            # Debug merge results IMMEDIATELY after merge
+            logger.info(f"Merge completed - Result shape: {result.shape}")
+            logger.info(f"Result columns: {list(result.columns)}")
+            
+            # Check if lookup columns exist in result immediately after merge
+            for col in lookup_columns:
+                if col in result.columns:
+                    non_null = result[col].notna().sum()
+                    logger.info(f"IMMEDIATE: Lookup column '{col}': {non_null} non-null values out of {len(result)}")
+                    if non_null > 0:
+                        sample_values = result[col].dropna().head(3).tolist()
+                        logger.info(f"  Sample immediate values: {sample_values}")
+                else:
+                    logger.info(f"IMMEDIATE: Lookup column '{col}' NOT FOUND in result!")
+            
+            # Check a specific matching case to see what happened
+            # Find a known match and trace it through
+            if len(potential_matches) > 0:
+                test_key = list(potential_matches)[0]
+                logger.info(f"TRACING SPECIFIC MATCH: Testing key '{test_key}'")
+                
+                # Check in main data
+                main_match = main_data[main_data[source_key_to_use] == test_key]
+                if len(main_match) > 0:
+                    logger.info(f"  Found {len(main_match)} rows in main data with key '{test_key}'")
+                
+                # Check in lookup data  
+                lookup_match = lookup_subset[lookup_subset[lookup_key_to_use] == test_key]
+                if len(lookup_match) > 0:
+                    logger.info(f"  Found {len(lookup_match)} rows in lookup data with key '{test_key}'")
+                    for col in lookup_columns:
+                        if col in lookup_match.columns:
+                            val = lookup_match[col].iloc[0]
+                            logger.info(f"    Lookup source '{col}': {val}")
+                
+                # Check in result
+                result_match = result[result[source_key_to_use] == test_key]
+                if len(result_match) > 0:
+                    logger.info(f"  Found {len(result_match)} rows in result with key '{test_key}'")
+                    for col in lookup_columns:
+                        if col in result_match.columns:
+                            val = result_match[col].iloc[0]
+                            logger.info(f"    Result '{col}': {val}")
 
-            # Clean up temporary columns
-            temp_columns = [col for col in result.columns if col.startswith('_temp_') or col.endswith('_lookup_temp')]
+            # FIX: Handle column name collisions from merge suffixes
+            # This MUST happen BEFORE cleaning up temp columns
+            columns_fixed = []
+            for col in lookup_columns:
+                suffixed_col = f"{col}_lookup_temp"
+                if suffixed_col in result.columns:
+                    # Move data from suffixed column to original column
+                    if col in result.columns:
+                        # Original column exists - replace it with lookup data
+                        result[col] = result[suffixed_col]
+                        logger.info(f"Moved lookup data from '{suffixed_col}' to '{col}'")
+                    else:
+                        # Original column doesn't exist - rename the suffixed column
+                        result = result.rename(columns={suffixed_col: col})
+                        logger.info(f"Renamed '{suffixed_col}' to '{col}'")
+                    columns_fixed.append(col)
+                else:
+                    # No suffix collision - data should be in the original column
+                    if col in result.columns:
+                        logger.info(f"Column '{col}' - no suffix collision, using original data")
+                    else:
+                        logger.warning(f"Column '{col}' not found in result after merge")
+            
+            # Drop any remaining suffixed columns
+            remaining_suffixed = [col for col in result.columns if col.endswith('_lookup_temp')]
+            if remaining_suffixed:
+                result = result.drop(columns=remaining_suffixed)
+                logger.info(f"Dropped remaining suffixed columns: {remaining_suffixed}")
+            
+            # Log final results after fix
+            logger.info(f"AFTER COLUMN FIX:")
+            for col in lookup_columns:
+                if col in result.columns:
+                    non_null = result[col].notna().sum()
+                    logger.info(f"  Fixed column '{col}': {non_null} non-null values out of {len(result)}")
+                    if non_null > 0:
+                        sample_values = result[col].dropna().head(3).tolist()
+                        logger.info(f"    Sample values: {sample_values}")
+            
+            # Clean up temporary columns AFTER fixing the column collisions
+            temp_columns = [col for col in result.columns if col.startswith('_temp_')]
             if temp_columns:
                 result = result.drop(columns=temp_columns)
-
-            # temp_columns = [col for col in result.columns if col.startswith('_temp_')]
-            # if temp_columns:
-            #     result = result.drop(columns=temp_columns)
             
             # Remove duplicate lookup key column if different from source key
             if match_col_in_lookup_data in result.columns and match_col_in_lookup_data != match_col_in_main_data:
@@ -372,7 +554,7 @@ class LookupDataProcessor(BaseStepProcessor):
             
         except Exception as e:
             raise StepProcessorError(f"Error during lookup merge operation: {e}")
-    
+
     def _apply_column_naming(self, data: pd.DataFrame, lookup_columns: list, 
                             prefix: str, suffix: str) -> pd.DataFrame:
         """Apply prefix/suffix to lookup columns."""

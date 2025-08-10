@@ -77,8 +77,8 @@ def test_basic_lookup():
         'processor_type': 'lookup_data',
         'step_description': 'Basic customer lookup',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name', 'Customer_Tier']
     }
     
@@ -122,8 +122,8 @@ def test_case_insensitive_default():
     config = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name']
         # Note: No case_sensitive specified, should default to False
     }
@@ -167,8 +167,8 @@ def test_case_sensitive_explicit():
     config = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name'],
         'case_sensitive': True  # Explicit case sensitive
     }
@@ -203,8 +203,8 @@ def test_join_types():
     config_inner = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name'],
         'join_type': 'inner'
     }
@@ -237,8 +237,8 @@ def test_default_values():
     config = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name', 'Customer_Tier'],
         'default_value': 'Unknown'
     }
@@ -277,8 +277,8 @@ def test_prefix_suffix():
     config = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name', 'Customer_Tier'],
         'prefix': 'Cust_',
         'suffix': '_Info'
@@ -327,8 +327,8 @@ def test_stage_based_lookup():
                 'type': 'stage',
                 'stage_name': 'customer_ref'
             },
-            'lookup_key': 'Customer_Code',
-            'source_key': 'Customer_Code',
+            'match_col_in_lookup_data': 'Customer_Code',
+            'match_col_in_main_data': 'Customer_Code',
             'lookup_columns': ['Customer_Name']
         }
         
@@ -380,8 +380,8 @@ def test_file_based_lookup():
                 'type': 'file',
                 'filename': str(lookup_file)
             },
-            'lookup_key': 'Customer_Code',
-            'source_key': 'Customer_Code',
+            'match_col_in_lookup_data': 'Customer_Code',
+            'match_col_in_main_data': 'Customer_Code',
             'lookup_columns': ['Customer_Name']
         }
         
@@ -419,8 +419,8 @@ def test_error_handling():
     config = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name']
     }
     
@@ -443,8 +443,8 @@ def test_error_handling():
     config_bad_source = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'Customer_Code',
-        'source_key': 'NonexistentColumn',
+        'match_col_in_lookup_data': 'Customer_Code',
+        'match_col_in_main_data': 'NonexistentColumn',
         'lookup_columns': ['Customer_Name']
     }
     
@@ -463,8 +463,8 @@ def test_error_handling():
     config_bad_lookup = {
         'processor_type': 'lookup_data',
         'lookup_source': customer_lookup,
-        'lookup_key': 'NonexistentLookupColumn',
-        'source_key': 'Customer_Code',
+        'match_col_in_lookup_data': 'NonexistentLookupColumn',
+        'match_col_in_main_data': 'Customer_Code',
         'lookup_columns': ['Customer_Name']
     }
     

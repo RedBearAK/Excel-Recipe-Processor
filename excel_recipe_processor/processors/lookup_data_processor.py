@@ -38,8 +38,8 @@ class LookupDataProcessor(BaseStepProcessor):
     def get_minimal_config(cls) -> dict:
         return {
             'lookup_source': {'type': 'inline', 'data': {'key': ['test'], 'value': ['result']}},
-            'lookup_key': 'key',
-            'source_key': 'source_key', 
+            'match_col_in_lookup_data': 'key',
+            'match_col_in_main_data': 'source_key', 
             'lookup_columns': ['value']
         }
     
@@ -65,12 +65,17 @@ class LookupDataProcessor(BaseStepProcessor):
         self.validate_data_not_empty(data)
         
         # Validate required configuration
-        self.validate_required_fields(['lookup_source', 'lookup_key', 'source_key', 'lookup_columns'])
+        self.validate_required_fields([
+            'lookup_source',
+            'match_col_in_lookup_data',
+            'match_col_in_main_data',
+            'lookup_columns'
+            ])
         
-        lookup_source = self.get_config_value('lookup_source')
-        lookup_key = self.get_config_value('lookup_key')
-        source_key = self.get_config_value('source_key')
-        lookup_columns = self.get_config_value('lookup_columns')
+        lookup_source               = self.get_config_value('lookup_source')
+        match_col_in_lookup_data    = self.get_config_value('match_col_in_lookup_data')
+        match_col_in_main_data      = self.get_config_value('match_col_in_main_data')
+        lookup_columns              = self.get_config_value('lookup_columns')
         
         # Optional configuration
         join_type = self.get_config_value('join_type', 'left')
@@ -81,7 +86,7 @@ class LookupDataProcessor(BaseStepProcessor):
         default_value = self.get_config_value('default_value', None)
         
         # Validate inputs
-        self._validate_lookup_config(data, lookup_key, source_key, lookup_columns, join_type, handle_duplicates)
+        self._validate_lookup_config(data, match_col_in_lookup_data, match_col_in_main_data, lookup_columns, join_type, handle_duplicates)
         
         try:
             # Load lookup data from various sources
@@ -89,16 +94,16 @@ class LookupDataProcessor(BaseStepProcessor):
             
             # Apply case sensitivity handling
             if not case_sensitive:
-                lookup_data, data = self._apply_case_insensitive_matching(lookup_data, data, lookup_key, source_key)
+                lookup_data, data = self._apply_case_insensitive_matching(lookup_data, data, match_col_in_lookup_data, match_col_in_main_data)
             
             # Handle duplicates in lookup data
             if handle_duplicates in ['first', 'last']:
-                lookup_data = self._handle_duplicates(lookup_data, lookup_key, handle_duplicates)
+                lookup_data = self._handle_duplicates(lookup_data, match_col_in_lookup_data, handle_duplicates)
             elif handle_duplicates == 'error':
-                self._check_for_duplicates(lookup_data, lookup_key)
+                self._check_for_duplicates(lookup_data, match_col_in_lookup_data)
             
             # Perform the lookup operation
-            result = self._perform_lookup(data, lookup_data, lookup_key, source_key, lookup_columns, join_type)
+            result = self._perform_lookup(data, lookup_data, match_col_in_lookup_data, match_col_in_main_data, lookup_columns, join_type)
             
             # Apply prefixes/suffixes to lookup columns
             if prefix or suffix:
@@ -124,15 +129,18 @@ class LookupDataProcessor(BaseStepProcessor):
             else:
                 raise StepProcessorError(f"Lookup operation failed in step '{self.step_name}': {e}")
     
-    def _validate_lookup_config(self, data: pd.DataFrame, lookup_key: str, source_key: str, 
-                              lookup_columns: list, join_type: str, handle_duplicates: str) -> None:
+    def _validate_lookup_config(self, data: pd.DataFrame, 
+                                match_col_in_lookup_data: str, 
+                                match_col_in_main_data: str, 
+                                lookup_columns: list, 
+                                join_type: str, handle_duplicates: str) -> None:
         """Validate lookup configuration parameters."""
         
         # Check source key exists in main data
-        if source_key not in data.columns:
+        if match_col_in_main_data not in data.columns:
             available_columns = list(data.columns)
             raise StepProcessorError(
-                f"Source key column '{source_key}' not found in main data. "
+                f"Source key column '{match_col_in_main_data}' not found in main data. "
                 f"Available columns: {available_columns}"
             )
         
@@ -258,23 +266,24 @@ class LookupDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Failed to load lookup stage '{stage_name}': {e}")
     
     def _apply_case_insensitive_matching(self, lookup_data: pd.DataFrame, main_data: pd.DataFrame,
-                                       lookup_key: str, source_key: str) -> tuple:
+                                        match_col_in_lookup_data: str,
+                                        match_col_in_main_data: str) -> tuple:
         """Apply case insensitive matching by creating temporary lowercase columns."""
         
         # Create temporary lowercase columns
         lookup_data_copy = lookup_data.copy()
         main_data_copy = main_data.copy()
         
-        temp_lookup_key = f"_temp_{lookup_key}_lower"
-        temp_source_key = f"_temp_{source_key}_lower"
+        temp_lookup_key = f"_temp_{match_col_in_lookup_data}_lower"
+        temp_source_key = f"_temp_{match_col_in_main_data}_lower"
         
-        lookup_data_copy[temp_lookup_key] = lookup_data_copy[lookup_key].astype(str).str.lower()
-        main_data_copy[temp_source_key] = main_data_copy[source_key].astype(str).str.lower()
+        lookup_data_copy[temp_lookup_key] = lookup_data_copy[match_col_in_lookup_data].astype(str).str.lower()
+        main_data_copy[temp_source_key] = main_data_copy[match_col_in_main_data].astype(str).str.lower()
         
         return lookup_data_copy, main_data_copy
     
     def _handle_duplicates(self, lookup_data: pd.DataFrame, lookup_key: str, 
-                          handle_method: str) -> pd.DataFrame:
+                            handle_method: str) -> pd.DataFrame:
         """Handle duplicate keys in lookup data."""
         
         if handle_method == 'first':
@@ -296,15 +305,16 @@ class LookupDataProcessor(BaseStepProcessor):
             )
     
     def _perform_lookup(self, main_data: pd.DataFrame, lookup_data: pd.DataFrame,
-                                lookup_key: str, source_key: str, lookup_columns: list, 
-                                                            join_type: str) -> pd.DataFrame:
+                                match_col_in_lookup_data: str, 
+                                match_col_in_main_data: str, 
+                                lookup_columns: list, join_type: str) -> pd.DataFrame:
         """Perform the actual lookup/join operation."""
         
         # Validate lookup key exists in lookup data
-        if lookup_key not in lookup_data.columns:
+        if match_col_in_lookup_data not in lookup_data.columns:
             available_columns = list(lookup_data.columns)
             raise StepProcessorError(
-                f"Lookup key column '{lookup_key}' not found in lookup data. "
+                f"Lookup key column '{match_col_in_lookup_data}' not found in lookup data. "
                 f"Available columns: {available_columns}"
             )
         
@@ -318,19 +328,19 @@ class LookupDataProcessor(BaseStepProcessor):
             )
         
         # Handle case insensitive matching
-        if hasattr(main_data, f'_temp_{source_key}_lower'):
+        if hasattr(main_data, f'_temp_{match_col_in_main_data}_lower'):
             # Use temporary lowercase columns for matching
-            lookup_key_to_use = f"_temp_{lookup_key}_lower"
-            source_key_to_use = f"_temp_{source_key}_lower"
+            lookup_key_to_use = f"_temp_{match_col_in_lookup_data}_lower"
+            source_key_to_use = f"_temp_{match_col_in_main_data}_lower"
         else:
-            lookup_key_to_use = lookup_key
-            source_key_to_use = source_key
+            lookup_key_to_use = match_col_in_lookup_data
+            source_key_to_use = match_col_in_main_data
         
         # Prepare lookup data for merge
         merge_columns = [lookup_key_to_use] + lookup_columns
-        if lookup_key != lookup_key_to_use:
+        if match_col_in_lookup_data != lookup_key_to_use:
             # Add original lookup key to preserve it
-            merge_columns.append(lookup_key)
+            merge_columns.append(match_col_in_lookup_data)
         
         lookup_subset = lookup_data[merge_columns]
         
@@ -355,8 +365,8 @@ class LookupDataProcessor(BaseStepProcessor):
             #     result = result.drop(columns=temp_columns)
             
             # Remove duplicate lookup key column if different from source key
-            if lookup_key in result.columns and lookup_key != source_key:
-                result = result.drop(columns=[lookup_key])
+            if match_col_in_lookup_data in result.columns and match_col_in_lookup_data != match_col_in_main_data:
+                result = result.drop(columns=[match_col_in_lookup_data])
             
             return result
             

@@ -41,9 +41,9 @@ basic_example:
               Region: "East"
               Tier: "Standard"
         # REQ - Column in lookup data to match against
-        lookup_key: "Customer_ID"
-        # REQ - Column in main data to match with lookup_key
-        source_key: "Customer_ID"
+        match_col_in_lookup_data: "Customer_ID"
+        # REQ - Column in main data to match with match_col_in_lookup_data
+        match_col_in_main_data: "Customer_ID"
         # REQ - List of columns to retrieve from lookup data
         lookup_columns: ["Customer_Name", "Region", "Tier"]
 
@@ -80,9 +80,9 @@ excel_file_example:
           # Default value: "utf-8"
           encoding: "utf-8"
         # REQ - Product key in lookup file
-        lookup_key: "Product_SKU"
+        match_col_in_lookup_data: "Product_SKU"
         # REQ - Product key in main data
-        source_key: "SKU"
+        match_col_in_main_data: "SKU"
         # REQ - Product information to add
         lookup_columns: ["Product_Name", "Category", "Unit_Cost", "Supplier"]
         # OPT - Join type for lookup operation
@@ -129,9 +129,9 @@ csv_lookup_example:
           # Default value: ","
           separator: ","
         # REQ - Territory key in CSV file
-        lookup_key: "Territory_Code"
+        match_col_in_lookup_data: "Territory_Code"
         # REQ - Territory key in customer data
-        source_key: "Territory"
+        match_col_in_main_data: "Territory"
         # REQ - Territory information to add
         lookup_columns: ["Territory_Manager", "Commission_Rate", "Tax_Rate"]
         # OPT - Case sensitivity for key matching
@@ -170,9 +170,9 @@ stage_lookup_example:
           # Must match exactly what was saved with previous save_to_stage directive
           stage_name: "customer_segments"
         # REQ - Key column in the saved stage data
-        lookup_key: "Customer_ID"
+        match_col_in_lookup_data: "Customer_ID"
         # REQ - Key column in current pipeline data
-        source_key: "Customer_ID"
+        match_col_in_main_data: "Customer_ID"
         # REQ - Segmentation data to add
         lookup_columns: ["Customer_Segment", "Lifetime_Value", "Risk_Score", "Next_Best_Action"]
         # OPT - Inner join to only keep customers that went through segmentation
@@ -205,9 +205,9 @@ case_insensitive_example:
           filename: "customer_reference.xlsx"
           sheet: "Active_Customers"
         # REQ - Key column in reference file
-        lookup_key: "Customer_Code"
+        match_col_in_lookup_data: "Customer_Code"
         # REQ - Key column in main data (may have different case)
-        source_key: "Cust_Code"
+        match_col_in_main_data: "Cust_Code"
         # REQ - Customer details to retrieve
         lookup_columns: ["Customer_Name", "Account_Manager", "Credit_Limit"]
         # REQ - Enable case-insensitive matching
@@ -245,9 +245,9 @@ duplicate_handling_example:
           type: "file"
           filename: "price_lists/current_pricing.csv"
         # REQ - Product key in price list
-        lookup_key: "Product_SKU"
+        match_col_in_lookup_data: "Product_SKU"
         # REQ - Product key in main data
-        source_key: "SKU"
+        match_col_in_main_data: "SKU"
         # REQ - Pricing information to add
         lookup_columns: ["Current_Price", "Effective_Date", "Price_Tier"]
         # REQ - Duplicate handling strategy
@@ -282,9 +282,9 @@ column_naming_example:
           type: "file"
           filename: "customer_master.xlsx"
         # REQ - Customer key in lookup data
-        lookup_key: "Customer_ID"
+        match_col_in_lookup_data: "Customer_ID"
         # REQ - Customer key in main data
-        source_key: "Customer_ID"
+        match_col_in_main_data: "Customer_ID"
         # REQ - Customer details to retrieve
         lookup_columns: ["Name", "Type", "Status", "Region"]
         # OPT - Prefix to add to all lookup column names
@@ -304,16 +304,16 @@ parameter_details:
     formats: ["file path string", "configuration dictionary"]
     examples: ["customers.xlsx", "{'type': 'stage', 'stage_name': 'Customer_Data'}", "{'CA': {'Region': 'West'}}"]
   
-  lookup_key:
+  match_col_in_lookup_data:
     type: string_or_list
     required: true
     description: "Column name(s) in lookup data to match against - can be single column or list for composite keys"
     examples: ["Customer_ID", "Product_SKU", ["Product_Code", "Region"]]
   
-  source_key:
+  match_col_in_main_data:
     type: string_or_list
     required: true
-    description: "Column name(s) in main data to match with lookup_key - must match structure of lookup_key"
+    description: "Column name(s) in main data to match with match_col_in_lookup_data - must match structure of match_col_in_lookup_data"
     examples: ["Cust_ID", "SKU", ["Product", "Sales_Region"]]
   
   lookup_columns:

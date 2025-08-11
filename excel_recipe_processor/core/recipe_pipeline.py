@@ -226,8 +226,7 @@ class RecipePipeline:
                     skipped_steps = len(recipe_steps) - (step_index + 1)
                     break
         
-        # Log final blank line for clean separation
-        logger.info("")
+        print()     # blank line to separate from last step logging in recipe
         
         # Generate completion report
         self._completion_report = self._generate_completion_report()

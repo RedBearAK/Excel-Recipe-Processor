@@ -1,590 +1,409 @@
-# Enhanced Format Excel Examples - Phase 3: Cell Range Targeting & Advanced Colors
+# Enhanced Format Excel Examples - Template Support Addition
 # excel_recipe_processor/processors/_examples/format_excel_examples.yaml
 #
-# Phase 3 adds cell range targeting, webcolors integration, and border formatting
-# Revision date: 2025-08-08
+# NEW: Template support for reusable formatting configurations
+# Revision date: 2025-08-11
 
 description: >
   Format existing Excel files with professional presentation features. 
-  Phase 3 adds cell range targeting, comprehensive color format support, 
-  and border formatting.
+  Enhanced with template support for reusable formatting configurations
+  to reduce redundancy in multi-sheet workbooks.
 
-basic_cell_range_example:
-  description: "Target specific cell ranges with custom formatting"
+# NEW: Basic template usage example
+basic_template_example:
+  description: "Use templates to reduce formatting configuration redundancy"
   yaml: |
     settings:
-      description: "Create a professional report with targeted cell formatting"
+      description: "Multi-sheet report with consistent formatting using templates"
       stages:
-        - stage_name: "report_data"
-          description: "Business report data"
+        - stage_name: "stg_financial_data"
+          description: "Quarterly financial data"
+          protected: false
+        - stage_name: "stg_sales_data"
+          description: "Sales performance data"
           protected: false
 
     recipe:
-      - step_description: "Import and export report data"
+      - step_description: "Import financial data"
         processor_type: "import_file"
-        input_file: "data/business_report.xlsx"
-        save_to_stage: "report_data"
+        input_file: "data/q3_financial.xlsx"
+        save_to_stage: "stg_financial_data"
 
-      - step_description: "Export to Excel"
+      - step_description: "Import sales data"
+        processor_type: "import_file"
+        input_file: "data/q3_sales.xlsx"
+        save_to_stage: "stg_sales_data"
+
+      - step_description: "Export combined workbook"
         processor_type: "export_file"
-        source_stage: "report_data"
-        output_file: "reports/targeted_report.xlsx"
+        source_stage: "stg_financial_data"
+        output_file: "reports/q3_executive_report.xlsx"
+        sheet_name: "Financial Summary"
 
-      - # Phase 3 Enhancement: Cell range targeting
-        step_description: "Apply targeted formatting to specific ranges"
+      - step_description: "Add sales data to second sheet"
+        processor_type: "export_file"
+        source_stage: "stg_sales_data"
+        output_file: "reports/q3_executive_report.xlsx"
+        sheet_name: "Sales Performance"
+        mode: "append"
+
+      - # NEW: Template-based formatting step
+        step_description: "Apply consistent formatting using templates"
         processor_type: "format_excel"
-        target_file: "reports/targeted_report.xlsx"
+        target_file: "reports/q3_executive_report.xlsx"
+        
+        # Define reusable templates
+        templates:
+          - template_name: "corporate_header_style"
+            header_background: true
+            header_background_color: "2F5597"   # Executive blue
+            header_text_color: "white"
+            header_font_size: 14
+            header_bold: true
+            header_alignment_vertical: "center"
+            freeze_top_row: true
+            auto_filter: true
+
+          - template_name: "standard_sizing"
+            auto_fit_columns: true
+            max_column_width: 100
+            min_column_width: 12
+            row_heights: {1: 25}
+
+          - template_name: "financial_data_style"
+            general_font_name: "Calibri"
+            general_font_size: 10
+            general_alignment_horizontal: "right"
+
+        # Apply templates to sheets
         formatting:
-          # Phase 1: Header formatting
-          header_text_color: "white"           # CSS color name!
-          header_font_size: 14
-          header_bold: true
-          header_background: true
-          header_background_color: "navy"      # CSS color name!
+          - sheet: "Financial Summary"
+            apply_templates: ["corporate_header_style", "standard_sizing", "financial_data_style"]
 
-          # Phase 2: General formatting
-          general_text_color: "rgb(51, 51, 51)"  # RGB format!
-          general_font_size: 11
-          general_alignment_horizontal: "left"
+          - sheet: "Sales Performance"
+            apply_templates: ["corporate_header_style", "standard_sizing"]
+            # Override template for sales data alignment
+            general_alignment_horizontal: "left"
 
-          # Phase 3: Cell range targeting
-          cell_ranges:
-            "A1:E1":                          # Header row
-              background_color: "darkblue"    # CSS color name
-              text_color: "white"
-              bold: true
-              font_size: 14
-            
-            "A2:A10":                         # First column - labels
-              text_color: "darkslategray"     # CSS color name
-              bold: true
-              alignment_horizontal: "right"
-            
-            "B2:E10":                         # Data area
-              text_color: "#333333"           # Hex format
-              alignment_horizontal: "center"
-              border: "thin"                  # Simple border
-            
-            "F2:F10":                         # Summary column
-              background_color: "lightgray"
-              text_color: "black"
-              border:
-                all: "thick"                  # Thick border all around
-
-          auto_fit_columns: true
-          freeze_top_row: true
-
-webcolors_showcase_example:
-  description: "Demonstrate all supported color formats with webcolors"
+# Advanced template composition example
+advanced_template_example:
+  description: "Complex template composition with overrides and multiple template application"
   yaml: |
     settings:
-      description: "Show comprehensive color format support"
+      description: "Comprehensive dashboard with multiple formatting templates"
 
     recipe:
-      - step_description: "Showcase all color format options"
-        processor_type: "format_excel"
-        target_file: "reports/color_showcase.xlsx"
-        formatting:
-          # CSS Color Names (webcolors integration)
-          header_text_color: "white"
-          header_background_color: "steelblue"
-          general_text_color: "darkslategray"
-
-          cell_ranges:
-            "A1:A5":                          # CSS color names
-              text_color: "red"               # Basic CSS colors
-            "B1:B5":
-              text_color: "forestgreen"       # Extended CSS colors
-            "C1:C5":
-              text_color: "mediumorchid"      # Complex CSS colors
-            
-            "A6:A10":                         # RGB format
-              text_color: "rgb(255, 0, 0)"    # Red in RGB
-            "B6:B10":
-              text_color: "rgb(0, 128, 0)"    # Green in RGB
-            "C6:C10":
-              text_color: "rgb(0, 0, 255)"    # Blue in RGB
-            
-            "A11:A15":                        # Hex formats
-              text_color: "#FF0000"           # Hex with hash
-            "B11:B15":
-              text_color: "00FF00"            # Hex without hash
-            "C11:C15":
-              text_color: "#00F"              # Short hex format
-
-advanced_border_example:
-  description: "Professional report with sophisticated border formatting"
-  yaml: |
-    settings:
-      description: "Create professional reports with custom borders"
-
-    recipe:
-      - step_description: "Apply advanced border formatting"
-        processor_type: "format_excel"
-        target_file: "reports/bordered_report.xlsx"
-        formatting:
-          # Professional header
-          header_text_color: "white"
-          header_font_size: 16
-          header_bold: true
-          header_background_color: "darkblue"
-
-          # Clean general formatting
-          general_font_size: 10
-          general_alignment_horizontal: "left"
-          general_alignment_vertical: "center"
-
-          cell_ranges:
-            "A1:F1":                          # Header row with thick border
-              border:
-                all: "thick"
-                
-            "A2:F20":                         # Data area with thin borders
-              border: "thin"
-              
-            "A21:F21":                        # Summary row with special borders
-              background_color: "lightsteelblue"
-              text_color: "darkblue"
-              bold: true
-              border:
-                top: "thick"
-                bottom: "thick"
-                left: "thin"
-                right: "thin"
-            
-            "G2:G21":                         # Side column with custom border
-              background_color: "aliceblue"
-              border:
-                left: 
-                  style: "thick"
-                  color: "steelblue"
-
-          auto_fit_columns: true
-          freeze_top_row: true
-
-conditional_range_formatting_example:
-  description: "Format different data types with appropriate styling"
-  yaml: |
-    settings:
-      description: "Apply different formatting based on data content areas"
-
-    recipe:
-      - step_description: "Format mixed content report with range targeting"
-        processor_type: "format_excel"
-        target_file: "reports/mixed_content.xlsx"
-        formatting:
-          # Professional header
-          header_text_color: "white"
-          header_font_size: 14
-          header_bold: true
-          header_background_color: "midnightblue"
-
-          # Default formatting
-          general_font_size: 10
-          general_text_color: "black"
-
-          cell_ranges:
-            "A2:A50":                         # Row labels
-              text_color: "darkslategray"
-              bold: true
-              alignment_horizontal: "right"
-              background_color: "whitesmoke"
-            
-            "B2:D50":                         # Text data
-              text_color: "black"
-              alignment_horizontal: "left"
-              border: "hair"                  # Light border
-            
-            "E2:G50":                         # Numeric data
-              text_color: "darkgreen"
-              alignment_horizontal: "right"
-              border: "thin"
-              font_name: "Consolas"           # Monospace for numbers
-            
-            "H2:H50":                         # Status indicators
-              text_color: "white"
-              alignment_horizontal: "center"
-              bold: true
-              background_color: "orange"      # Will be conditionally colored
-              border: "medium"
-            
-            "A51:H51":                        # Totals row
-              background_color: "navy"
-              text_color: "white"
-              bold: true
-              font_size: 12
-              alignment_horizontal: "center"
-              border:
-                top: "thick"
-                bottom: "thick"
-
-dashboard_style_example:
-  description: "Create a dashboard-style report with visual sections"
-  yaml: |
-    settings:
-      description: "Professional dashboard with clear visual sections"
-
-    recipe:
-      - step_description: "Create dashboard-style formatting"
-        processor_type: "format_excel"
-        target_file: "reports/dashboard.xlsx"
-        formatting:
-          # Dashboard header
-          header_text_color: "white"
-          header_font_size: 18
-          header_bold: true
-          header_background_color: "darkslateblue"
-
-          # Clean background
-          general_font_size: 10
-          general_text_color: "dimgray"
-
-          cell_ranges:
-            # Section 1: KPI Headers
-            "A3:D3":
-              background_color: "royalblue"
-              text_color: "white"
-              bold: true
-              font_size: 12
-              alignment_horizontal: "center"
-              border: "thick"
-            
-            # Section 1: KPI Values
-            "A4:D8":
-              background_color: "lightsteelblue"
-              text_color: "darkblue"
-              font_size: 14
-              bold: true
-              alignment_horizontal: "center"
-              border: "thin"
-            
-            # Section 2: Trend Headers
-            "F3:I3":
-              background_color: "forestgreen"
-              text_color: "white"
-              bold: true
-              font_size: 12
-              alignment_horizontal: "center"
-              border: "thick"
-            
-            # Section 2: Trend Data
-            "F4:I15":
-              background_color: "honeydew"
-              text_color: "darkgreen"
-              alignment_horizontal: "right"
-              border: "hair"
-            
-            # Section 3: Alerts
-            "A10:D15":
-              background_color: "mistyrose"
-              text_color: "darkred"
-              border:
-                all:
-                  style: "dashed"
-                  color: "red"
-            
-            # Footer
-            "A17:I17":
-              background_color: "darkgray"
-              text_color: "white"
-              italic: true
-              alignment_horizontal: "center"
-
-backward_compatibility_example:
-  description: "Show that all previous Phase 1 & 2 features still work"
-  yaml: |
-    settings:
-      description: "Comprehensive example using all three phases"
-
-    recipe:
-      - step_description: "Use all formatting features together"
-        processor_type: "format_excel"
-        target_file: "reports/comprehensive.xlsx"
-        formatting:
-          # Phase 1: Header enhancements (still work perfectly)
-          header_text_color: "white"
-          header_font_size: 16
-          header_bold: true
-          header_background: true
-          header_background_color: "midnightblue"
-
-          # Phase 2: General formatting (still work perfectly)
-          general_text_color: "rgb(64, 64, 64)"    # Dark gray in RGB
-          general_font_size: 11
-          general_font_name: "Calibri"
-          general_alignment_horizontal: "left"
-          general_alignment_vertical: "center"
-
-          # Phase 3: Cell range targeting (new!)
-          cell_ranges:
-            "A1:Z1":                          # Override header with range
-              background_color: "darkred"     # Different from header_background_color
-              text_color: "yellow"            # Different from header_text_color
-              font_size: 18                   # Different from header_font_size
-            
-            "B2:B100":                        # Special column
-              text_color: "blue"
-              bold: true
-              background_color: "lightcyan"
-              border: "medium"
-
-          # Classic features (still work)
-          auto_fit_columns: true
-          freeze_top_row: true
-          auto_filter: true
-          max_column_width: 50
-
-# Add these examples to the format_excel_examples.yaml file
-
-mixed_style_dashboard_example:
-  description: "Professional dashboard using mixed YAML/JSON syntax (recommended style)"
-  yaml: |
-    settings:
-      description: "Create executive dashboard with clean mixed syntax"
-
-    recipe:
-      - step_description: "Format dashboard with mixed YAML/JSON syntax"
+      - step_description: "Create multi-sheet dashboard with advanced template composition"
         processor_type: "format_excel"
         target_file: "reports/executive_dashboard.xlsx"
-        formatting:
-          # YAML syntax for simple configuration
-          header_text_color: "white"
-          header_font_size: 16
-          header_bold: true
-          header_background_color: "darkslateblue"
-          
-          general_font_size: 10
-          general_alignment_vertical: "center"
-          auto_fit_columns: true
-          freeze_top_row: true
-          auto_filter: true
-          
-          # JSON syntax for complex cell ranges (much more readable!)
-          cell_ranges: {
-            "A1:F1": {"background_color": "midnightblue", "text_color": "white", "font_size": 14, "bold": true},
-            "A2:A20": {"text_color": "darkslategray", "bold": true, "alignment_horizontal": "right", "background_color": "lightgray"},
-            "B2:D20": {"alignment_horizontal": "center", "border": "thin"},
-            "E2:F20": {"text_color": "darkgreen", "font_name": "Consolas", "alignment_horizontal": "right"},
-            "A21:F21": {"background_color": "lightsteelblue", "text_color": "darkblue", "bold": true, "border": {"all": "thick"}},
-            "G1:G21": {"background_color": "aliceblue", "border": {"left": {"style": "thick", "color": "steelblue"}}}
-          }
+        
+        # Multiple templates for different purposes
+        templates:
+          - template_name: "base_professional"
+            header_bold: true
+            header_background: true
+            header_alignment_vertical: "center"
+            auto_fit_columns: true
+            freeze_top_row: true
+            general_font_name: "Calibri"
+            general_font_size: 10
 
-mixed_style_financial_report_example:
-  description: "Financial report with mixed syntax showing various range types"
-  yaml: |
-    settings:
-      description: "Quarterly financial report with professional formatting"
+          - template_name: "executive_branding"
+            header_background_color: "darkslateblue"
+            header_text_color: "white"
+            header_font_size: 16
+            max_column_width: 50
+            min_column_width: 15
 
-    recipe:
-      - step_description: "Format quarterly financial report"
-        processor_type: "format_excel"
-        target_file: "reports/q3_financial.xlsx"
-        formatting:
-          # Simple YAML configuration
-          header_text_color: "white"
-          header_background_color: "navy"
-          header_font_size: 12
-          header_bold: true
-          
-          general_text_color: "rgb(51, 51, 51)"
-          general_font_size: 10
-          auto_fit_columns: true
-          freeze_top_row: true
-          
-          # Complex JSON configuration for readability
-          cell_ranges: {
-            "A1": {"text_color": "white", "background_color": "darkred", "font_size": 18, "bold": true},
-            "B1:F1": {"text_color": "white", "background_color": "darkblue", "font_size": 14, "bold": true},
-            "A2:A50": {"text_color": "darkslategray", "bold": true, "alignment_horizontal": "right"},
-            "B2:B50": {"text_color": "black", "alignment_horizontal": "left"},
-            "C2:F50": {"text_color": "darkgreen", "alignment_horizontal": "right", "font_name": "Calibri"},
-            "A51:F51": {"background_color": "lightblue", "bold": true, "border": {"top": "thick", "bottom": "thick"}},
-            "G2:G51": {"background_color": "lightyellow", "border": {"left": "medium", "right": "medium"}}
-          }
+          - template_name: "financial_precision"
+            general_alignment_horizontal: "right"
+            general_font_name: "Consolas"
+            row_heights: {1: 30}
 
-mixed_style_simple_example:
-  description: "Simple report showing basic mixed syntax usage"
-  yaml: |
-    settings:
-      description: "Clean and simple mixed syntax example"
-
-    recipe:
-      - step_description: "Format simple report with mixed syntax"
-        processor_type: "format_excel"
-        target_file: "reports/simple_report.xlsx"
-        formatting:
-          # Traditional YAML for basic settings
-          header_bold: true
-          header_background: true
-          header_background_color: "steelblue"
-          header_text_color: "white"
-          auto_fit_columns: true
-          
-          # Clean JSON for cell ranges
-          cell_ranges: {
-            "A1:D1": {"font_size": 14, "bold": true},
-            "A2:A10": {"bold": true, "text_color": "darkblue"},
-            "B2:D10": {"alignment_horizontal": "center"},
-            "A11:D11": {"background_color": "lightgray", "bold": true}
-          }
-
-mixed_style_complex_borders_example:
-  description: "Advanced border formatting using mixed syntax"
-  yaml: |
-    settings:
-      description: "Professional report with sophisticated border formatting"
-
-    recipe:
-      - step_description: "Apply complex border formatting with mixed syntax"
-        processor_type: "format_excel"
-        target_file: "reports/bordered_report.xlsx"
-        formatting:
-          # YAML for straightforward configuration
-          header_text_color: "white"
-          header_font_size: 14
-          header_bold: true
-          header_background_color: "darkslateblue"
-          
-          general_font_size: 10
-          general_alignment_horizontal: "left"
-          auto_fit_columns: true
-          
-          # JSON for complex border specifications (much cleaner!)
-          cell_ranges: {
-            "A1:F1": {
-              "border": {"all": "thick", "bottom": "double"}
-            },
-            "A2:F20": {
-              "border": "thin"
-            },
-            "A21:F21": {
-              "background_color": "lightsteelblue",
-              "text_color": "darkblue",
-              "bold": true,
-              "border": {
-                "top": {"style": "thick", "color": "darkblue"},
-                "bottom": {"style": "thick", "color": "darkblue"},
-                "left": "medium",
-                "right": "medium"
-              }
-            },
-            "G1:G21": {
-              "background_color": "aliceblue",
-              "border": {
-                "left": {"style": "thick", "color": "steelblue"},
-                "right": "thin"
-              }
+          - template_name: "summary_highlights"
+            auto_filter: true
+            cell_ranges: {
+              "A1:Z1": {"background_color": "midnightblue", "text_color": "white", "font_size": 14},
+              "A2:A100": {"background_color": "lightgray", "text_color": "darkslategray", "bold": true}
             }
-          }
 
-syntax_style_comparison:
-  description: "Comparison showing why mixed syntax is recommended"
+          - template_name: "data_visualization_ready"
+            general_alignment_vertical: "center"
+            cell_ranges: {
+              "A:A": {"alignment_horizontal": "left", "bold": true},
+              "B:Z": {"alignment_horizontal": "center"}
+            }
+
+        formatting:
+          # Executive summary with full branding
+          - sheet: 1
+            apply_templates: ["base_professional", "executive_branding", "summary_highlights"]
+
+          # Financial details with precision formatting
+          - sheet: 2
+            apply_templates: ["base_professional", "executive_branding", "financial_precision"]
+
+          # Data visualization sheet
+          - sheet: 3
+            apply_templates: ["base_professional", "data_visualization_ready"]
+            # Override header color for this sheet
+            header_background_color: "forestgreen"
+
+          # Raw data sheet with minimal formatting
+          - sheet: 4
+            apply_templates: ["base_professional"]
+            # Completely override header styling for raw data
+            header_background_color: "lightgray"
+            header_text_color: "black"
+            header_font_size: 11
+
+# Template reuse across steps example
+template_reuse_example:
+  description: "Reusing templates across multiple format_excel steps in the same recipe"
+  yaml: |
+    settings:
+      description: "Multi-step report generation with consistent template reuse"
+
+    recipe:
+      # First formatting step - main reports
+      - step_description: "Format main reports with standard templates"
+        processor_type: "format_excel"
+        target_file: "reports/main_report.xlsx"
+        
+        templates:
+          - template_name: "company_standard"
+            header_background: true
+            header_background_color: "2F5597"
+            header_text_color: "white"
+            header_font_size: 14
+            header_bold: true
+            auto_fit_columns: true
+            freeze_top_row: true
+            max_column_width: 80
+            min_column_width: 10
+
+          - template_name: "data_presentation"
+            general_font_size: 10
+            general_alignment_vertical: "center"
+            auto_filter: true
+
+        formatting:
+          - sheet: 1
+            apply_templates: ["company_standard", "data_presentation"]
+          - sheet: 2
+            apply_templates: ["company_standard", "data_presentation"]
+
+      # Second formatting step - appendix with same templates
+      - step_description: "Format appendix using same template standards"
+        processor_type: "format_excel"
+        target_file: "reports/appendix.xlsx"
+        
+        # Reuse the same template definitions (copy-paste friendly)
+        templates:
+          - template_name: "company_standard"
+            header_background: true
+            header_background_color: "2F5597"
+            header_text_color: "white"
+            header_font_size: 14
+            header_bold: true
+            auto_fit_columns: true
+            freeze_top_row: true
+            max_column_width: 80
+            min_column_width: 10
+
+          - template_name: "appendix_style"
+            general_font_size: 9
+            general_text_color: "darkgray"
+            header_font_size: 12
+
+        formatting:
+          - sheet: 1
+            apply_templates: ["company_standard", "appendix_style"]
+
+# Migration example - before and after templates
+migration_example:
+  description: "Before and after comparison showing template migration benefits"
   note: |
-    The mixed YAML/JSON style is recommended because:
+    BEFORE: Repetitive configuration (hard to maintain)
     
-    1. YAML syntax for simple, top-level configuration:
-       - More readable for basic key-value pairs
-       - Better for comments and documentation
-       - Cleaner for boolean and numeric values
-    
-    2. JSON syntax for complex nested structures:
-       - Much more compact for cell_ranges
-       - Easier to copy/paste and edit
-       - Better visual separation of ranges
-       - Reduces indentation complexity
-    
-    Example comparison:
-    
-    YAML Style (verbose):
-      cell_ranges:
-        A1:C10:
-          text_color: white
-          background_color: navy
-          bold: true
-    
-    JSON Style (compact):
-      cell_ranges: {
-        "A1:C10": {"text_color": "white", "background_color": "navy", "bold": true}
-      }
-    
-    The JSON style for cell_ranges is especially beneficial when you have
-    many ranges with multiple properties each.
+    formatting:
+      - sheet: 1
+        freeze_top_row: true
+        header_background_color: "2F5597"
+        header_background: true
+        header_text_color: "white"
+        header_font_size: 14
+        header_bold: true
+        header_alignment_vertical: "center"
+        max_column_width: 100
+        min_column_width: 12
+        auto_filter: true
+        auto_fit_columns: true
+      
+      - sheet: 2
+        freeze_top_row: true
+        header_background_color: "2F5597"
+        header_background: true
+        header_text_color: "white"
+        header_font_size: 14
+        header_bold: true
+        header_alignment_vertical: "center"
+        max_column_width: 100
+        min_column_width: 12
+        auto_filter: true
+        auto_fit_columns: true
+      
+      - sheet: 3
+        freeze_top_row: true
+        header_background_color: "2F5597"
+        header_background: true
+        header_text_color: "white"
+        header_font_size: 14
+        header_bold: true
+        header_alignment_vertical: "center"
+        max_column_width: 100
+        min_column_width: 12
+        auto_filter: true
+        auto_fit_columns: true
 
-parameter_details:
-  # Phase 3 Enhancements
-  cell_ranges:
-    type: object
-    required: false
-    default: {}
-    description: "Target specific cell ranges with custom formatting"
-    structure: "Range specification (string) → formatting options (dict)"
-    examples:
-      - range_format: |
-          cell_ranges:
-            "A1:C10":                         # Range specification
-              text_color: "white"             # Font color
-              background_color: "navy"        # Cell background
-              font_size: 12                   # Font size in points
-              font_name: "Arial"              # Font family
-              bold: true                      # Bold text
-              italic: false                   # Italic text
-              alignment_horizontal: "center"  # Horizontal alignment
-              alignment_vertical: "middle"    # Vertical alignment
-              border: "thin"                  # Simple border
-            
-            "D1":                             # Single cell
-              text_color: "red"
-              bold: true
-            
-            "E1:E20":                         # Column range
-              background_color: "lightgray"
-              border:                         # Complex border
-                top: "thick"
-                bottom: "thin"
-                left: "medium"
-                right: "medium"
+    AFTER: Clean template-based configuration (easy to maintain)
+  yaml: |
+    settings:
+      description: "Clean template-based formatting configuration"
 
-    range_specifications:
-      single_cell: "B2, C5, AA10"
-      cell_range: "A1:C10, B2:D5, AA1:AB20"
-      column_range: "A:A, B:C, AA:AB"
-      row_range: "1:1, 2:5, 10:20"
+    recipe:
+      - step_description: "Apply formatting with templates (much cleaner!)"
+        processor_type: "format_excel"
+        target_file: "reports/clean_formatted_report.xlsx"
+        
+        templates:
+          - template_name: "standard_professional"
+            freeze_top_row: true
+            header_background_color: "2F5597"
+            header_background: true
+            header_text_color: "white"
+            header_font_size: 14
+            header_bold: true
+            header_alignment_vertical: "center"
+            max_column_width: 100
+            min_column_width: 12
+            auto_filter: true
+            auto_fit_columns: true
 
-    formatting_options:
-      text_color: "Color in any supported format"
-      background_color: "Background fill color"
-      font_size: "Font size in points (number)"
-      font_name: "Font family name (string)"
-      bold: "Bold text (boolean)"
-      italic: "Italic text (boolean)"
-      alignment_horizontal: "left, center, right, justify, etc."
-      alignment_vertical: "top, center, bottom, justify, distributed"
-      border: "Border specification (string or dict)"
+        formatting:
+          - sheet: 1
+            apply_templates: ["standard_professional"]
+          - sheet: 2
+            apply_templates: ["standard_professional"]
+          - sheet: 3
+            apply_templates: ["standard_professional"]
 
-  color_format_support:
-    description: "Phase 3 enhanced color format support with webcolors integration"
-    supported_formats:
-      hex_with_hash: "#FF0000, #00FF00, #0000FF"
-      hex_without_hash: "FF0000, 00FF00, 0000FF"
-      short_hex: "#F00, #0F0, #00F"
-      css_color_names: "red, blue, green, white, black, navy, forestgreen, steelblue"
-      rgb_format: "rgb(255, 0, 0), rgb(0, 255, 0), rgb(0, 0, 255)"
+# Complex override example
+complex_override_example:
+  description: "Complex template overrides and multiple template conflicts"
+  yaml: |
+    settings:
+      description: "Demonstrate template precedence and override behavior"
+
+    recipe:
+      - step_description: "Complex template composition with precedence rules"
+        processor_type: "format_excel"
+        target_file: "reports/precedence_demo.xlsx"
+        
+        templates:
+          - template_name: "base_style"
+            header_background_color: "blue"
+            header_text_color: "white"
+            header_font_size: 12
+            auto_fit_columns: true
+
+          - template_name: "enhanced_style"
+            header_background_color: "darkgreen"  # This will override "blue"
+            header_font_size: 14                   # This will override 12
+            freeze_top_row: true                   # This adds new functionality
+
+          - template_name: "premium_style"
+            header_background_color: "gold"       # This will override "darkgreen"
+            header_text_color: "black"            # This will override "white"
+            max_column_width: 50                   # This adds column width limits
+
+        formatting:
+          - sheet: 1
+            # Apply templates in order: base_style, then enhanced_style, then premium_style
+            # Final result: gold background, black text, font size 14, frozen row, auto-fit, max width 50
+            apply_templates: ["base_style", "enhanced_style", "premium_style"]
+
+          - sheet: 2
+            # Template + direct overrides
+            apply_templates: ["base_style", "enhanced_style"]
+            # Direct rules override template rules
+            header_background_color: "red"        # This overrides template's "darkgreen"
+            freeze_top_row: false                 # This overrides template's true
+
+# Error handling and validation example
+validation_example:
+  description: "Template validation and error handling scenarios"
+  yaml: |
+    settings:
+      description: "Demonstrate template validation and missing template handling"
+
+    recipe:
+      - step_description: "Template validation scenarios"
+        processor_type: "format_excel"
+        target_file: "reports/validation_demo.xlsx"
+        
+        templates:
+          - template_name: "valid_template"
+            header_background: true
+            header_background_color: "navy"
+            auto_fit_columns: true
+
+          # This template has a validation error
+          - template_name: "invalid_template"
+            header_font_size: -5              # Invalid: negative font size
+            header_background_color: "notacolor"  # Invalid: unrecognized color
+
+        formatting:
+          - sheet: 1
+            apply_templates: ["valid_template"]
+
+          - sheet: 2
+            # Reference to non-existent template (will be warned and skipped)
+            apply_templates: ["valid_template", "missing_template"]
+            header_bold: true  # This will still be applied
+
+          - sheet: 3
+            # Mix of valid and invalid templates
+            apply_templates: ["valid_template", "invalid_template"]
+
+template_best_practices:
+  description: "Best practices for using templates effectively"
+  note: |
+    TEMPLATE BEST PRACTICES:
     
-    fallback: "If webcolors unavailable, falls back to basic hex parsing"
-    validation: "Comprehensive validation with helpful error messages"
+    1. Template Naming:
+       - Use descriptive names: "corporate_header_style" not "template1"
+       - Use consistent naming patterns: "base_", "enhanced_", "specialized_"
+       - Avoid spaces or special characters in template names
+    
+    2. Template Composition:
+       - Create layered templates: base → enhanced → specialized
+       - Keep templates focused: separate layout, colors, and data formatting
+       - Make templates reusable across different sheet types
+    
+    3. Template Precedence:
+       - Later templates in the list override earlier ones
+       - Direct sheet rules always override template rules
+       - Use this for progressive enhancement patterns
+    
+    4. Template Organization:
+       - Keep frequently-used templates at the top
+       - Group related templates together
+       - Document template purposes with good naming
+    
+    5. Maintenance:
+       - Templates are easy to copy between recipes
+       - Update templates to change multiple sheets at once
+       - Validate templates independently before applying
 
-  border_formatting:
-    description: "Professional border formatting for cells and ranges"
-    simple_format: "Border style name (string)"
-    simple_styles: ["thin", "thick", "medium", "dashed", "dotted", "double", "hair"]
-    
-    complex_format: "Detailed border specification (dict)"
-    complex_example: |
-      border:
-        all: "thick"                    # Apply to all sides
-        top: "medium"                   # Override top
-        left:                           # Detailed side spec
-          style: "dashed"
-          color: "red"
-    
-    sides: ["top", "bottom", "left", "right", "all"]
+# End of file #

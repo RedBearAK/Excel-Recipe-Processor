@@ -1,10 +1,11 @@
 """
-Format Excel step processor for Excel automation recipes - Enhanced Version.
+Format Excel step processor for Excel automation recipes - Enhanced Version with Template Support.
 
 excel_recipe_processor/processors/format_excel_processor.py
 
 Handles formatting existing Excel files with auto-fit columns, header styling, and other presentation features.
 Enhanced with comprehensive header formatting including text colors and font sizes.
+NEW: Template support for reusable formatting configurations.
 """
 
 import logging
@@ -29,6 +30,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
     
     Applies formatting like auto-fit columns, header styling, freeze panes,
     and other presentation features to make Excel files look professional.
+    
+    NEW: Supports reusable formatting templates to reduce configuration redundancy.
     """
     
     @classmethod
@@ -38,13 +41,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         }
 
     def perform_file_operation(self) -> str:
-        """Format the target Excel file with new explicit sheet targeting."""
+        """Format the target Excel file with template support."""
         target_file = self.get_config_value('target_file')
         sheet_configs = self.get_config_value('formatting', [])
         active_sheet = self.get_config_value('active_sheet')
+        templates = self.get_config_value('templates', [])
         
         # Validate configuration
-        self._validate_format_config(target_file, sheet_configs, active_sheet)
+        self._validate_format_config(target_file, sheet_configs, active_sheet, templates)
         
         # Apply variable substitution BEFORE file operations
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -57,12 +61,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             raise StepProcessorError(f"Target file not found: {resolved_file}")
         
         # Load and format the workbook
-        formatted_sheets = self._format_excel_file(resolved_file, sheet_configs, active_sheet)
+        formatted_sheets = self._format_excel_file(resolved_file, sheet_configs, active_sheet, templates)
         
         return f"formatted {resolved_file} ({formatted_sheets} sheets processed)"
 
     def _validate_file_operation_config(self):
-        """Validate format_excel specific configuration (updated for new format)."""
+        """Validate format_excel specific configuration with template support."""
         if not self.get_config_value('target_file'):
             raise StepProcessorError(f"Format Excel step '{self.step_name}' requires 'target_file'")
         
@@ -70,19 +74,25 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         sheet_configs = self.get_config_value('formatting', [])
         active_sheet = self.get_config_value('active_sheet')
         target_file = self.get_config_value('target_file')
+        templates = self.get_config_value('templates', [])
         
-        # Validate using the new validation method
-        self._validate_format_config(target_file, sheet_configs, active_sheet)
+        # Validate using the enhanced validation method
+        self._validate_format_config(target_file, sheet_configs, active_sheet, templates)
 
-    def _validate_format_config(self, target_file: str, sheet_configs: list, active_sheet=None) -> None:
+    def _validate_format_config(self, target_file: str, sheet_configs: list, active_sheet=None, templates: list = None) -> None:
         """
-        Validate the new explicit sheet targeting configuration format.
+        Validate the explicit sheet targeting configuration format with template support.
         
         Args:
             target_file: Target Excel file path
             sheet_configs: List of sheet configuration dicts
             active_sheet: Active sheet specification (optional)
+            templates: List of template definitions (optional)
         """
+        # Validate templates first
+        if templates is not None:
+            self._validate_templates(templates)
+        
         # Require sheet_configs to be a list
         if not isinstance(sheet_configs, list):
             raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet' key")
@@ -90,6 +100,13 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         if not sheet_configs:
             logger.warning("Empty formatting list - no sheets will be formatted")
             return
+        
+        # Build template lookup for validation
+        template_lookup = {}
+        if templates:
+            for template in templates:
+                if 'template_name' in template:
+                    template_lookup[template['template_name']] = template
         
         # Validate each sheet configuration
         for i, sheet_config in enumerate(sheet_configs):
@@ -109,6 +126,19 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if isinstance(sheet_spec, str) and not sheet_spec.strip():
                 raise StepProcessorError("Sheet name cannot be empty")
             
+            # Validate apply_templates if present
+            if 'apply_templates' in sheet_config:
+                apply_templates = sheet_config['apply_templates']
+                if not isinstance(apply_templates, list):
+                    raise StepProcessorError(f"'apply_templates' must be a list of template names for sheet {sheet_spec}")
+                
+                for template_name in apply_templates:
+                    if not isinstance(template_name, str):
+                        raise StepProcessorError(f"Template names must be strings, got {type(template_name).__name__} for sheet {sheet_spec}")
+                    
+                    if template_name not in template_lookup:
+                        logger.warning(f"⚠️ Template '{template_name}' referenced by sheet {sheet_spec} not found - will be skipped")
+            
             # Validate the formatting options for this sheet
             self._validate_sheet_formatting_options(sheet_config, f"sheet {sheet_spec}")
         
@@ -123,403 +153,364 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if isinstance(active_sheet, str) and not active_sheet.strip():
                 raise StepProcessorError("active_sheet name cannot be empty")
 
+    def _validate_templates(self, templates: list) -> None:
+        """
+        Validate template definitions.
+        
+        Args:
+            templates: List of template dictionaries
+        """
+        if not isinstance(templates, list):
+            raise StepProcessorError("'templates' must be a list of template definitions")
+        
+        template_names = set()
+        
+        for i, template in enumerate(templates):
+            if not isinstance(template, dict):
+                raise StepProcessorError(f"Template {i+1} must be a dictionary")
+            
+            if 'template_name' not in template:
+                raise StepProcessorError(f"Template {i+1} must have a 'template_name' key")
+            
+            template_name = template['template_name']
+            if not isinstance(template_name, str):
+                raise StepProcessorError(f"Template name must be a string, got {type(template_name).__name__}")
+            
+            if not template_name.strip():
+                raise StepProcessorError(f"Template {i+1} name cannot be empty")
+            
+            template_name = template_name.strip()
+            
+            if template_name in template_names:
+                raise StepProcessorError(f"Duplicate template name '{template_name}' found")
+            
+            template_names.add(template_name)
+            
+            # Validate the formatting options in this template
+            try:
+                self._validate_sheet_formatting_options(template, f"template '{template_name}'")
+            except StepProcessorError as e:
+                raise StepProcessorError(f"Template '{template_name}' validation failed: {e}")
+
+    def _build_template_lookup(self, templates: list) -> dict:
+        """
+        Build a lookup dictionary for templates.
+        
+        Args:
+            templates: List of template definitions
+            
+        Returns:
+            Dictionary mapping template names to template configurations
+        """
+        template_lookup = {}
+        
+        if not templates:
+            return template_lookup
+            
+        for template in templates:
+            if 'template_name' in template:
+                template_name = template['template_name']
+                # Create a copy without the template_name key for formatting
+                template_config = {k: v for k, v in template.items() if k != 'template_name'}
+                template_lookup[template_name] = template_config
+        
+        return template_lookup
+
+    def _apply_templates_to_sheet_config(self, sheet_config: dict, template_lookup: dict) -> dict:
+        """
+        Apply templates to a sheet configuration.
+        
+        Args:
+            sheet_config: Original sheet configuration
+            template_lookup: Dictionary of available templates
+            
+        Returns:
+            Enhanced sheet configuration with template rules applied
+        """
+        if 'apply_templates' not in sheet_config:
+            return sheet_config
+        
+        # Start with an empty config, then apply templates in order
+        enhanced_config = {}
+        
+        # Apply templates in order (later templates override earlier ones)
+        apply_templates = sheet_config.get('apply_templates', [])
+        for template_name in apply_templates:
+            if template_name in template_lookup:
+                template_config = template_lookup[template_name]
+                logger.debug(f"Applying template '{template_name}' with {len(template_config)} rules")
+                enhanced_config.update(template_config)
+            else:
+                logger.warning(f"⚠️ Template '{template_name}' not found - skipping")
+        
+        # Apply direct sheet rules (these override template rules)
+        for key, value in sheet_config.items():
+            if key not in ['apply_templates']:  # Don't copy the apply_templates directive itself
+                enhanced_config[key] = value
+        
+        return enhanced_config
+
     def _validate_sheet_formatting_options(self, sheet_config: dict, context: str) -> None:
         """
         Complete validation for sheet formatting options with header alignment support.
         
         Args:
-            sheet_config: Sheet formatting configuration
-            context: Context string for error messages (e.g., "sheet Summary")
+            sheet_config: Sheet configuration dictionary
+            context: Context string for error messages (e.g., "sheet 1", "template 'basic'")
         """
-        # Define all known/valid field names
-        valid_fields = {
-            # Header formatting
-            'header_text_color', 'header_background_color', 'header_font_size', 'header_bold', 'header_background',
-            'header_alignment_horizontal', 'header_alignment_vertical',  # NEW: Header alignment
-            # General formatting  
-            'general_text_color', 'general_font_size', 'general_font_name', 
+        # List of known formatting options (this helps catch typos)
+        known_options = {
+            # Sheet targeting
+            'sheet', 'apply_templates', 'template_name',
+            
+            # Phase 1: Basic formatting
+            'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
+            'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
+            'row_heights',
+            
+            # Phase 1 Enhanced: Header text formatting
+            'header_text_color', 'header_font_size',
+            
+            # Phase 1 Enhanced: Header alignment
+            'header_alignment_horizontal', 'header_alignment_vertical',
+            
+            # Phase 2: General cell formatting
+            'general_text_color', 'general_font_size', 'general_font_name',
             'general_alignment_horizontal', 'general_alignment_vertical',
-            # Column and row sizing
-            'auto_fit_columns', 'max_column_width', 'min_column_width', 'column_widths', 'row_heights',
-            # Panes and features
-            'freeze_panes', 'freeze_top_row', 'auto_filter',
-            # Cell ranges and borders
-            'cell_ranges',
-            # Required field
-            'sheet'
+            
+            # Phase 3: Cell range targeting and advanced colors
+            'cell_ranges'
         }
         
-        # Check for unknown fields first with helpful suggestions
-        for field_name in sheet_config.keys():
-            if field_name not in valid_fields:
-                # Common mistakes with helpful suggestions
-                suggestions = {
-                    'header_font_color': 'header_text_color',
-                    'header_color': 'header_text_color', 
-                    'font_color': 'header_text_color or general_text_color',
-                    'background_color': 'header_background_color',
-                    'text_color': 'header_text_color or general_text_color',
-                    'alignment_vertical': 'header_alignment_vertical (for headers) or use cell_ranges for specific cells',
-                    'alignment_horizontal': 'header_alignment_horizontal (for headers) or use cell_ranges for specific cells'
-                }
-                
-                if field_name in suggestions:
-                    suggestion = suggestions[field_name]
-                    raise StepProcessorError(f"Unknown field '{field_name}' in {context}. Did you mean '{suggestion}'?")
-                else:
-                    valid_list = ', '.join(sorted(valid_fields))
-                    raise StepProcessorError(f"Unknown field '{field_name}' in {context}. Valid fields: {valid_list}")
+        # Check for unknown options (helps catch typos)
+        unknown_options = set(sheet_config.keys()) - known_options
+        if unknown_options:
+            unknown_list = ', '.join(sorted(unknown_options))
+            logger.warning(f"⚠️ Unknown formatting options in {context}: {unknown_list}")
         
-        # Validate colors
-        for color_field in ['header_text_color', 'header_background_color', 'general_text_color']:
-            color_value = sheet_config.get(color_field)
-            if color_value is not None:
-                try:
-                    self._validate_color_format(color_value, f"{context}.{color_field}")
-                except Exception as e:
-                    raise StepProcessorError(f"Invalid {color_field} for {context}: {e}")
+        # Validate specific options
+        if 'header_background_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['header_background_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid header_background_color in {context}: {e}")
         
-        # Validate font sizes
-        for size_field in ['header_font_size', 'general_font_size']:
-            size_value = sheet_config.get(size_field)
-            if size_value is not None:
-                if not isinstance(size_value, (int, float)) or size_value <= 0:
-                    raise StepProcessorError(f"{context}.{size_field} must be a positive number, got: {size_value}")
+        if 'header_text_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['header_text_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid header_text_color in {context}: {e}")
         
-        # Validate font names
-        general_font_name = sheet_config.get('general_font_name')
-        if general_font_name is not None:
-            if not isinstance(general_font_name, str) or not general_font_name.strip():
-                raise StepProcessorError(f"{context}.general_font_name must be a non-empty string, got: {general_font_name}")
+        if 'general_text_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['general_text_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid general_text_color in {context}: {e}")
         
-        # Validate header alignment options
-        h_align = sheet_config.get('header_alignment_horizontal')
-        if h_align is not None:
-            valid_h_alignments = ['general', 'left', 'center', 'right', 'fill', 'justify', 'centerContinuous', 'distributed']
-            if h_align not in valid_h_alignments:
-                raise StepProcessorError(f"{context}.header_alignment_horizontal must be one of {valid_h_alignments}, got: {h_align}")
+        # Validate alignment values
+        valid_h_alignments = ['left', 'center', 'right', 'justify', 'distributed']
+        valid_v_alignments = ['top', 'center', 'bottom', 'justify', 'distributed']
         
-        v_align = sheet_config.get('header_alignment_vertical')
-        if v_align is not None:
-            valid_v_alignments = ['top', 'center', 'bottom', 'justify', 'distributed']
-            if v_align not in valid_v_alignments:
-                raise StepProcessorError(f"{context}.header_alignment_vertical must be one of {valid_v_alignments}, got: {v_align}")
+        for alignment_key, valid_values, alignment_type in [
+            ('header_alignment_horizontal', valid_h_alignments, 'horizontal header'),
+            ('header_alignment_vertical', valid_v_alignments, 'vertical header'),
+            ('general_alignment_horizontal', valid_h_alignments, 'horizontal general'),
+            ('general_alignment_vertical', valid_v_alignments, 'vertical general')
+        ]:
+            if alignment_key in sheet_config:
+                alignment_value = sheet_config[alignment_key]
+                if alignment_value not in valid_values:
+                    raise StepProcessorError(
+                        f"Invalid {alignment_type} alignment '{alignment_value}' in {context}. "
+                        f"Valid values: {', '.join(valid_values)}"
+                    )
         
-        # Validate general alignment options
-        general_h_align = sheet_config.get('general_alignment_horizontal')
-        if general_h_align is not None:
-            valid_h_alignments = ['general', 'left', 'center', 'right', 'fill', 'justify', 'centerContinuous', 'distributed']
-            if general_h_align not in valid_h_alignments:
-                raise StepProcessorError(f"{context}.general_alignment_horizontal must be one of {valid_h_alignments}, got: {general_h_align}")
+        # Validate numeric values
+        if 'header_font_size' in sheet_config:
+            font_size = sheet_config['header_font_size']
+            if not isinstance(font_size, (int, float)) or font_size <= 0:
+                raise StepProcessorError(f"header_font_size must be a positive number in {context}, got: {font_size}")
         
-        general_v_align = sheet_config.get('general_alignment_vertical')
-        if general_v_align is not None:
-            valid_v_alignments = ['top', 'center', 'bottom', 'justify', 'distributed']
-            if general_v_align not in valid_v_alignments:
-                raise StepProcessorError(f"{context}.general_alignment_vertical must be one of {valid_v_alignments}, got: {general_v_align}")
+        if 'general_font_size' in sheet_config:
+            font_size = sheet_config['general_font_size']
+            if not isinstance(font_size, (int, float)) or font_size <= 0:
+                raise StepProcessorError(f"general_font_size must be a positive number in {context}, got: {font_size}")
         
-        # Validate boolean options
-        for bool_field in ['header_bold', 'header_background', 'auto_fit_columns', 'freeze_top_row', 'auto_filter']:
-            bool_value = sheet_config.get(bool_field)
-            if bool_value is not None:
-                if not isinstance(bool_value, bool):
-                    raise StepProcessorError(f"{context}.{bool_field} must be a boolean (true/false), got: {bool_value}")
+        if 'max_column_width' in sheet_config:
+            width = sheet_config['max_column_width']
+            if not isinstance(width, (int, float)) or width <= 0:
+                raise StepProcessorError(f"max_column_width must be a positive number in {context}, got: {width}")
         
-        # Validate numeric constraints
-        for constraint_field in ['max_column_width', 'min_column_width']:
-            constraint_value = sheet_config.get(constraint_field)
-            if constraint_value is not None:
-                if not isinstance(constraint_value, (int, float)) or constraint_value <= 0:
-                    raise StepProcessorError(f"{context}.{constraint_field} must be a positive number, got: {constraint_value}")
+        if 'min_column_width' in sheet_config:
+            width = sheet_config['min_column_width']
+            if not isinstance(width, (int, float)) or width <= 0:
+                raise StepProcessorError(f"min_column_width must be a positive number in {context}, got: {width}")
         
-        # Validate min <= max for column widths
-        min_width = sheet_config.get('min_column_width')
-        max_width = sheet_config.get('max_column_width')
-        if min_width is not None and max_width is not None:
-            if min_width > max_width:
-                raise StepProcessorError(f"{context}: min_column_width ({min_width}) cannot be greater than max_column_width ({max_width})")
-        
-        # Validate row heights
-        row_heights = sheet_config.get('row_heights', {})
-        if row_heights:
+        # Validate row_heights
+        if 'row_heights' in sheet_config:
+            row_heights = sheet_config['row_heights']
             if not isinstance(row_heights, dict):
-                raise StepProcessorError(f"{context}.row_heights must be a dictionary")
+                raise StepProcessorError(f"row_heights must be a dictionary in {context}, got: {type(row_heights).__name__}")
             
             for row_num, height in row_heights.items():
                 if not isinstance(row_num, int) or row_num < 1:
-                    raise StepProcessorError(f"{context}.row_heights key must be positive integer (row number), got: {row_num}")
+                    raise StepProcessorError(f"row_heights keys must be positive integers in {context}, got: {row_num}")
+                
                 if not isinstance(height, (int, float)) or height <= 0:
-                    raise StepProcessorError(f"{context}.row_heights[{row_num}] must be positive number, got: {height}")
+                    raise StepProcessorError(f"row_heights values must be positive numbers in {context}, got: {height}")
         
-        # Validate column widths
-        column_widths = sheet_config.get('column_widths', {})
-        if column_widths:
-            if not isinstance(column_widths, dict):
-                raise StepProcessorError(f"{context}.column_widths must be a dictionary")
-            
-            for col_spec, width in column_widths.items():
-                # Column can be specified as letter (A, B) or number (1, 2)
-                if not isinstance(col_spec, (str, int)):
-                    raise StepProcessorError(f"{context}.column_widths key must be string (letter) or integer (number), got: {type(col_spec).__name__}")
-                if isinstance(col_spec, str) and not col_spec.strip():
-                    raise StepProcessorError(f"{context}.column_widths key cannot be empty string")
-                if isinstance(col_spec, int) and col_spec < 1:
-                    raise StepProcessorError(f"{context}.column_widths key must be positive integer, got: {col_spec}")
-                if not isinstance(width, (int, float)) or width <= 0:
-                    raise StepProcessorError(f"{context}.column_widths[{col_spec}] must be positive number, got: {width}")
-        
-        # Validate freeze_panes format if specified
-        freeze_panes = sheet_config.get('freeze_panes')
-        if freeze_panes is not None:
-            if not isinstance(freeze_panes, str) or not freeze_panes.strip():
-                raise StepProcessorError(f"{context}.freeze_panes must be a non-empty string (e.g., 'A2', 'B3')")
-            
-            # Basic format validation (A1, B2, etc.)
-            import re
-            if not re.match(r'^[A-Z]+\d+$', freeze_panes.strip().upper()):
-                raise StepProcessorError(f"{context}.freeze_panes must be in format like 'A2', 'B3', etc., got: {freeze_panes}")
-        
-        # Validate cell ranges
-        cell_ranges = sheet_config.get('cell_ranges', {})
-        if cell_ranges:
+        # Validate cell_ranges
+        if 'cell_ranges' in sheet_config:
+            cell_ranges = sheet_config['cell_ranges']
             if not isinstance(cell_ranges, dict):
-                raise StepProcessorError(f"{context}.cell_ranges must be a dictionary")
-            # Delegate detailed cell range validation to existing method
-            self._validate_cell_ranges(cell_ranges)
-
-    def _is_valid_range_format(self, range_spec: str) -> bool:
-        """
-        Check if range specification follows valid Excel range format.
-        
-        Args:
-            range_spec: Range specification to validate
+                raise StepProcessorError(f"cell_ranges must be a dictionary in {context}, got: {type(cell_ranges).__name__}")
             
-        Returns:
-            True if valid, False otherwise
-        """
-        import re
-        
-        # Patterns for valid Excel ranges
-        patterns = [
-            r'^[A-Z]+[0-9]+$',              # Single cell: A1, AB10
-            r'^[A-Z]+[0-9]+:[A-Z]+[0-9]+$', # Cell range: A1:B2, AA1:AB10
-            r'^[A-Z]+:[A-Z]+$',             # Column range: A:A, A:C
-            r'^[0-9]+:[0-9]+$'              # Row range: 1:1, 1:5
-        ]
-        
-        for pattern in patterns:
-            if re.match(pattern, range_spec.upper()):
-                return True
-        
-        return False
+            for range_spec, range_formatting in cell_ranges.items():
+                if not isinstance(range_spec, str):
+                    raise StepProcessorError(f"cell_ranges keys must be strings in {context}, got: {type(range_spec).__name__}")
+                
+                if not isinstance(range_formatting, dict):
+                    raise StepProcessorError(f"cell_ranges values must be dictionaries in {context}, got: {type(range_formatting).__name__}")
+                
+                # Validate the formatting options for this range
+                # (Recursively validate, but exclude range-specific validation to avoid infinite recursion)
+                try:
+                    self._validate_range_formatting_options(range_formatting, f"{context} range '{range_spec}'")
+                except StepProcessorError as e:
+                    raise StepProcessorError(f"Invalid formatting for range '{range_spec}' in {context}: {e}")
 
-    def _validate_range_formatting_options(self, range_spec: str, formatting: dict) -> None:
+    def _validate_range_formatting_options(self, range_formatting: dict, context: str) -> None:
         """
-        Validate formatting options for a specific cell range.
+        Validate formatting options for a cell range.
         
         Args:
-            range_spec: Range specification being validated
-            formatting: Formatting options dict for this range
+            range_formatting: Range formatting dictionary
+            context: Context string for error messages
         """
+        # Known range formatting options
+        known_range_options = {
+            'text_color', 'background_color', 'font_size', 'font_name', 'bold', 'italic',
+            'alignment_horizontal', 'alignment_vertical', 'border'
+        }
+        
+        # Check for unknown options
+        unknown_options = set(range_formatting.keys()) - known_range_options
+        if unknown_options:
+            unknown_list = ', '.join(sorted(unknown_options))
+            logger.warning(f"⚠️ Unknown range formatting options in {context}: {unknown_list}")
+        
         # Validate colors
-        for color_field in ['text_color', 'background_color']:
-            color_value = formatting.get(color_field)
-            if color_value is not None:
-                self._validate_color_format(color_value, f"{range_spec}.{color_field}")
+        for color_key in ['text_color', 'background_color']:
+            if color_key in range_formatting:
+                try:
+                    self._normalize_color(range_formatting[color_key])
+                except ValueError as e:
+                    raise StepProcessorError(f"Invalid {color_key} in {context}: {e}")
         
-        # Validate font size
-        font_size = formatting.get('font_size')
-        if font_size is not None:
+        # Validate alignment values
+        valid_h_alignments = ['left', 'center', 'right', 'justify', 'distributed']
+        valid_v_alignments = ['top', 'center', 'bottom', 'justify', 'distributed']
+        
+        if 'alignment_horizontal' in range_formatting:
+            alignment_value = range_formatting['alignment_horizontal']
+            if alignment_value not in valid_h_alignments:
+                raise StepProcessorError(f"Invalid horizontal alignment '{alignment_value}' in {context}")
+        
+        if 'alignment_vertical' in range_formatting:
+            alignment_value = range_formatting['alignment_vertical']
+            if alignment_value not in valid_v_alignments:
+                raise StepProcessorError(f"Invalid vertical alignment '{alignment_value}' in {context}")
+        
+        # Validate numeric values
+        if 'font_size' in range_formatting:
+            font_size = range_formatting['font_size']
             if not isinstance(font_size, (int, float)) or font_size <= 0:
-                raise StepProcessorError(f"{range_spec}.font_size must be a positive number, got: {font_size}")
-        
-        # Validate font name
-        font_name = formatting.get('font_name')
-        if font_name is not None:
-            if not isinstance(font_name, str) or not font_name.strip():
-                raise StepProcessorError(f"{range_spec}.font_name must be a non-empty string, got: {font_name}")
-        
-        # Validate boolean options
-        for bool_field in ['bold', 'italic']:
-            bool_value = formatting.get(bool_field)
-            if bool_value is not None:
-                if not isinstance(bool_value, bool):
-                    raise StepProcessorError(f"{range_spec}.{bool_field} must be a boolean (true/false), got: {bool_value}")
-        
-        # Validate alignment options
-        h_align = formatting.get('alignment_horizontal')
-        if h_align is not None:
-            valid_h_alignments = ['general', 'left', 'center', 'right', 'fill', 'justify', 'centerContinuous', 'distributed']
-            if h_align not in valid_h_alignments:
-                raise StepProcessorError(f"{range_spec}.alignment_horizontal must be one of {valid_h_alignments}, got: {h_align}")
-        
-        v_align = formatting.get('alignment_vertical')
-        if v_align is not None:
-            valid_v_alignments = ['top', 'center', 'bottom', 'justify', 'distributed']
-            if v_align not in valid_v_alignments:
-                raise StepProcessorError(f"{range_spec}.alignment_vertical must be one of {valid_v_alignments}, got: {v_align}")
-        
-        # Validate border options (basic validation for now)
-        border = formatting.get('border')
-        if border is not None:
-            self._validate_border_specification(range_spec, border)
+                raise StepProcessorError(f"font_size must be a positive number in {context}")
 
-    def _validate_border_specification(self, range_spec: str, border) -> None:
+    def _normalize_color(self, color) -> str:
         """
-        Validate border specification format.
+        Normalize color to 6-digit uppercase hex format with webcolors support.
+        
+        Supports multiple color formats:
+        - Hex with hash: #FF0000, #F00
+        - Hex without hash: FF0000, F00  
+        - CSS color names: red, blue, forestgreen (if webcolors available)
+        - RGB format: rgb(255, 0, 0) (if webcolors available)
         
         Args:
-            range_spec: Range specification being validated  
-            border: Border specification (string or dict)
-        """
-        if isinstance(border, str):
-            # Simple border style
-            valid_styles = ['thin', 'thick', 'medium', 'dashed', 'dotted', 'double', 'hair']
-            if border not in valid_styles:
-                raise StepProcessorError(f"{range_spec}.border style must be one of {valid_styles}, got: {border}")
-        
-        elif isinstance(border, dict):
-            # Complex border specification
-            valid_sides = ['top', 'bottom', 'left', 'right', 'all']
-            for side, side_spec in border.items():
-                if side not in valid_sides:
-                    raise StepProcessorError(f"{range_spec}.border side must be one of {valid_sides}, got: {side}")
-                
-                if isinstance(side_spec, str):
-                    # Simple side style
-                    valid_styles = ['thin', 'thick', 'medium', 'dashed', 'dotted', 'double', 'hair']
-                    if side_spec not in valid_styles:
-                        raise StepProcessorError(f"{range_spec}.border.{side} style must be one of {valid_styles}, got: {side_spec}")
-                
-                elif isinstance(side_spec, dict):
-                    # Detailed side specification with style and color
-                    style = side_spec.get('style')
-                    if style is not None:
-                        valid_styles = ['thin', 'thick', 'medium', 'dashed', 'dotted', 'double', 'hair']
-                        if style not in valid_styles:
-                            raise StepProcessorError(f"{range_spec}.border.{side}.style must be one of {valid_styles}, got: {style}")
-                    
-                    color = side_spec.get('color')
-                    if color is not None:
-                        self._validate_color_format(color, f"{range_spec}.border.{side}.color")
-                
-                else:
-                    raise StepProcessorError(f"{range_spec}.border.{side} must be a string or dict, got: {type(side_spec).__name__}")
-        
-        else:
-            raise StepProcessorError(f"{range_spec}.border must be a string or dict, got: {type(border).__name__}")
-
-    def _validate_cell_ranges(self, cell_ranges: dict) -> None:
-        """
-        Validate cell range formatting configuration (Phase 3 enhancement).
-        
-        Args:
-            cell_ranges: Dict mapping range specs to formatting options
-        """
-        if not isinstance(cell_ranges, dict):
-            raise StepProcessorError(f"cell_ranges must be a dictionary, got: {type(cell_ranges).__name__}")
-        
-        for range_spec, range_formatting in cell_ranges.items():
-            # Validate range specification format
-            if not isinstance(range_spec, str):
-                raise StepProcessorError(f"Range specification must be a string, got: {type(range_spec).__name__}")
-            
-            range_spec_clean = range_spec.strip()
-            if not range_spec_clean:
-                raise StepProcessorError("Range specification cannot be empty")
-            
-            # Basic range format validation (A1, A1:B2, A:A, 1:1)
-            if not self._is_valid_range_format(range_spec_clean):
-                raise StepProcessorError(f"Invalid range format: '{range_spec}'. Use formats like 'A1', 'A1:B2', 'A:A', or '1:1'")
-            
-            # Validate formatting options for this range
-            if not isinstance(range_formatting, dict):
-                raise StepProcessorError(f"Range formatting for '{range_spec}' must be a dictionary, got: {type(range_formatting).__name__}")
-            
-            self._validate_range_formatting_options(range_spec, range_formatting)
-
-    def _validate_color_format(self, color_value: str, field_name: str) -> None:
-        """
-        Validate color format - enhanced to support webcolors (Phase 3).
-        
-        Args:
-            color_value: Color value to validate
-            field_name: Name of the field being validated (for error messages)
-        """
-        if not isinstance(color_value, str):
-            raise StepProcessorError(f"{field_name} must be a string, got: {type(color_value).__name__}")
-        
-        color_clean = color_value.strip()
-        
-        # Check for empty string after stripping
-        if not color_clean:
-            raise StepProcessorError(f"{field_name} cannot be empty")
-        
-        # Try to normalize the color - this will validate all supported formats
-        try:
-            self._normalize_color(color_clean)
-        except Exception as e:
-            raise StepProcessorError(f"{field_name} must be a valid color format (hex, CSS name, or RGB), got: {color_value}. Error: {e}")
-
-    def _normalize_color(self, color_value: str) -> str:
-        """
-        Normalize color to 6-digit uppercase hex format for openpyxl (Phase 3 enhanced).
-        
-        Args:
-            color_value: Color in various formats (hex, CSS names, RGB, etc.)
+            color: Color in various formats
             
         Returns:
-            6-digit uppercase hex color (e.g., 'FF0000')
+            6-digit uppercase hex color (without #)
+            
+        Raises:
+            ValueError: If color format is invalid
         """
-        color_clean = color_value.strip()
+        if color is None:
+            raise ValueError("Color cannot be None")
         
+        # Convert to string and clean whitespace
+        color_str = str(color).strip()
+        
+        if not color_str:
+            raise ValueError("Color cannot be empty")
+        
+        # Try webcolors first if available
         try:
-            
-            # 1. RGB format: rgb(255, 0, 0)
-            if color_clean.startswith('rgb(') and color_clean.endswith(')'):
-                rgb_str = color_clean[4:-1]  # Remove 'rgb(' and ')'
-                rgb_parts = [int(x.strip()) for x in rgb_str.split(',')]
-                if len(rgb_parts) == 3:
-                    hex_color = webcolors.rgb_to_hex(tuple(rgb_parts))
-                    return hex_color[1:].upper()  # Remove # and uppercase
-                else:
-                    raise ValueError("RGB format must have exactly 3 values")
-            
-            # 2. Hex format with hash: #FF0000, #F00
-            elif color_clean.startswith('#'):
-                hex_color = webcolors.normalize_hex(color_clean)
-                return hex_color[1:].upper()  # Remove # and uppercase
-            
-            # 3. Check if it contains any non-hex characters
-            elif self._contains_non_hex_chars(color_clean):
-                # Must be a color name: white, red, forestgreen, etc.
-                hex_color = webcolors.name_to_hex(color_clean.lower())
-                return hex_color[1:].upper()  # Remove # and uppercase
-            
-            # 4. Only hex characters - treat as plain hex: FF0000, F00
-            else:
-                if len(color_clean) == 3:
-                    # Expand 3-digit to 6-digit hex: F00 -> FF0000
-                    return ''.join([c*2 for c in color_clean]).upper()
-                elif len(color_clean) == 6:
-                    return color_clean.upper()
-                else:
-                    raise ValueError(f"Hex color must be 3 or 6 digits, got {len(color_clean)}")
-                
+            import webcolors
+            return self._normalize_color_with_webcolors(color_str)
         except ImportError:
-            # Fallback to basic hex parsing if webcolors not available
-            logger.warning("webcolors not available, using basic hex color parsing")
-            return self._normalize_color_basic(color_clean)
-        except Exception as e:
-            # If webcolors fails, try basic parsing as fallback
+            # Fall back to basic hex color processing
+            return self._normalize_color_basic(color_str)
+
+    def _normalize_color_with_webcolors(self, color_str: str) -> str:
+        """
+        Normalize color using webcolors library for advanced color format support.
+        
+        Args:
+            color_str: Color string in various formats
+            
+        Returns:
+            6-digit uppercase hex color
+        """
+        # Handle RGB format: rgb(255, 0, 0)
+        if color_str.lower().startswith('rgb(') and color_str.endswith(')'):
             try:
-                return self._normalize_color_basic(color_clean)
-            except Exception:
-                raise ValueError(f"Invalid color format '{color_value}': {e}")
+                # Extract RGB values
+                rgb_content = color_str[4:-1]  # Remove 'rgb(' and ')'
+                rgb_parts = [int(x.strip()) for x in rgb_content.split(',')]
+                
+                if len(rgb_parts) != 3:
+                    raise ValueError("RGB format must have exactly 3 values")
+                
+                for val in rgb_parts:
+                    if not 0 <= val <= 255:
+                        raise ValueError("RGB values must be between 0 and 255")
+                
+                # Convert to hex
+                hex_color = '%02X%02X%02X' % tuple(rgb_parts)
+                return hex_color
+                
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid RGB format '{color_str}': {e}")
+        
+        # Try CSS color name
+        try:
+            # webcolors.name_to_hex returns hex with #, so we remove it
+            hex_with_hash = webcolors.name_to_hex(color_str.lower())
+            return hex_with_hash[1:].upper()  # Remove # and convert to uppercase
+        except ValueError:
+            pass  # Not a CSS color name, try hex format
+        
+        # Handle hex format (with or without #)
+        if self._contains_non_hex_chars(color_str):
+            raise ValueError(f"Unrecognized color format: '{color_str}'. Supported formats: hex (#FF0000), CSS names (red, blue), RGB (rgb(255,0,0))")
+        
+        return self._normalize_color_basic(color_str)
 
     def _contains_non_hex_chars(self, text: str) -> bool:
         """
-        Check if text contains any characters that are NOT valid hex digits.
+        Check if text contains characters that aren't valid hex.
         
         Args:
             text: Text to check
@@ -559,19 +550,26 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         return color_clean.upper()
 
-    def _format_excel_file(self, filename: str, sheet_configs: list, active_sheet=None) -> int:
+    def _format_excel_file(self, filename: str, sheet_configs: list, active_sheet=None, templates: list = None) -> int:
         """
-        Apply formatting to an Excel file with explicit sheet targeting.
+        Apply formatting to an Excel file with explicit sheet targeting and template support.
         
         Args:
             filename: Path to Excel file
             sheet_configs: List of sheet configuration dicts
             active_sheet: Sheet to set as active (name or number), optional
+            templates: List of template definitions, optional
             
         Returns:
             Number of sheets processed
         """
         logger.info(f"📋 Loading Excel file: {Path(filename).name}")
+        
+        # Build template lookup
+        template_lookup = self._build_template_lookup(templates or [])
+        if template_lookup:
+            template_names = ', '.join(f"'{name}'" for name in template_lookup.keys())
+            logger.info(f"📝 Available templates: {template_names}")
         
         # Load workbook
         workbook = openpyxl.load_workbook(filename)
@@ -600,7 +598,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if sheet_name:
                 worksheet = workbook[sheet_name]
                 logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {sheet_spec})")
-                self._apply_sheet_formatting(worksheet, sheet_config)
+                
+                # Apply templates to sheet configuration
+                enhanced_config = self._apply_templates_to_sheet_config(sheet_config, template_lookup)
+                
+                # Log template application if templates were used
+                if 'apply_templates' in sheet_config and sheet_config['apply_templates']:
+                    applied_template_names = ', '.join(f"'{name}'" for name in sheet_config['apply_templates'])
+                    logger.info(f"📝 Applied templates: {applied_template_names}")
+                
+                self._apply_sheet_formatting(worksheet, enhanced_config)
                 sheets_processed += 1
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")
@@ -663,7 +670,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         Args:
             worksheet: openpyxl worksheet object
-            formatting: Formatting configuration for this sheet
+            formatting: Formatting configuration for this sheet (may include resolved templates)
         """
         sheet_name = worksheet.title
         applied_operations = []
@@ -693,163 +700,77 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # STEP 2: Set row heights (might affect auto-fit calculations)
         row_heights = formatting.get('row_heights', {})
         if row_heights:
-            logger.info(f"📊 [{sheet_name}] Setting row heights for {len(row_heights)} rows")
-            self._set_row_heights(worksheet, row_heights)
+            logger.info(f"📏 [{sheet_name}] Setting custom row heights for {len(row_heights)} rows")
+            self._apply_row_heights(worksheet, row_heights)
             applied_operations.append(f"row heights ({len(row_heights)} rows)")
         
-        # STEP 3: Add AutoFilter BEFORE auto-fit so auto-fit knows dropdowns will be there
-        if formatting.get('auto_filter', False):
-            if worksheet.max_row > 1:
-                data_range = f"A1:{get_column_letter(worksheet.max_column)}{worksheet.max_row}"
-                logger.info(f"🔍 [{sheet_name}] Adding auto-filter to range {data_range}")
-                self._add_auto_filter(worksheet)
-                applied_operations.append(f"auto-filter ({data_range})")
-            else:
-                logger.warning(f"⚠️ [{sheet_name}] Skipping auto-filter - no data rows found")
-        
-        # STEP 4: NOW auto-fit can measure the final formatted text + account for AutoFilter
-        if formatting.get('auto_fit_columns', False):
-            max_width = formatting.get('max_column_width', 50)
-            min_width = formatting.get('min_column_width', 8)
-            has_auto_filter = formatting.get('auto_filter', False)
-            filter_note = " (with AutoFilter compensation)" if has_auto_filter else ""
-            logger.info(f"📏 [{sheet_name}] Auto-fitting columns (width: {min_width}-{max_width}){filter_note}")
+        # STEP 3: Column sizing (auto-fit or explicit sizing)
+        if formatting.get('auto_fit_columns'):
+            logger.info(f"📐 [{sheet_name}] Auto-fitting column widths")
             self._auto_fit_columns(worksheet, formatting)
             applied_operations.append("auto-fit columns")
         
-        # STEP 5: Manual column widths override auto-fit
-        column_widths = formatting.get('column_widths', {})
-        if column_widths:
-            logger.info(f"📐 [{sheet_name}] Setting custom column widths for {len(column_widths)} columns")
-            self._set_column_widths(worksheet, column_widths)
-            applied_operations.append(f"custom widths ({len(column_widths)} columns)")
-        
-        # STEP 6: Freeze panes (purely visual, doesn't affect sizing)
-        freeze_panes = formatting.get('freeze_panes')
-        if freeze_panes:
-            logger.info(f"❄️ [{sheet_name}] Freezing panes at {freeze_panes}")
-            self._freeze_panes(worksheet, freeze_panes)
-            applied_operations.append(f"freeze panes ({freeze_panes})")
-        
-        # Freeze top row (shortcut)
-        if formatting.get('freeze_top_row', False):
-            logger.info(f"❄️ [{sheet_name}] Freezing top row")
-            self._freeze_panes(worksheet, 'A2')
+        # STEP 4: Worksheet-level features
+        if formatting.get('freeze_top_row'):
+            logger.info(f"🧊 [{sheet_name}] Freezing top row")
+            worksheet.freeze_panes = 'A2'
             applied_operations.append("freeze top row")
         
-        # Summary log for this sheet
+        if formatting.get('auto_filter'):
+            logger.info(f"🔍 [{sheet_name}] Adding auto-filter")
+            self._add_auto_filter(worksheet)
+            applied_operations.append("auto-filter")
+        
+        # Log summary of applied operations
         if applied_operations:
-            operations_str = ", ".join(applied_operations)
-            logger.info(f"✅ [{sheet_name}] Applied: {operations_str}")
+            operations_summary = ', '.join(applied_operations)
+            logger.info(f"✅ [{sheet_name}] Applied: {operations_summary}")
         else:
             logger.info(f"ℹ️ [{sheet_name}] No formatting operations applied")
 
-    def _has_header_formatting(self, formatting: dict) -> bool:
-        """Check if any header formatting options are configured."""
-        header_options = [
-            'header_bold', 'header_background', 'header_text_color', 
-            'header_font_size', 'header_background_color'
-        ]
-        return any(formatting.get(option) for option in header_options)
-
     def _has_general_formatting(self, formatting: dict) -> bool:
-        """Check if any general formatting options are configured."""
-        general_options = [
-            'general_text_color', 'general_font_size', 'general_font_name',
-            'general_alignment_horizontal', 'general_alignment_vertical'
-        ]
-        return any(formatting.get(option) for option in general_options)
+        """Check if general cell formatting is needed."""
+        return any([
+            formatting.get('general_text_color') is not None,
+            formatting.get('general_font_size') is not None,
+            formatting.get('general_font_name') is not None,
+            formatting.get('general_alignment_horizontal') is not None,
+            formatting.get('general_alignment_vertical') is not None
+        ])
+
+    def _has_header_formatting(self, formatting: dict) -> bool:
+        """Check if header formatting is needed."""
+        return any([
+            formatting.get('header_bold'),
+            formatting.get('header_background'),
+            formatting.get('header_text_color') is not None,
+            formatting.get('header_font_size') is not None,
+            formatting.get('header_alignment_horizontal') is not None,
+            formatting.get('header_alignment_vertical') is not None
+        ])
 
     def _get_header_formatting_details(self, formatting: dict) -> str:
-        """Get a human-readable description of header formatting being applied."""
+        """Get a descriptive string of header formatting operations."""
         details = []
-        
         if formatting.get('header_bold'):
             details.append("bold")
-        if formatting.get('header_background') and formatting.get('header_background_color'):
-            bg_color = formatting.get('header_background_color')
-            details.append(f"background({bg_color})")
+        if formatting.get('header_background'):
+            color = formatting.get('header_background_color', 'default')
+            details.append(f"background ({color})")
         if formatting.get('header_text_color'):
-            text_color = formatting.get('header_text_color')
-            details.append(f"text-color({text_color})")
+            details.append(f"text color ({formatting['header_text_color']})")
         if formatting.get('header_font_size'):
-            font_size = formatting.get('header_font_size')
-            details.append(f"font-size({font_size})")
+            details.append(f"font size ({formatting['header_font_size']})")
+        if formatting.get('header_alignment_horizontal'):
+            details.append(f"h-align ({formatting['header_alignment_horizontal']})")
+        if formatting.get('header_alignment_vertical'):
+            details.append(f"v-align ({formatting['header_alignment_vertical']})")
         
-        return ", ".join(details) if details else "default"
-
-    def _apply_header_formatting(self, worksheet, formatting: dict) -> None:
-        """
-        Apply comprehensive header formatting with vertical alignment support.
-        
-        Args:
-            worksheet: openpyxl worksheet object
-            formatting: Formatting configuration dict
-        """
-        sheet_name = worksheet.title
-        
-        if worksheet.max_row < 1:
-            logger.warning(f"⚠️ [{sheet_name}] No header row found - skipping header formatting")
-            return
-        
-        # Build font properties
-        font_kwargs = {}
-        if formatting.get('header_bold'):
-            font_kwargs['bold'] = True
-        if formatting.get('header_text_color'):
-            font_kwargs['color'] = self._normalize_color(formatting['header_text_color'])
-        if formatting.get('header_font_size'):
-            font_kwargs['size'] = formatting['header_font_size']
-        
-        # Build alignment properties (including vertical centering)
-        alignment_kwargs = {}
-        # Default to center alignment for headers (looks more professional)
-        alignment_kwargs['vertical'] = 'center'
-        alignment_kwargs['horizontal'] = 'center'  # Center headers by default
-        
-        # Build background fill
-        fill = None
-        if formatting.get('header_background') and formatting.get('header_background_color'):
-            bg_color = self._normalize_color(formatting['header_background_color'])
-            fill = PatternFill(start_color=bg_color, end_color=bg_color, fill_type='solid')
-        
-        # Apply formatting to header row (row 1)
-        for cell in worksheet[1]:  # First row
-            if font_kwargs:
-                # Merge with existing font properties
-                existing_font = cell.font
-                merged_font_kwargs = {
-                    'name': existing_font.name,
-                    'size': existing_font.size,
-                    'bold': existing_font.bold,
-                    'italic': existing_font.italic,
-                    'color': existing_font.color
-                }
-                merged_font_kwargs.update(font_kwargs)
-                cell.font = Font(**merged_font_kwargs)
-            
-            if alignment_kwargs:
-                # Merge with existing alignment
-                existing_alignment = cell.alignment
-                merged_alignment_kwargs = {
-                    'horizontal': existing_alignment.horizontal,
-                    'vertical': existing_alignment.vertical,
-                    'text_rotation': existing_alignment.text_rotation,
-                    'wrap_text': existing_alignment.wrap_text,
-                    'shrink_to_fit': existing_alignment.shrink_to_fit,
-                    'indent': existing_alignment.indent
-                }
-                merged_alignment_kwargs.update(alignment_kwargs)
-                cell.alignment = Alignment(**merged_alignment_kwargs)
-            
-            if fill:
-                cell.fill = fill
-        
-        logger.debug(f"Applied header formatting: font={font_kwargs}, alignment={alignment_kwargs}, fill={fill is not None}")
+        return ', '.join(details) if details else "basic"
 
     def _apply_general_formatting(self, worksheet, formatting: dict) -> None:
         """
-        Apply general formatting to all cells (Phase 2 enhancement).
+        Apply general formatting to all data cells (excluding header row).
         
         Args:
             worksheet: openpyxl worksheet object
@@ -926,120 +847,183 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                         'shrink_to_fit': existing_alignment.shrink_to_fit,
                         'indent': existing_alignment.indent
                     }
-                    # Override with general formatting
+                    # Override with general alignment
                     merged_alignment_kwargs.update(alignment_kwargs)
                     cell.alignment = Alignment(**merged_alignment_kwargs)
+
+    def _apply_header_formatting(self, worksheet, formatting: dict) -> None:
+        """
+        Apply enhanced header formatting to the first row.
         
-        applied_features = []
-        if font_kwargs:
-            applied_features.append(f"font: {font_kwargs}")
-        if alignment_kwargs:
-            applied_features.append(f"alignment: {alignment_kwargs}")
+        Args:
+            worksheet: openpyxl worksheet object
+            formatting: Formatting configuration
+        """
+        if worksheet.max_row < 1:
+            return  # No data to format
         
-        logger.debug(f"Applied general formatting to rows {start_row}-{worksheet.max_row}: {', '.join(applied_features)}")
-    
+        # Build font formatting
+        font_kwargs = {}
+        
+        # Header text color
+        header_text_color = formatting.get('header_text_color')
+        if header_text_color:
+            normalized_color = self._normalize_color(header_text_color)
+            font_kwargs['color'] = normalized_color
+        
+        # Header font size
+        header_font_size = formatting.get('header_font_size')
+        if header_font_size:
+            font_kwargs['size'] = header_font_size
+        
+        # Header bold (legacy support)
+        if formatting.get('header_bold'):
+            font_kwargs['bold'] = True
+        
+        # Build background fill
+        fill = None
+        if formatting.get('header_background'):
+            background_color = formatting.get('header_background_color', 'D3D3D3')
+            normalized_bg_color = self._normalize_color(background_color)
+            fill = PatternFill(start_color=normalized_bg_color, end_color=normalized_bg_color, fill_type="solid")
+        
+        # Build alignment
+        alignment_kwargs = {}
+        header_h_align = formatting.get('header_alignment_horizontal')
+        if header_h_align:
+            alignment_kwargs['horizontal'] = header_h_align
+        
+        header_v_align = formatting.get('header_alignment_vertical')
+        if header_v_align:
+            alignment_kwargs['vertical'] = header_v_align
+        
+        # Apply to first row
+        for cell in worksheet[1]:  # First row
+            # Apply font formatting
+            if font_kwargs:
+                # Preserve existing font properties and merge with new ones
+                existing_font = cell.font
+                merged_font_kwargs = {
+                    'name': existing_font.name,
+                    'size': existing_font.size,
+                    'bold': existing_font.bold,
+                    'italic': existing_font.italic,
+                    'color': existing_font.color
+                }
+                merged_font_kwargs.update(font_kwargs)
+                cell.font = Font(**merged_font_kwargs)
+            
+            # Apply background fill
+            if fill:
+                cell.fill = fill
+            
+            # Apply alignment
+            if alignment_kwargs:
+                existing_alignment = cell.alignment
+                merged_alignment_kwargs = {
+                    'horizontal': existing_alignment.horizontal,
+                    'vertical': existing_alignment.vertical,
+                    'text_rotation': existing_alignment.text_rotation,
+                    'wrap_text': existing_alignment.wrap_text,
+                    'shrink_to_fit': existing_alignment.shrink_to_fit,
+                    'indent': existing_alignment.indent
+                }
+                merged_alignment_kwargs.update(alignment_kwargs)
+                cell.alignment = Alignment(**merged_alignment_kwargs)
+
     def _apply_cell_range_formatting(self, worksheet, cell_ranges: dict) -> None:
         """
-        Apply formatting to specific cell ranges (Phase 3 enhancement).
+        Apply formatting to specific cell ranges.
         
         Args:
             worksheet: openpyxl worksheet object
-            cell_ranges: Dict mapping range specs to formatting options
+            cell_ranges: Dictionary of range specifications and their formatting
         """
-        ranges_processed = 0
-        
         for range_spec, range_formatting in cell_ranges.items():
             try:
-                # Parse the range specification
-                cells = self._parse_range_spec(worksheet, range_spec)
+                # Get the range of cells
+                cell_range = worksheet[range_spec]
+                
+                # Handle both single cells and ranges
+                if hasattr(cell_range, '__iter__') and not hasattr(cell_range, 'value'):
+                    # It's a range of cells
+                    cells_to_format = []
+                    for row in cell_range:
+                        if hasattr(row, '__iter__'):
+                            # Multiple rows
+                            cells_to_format.extend(row)
+                        else:
+                            # Single row
+                            cells_to_format.append(row)
+                else:
+                    # It's a single cell
+                    cells_to_format = [cell_range]
                 
                 # Apply formatting to each cell in the range
-                self._apply_cell_formatting(cells, range_formatting)
-                
-                ranges_processed += 1
-                logger.debug(f"Applied formatting to range '{range_spec}': {len(cells)} cells")
-                
+                for cell in cells_to_format:
+                    self._apply_cell_formatting(cell, range_formatting)
+                    
             except Exception as e:
-                logger.error(f"Failed to format range '{range_spec}': {e}")
-                raise StepProcessorError(f"Error formatting cell range '{range_spec}': {e}")
-        
-        logger.info(f"Applied cell range formatting to {ranges_processed} ranges")
+                logger.warning(f"⚠️ Could not apply formatting to range '{range_spec}': {e}")
 
-    def _parse_range_spec(self, worksheet, range_spec: str):
+    def _apply_cell_formatting(self, cell, formatting: dict) -> None:
         """
-        Parse a range specification and return list of cells.
+        Apply formatting to a single cell.
         
         Args:
-            worksheet: openpyxl worksheet object
-            range_spec: Range like "A1:C10", "B2", etc.
-            
-        Returns:
-            List of openpyxl cell objects
+            cell: openpyxl cell object
+            formatting: Dictionary of formatting options
         """
-        range_spec_clean = range_spec.strip().upper()
+        # Font formatting
+        font_kwargs = {}
         
-        if ':' in range_spec_clean:
-            # Range specification: A1:C10
-            cell_range = worksheet[range_spec_clean]
-            # Flatten the range into a list of cells
-            cells = []
-            for row in cell_range:
-                if hasattr(row, '__iter__'):
-                    cells.extend(row)
-                else:
-                    cells.append(row)
-            return cells
-        else:
-            # Single cell specification: B2
-            return [worksheet[range_spec_clean]]
-
-    def _apply_cell_formatting(self, cells, formatting: dict) -> None:
-        """
-        Apply formatting to a list of cells.
+        if 'text_color' in formatting:
+            normalized_color = self._normalize_color(formatting['text_color'])
+            font_kwargs['color'] = normalized_color
         
-        Args:
-            cells: List of openpyxl cell objects
-            formatting: Formatting options to apply
-        """
-        for cell in cells:
-            # Build font formatting
-            font_kwargs = {}
+        if 'font_size' in formatting:
+            font_kwargs['size'] = formatting['font_size']
+        
+        if 'font_name' in formatting:
+            font_kwargs['name'] = formatting['font_name']
+        
+        if 'bold' in formatting:
+            font_kwargs['bold'] = formatting['bold']
+        
+        if 'italic' in formatting:
+            font_kwargs['italic'] = formatting['italic']
+        
+        if font_kwargs:
+            # Merge with existing font
             existing_font = cell.font
-            
-            # Start with existing font properties
-            font_kwargs = {
+            merged_font_kwargs = {
                 'name': existing_font.name,
                 'size': existing_font.size,
                 'bold': existing_font.bold,
                 'italic': existing_font.italic,
                 'color': existing_font.color
             }
-            
-            # Apply range-specific font formatting
-            if 'text_color' in formatting and formatting['text_color']:
-                font_kwargs['color'] = self._normalize_color(formatting['text_color'])
-            
-            if 'font_size' in formatting and formatting['font_size']:
-                font_kwargs['size'] = formatting['font_size']
-            
-            if 'font_name' in formatting and formatting['font_name']:
-                font_kwargs['name'] = formatting['font_name']
-            
-            if 'bold' in formatting and formatting['bold'] is not None:
-                font_kwargs['bold'] = formatting['bold']
-            
-            if 'italic' in formatting and formatting['italic'] is not None:
-                font_kwargs['italic'] = formatting['italic']
-            
-            # Apply font formatting
-            cell.font = Font(**font_kwargs)
-            
-            # Build alignment formatting
-            alignment_kwargs = {}
+            merged_font_kwargs.update(font_kwargs)
+            cell.font = Font(**merged_font_kwargs)
+        
+        # Background color
+        if 'background_color' in formatting:
+            normalized_bg_color = self._normalize_color(formatting['background_color'])
+            fill = PatternFill(start_color=normalized_bg_color, end_color=normalized_bg_color, fill_type="solid")
+            cell.fill = fill
+        
+        # Alignment
+        alignment_kwargs = {}
+        
+        if 'alignment_horizontal' in formatting:
+            alignment_kwargs['horizontal'] = formatting['alignment_horizontal']
+        
+        if 'alignment_vertical' in formatting:
+            alignment_kwargs['vertical'] = formatting['alignment_vertical']
+        
+        if alignment_kwargs:
             existing_alignment = cell.alignment
-            
-            # Start with existing alignment properties
-            alignment_kwargs = {
+            merged_alignment_kwargs = {
                 'horizontal': existing_alignment.horizontal,
                 'vertical': existing_alignment.vertical,
                 'text_rotation': existing_alignment.text_rotation,
@@ -1047,259 +1031,146 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 'shrink_to_fit': existing_alignment.shrink_to_fit,
                 'indent': existing_alignment.indent
             }
-            
-            # Apply range-specific alignment formatting
-            if 'alignment_horizontal' in formatting and formatting['alignment_horizontal']:
-                alignment_kwargs['horizontal'] = formatting['alignment_horizontal']
-            
-            if 'alignment_vertical' in formatting and formatting['alignment_vertical']:
-                alignment_kwargs['vertical'] = formatting['alignment_vertical']
-            
-            # Apply alignment formatting
-            cell.alignment = Alignment(**alignment_kwargs)
-            
-            # Apply background color
-            if 'background_color' in formatting and formatting['background_color']:
-                bg_color = self._normalize_color(formatting['background_color'])
-                fill = PatternFill(start_color=bg_color, end_color=bg_color, fill_type='solid')
-                cell.fill = fill
-            
-            # Apply border formatting
-            if 'border' in formatting and formatting['border']:
-                border = self._create_border(formatting['border'])
-                cell.border = border
+            merged_alignment_kwargs.update(alignment_kwargs)
+            cell.alignment = Alignment(**merged_alignment_kwargs)
+        
+        # Border formatting (simplified version)
+        if 'border' in formatting:
+            border_spec = formatting['border']
+            if isinstance(border_spec, str):
+                # Simple border style for all sides
+                side = Side(style=border_spec)
+                cell.border = Border(top=side, bottom=side, left=side, right=side)
+            elif isinstance(border_spec, dict):
+                # Complex border formatting
+                self._apply_complex_border(cell, border_spec)
 
-    def _create_border(self, border_spec):
+    def _apply_complex_border(self, cell, border_spec: dict) -> None:
         """
-        Create an openpyxl Border object from specification.
+        Apply complex border formatting to a cell.
         
         Args:
-            border_spec: Border specification (string or dict)
-            
-        Returns:
-            openpyxl Border object
+            cell: openpyxl cell object
+            border_spec: Dictionary specifying border formatting
         """
-        if isinstance(border_spec, str):
-            # Simple border: apply same style to all sides
-            side = Side(style=border_spec)
-            return Border(left=side, right=side, top=side, bottom=side)
+        border_kwargs = {}
         
-        elif isinstance(border_spec, dict):
-            # Detailed border specification
-            sides = {}
-            
-            for side_name, side_spec in border_spec.items():
-                if side_name == 'all':
-                    # Apply to all sides
-                    if isinstance(side_spec, str):
-                        side_obj = Side(style=side_spec)
-                    else:
-                        style = side_spec.get('style', 'thin')
-                        color = side_spec.get('color')
-                        side_obj = Side(style=style, color=self._normalize_color(color) if color else None)
-                    
-                    sides['left'] = sides['right'] = sides['top'] = sides['bottom'] = side_obj
-                else:
-                    # Specific side
-                    if isinstance(side_spec, str):
-                        sides[side_name] = Side(style=side_spec)
-                    else:
-                        style = side_spec.get('style', 'thin')
-                        color = side_spec.get('color')
-                        sides[side_name] = Side(style=style, color=self._normalize_color(color) if color else None)
-            
-            return Border(**sides)
+        # Handle different border specification formats
+        for side_name in ['top', 'bottom', 'left', 'right']:
+            if side_name in border_spec:
+                side_spec = border_spec[side_name]
+                if isinstance(side_spec, str):
+                    # Simple style
+                    border_kwargs[side_name] = Side(style=side_spec)
+                elif isinstance(side_spec, dict):
+                    # Complex style with color
+                    style = side_spec.get('style', 'thin')
+                    color = side_spec.get('color')
+                    side_kwargs = {'style': style}
+                    if color:
+                        side_kwargs['color'] = self._normalize_color(color)
+                    border_kwargs[side_name] = Side(**side_kwargs)
         
-        else:
-            raise ValueError(f"Invalid border specification: {border_spec}")
+        # Handle 'all' specification
+        if 'all' in border_spec:
+            all_spec = border_spec['all']
+            if isinstance(all_spec, str):
+                side = Side(style=all_spec)
+                border_kwargs.update({
+                    'top': side, 'bottom': side, 'left': side, 'right': side
+                })
+            elif isinstance(all_spec, dict):
+                style = all_spec.get('style', 'thin')
+                color = all_spec.get('color')
+                side_kwargs = {'style': style}
+                if color:
+                    side_kwargs['color'] = self._normalize_color(color)
+                side = Side(**side_kwargs)
+                border_kwargs.update({
+                    'top': side, 'bottom': side, 'left': side, 'right': side
+                })
+        
+        if border_kwargs:
+            cell.border = Border(**border_kwargs)
 
-    def _auto_fit_columns(self, worksheet, formatting: dict) -> None:
-        """Auto-fit column widths accounting for actual font properties."""
-        max_width = formatting.get('max_column_width', 50)
-        min_width = formatting.get('min_column_width', 8)
-        has_auto_filter = formatting.get('auto_filter', False)
-        
-        # AutoFilter dropdown arrows need extra space
-        autofilter_padding = 5 if has_auto_filter else 2
-        base_padding = 2
-        
-        logger.info(f"🔍 DEBUG: AutoFilter detected: {has_auto_filter}")
-        logger.info(f"🔍 DEBUG: Padding - base: {base_padding}, autofilter: {autofilter_padding}")
-        
-        columns_processed = 0
-        for column in worksheet.columns:
-            max_width_needed = 0
-            column_letter = get_column_letter(column[0].column)
-            
-            for row_idx, cell in enumerate(column):
-                try:
-                    if cell.value:
-                        # Get the actual font properties of this cell
-                        cell_font = cell.font
-                        is_bold = cell_font.bold if cell_font.bold is not None else False
-                        font_size = cell_font.size if cell_font.size is not None else 11
-                        
-                        # Calculate character count
-                        char_count = len(str(cell.value))
-                        
-                        # Apply font-based multipliers for visual width
-                        width_multiplier = 1.0
-                        
-                        # Bold text takes more space
-                        if is_bold:
-                            width_multiplier *= 1.2
-                        
-                        # Larger fonts take more space (relative to 11pt baseline)
-                        if font_size != 11:
-                            width_multiplier *= (font_size / 11.0)
-                        
-                        # Convert to visual width
-                        visual_width = char_count * width_multiplier
-                        
-                        if visual_width > max_width_needed:
-                            max_width_needed = visual_width
-                        
-                        # Debug first few cells
-                        if columns_processed < 3 and row_idx < 2:
-                            logger.info(f"🔍 DEBUG: {column_letter}{row_idx+1} '{cell.value}': chars={char_count}, bold={is_bold}, size={font_size}, multiplier={width_multiplier:.2f}, visual_width={visual_width:.1f}")
-                        
-                except Exception as e:
-                    logger.debug(f"Error measuring cell {column_letter}{row_idx+1}: {e}")
-                    pass
-            
-            # Add padding to the calculated width
-            total_width = max_width_needed + base_padding + autofilter_padding
-            
-            # Apply min/max constraints  
-            final_width = max(min_width, min(total_width, max_width))
-            
-            worksheet.column_dimensions[column_letter].width = final_width
-            
-            if columns_processed < 3:
-                logger.info(f"🔍 DEBUG: Column {column_letter}: max_needed={max_width_needed:.1f}, total_width={total_width:.1f}, final_width={final_width:.1f}")
-            
-            columns_processed += 1
-        
-        logger.info(f"📏 Auto-fitted {columns_processed} columns with font-aware sizing")
-
-    def _set_column_widths(self, worksheet, column_widths: dict) -> None:
-        """Set specific column widths."""
-        for column_ref, width in column_widths.items():
-            # Handle both letter (A) and number (1) references
-            if isinstance(column_ref, int):
-                column_letter = get_column_letter(column_ref)
-            else:
-                column_letter = column_ref.upper()
-            
-            worksheet.column_dimensions[column_letter].width = width
-        
-        logger.debug(f"Set specific widths for {len(column_widths)} columns")
-    
-    def _set_header_background(self, worksheet, color: str) -> None:
-        """Set background color for header row."""
-        # Remove # if present and normalize
-        normalized_color = self._normalize_color(color)
-        fill = PatternFill(start_color=normalized_color, end_color=normalized_color, fill_type='solid')
-        
-        for cell in worksheet[1]:  # First row
-            cell.fill = fill
-        
-        logger.debug(f"Applied background color {normalized_color} to header row")
-    
-    def _freeze_panes(self, worksheet, freeze_ref: str) -> None:
+    def _apply_row_heights(self, worksheet, row_heights: dict) -> None:
         """
-        Freeze panes at specified cell reference with comprehensive validation.
+        Apply custom row heights.
         
         Args:
             worksheet: openpyxl worksheet object
-            freeze_ref: Cell reference like 'A2', 'B3', 'D10', etc.
-                        Special case: 'A1' unfreezes all panes
+            row_heights: Dictionary mapping row numbers to heights
         """
-        import re
-        from openpyxl.utils import column_index_from_string, get_column_letter
-        
-        # Get sheet name for detailed logging
-        sheet_name = getattr(worksheet, 'title', 'Unknown')
-        
-        # Validate input type and clean up
-        if not isinstance(freeze_ref, str):
-            error_msg = f"freeze_panes must be a string cell reference, got {type(freeze_ref).__name__}: {freeze_ref}"
-            logger.error(f"❌ [{sheet_name}] {error_msg}")
-            raise StepProcessorError(error_msg)
-        
-        freeze_ref_clean = freeze_ref.strip().upper()
-        if not freeze_ref_clean:
-            error_msg = "freeze_panes cannot be empty string"
-            logger.error(f"❌ [{sheet_name}] {error_msg}")
-            raise StepProcessorError(error_msg)
-        
-        # Handle special case: A1 means unfreeze everything
-        if freeze_ref_clean == 'A1':
-            worksheet.freeze_panes = None
-            logger.info(f"🔓 [{sheet_name}] Unfroze all panes (A1 removes all freezing)")
-            return
-        
-        # Validate cell reference format using regex
-        cell_pattern = r'^([A-Z]+)(\d+)$'
-        match = re.match(cell_pattern, freeze_ref_clean)
-        
-        if not match:
-            error_msg = f"Invalid freeze_panes format '{freeze_ref}'. Use format like 'A2', 'B3', etc."
-            logger.error(f"❌ [{sheet_name}] {error_msg}")
-            raise StepProcessorError(error_msg)
-        
-        column_letters, row_number = match.groups()
-        row_number = int(row_number)
-        
-        # Validate row number
-        if row_number < 1:
-            error_msg = f"freeze_panes row number must be >= 1, got: {row_number}"
-            logger.error(f"❌ [{sheet_name}] {error_msg}")
-            raise StepProcessorError(error_msg)
-        
-        # Apply freeze panes
-        try:
-            worksheet.freeze_panes = freeze_ref_clean
-            logger.info(f"❄️ [{sheet_name}] Froze panes at {freeze_ref_clean}")
-        except Exception as e:
-            error_msg = f"Failed to freeze panes at '{freeze_ref_clean}': {e}"
-            logger.error(f"❌ [{sheet_name}] {error_msg}")
-            raise StepProcessorError(error_msg)
-    
-    def _set_row_heights(self, worksheet, row_heights: dict) -> None:
-        """Set specific row heights."""
         for row_num, height in row_heights.items():
             worksheet.row_dimensions[row_num].height = height
+
+    def _auto_fit_columns(self, worksheet, formatting: dict) -> None:
+        """
+        Auto-fit column widths based on content with optional constraints.
         
-        logger.debug(f"Set heights for {len(row_heights)} rows")
-    
+        Args:
+            worksheet: openpyxl worksheet object
+            formatting: Formatting configuration (may contain width constraints)
+        """
+        # Tunable constants for auto-fit behavior
+        BASE_PADDING = 4           # Base extra width beyond content (tune this for general spacing)
+        AUTO_FILTER_EXTRA = 3      # Additional width when auto-filter dropdowns are present
+        
+        max_width = formatting.get('max_column_width', 100)
+        min_width = formatting.get('min_column_width', 8)
+        
+        # Check if auto-filter is enabled (adds dropdown arrows that need space)
+        has_auto_filter = (
+            formatting.get('auto_filter', False) or 
+            worksheet.auto_filter.ref is not None
+        )
+        
+        # Calculate total padding
+        auto_filter_padding = AUTO_FILTER_EXTRA if has_auto_filter else 0
+        
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            
+            for cell in column:
+                try:
+                    if cell.value:
+                        # Consider font size for width calculation
+                        content_length = len(str(cell.value))
+                        
+                        # Adjust for font size (rough approximation)
+                        if hasattr(cell.font, 'size') and cell.font.size:
+                            size_factor = cell.font.size / 11  # 11 is default font size
+                            content_length = int(content_length * size_factor)
+                        
+                        # Adjust for bold text (roughly 10% wider)
+                        if hasattr(cell.font, 'bold') and cell.font.bold:
+                            content_length = int(content_length * 1.2)
+                        
+                        if content_length > max_length:
+                            max_length = content_length
+                            
+                except Exception:
+                    pass  # Skip cells that can't be measured
+            
+            # Calculate final width with all padding
+            total_padding = BASE_PADDING + auto_filter_padding
+            adjusted_width = max(min_width, min(max_length + total_padding, max_width))
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+
     def _add_auto_filter(self, worksheet) -> None:
-        """Add auto-filter to the data range."""
-        if worksheet.max_row > 1:  # Only if there's data beyond headers
+        """
+        Add auto-filter to the data range.
+        
+        Args:
+            worksheet: openpyxl worksheet object
+        """
+        if worksheet.max_row > 1:
             data_range = f"A1:{get_column_letter(worksheet.max_column)}{worksheet.max_row}"
             worksheet.auto_filter.ref = data_range
-            logger.debug(f"Added auto-filter to range {data_range}")
-    
-    def get_supported_features(self) -> list:
-        """
-        Get list of supported formatting features.
-        
-        Returns:
-            List of supported feature strings
-        """
-        return [
-            # Column and row sizing
-            'auto_fit_columns', 'column_widths', 'row_heights',
-            # Header formatting (Phase 1)
-            'header_bold', 'header_background', 'header_text_color', 'header_font_size',
-            # General formatting (Phase 2)
-            'general_text_color', 'general_font_size', 'general_font_name',
-            'general_alignment_horizontal', 'general_alignment_vertical',
-            # Cell range formatting (Phase 3)
-            'cell_ranges',
-            # Panes and filtering
-            'freeze_panes', 'freeze_top_row', 'auto_filter', 'active_sheet'
-        ]
+
+    def get_operation_type(self) -> str:
+        return "excel_formatting"
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
@@ -1308,15 +1179,17 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'formatting_features': self.get_supported_features(),
             'formatting_categories': [
                 'column_sizing', 'enhanced_header_styling', 'general_cell_formatting',
-                'cell_range_targeting', 'advanced_color_support', 'border_formatting',  # Added Phase 3 categories
+                'cell_range_targeting', 'advanced_color_support', 'border_formatting',
                 'pane_freezing', 'row_sizing', 'data_filtering', 'sheet_activation'
             ],
+            'template_support': True,  # NEW: Template feature
             'file_requirements': ['xlsx', 'xls'],
             'dependencies': ['openpyxl'],
-            'optional_dependencies': ['webcolors'],  # Enhanced color support
+            'optional_dependencies': ['webcolors'],
             'phase_1_enhancements': ['header_text_color', 'header_font_size'],
             'phase_2_enhancements': ['general_text_color', 'general_font_size', 'general_font_name', 'general_alignment_horizontal', 'general_alignment_vertical'],
             'phase_3_enhancements': ['cell_ranges', 'webcolors_integration', 'border_formatting', 'css_color_names', 'rgb_color_support'],
+            'template_enhancements': ['reusable_templates', 'template_composition', 'template_override'],  # NEW
             'color_formats_supported': [
                 'hex_with_hash (#FF0000)', 'hex_without_hash (FF0000)', 'short_hex (#F00)', 
                 'css_color_names (red, blue, forestgreen)', 'rgb_format (rgb(255, 0, 0))'
@@ -1331,9 +1204,18 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 'borders': "Add professional borders to specific cell ranges",
                 'dark_theme_fix': "White text on dark backgrounds for readability",
                 'freeze_panes': "Freeze top row for easier navigation",
-                'professional': "Apply comprehensive formatting for business reports"
+                'professional': "Apply comprehensive formatting for business reports",
+                'templates': "Create reusable formatting templates to reduce configuration redundancy"  # NEW
             }
         }
+    
+    def get_supported_features(self) -> list:
+        """Get list of supported formatting features."""
+        return [
+            'auto_fit_columns', 'header_formatting', 'general_formatting',
+            'cell_range_targeting', 'freeze_panes', 'auto_filter', 'row_sizing',
+            'advanced_colors', 'border_formatting', 'template_support'  # NEW: template_support
+        ]
     
     def get_usage_examples(self) -> dict:
         """Get usage examples for this processor."""

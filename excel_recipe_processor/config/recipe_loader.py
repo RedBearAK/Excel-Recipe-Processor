@@ -13,6 +13,12 @@ import re
 from pathlib import Path
 from collections import OrderedDict
 
+from excel_recipe_processor.core.base_processor import (
+    ExportBaseProcessor,
+    FileOpsBaseProcessor,
+    ImportBaseProcessor,
+)
+from excel_recipe_processor.core.pipeline import registry
 from excel_recipe_processor.core.interactive_variables import validate_external_variable_config
 
 
@@ -273,8 +279,20 @@ class RecipeLoader:
         warnings.extend(stage_validation['warnings'])
         
         return {'errors': errors, 'warnings': warnings}
-    
+
     def _validate_step_stage_requirements(self, step: dict, step_name: str, processor_type: str) -> dict:
+        """Validate stage requirements for a step using class inheritance."""
+        try:
+            # Try the new class-based approach
+            return self._validate_step_stage_requirements_by_class(step, step_name, processor_type)
+        except (KeyError, AttributeError, ImportError, ModuleNotFoundError):
+            # Processor not registered or import issues - fall back to legacy validation
+            return self._validate_step_stage_requirements_legacy(step, step_name, processor_type)
+        except Exception:
+            # Fall back to legacy hardcoded list approach
+            return self._validate_step_stage_requirements_legacy(step, step_name, processor_type)
+
+    def _validate_step_stage_requirements_legacy(self, step: dict, step_name: str, processor_type: str) -> dict:
         """Validate stage requirements for a step."""
         errors = []
         warnings = []
@@ -294,7 +312,12 @@ class RecipeLoader:
                 errors.append("Example: source_stage: 'processed_data'")
         
         # Processing steps need both 'save_to_stage' and 'source_stage' (except those in list)
-        elif processor_type not in ['debug_breakpoint', 'create_stage', 'format_excel']:
+        elif processor_type not in [
+            'create_stage',
+            'debug_breakpoint',
+            'format_excel',
+            'generate_column_config',
+            ]:
             if 'source_stage' not in step:
                 errors.append(f"Step '{step_name}': missing required field 'source_stage'")
                 errors.append("💡 Processing steps must specify which stage to read data from")
@@ -306,7 +329,44 @@ class RecipeLoader:
                 errors.append("Example: save_to_stage: 'processed_data'")
         
         return {'errors': errors, 'warnings': warnings}
-    
+
+    def _validate_step_stage_requirements_by_class(self, step: dict, step_name: str, processor_type: str) -> dict:
+        """Validate stage requirements for a step using class inheritance."""
+        errors = []
+        warnings = []
+        
+        # Get the processor class without instantiating
+        processor_class = registry.get_processor_class(processor_type)
+        
+        if issubclass(processor_class, ImportBaseProcessor):
+            # Import processors only need save_to_stage
+            if 'save_to_stage' not in step:
+                errors.append(f"Step '{step_name}': missing required field 'save_to_stage'")
+                errors.append("💡 Import steps must specify where to save imported data")
+        
+        elif issubclass(processor_class, ExportBaseProcessor):
+            # Export processors only need source_stage
+            if 'source_stage' not in step:
+                errors.append(f"Step '{step_name}': missing required field 'source_stage'")
+                errors.append("💡 Export steps must specify which stage to export from")
+        
+        elif issubclass(processor_class, FileOpsBaseProcessor):
+            # File operations handle their own validation in __init__
+            # No standard stage requirements
+            pass
+        
+        else:
+            # Regular processing steps need both source_stage and save_to_stage
+            if 'source_stage' not in step:
+                errors.append(f"Step '{step_name}': missing required field 'source_stage'")
+                errors.append("💡 Processing steps must specify which stage to read data from")
+            
+            if 'save_to_stage' not in step:
+                errors.append(f"Step '{step_name}': missing required field 'save_to_stage'")
+                errors.append("💡 Processing steps must specify where to save results")
+
+        return {'errors': errors, 'warnings': warnings}
+
     def load_string(self, recipe_string: str, format_type: str = 'yaml') -> dict:
         """
         Load a recipe from a string.

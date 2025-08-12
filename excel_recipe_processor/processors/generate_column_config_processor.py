@@ -142,11 +142,11 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         """
         try:
             # Read source file headers
-            logger.info(f"Reading source file: {self.source_file}")
+            logger.info(f"Reading source file: '{self.source_file}'")
             source_columns = self._read_file_headers(self.source_file, self.source_sheet)
             
             # Read template file headers
-            logger.info(f"Reading template file: {self.template_file}")
+            logger.info(f"Reading template file: '{self.template_file}'")
             template_columns = self._read_file_headers(self.template_file, self.template_sheet)
             
             # Trim trailing empty columns from template
@@ -157,13 +157,19 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             # Generate column analysis
             analysis = self._analyze_columns(source_columns, template_columns)
             
+            # Count actual renames (exclude identity mappings for accurate reporting)
+            actual_renames = {
+                source: target for source, target in analysis['rename_mapping'].items()
+                if source != target
+            }
+            
             # Write YAML configuration file
             self._write_yaml_config(analysis)
             
-            result_msg = (f"Generated column config: {len(analysis['raw'])} source columns, "
-                         f"{len(analysis['desired'])} template columns, "
-                         f"{len(analysis['to_create'])} to create, "
-                         f"{len(analysis['rename_mapping'])} renames")
+            result_msg =    (f"Generated column config: {len(analysis['raw'])} source columns, "
+                            f"{len(analysis['desired'])} template columns, "
+                            f"{len(analysis['to_create'])} to create, "
+                            f"{len(actual_renames)} renames")  # Use actual count
             
             logger.info(f"Wrote configuration to: {self.output_file}")
             return result_msg

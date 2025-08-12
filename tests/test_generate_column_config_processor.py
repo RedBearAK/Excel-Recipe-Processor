@@ -1,210 +1,98 @@
 """
-Test the GenerateColumnConfigProcessor functionality.
+Basic validation tests for GenerateColumnConfigProcessor.
 
 tests/test_generate_column_config_processor.py
+
+Simple validation and configuration tests for the file-based processor.
+Comprehensive functionality tests are in test_generate_column_config_fileops.py.
 """
 
-import os
-import pandas as pd
 import tempfile
-
 from pathlib import Path
 
-from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.processors.generate_column_config_processor import GenerateColumnConfigProcessor
 
 
-def create_raw_data():
-    """Create sample data with raw/technical column names."""
-    return pd.DataFrame({
-        'cust_id': [1, 2, 3],
-        'ord_dt': ['2024-01-01', '2024-01-02', '2024-01-03'], 
-        'prod_sku': ['A001', 'B002', 'C003'],
-        'qty': [10, 20, 15],
-        'amt_usd': [100.50, 250.00, 175.25],
-        'ship_st': ['Pending', 'Shipped', 'Delivered']
-    })
-
-
-def create_desired_data():
-    """Create sample data with desired business-friendly column names."""
-    return pd.DataFrame({
-        'Customer Code': [1, 2, 3],
-        'Order Date': ['2024-01-01', '2024-01-02', '2024-01-03'],
-        'Product SKU': ['A001', 'B002', 'C003'], 
-        'Quantity': [10, 20, 15],
-        'Amount (USD)': [100.50, 250.00, 175.25],
-        'Shipping Status': ['Pending', 'Shipped', 'Delivered'],
-        'Sales Rep': ['', '', ''],  # New column to be created
-        'Region': ['', '', ''],     # Another new column to be created
-        'Notes': ['', '', '']       # Third new column to be created
-    })
-
-
-def test_basic_column_config_generation():
-    """Test basic column configuration generation."""
+def test_processor_initialization():
+    """Test basic processor initialization and configuration validation."""
     
-    print("Testing basic column configuration generation...")
+    print("Testing processor initialization...")
     
-    StageManager.initialize_stages()
-    
-    try:
-        # Create and save test data to stages
-        raw_data = create_raw_data()
-        desired_data = create_desired_data()
-        
-        StageManager.save_stage('raw_download', raw_data, description='Raw data from database')
-        StageManager.save_stage('target_format', desired_data, description='Desired column format')
-        
-        # Create temporary output file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp_file:
-            output_file = tmp_file.name
-        
-        try:
-            # Test the processor
-            step_config = {
-                'processor_type': 'generate_column_config',
-                'source_stage': 'raw_download',
-                'target_stage': 'target_format',
-                'output_file': output_file,
-                'similarity_threshold': 0.7  # Lower threshold to catch more renames in test
-            }
-            
-            processor = GenerateColumnConfigProcessor(step_config)
-            result = processor.execute(None)
-            
-            # Check that output file was created
-            if Path(output_file).exists():
-                print("✓ Configuration file created successfully")
-            else:
-                print("✗ Configuration file was not created")
-                return False
-            
-            # Read and display the generated configuration
-            with open(output_file, 'r') as f:
-                content = f.read()
-                print("\n--- Generated Configuration ---")
-                print(content)
-                print("--- End Configuration ---\n")
-            
-            # Check for expected content
-            if 'var_columns_raw:' in content and 'var_columns_to_keep:' in content:
-                print("✓ Column lists generated correctly")
-            else:
-                print("✗ Column lists missing from output")
-                return False
-            
-            if 'var_columns_to_create:' in content:
-                print("✓ To-create columns list generated")
-            else:
-                print("✗ To-create columns list missing")
-                return False
-            
-            if 'var_rename_mapping:' in content:
-                print("✓ Rename mapping generated")
-            else:
-                print("✗ Rename mapping missing")
-                return False
-            
-            # Check for specific expected renames (fuzzy matching should catch these)
-            expected_renames = ['cust_id', 'ord_dt', 'qty']
-            renames_found = sum(1 for rename in expected_renames if rename in content)
-            
-            if renames_found >= 2:  # At least 2 of the 3 should be detected
-                print(f"✓ Fuzzy matching detected {renames_found} potential renames")
-            else:
-                print(f"✗ Only {renames_found} renames detected, expected more")
-                return False
-            
-            return True
-            
-        finally:
-            # Clean up temp file
-            if Path(output_file).exists():
-                os.unlink(output_file)
-    
-    finally:
-        StageManager.cleanup_stages()
-
-
-def test_with_recipe_section():
-    """Test configuration generation with optional recipe section."""
-    
-    print("\nTesting configuration with recipe section...")
-    
-    StageManager.initialize_stages()
-    
-    try:
-        # Create and save test data
-        raw_data = create_raw_data()
-        desired_data = create_desired_data()
-        
-        StageManager.save_stage('source_data', raw_data, description='Source data')
-        StageManager.save_stage('target_data', desired_data, description='Target data')
-        
-        # Create temporary output file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp_file:
-            output_file = tmp_file.name
-        
-        try:
-            # Test with recipe section enabled
-            step_config = {
-                'processor_type': 'generate_column_config',
-                'source_stage': 'source_data',
-                'target_stage': 'target_data', 
-                'output_file': output_file,
-                'include_recipe_section': True
-            }
-            
-            processor = GenerateColumnConfigProcessor(step_config)
-            result = processor.execute(None)
-            
-            # Read generated content
-            with open(output_file, 'r') as f:
-                content = f.read()
-            
-            # Check for recipe section
-            if 'recipe:' in content and 'rename_columns' in content:
-                print("✓ Recipe section generated successfully")
-                return True
-            else:
-                print("✗ Recipe section missing or incomplete")
-                return False
-                
-        finally:
-            if Path(output_file).exists():
-                os.unlink(output_file)
-    
-    finally:
-        StageManager.cleanup_stages()
-
-
-def test_edge_cases():
-    """Test edge cases and error conditions."""
-    
-    print("\nTesting edge cases...")
-    
-    # Test with missing target stage
+    # Test valid configuration
     try:
         step_config = {
             'processor_type': 'generate_column_config',
-            'source_stage': 'nonexistent',
-            'output_file': 'test.yaml'
-            # Missing target_stage
+            'source_file': 'data/source.csv',
+            'template_file': 'data/template.csv',
+            'output_file': 'configs/output.yaml'
         }
         processor = GenerateColumnConfigProcessor(step_config)
-        print("✗ Should have failed with missing target_stage")
+        print("✓ Valid configuration accepted")
+    except Exception as e:
+        print(f"✗ Valid configuration rejected: {e}")
         return False
-    except Exception:
-        print("✓ Properly validates missing target_stage")
     
-    # Test with missing output file
+    # Test configuration with optional parameters
     try:
         step_config = {
             'processor_type': 'generate_column_config',
-            'source_stage': 'test',
-            'target_stage': 'test'
-            # Missing output_file
+            'source_file': 'data/source.xlsx',
+            'template_file': 'data/template.xlsx', 
+            'output_file': 'configs/output.yaml',
+            'source_sheet': 'Data',
+            'template_sheet': 2,
+            'header_row': 3,
+            'check_column_data': False,
+            'max_rows': 50000,
+            'similarity_threshold': 0.8,
+            'include_recipe_section': True
+        }
+        processor = GenerateColumnConfigProcessor(step_config)
+        print("✓ Configuration with all optional parameters accepted")
+    except Exception as e:
+        print(f"✗ Full configuration rejected: {e}")
+        return False
+    
+    return True
+
+
+def test_required_configuration_validation():
+    """Test validation of required configuration parameters."""
+    
+    print("\nTesting required configuration validation...")
+    
+    # Test missing source_file
+    try:
+        step_config = {
+            'processor_type': 'generate_column_config',
+            'template_file': 'template.csv',
+            'output_file': 'output.yaml'
+        }
+        processor = GenerateColumnConfigProcessor(step_config)
+        print("✗ Should have failed with missing source_file")
+        return False
+    except Exception:
+        print("✓ Properly validates missing source_file")
+    
+    # Test missing template_file
+    try:
+        step_config = {
+            'processor_type': 'generate_column_config',
+            'source_file': 'source.csv',
+            'output_file': 'output.yaml'
+        }
+        processor = GenerateColumnConfigProcessor(step_config)
+        print("✗ Should have failed with missing template_file")
+        return False
+    except Exception:
+        print("✓ Properly validates missing template_file")
+    
+    # Test missing output_file
+    try:
+        step_config = {
+            'processor_type': 'generate_column_config',
+            'source_file': 'source.csv',
+            'template_file': 'template.csv'
         }
         processor = GenerateColumnConfigProcessor(step_config)
         print("✗ Should have failed with missing output_file")
@@ -215,15 +103,122 @@ def test_edge_cases():
     return True
 
 
-def main():
-    """Run all tests and report results."""
+def test_file_format_validation():
+    """Test file format validation."""
     
-    print("=== GenerateColumnConfigProcessor Tests ===\n")
+    print("\nTesting file format validation...")
+    
+    # Test unsupported source file format
+    try:
+        step_config = {
+            'processor_type': 'generate_column_config',
+            'source_file': 'data.txt',  # Unsupported
+            'template_file': 'template.csv',
+            'output_file': 'output.yaml'
+        }
+        processor = GenerateColumnConfigProcessor(step_config)
+        print("✗ Should have failed with unsupported source file format")
+        return False
+    except Exception:
+        print("✓ Properly validates source file format")
+    
+    # Test unsupported template file format
+    try:
+        step_config = {
+            'processor_type': 'generate_column_config',
+            'source_file': 'source.csv',
+            'template_file': 'template.json',  # Unsupported
+            'output_file': 'output.yaml'
+        }
+        processor = GenerateColumnConfigProcessor(step_config)
+        print("✗ Should have failed with unsupported template file format")
+        return False
+    except Exception:
+        print("✓ Properly validates template file format")
+    
+    # Test valid file formats
+    valid_formats = [
+        ('source.csv', 'template.csv'),
+        ('source.xlsx', 'template.xlsx'),
+        ('source.xls', 'template.xlsm'),
+        ('source.csv', 'template.xlsx')  # Mixed formats
+    ]
+    
+    for source_file, template_file in valid_formats:
+        try:
+            step_config = {
+                'processor_type': 'generate_column_config',
+                'source_file': source_file,
+                'template_file': template_file,
+                'output_file': 'output.yaml'
+            }
+            processor = GenerateColumnConfigProcessor(step_config)
+        except Exception as e:
+            print(f"✗ Valid format combination rejected: {source_file}, {template_file} - {e}")
+            return False
+    
+    print("✓ All valid file format combinations accepted")
+    return True
+
+
+def test_minimal_config():
+    """Test the get_minimal_config class method."""
+    
+    print("\nTesting minimal configuration...")
+    
+    try:
+        minimal_config = GenerateColumnConfigProcessor.get_minimal_config()
+        
+        # Check that minimal config has required keys
+        required_keys = {'source_file', 'template_file', 'output_file'}
+        if not required_keys.issubset(minimal_config.keys()):
+            missing_keys = required_keys - minimal_config.keys()
+            print(f"✗ Minimal config missing required keys: {missing_keys}")
+            return False
+        
+        # Check that minimal config can create a processor
+        processor = GenerateColumnConfigProcessor(minimal_config)
+        print("✓ Minimal configuration works correctly")
+        return True
+        
+    except Exception as e:
+        print(f"✗ Minimal configuration failed: {e}")
+        return False
+
+
+def test_processor_type():
+    """Test that processor reports correct operation type."""
+    
+    print("\nTesting processor operation type...")
+    
+    try:
+        step_config = GenerateColumnConfigProcessor.get_minimal_config()
+        processor = GenerateColumnConfigProcessor(step_config)
+        
+        operation_type = processor.get_operation_type()
+        if operation_type == "column_config_generation":
+            print("✓ Processor reports correct operation type")
+            return True
+        else:
+            print(f"✗ Unexpected operation type: {operation_type}")
+            return False
+            
+    except Exception as e:
+        print(f"✗ Operation type test failed: {e}")
+        return False
+
+
+def main():
+    """Run all validation tests and report results."""
+    
+    print("=== GenerateColumnConfigProcessor Validation Tests ===\n")
     
     tests = [
-        test_basic_column_config_generation,
-        test_with_recipe_section,
-        test_edge_cases
+        test_processor_initialization,
+        test_required_configuration_validation,
+        test_file_format_validation,
+        test_minimal_config,
+        test_processor_type
     ]
     
     passed = 0
@@ -241,10 +236,11 @@ def main():
     print(f"=== Results: {passed}/{len(tests)} tests passed ===")
     
     if passed == len(tests):
-        print("\n✅ All GenerateColumnConfigProcessor tests passed!")
+        print("\n✅ All GenerateColumnConfigProcessor validation tests passed!")
+        print("💡 Run test_generate_column_config_fileops.py for comprehensive functionality tests")
         return 1
     else:
-        print("\n❌ Some GenerateColumnConfigProcessor tests failed!")
+        print("\n❌ Some GenerateColumnConfigProcessor validation tests failed!")
         return 0
 
 

@@ -464,7 +464,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             f.write(f"# Generated: {timestamp}\n\n")
             
             # Write rename_mapping FIRST (shows transformations that will happen)
-            f.write("rename_mapping: ")
+            f.write("var_columns_to_rename: ")
             if actual_renames:
                 f.write("{\n")
                 for i, (source, target) in enumerate(actual_renames.items()):
@@ -477,8 +477,8 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             else:
                 f.write("{}\n\n")
             
-            # Write var_columns_raw_download (bracketed, 3 per line)
-            f.write("var_columns_raw_download: ")
+            # Write var_columns_original (bracketed, 3 per line)
+            f.write("var_columns_original: ")
             self._write_bracketed_list(f, analysis['raw'], max_per_line=3)
             f.write("\n")
             
@@ -498,7 +498,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
                 f.write("example_recipe:\n")
                 example_recipe = self._generate_example_recipe(analysis)
                 yaml.dump(example_recipe, f, default_flow_style=False, sort_keys=False, 
-                         allow_unicode=True, width=120, indent=2)
+                            allow_unicode=True, width=120, indent=2)
     
     def _write_bracketed_list(self, file_handle, columns: list, max_per_line: int = 3):
         """Write columns as bracketed lists with max items per line."""

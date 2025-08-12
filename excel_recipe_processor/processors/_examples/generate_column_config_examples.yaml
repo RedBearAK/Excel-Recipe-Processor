@@ -1,0 +1,223 @@
+# Revision date: 2025-08-11
+
+description: "Generate column configuration files by comparing raw and desired column structures. Perfect for automating the tedious process of maintaining column configurations when manual reports change their structure."
+
+basic_example:
+  description: "Compare two files and generate column configuration"
+  yaml: |
+    settings:
+      description: "Generate column config from raw download and desired format"
+      stages:
+        - stage_name: "raw_download"
+          description: "Data as downloaded from system"
+          protected: false
+        - stage_name: "desired_format"
+          description: "Data with desired column names and order"
+          protected: false
+
+    recipe:
+      - # Step 1: Import raw data file
+        step_description: "Import raw database export"
+        processor_type: "import_file"
+        input_file: "downloads/raw_export.xlsx"
+        save_to_stage: "raw_download"
+
+      - # Step 2: Import desired format file
+        step_description: "Import manually formatted file"
+        processor_type: "import_file"
+        input_file: "templates/desired_format.xlsx"
+        save_to_stage: "desired_format"
+
+      - # Step 3: Generate column configuration
+        # OPT - Human-readable step description
+        # Default value: "Unnamed generate_column_config step"
+        step_description: "Generate column configuration for recipe sync"
+        # REQ - Must be "generate_column_config" for this processor type
+        processor_type: "generate_column_config"
+        # REQ - Stage with original/raw column names
+        source_stage: "raw_download"
+        # REQ - Stage with desired column names in final order
+        target_stage: "desired_format"
+        # REQ - Output file path for generated YAML configuration
+        output_file: "configs/column_config.yaml"
+
+recipe_integration_example:
+  description: "Generate config with complete recipe section"
+  yaml: |
+    settings:
+      description: "Generate column config with ready-to-use recipe section"
+      variables:
+        config_date: "{YYYY-MM-DD}"
+        raw_file: "exports/database_export_{YYYYMMDD}.xlsx"
+        template_file: "templates/cash_flow_format.xlsx"
+      stages:
+        - stage_name: "database_export"
+          description: "Raw database export"
+          protected: false
+        - stage_name: "template_format"
+          description: "Template with desired column structure"
+          protected: false
+
+    recipe:
+      - # Step 1: Import variable-named raw file
+        step_description: "Import daily database export"
+        processor_type: "import_file"
+        input_file: "{raw_file}"
+        save_to_stage: "database_export"
+
+      - # Step 2: Import template
+        step_description: "Import column template file"
+        processor_type: "import_file"
+        input_file: "{template_file}"
+        save_to_stage: "template_format"
+
+      - # Step 3: Generate comprehensive config
+        step_description: "Generate column config with recipe section"
+        processor_type: "generate_column_config"
+        source_stage: "database_export"
+        target_stage: "template_format"
+        # REQ - Output file with variable substitution
+        output_file: "configs/column_config_{config_date}.yaml"
+        # OPT - Include complete recipe section for rename_columns
+        # Default value: false
+        include_recipe_section: true
+        # OPT - Similarity threshold for fuzzy matching renames
+        # Default value: 0.8
+        similarity_threshold: 0.6
+
+advanced_fuzzy_matching_example:
+  description: "Advanced rename detection with custom similarity threshold"
+  yaml: |
+    settings:
+      description: "Detect column renames with relaxed fuzzy matching"
+      stages:
+        - stage_name: "legacy_export"
+          description: "Data from legacy system with technical names"
+          protected: false
+        - stage_name: "business_format"
+          description: "Business-friendly column names"
+          protected: false
+
+    recipe:
+      - # Step 1: Import legacy data
+        step_description: "Import legacy system export"
+        processor_type: "import_file"
+        input_file: "legacy/technical_export.csv"
+        save_to_stage: "legacy_export"
+
+      - # Step 2: Import business template
+        step_description: "Import business template"
+        processor_type: "import_file"
+        input_file: "templates/business_names.xlsx"
+        save_to_stage: "business_format"
+
+      - # Step 3: Generate config with relaxed matching
+        step_description: "Generate config with aggressive rename detection"
+        processor_type: "generate_column_config"
+        source_stage: "legacy_export"
+        target_stage: "business_format"
+        output_file: "configs/legacy_to_business_mapping.yaml"
+        # OPT - Lower threshold to catch more potential renames
+        # Values: 0.0 (match anything) to 1.0 (exact match only)
+        # Default value: 0.7
+        similarity_threshold: 0.5
+        # OPT - Include recipe for immediate use
+        include_recipe_section: true
+
+parameter_details:
+  processor_type:
+    type: string
+    required: true
+    description: "Must be 'generate_column_config' for this processor type"
+    examples:
+      - "generate_column_config"
+
+  step_description:
+    type: string
+    required: false
+    default: "Unnamed generate_column_config step"
+    description: "Human-readable description of what this configuration generation does"
+    examples:
+      - "Generate column config for recipe sync"
+      - "Update column mappings from latest template"
+      - "Detect column changes in manual report"
+
+  source_stage:
+    type: string
+    required: true
+    description: "Stage containing data with original/raw column names (must be declared in settings.stages)"
+    examples:
+      - "raw_download"
+      - "database_export" 
+      - "legacy_data"
+    note: "Column names will be extracted from this stage's DataFrame columns"
+
+  target_stage:
+    type: string
+    required: true
+    description: "Stage containing data with desired column names in final order (must be declared in settings.stages)"
+    examples:
+      - "desired_format"
+      - "template_structure"
+      - "business_format"
+    note: "Column order from this stage will be preserved in desired_columns list"
+
+  output_file:
+    type: string
+    required: true
+    description: "Path where the generated YAML configuration file will be written"
+    examples:
+      - "configs/column_config.yaml"
+      - "output/column_mapping_{date}.yaml"
+      - "templates/generated_config.yaml"
+    variable_support: "Supports built-in date/time variables and custom recipe variables"
+
+  include_recipe_section:
+    type: boolean
+    required: false
+    default: false
+    description: "Whether to include a complete recipe section with rename_columns step"
+    examples:
+      - true   # Include ready-to-use recipe section
+      - false  # Only generate variable lists
+    use_cases:
+      - "Set to true for immediate copy-paste into recipes"
+      - "Set to false when only updating variable lists"
+
+  similarity_threshold:
+    type: float
+    required: false
+    default: 0.8
+    description: "Minimum similarity score (0.0-1.0) for suggesting column renames"
+    examples:
+      - 0.6   # Aggressive matching (more rename suggestions)
+      - 0.8   # Balanced matching (default)
+      - 0.95  # Conservative matching (only very similar names)
+    note: "Lower values detect more potential renames but may include false positives"
+
+output_format:
+  variables_generated:
+    var_columns_raw: "List of column names from source_stage (max 3 per line, bracket format)"
+    var_columns_to_keep: "List of column names from target_stage in order (max 3 per line, bracket format)"
+    var_columns_to_create: "Alphabetized list of columns to create (max 3 per line, bracket format)"
+    var_rename_mapping: "Dictionary mapping old names to new names for rename_columns processor"
+  
+  optional_recipe_section:
+    description: "Complete rename_columns step ready for copy-paste"
+    conditions: "Only included when include_recipe_section: true"
+    processor_used: "rename_columns with mapping type"
+    variable_references: "Uses {dict:var_rename_mapping} for mapping parameter"
+
+integration_notes:
+  workflow_purpose: "Automates syncing recipe column configurations with changing manual reports"
+  file_operation: "Writes YAML directly (not through FileWriter) for precise formatting"
+  fuzzy_matching: "Uses difflib.SequenceMatcher for intelligent rename detection"
+  formatting_rules: "All column lists use bracket format with max 3 per line for easy copy/paste"
+  variable_naming: "Uses 'columns' terminology for precision, prefix matches select_columns processor"
+
+common_use_cases:
+  recipe_maintenance: "Update column lists when manual reports change structure"
+  format_standardization: "Generate mappings between technical and business column names"
+  template_synchronization: "Keep recipe configurations in sync with Excel templates"
+  rename_detection: "Automatically detect when columns are renamed vs newly created"
+  configuration_generation: "Create reusable column configuration files for recipe families"

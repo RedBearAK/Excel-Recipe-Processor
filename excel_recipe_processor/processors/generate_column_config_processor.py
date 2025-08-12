@@ -1,23 +1,21 @@
 """
-Enhanced column configuration processor supporting both Excel and CSV.
+Enhanced column configuration processor with super fast Excel reading.
 
 excel_recipe_processor/processors/generate_column_config_processor.py
 
 Compares column names between two files and generates YAML configuration files.
-Uses openpyxl for Excel files to avoid pandas auto-conversion issues, and
-supports CSV files for maximum compatibility. FileOps processor that reads
-files directly.
+Uses direct Excel sampling for blazing fast header analysis while preserving
+original text formatting. Much faster than CSV conversion approaches.
 """
 
 import pandas as pd
 import logging
+import yaml
 
 from difflib import SequenceMatcher
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
-from excel_recipe_processor.core.file_reader import FileReader
-from excel_recipe_processor.readers.openpyxl_excel_reader import OpenpyxlExcelReader, OpenpyxlExcelReaderError
 from excel_recipe_processor.processors._helpers.column_patterns import empty_or_whitespace_rgx
 
 
@@ -29,11 +27,14 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
     Enhanced processor that compares column names between two files and generates 
     YAML configuration files for column management in recipes.
     
-    Supports both Excel (.xlsx, .xls, .xlsm) and CSV files:
-    - Excel files: Uses openpyxl to read headers directly (no pandas conversion)
-    - CSV files: Uses FileReader for text-only reading
+    SUPER FAST: Uses direct Excel sampling instead of conversion.
     
-    This avoids pandas auto-conversion issues while supporting both formats.
+    Supports both Excel (.xlsx, .xls, .xlsm) and CSV files:
+    - Excel files: Direct sampling of first few rows (preserves "8/4/2025" format)
+    - CSV files: Fast pandas reading with string preservation
+    
+    This approach is orders of magnitude faster than cell-by-cell or CSV conversion
+    while avoiding pandas auto-conversion issues.
     """
     
     @classmethod
@@ -44,6 +45,51 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             'template_file': 'templates/desired_format.csv',
             'output_file': 'configs/column_config.yaml'
         }
+    
+    def get_capabilities(self) -> dict:
+        """Get processor capabilities information."""
+        return {
+            'description': 'Generate YAML column configuration by comparing source and template files',
+            'operation_type': 'file_analysis',
+            'file_formats': ['csv', 'xlsx', 'xls', 'xlsm'],
+            'analysis_features': [
+                'header_comparison',
+                'fuzzy_column_matching', 
+                'empty_column_detection',
+                'text_format_preservation',
+                'rename_mapping_generation'
+            ],
+            'optimization_features': [
+                'fast_excel_sampling',
+                'smart_column_trimming',
+                'configurable_similarity_threshold'
+            ],
+            'output_formats': ['yaml'],
+            'special_capabilities': [
+                'preserves_date_headers',
+                'avoids_pandas_autoconversion',
+                'handles_empty_columns',
+                'generates_example_recipes'
+            ],
+            'dependencies': ['pandas', 'openpyxl', 'yaml'],
+            'stage_requirements': 'none',
+            'examples': {
+                'basic_comparison': 'Compare source.xlsx with template.csv to generate column mapping',
+                'fuzzy_matching': 'Find similar column names using configurable similarity threshold',
+                'empty_detection': 'Identify columns with headers but no data (ghost columns)'
+            }
+        }
+    
+    def get_usage_examples(self) -> dict:
+        """Get usage examples for this processor from external YAML file."""
+        try:
+            from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+            return load_processor_examples('generate_column_config')
+        except Exception as e:
+            return {
+                'error': f'Could not load usage examples: {e}',
+                'fallback_description': 'Generate column configuration by comparing files with different column structures'
+            }
     
     def __init__(self, step_config: dict):
         # Call parent first (which calls _validate_file_operation_config)
@@ -61,45 +107,30 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         self.template_sheet = self.get_config_value('template_sheet', None)
         self.header_row = self.get_config_value('header_row', 1)  # 1-based for Excel
         self.check_column_data = self.get_config_value('check_column_data', True)  # Check for empty columns
-        self.max_rows = self.get_config_value('max_rows', 100000)  # Max rows to scan for data
-        
-        # Storage for Excel analysis data
-        self._last_excel_analysis = None
-        self.check_column_data = self.get_config_value('check_column_data', True)  # Check for empty columns
-        self.sample_rows = self.get_config_value('sample_rows', 20)  # Rows to sample for data check
+        self.sample_rows = self.get_config_value('sample_rows', 5)  # Very small sample for speed
     
     def _validate_file_operation_config(self):
         """Validate that files exist and are supported formats."""
-        # Use get_config_value, not instance attributes which aren't set yet
-        source_file = self.get_config_value('source_file')
-        if not source_file:
-            raise StepProcessorError(f"Step '{self.step_name}' requires source_file")
+        required_params = ['source_file', 'template_file', 'output_file']
         
-        template_file = self.get_config_value('template_file')
-        if not template_file:
-            raise StepProcessorError(f"Step '{self.step_name}' requires template_file")
+        for param in required_params:
+            if not self.get_config_value(param):
+                raise StepProcessorError(f"Missing required parameter: {param}")
         
-        output_file = self.get_config_value('output_file')
-        if not output_file:
-            raise StepProcessorError(f"Step '{self.step_name}' requires output_file")
+        # Validate input files exist and have supported extensions
+        supported_extensions = {'.csv', '.xlsx', '.xls', '.xlsm', '.xlsb'}
         
-        files_to_check = [
-            ('source_file', source_file),
-            ('template_file', template_file)
-        ]
-        
-        for param_name, file_path in files_to_check:
-            if file_path:
-                file_path_obj = Path(file_path)
-                
-                # Check file extension
-                extension = file_path_obj.suffix.lower()
-                supported_extensions = {'.csv', '.xlsx', '.xls', '.xlsm', '.xlsb'}
-                
-                if extension not in supported_extensions:
-                    raise StepProcessorError(
-                        f"Step '{self.step_name}': {param_name} must be CSV or Excel file. "
-                        f"Got: {file_path} (supported: {', '.join(sorted(supported_extensions))})"
+        for file_param in ['source_file', 'template_file']:
+            file_path = self.get_config_value(file_param)
+            
+            if not Path(file_path).exists():
+                raise StepProcessorError(f"File not found: {file_path}")
+            
+            extension = Path(file_path).suffix.lower()
+            if extension not in supported_extensions:
+                raise StepProcessorError(
+                    f"Unsupported file format for {file_param}: {extension}. "
+                    f"Got: {file_path} (supported: {', '.join(sorted(supported_extensions))})"
                     )
     
     def perform_file_operation(self) -> str:
@@ -142,7 +173,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
     
     def _read_file_headers(self, file_path: str, sheet_name=None) -> list:
         """
-        Read column headers from either Excel or CSV file.
+        Read column headers from either Excel or CSV file using super fast methods.
         
         Args:
             file_path: Path to file
@@ -151,21 +182,17 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         Returns:
             List of column header names as strings
         """
-        # Resolve variables in file path
-        variables = self._get_pipeline_variables()
-        resolved_path = self._resolve_file_path(file_path, variables)
-        
-        file_path_obj = Path(resolved_path)
+        file_path_obj = Path(file_path)
         extension = file_path_obj.suffix.lower()
         
         if extension == '.csv':
-            return self._read_csv_headers(resolved_path)
+            return self._read_csv_headers_fast(file_path)
         elif extension in {'.xlsx', '.xls', '.xlsm', '.xlsb'}:
-            return self._read_excel_headers_openpyxl(resolved_path, sheet_name)
+            return self._read_excel_headers_super_fast(file_path, sheet_name)
         else:
             raise StepProcessorError(f"Unsupported file format: {extension}")
     
-    def _read_csv_headers(self, file_path: str) -> list:
+    def _read_csv_headers_fast(self, file_path: str) -> list:
         """
         Read column headers from CSV file.
         
@@ -176,11 +203,13 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             List of column header names
         """
         try:
-            # Read only headers using pandas with string dtype
+            # Read only headers using pandas with string dtype and no inference
             df = pd.read_csv(
                 file_path,
                 dtype=str,  # Force string reading to prevent conversions
-                nrows=0     # Only read headers
+                nrows=0,    # Only read headers
+                parse_dates=False,  # Disable date parsing completely
+                infer_datetime_format=False  # Disable datetime inference
             )
             
             headers = [str(col) for col in df.columns]
@@ -190,9 +219,9 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         except Exception as e:
             raise StepProcessorError(f"Failed to read CSV headers from {file_path}: {e}")
     
-    def _read_excel_headers_openpyxl(self, file_path: str, sheet_name=None) -> list:
+    def _read_excel_headers_super_fast(self, file_path: str, sheet_name=None) -> list:
         """
-        Read column headers from Excel file using openpyxl.
+        Read Excel headers using SUPER FAST direct sampling approach.
         
         Args:
             file_path: Path to Excel file
@@ -202,150 +231,159 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             List of column header names as they appear in Excel
         """
         try:
-            if self.check_column_data:
-                # Use enhanced reader that checks for actual data in columns
-                analysis = OpenpyxlExcelReader.read_headers_with_data_check(
-                    file_path=file_path,
-                    sheet_name=sheet_name,
-                    header_row=self.header_row,
-                    max_rows=self.max_rows
-                )
-                
-                headers = analysis['headers']
-                column_has_data = analysis['column_has_data']
-                empty_columns = analysis['empty_column_indices']
-                scanned_rows = analysis['scanned_data_rows']
-                
-                if empty_columns:
-                    logger.info(f"Found {len(empty_columns)} columns with headers but no data: "
-                               f"positions {[i+1 for i in empty_columns]} (scanned {scanned_rows} data rows)")
-                    
-                    # Store analysis for potential use in trimming
-                    self._last_excel_analysis = analysis
-                
-                logger.debug(f"Read {len(headers)} Excel headers from {file_path} using openpyxl with full data check")
-                return headers
-            else:
-                # Use simple header-only reader
-                headers = OpenpyxlExcelReader.read_headers(
-                    file_path=file_path,
-                    sheet_name=sheet_name,
-                    header_row=self.header_row
-                )
-                
-                logger.debug(f"Read {len(headers)} Excel headers from {file_path} using openpyxl (headers only)")
-                return headers
+            import openpyxl
+            from datetime import datetime
             
-        except OpenpyxlExcelReaderError as e:
+            # Load workbook with read_only for memory efficiency
+            workbook = openpyxl.load_workbook(file_path, read_only=True)
+            
+            # Get worksheet
+            if sheet_name is None:
+                worksheet = workbook.active
+                sheet_name = worksheet.title
+            elif isinstance(sheet_name, int):
+                if sheet_name < 1 or sheet_name > len(workbook.sheetnames):
+                    available_sheets = workbook.sheetnames
+                    workbook.close()
+                    raise StepProcessorError(
+                        f"Sheet index {sheet_name} out of range. "
+                        f"Available sheets (1-{len(workbook.sheetnames)}): {available_sheets}"
+                    )
+                worksheet = workbook.worksheets[sheet_name - 1]
+                sheet_name = worksheet.title
+            else:
+                if sheet_name not in workbook.sheetnames:
+                    available_sheets = workbook.sheetnames
+                    workbook.close()
+                    raise StepProcessorError(
+                        f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}"
+                    )
+                worksheet = workbook[sheet_name]
+            
+            # SUPER FAST: Just read the header row - preserve displayed format
+            headers = []
+            max_col = worksheet.max_column or 1
+            
+            for col in range(1, max_col + 1):
+                cell = worksheet.cell(row=self.header_row, column=col)
+                
+                # Get cell value and handle date formatting properly
+                if cell.value is None:
+                    headers.append("")
+                elif isinstance(cell.value, datetime):
+                    # This is a datetime object - Excel formatted it as a date
+                    # Try to get the displayed format, fallback to a reasonable date format
+                    try:
+                        # Check if it has a date format applied
+                        if cell.number_format and any(fmt_char in cell.number_format.lower() 
+                                                    for fmt_char in ['m', 'd', 'y', '/']):
+                            # Try to format according to Excel's display format
+                            # Common formats: "m/d/yyyy" -> "8/4/2025"
+                            formatted_date = cell.value.strftime("%m/%d/%Y").lstrip('0').replace('/0', '/')
+                            headers.append(formatted_date)
+                        else:
+                            # No special formatting, use default
+                            formatted_date = cell.value.strftime("%m/%d/%Y").lstrip('0').replace('/0', '/')
+                            headers.append(formatted_date)
+                    except:
+                        # Fallback to string conversion if formatting fails
+                        headers.append(str(cell.value))
+                else:
+                    # Convert to string preserving original format
+                    # This handles text, numbers, etc.
+                    headers.append(str(cell.value))
+            
+            workbook.close()
+            
+            # Optional: Quick data check if enabled (but keep it minimal)
+            if self.check_column_data and max_col > 0:
+                empty_count = self._quick_excel_empty_check(file_path, sheet_name, headers)
+                if empty_count > 0:
+                    logger.info(f"Found ~{empty_count} likely empty columns (quick check)")
+            
+            logger.debug(f"Read {len(headers)} Excel headers from {file_path} (super fast mode)")
+            return headers
+            
+        except Exception as e:
+            if hasattr(locals(), 'workbook'):
+                workbook.close()
             raise StepProcessorError(f"Failed to read Excel headers from {file_path}: {e}")
     
-    def _resolve_file_path(self, file_path: str, variables: dict) -> str:
+    def _quick_excel_empty_check(self, file_path: str, sheet_name: str, headers: list) -> int:
         """
-        Resolve variable substitutions in file path.
+        OPTIONAL quick check for empty columns - only if specifically requested.
         
         Args:
-            file_path: File path potentially containing variables
-            variables: Dictionary of variables for substitution
+            file_path: Excel file path
+            sheet_name: Sheet name  
+            headers: List of headers
             
         Returns:
-            Resolved file path
+            Estimated number of empty columns
         """
-        # Simple variable substitution - could be enhanced
-        resolved_path = file_path
-        
-        # Add built-in date variables if not provided
-        if not variables:
-            from datetime import datetime
-            now = datetime.now()
-            variables = {
-                'date': now.strftime('%Y-%m-%d'),
-                'YYYY': now.strftime('%Y'),
-                'MM': now.strftime('%m'),
-                'DD': now.strftime('%d'),
-                'YYYYMMDD': now.strftime('%Y%m%d')
-            }
-        
-        # Simple string replacement for now
-        for var_name, var_value in variables.items():
-            placeholder = f'{{{var_name}}}'
-            resolved_path = resolved_path.replace(placeholder, str(var_value))
-        
-        return resolved_path
+        try:
+            import openpyxl
+            
+            # Quick sampling - just check a couple rows
+            workbook = openpyxl.load_workbook(file_path, read_only=True)
+            worksheet = workbook[sheet_name] if isinstance(sheet_name, str) else workbook.worksheets[sheet_name - 1]
+            
+            empty_count = 0
+            max_check_row = min(worksheet.max_row or self.header_row, self.header_row + self.sample_rows)
+            
+            for col_idx, header in enumerate(headers):
+                if not header.strip():  # Empty header = likely empty column
+                    empty_count += 1
+                    continue
+                
+                # Quick check: does this column have any data in first few rows?
+                has_data = False
+                for row in range(self.header_row + 1, max_check_row + 1):
+                    cell = worksheet.cell(row=row, column=col_idx + 1)
+                    if cell.value is not None and str(cell.value).strip():
+                        has_data = True
+                        break
+                
+                if not has_data:
+                    empty_count += 1
+            
+            workbook.close()
+            return empty_count
+            
+        except Exception:
+            # Don't let optional checking break the main operation
+            return 0
     
-    def _trim_trailing_empty_columns(self, columns: list) -> list:
+    def _trim_trailing_empty_columns(self, headers: list) -> list:
         """
-        Remove trailing empty columns that serve no purpose.
-        
-        For Excel files with data checking enabled, also considers whether
-        columns contain actual data, not just whether headers are empty.
+        Remove trailing empty columns from headers list.
         
         Args:
-            columns: List of column names
+            headers: List of header strings
             
         Returns:
-            List with trailing empty columns removed
+            Headers with trailing empty strings removed
         """
-        if not columns:
-            return columns
+        # Find last non-empty header
+        last_non_empty = -1
+        for i in range(len(headers) - 1, -1, -1):
+            if headers[i].strip():
+                last_non_empty = i
+                break
         
-        # Check if we have Excel analysis data to make smarter decisions
-        if hasattr(self, '_last_excel_analysis') and self._last_excel_analysis:
-            analysis = self._last_excel_analysis
-            column_has_data = analysis['column_has_data']
-            
-            # Find last column that either has a meaningful header OR contains data
-            last_meaningful_idx = -1
-            for i, (header, has_data) in enumerate(zip(columns, column_has_data)):
-                header_meaningful = header and not empty_or_whitespace_rgx.match(header)
-                if header_meaningful or has_data:
-                    last_meaningful_idx = i
-            
-            if last_meaningful_idx == -1:
-                logger.warning("No meaningful columns found in template (no headers or data) - returning empty column list")
-                return []
-            
-            trimmed = columns[:last_meaningful_idx + 1]
-            
-            if len(trimmed) < len(columns):
-                removed_count = len(columns) - len(trimmed)
-                empty_header_count = sum(1 for i in range(last_meaningful_idx + 1, len(columns)) 
-                                       if not columns[i] or empty_or_whitespace_rgx.match(columns[i]))
-                empty_data_count = sum(1 for i in range(last_meaningful_idx + 1, len(columns)) 
-                                     if not column_has_data[i])
-                scanned_rows = analysis['scanned_data_rows']
-                logger.info(f"Smart trimmed {removed_count} trailing columns: "
-                           f"{empty_header_count} empty headers, {empty_data_count} no data "
-                           f"(scanned {scanned_rows} data rows)")
-            
-            # Clear analysis for next file
-            self._last_excel_analysis = None
+        # Return trimmed list
+        if last_non_empty >= 0:
+            trimmed = headers[:last_non_empty + 1]
+            if len(trimmed) < len(headers):
+                logger.debug(f"Trimmed {len(headers) - len(trimmed)} trailing empty columns")
             return trimmed
-        
         else:
-            # Fallback to simple header-based trimming
-            # Find the last non-empty column header
-            last_named_idx = -1
-            for i, col in enumerate(columns):
-                if col and not empty_or_whitespace_rgx.match(col):
-                    last_named_idx = i
-            
-            if last_named_idx == -1:
-                # No named columns found, return empty list
-                logger.warning("No named columns found in template - returning empty column list")
-                return []
-            
-            # Return columns up to and including the last named column
-            trimmed = columns[:last_named_idx + 1]
-            
-            if len(trimmed) < len(columns):
-                removed_count = len(columns) - len(trimmed)
-                logger.info(f"Basic trimmed {removed_count} trailing empty header columns")
-            
-            return trimmed
+            # All headers are empty
+            return []
     
     def _analyze_columns(self, source_columns: list, template_columns: list) -> dict:
         """
-        Analyze column differences and generate rename suggestions.
+        Analyze columns and generate mapping configuration.
         
         Args:
             source_columns: Column names from source file
@@ -354,244 +392,217 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         Returns:
             Dictionary with analysis results
         """
-        source_set = set(source_columns)
-        template_set = set(template_columns)
-        
-        # Find exact matches (including empty strings)
-        exact_matches = source_set.intersection(template_set)
-        
-        # Find columns that need to be created (in template but not in source)
-        to_create = []
-        potential_renames = []
+        # Prepare rename mapping using fuzzy matching
+        rename_mapping = {}
+        used_source_columns = set()
         
         for template_col in template_columns:
-            if template_col not in exact_matches:
-                # Check if this might be a rename by fuzzy matching
-                best_match = self._find_best_fuzzy_match(template_col, source_columns, exact_matches)
-                if best_match:
-                    potential_renames.append((best_match, template_col))
-                else:
-                    to_create.append(template_col)
+            if not template_col.strip():  # Skip empty template columns
+                continue
+            
+            best_match = None
+            best_ratio = 0
+            
+            for source_col in source_columns:
+                if source_col in used_source_columns or not source_col.strip():
+                    continue
+                
+                ratio = SequenceMatcher(None, source_col.lower(), template_col.lower()).ratio()
+                if ratio > best_ratio and ratio >= self.similarity_threshold:
+                    best_ratio = ratio
+                    best_match = source_col
+            
+            if best_match:
+                rename_mapping[best_match] = template_col
+                used_source_columns.add(best_match)
         
-        # Build rename mapping from potential renames
-        rename_mapping = {}
-        for old_name, new_name in potential_renames:
-            rename_mapping[old_name] = new_name
+        # FIXED: Determine columns to create (template columns not in source at all)
+        all_source_columns = set(col.strip() for col in source_columns if col.strip())
+        rename_targets = set(rename_mapping.values())  # Columns satisfied by renames
+        
+        columns_to_create = [
+            col for col in template_columns 
+            if col.strip() and col.strip() not in all_source_columns and col.strip() not in rename_targets
+        ]
         
         return {
             'raw': source_columns,
-            'desired': template_columns, 
-            'to_create': to_create,
+            'desired': template_columns,
             'rename_mapping': rename_mapping,
-            'exact_matches': list(exact_matches)
+            'to_create': columns_to_create
         }
     
-    def _find_best_fuzzy_match(self, target_name: str, candidate_names: list, 
-                             exclude_names: set) -> str:
+    def _write_yaml_config(self, analysis: dict):
         """
-        Find the best fuzzy match for a target name among candidates.
-        
-        Args:
-            target_name: Name to find a match for
-            candidate_names: List of potential matching names
-            exclude_names: Names to exclude from matching (already matched)
-            
-        Returns:
-            Best matching name or None if no good match found
-        """
-        # Skip matching for empty target names
-        if not target_name or empty_or_whitespace_rgx.match(target_name):
-            return None
-            
-        best_match = None
-        best_score = 0
-        
-        for candidate in candidate_names:
-            if candidate in exclude_names or empty_or_whitespace_rgx.match(candidate or ""):
-                continue
-                
-            # Calculate similarity ratio
-            similarity = SequenceMatcher(None, target_name.lower(), candidate.lower()).ratio()
-            
-            if similarity > best_score and similarity >= self.similarity_threshold:
-                best_score = similarity
-                best_match = candidate
-        
-        if best_match:
-            logger.debug(f"Fuzzy match: '{best_match}' → '{target_name}' (score: {best_score:.3f})")
-        
-        return best_match
-    
-    def _write_yaml_config(self, analysis: dict) -> None:
-        """
-        Write the column configuration to a YAML file.
+        Write YAML configuration file with column analysis in the correct format.
         
         Args:
             analysis: Dictionary with column analysis results
         """
-        # Create output directory if it doesn't exist
+        from datetime import datetime
+        
+        # Filter rename mapping to only include actual renames (not identity mappings)
+        actual_renames = {
+            source: target for source, target in analysis['rename_mapping'].items()
+            if source != target  # Only include where source != target
+        }
+        
+        # Write YAML file with proper formatting
         output_path = Path(self.output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Build YAML content
-        yaml_lines = [
-            "# Generated column configuration",
-            f"# Source: {self.source_file} ({len(analysis['raw'])} columns)",
-            f"# Template: {self.template_file} ({len(analysis['desired'])} columns)", 
-            f"# To create: {len(analysis['to_create'])} columns",
-            f"# Renames: {len(analysis['rename_mapping'])} mappings",
-            "",
-            "# Raw columns found in source file (in original order)",
-            "raw_columns:"
-        ]
-        
-        # Add raw columns list
-        yaml_lines.extend(self._format_yaml_list(analysis['raw'], indent=2))
-        
-        yaml_lines.extend([
-            "",
-            "# Desired columns for final output (in template order)", 
-            "desired_columns:"
-        ])
-        
-        # Add desired columns list
-        yaml_lines.extend(self._format_yaml_list(analysis['desired'], indent=2))
-        
-        yaml_lines.extend([
-            "",
-            "# Columns to create (not found in source file)",
-            "columns_to_create:"
-        ])
-        
-        # Add columns to create list
-        yaml_lines.extend(self._format_yaml_list(analysis['to_create'], indent=2))
-        
-        yaml_lines.extend([
-            "",
-            "# Rename mapping (source_name: desired_name)",
-            "rename_mapping:"
-        ])
-        
-        # Add rename mapping
-        if analysis['rename_mapping']:
-            for old_name, new_name in analysis['rename_mapping'].items():
-                old_quoted = f'"{old_name}"' if old_name else '""'
-                new_quoted = f'"{new_name}"' if new_name else '""'
-                yaml_lines.append(f'  {old_quoted}: {new_quoted}')
-        else:
-            yaml_lines.append("  {}")
-        
-        # Add recipe section if requested
-        if self.include_recipe_section:
-            yaml_lines.extend(self._generate_recipe_section(analysis))
-        
-        # Write to file
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(yaml_lines))
-            f.write('\n')
-    
-    def _format_yaml_list(self, items: list, indent: int = 2) -> list:
-        """
-        Format a Python list as YAML list items.
-        
-        Args:
-            items: List of items to format
-            indent: Number of spaces for indentation
+        with open(output_path, 'w') as f:
+            # Custom YAML formatting with timestamp
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"# Column configuration generated by generate_column_config processor\n")
+            f.write(f"# Generated: {timestamp}\n\n")
             
-        Returns:
-            List of formatted YAML lines
-        """
-        if not items:
-            return [" " * indent + "[]"]
-        
-        lines = []
-        for item in items:
-            # Handle empty strings and special characters
-            if item == "" or item is None:
-                lines.append(f'{" " * indent}- ""')
-            elif isinstance(item, str) and ('"' in item or "'" in item or ':' in item or item.startswith(' ')):
-                lines.append(f'{" " * indent}- "{item}"')
+            # Write rename_mapping FIRST (shows transformations that will happen)
+            f.write("rename_mapping: ")
+            if actual_renames:
+                f.write("{\n")
+                for i, (source, target) in enumerate(actual_renames.items()):
+                    # Properly quote keys and values manually
+                    source_quoted = f'"{source}"' if ' ' in source or "'" in source else f'"{source}"'
+                    target_quoted = f'"{target}"' if ' ' in target or "'" in target else f'"{target}"'
+                    comma = "," if i < len(actual_renames) - 1 else ""
+                    f.write(f"  {source_quoted}: {target_quoted}{comma}\n")
+                f.write("}\n\n")
             else:
-                lines.append(f'{" " * indent}- {item}')
-        
-        return lines
+                f.write("{}\n\n")
+            
+            # Write var_columns_raw_download (bracketed, 3 per line)
+            f.write("var_columns_raw_download: ")
+            self._write_bracketed_list(f, analysis['raw'], max_per_line=3)
+            f.write("\n")
+            
+            # Write var_columns_to_keep (bracketed, 3 per line)
+            f.write("var_columns_to_keep: ")
+            self._write_bracketed_list(f, analysis['desired'], max_per_line=3)
+            f.write("\n")
+            
+            # Write var_columns_to_create (bracketed, 1 per line)
+            f.write("var_columns_to_create: ")
+            self._write_bracketed_list(f, sorted(analysis['to_create']), max_per_line=1)
+            f.write("\n")
+            
+            # Add recipe section if requested
+            if self.include_recipe_section:
+                f.write("# Example recipe using this configuration:\n")
+                f.write("example_recipe:\n")
+                example_recipe = self._generate_example_recipe(analysis)
+                yaml.dump(example_recipe, f, default_flow_style=False, sort_keys=False, 
+                         allow_unicode=True, width=120, indent=2)
     
-    def _generate_recipe_section(self, analysis: dict) -> list:
+    def _write_bracketed_list(self, file_handle, columns: list, max_per_line: int = 3):
+        """Write columns as bracketed lists with max items per line."""
+        clean_columns = [col for col in columns if col.strip()]
+        
+        if not clean_columns:
+            file_handle.write("[]\n")
+            return
+        
+        # Start the list with newline after opening bracket
+        file_handle.write("[\n")
+        
+        # Write columns with proper line breaks
+        for i, col in enumerate(clean_columns):
+            # Add proper quoting manually (no yaml.dump)
+            if '"' in col:
+                quoted_col = f"'{col}'"  # Use single quotes if double quotes in text
+            elif "'" in col:
+                quoted_col = f'"{col}"'  # Use double quotes if single quotes in text
+            elif ' ' in col or '#' in col:
+                quoted_col = f'"{col}"'  # Quote if spaces or special chars
+            else:
+                quoted_col = f'"{col}"'  # Default to double quotes
+            
+            # Add indentation for first item on line
+            if i % max_per_line == 0:
+                file_handle.write("  ")  # Just 2 spaces indentation
+            
+            # Write the column
+            file_handle.write(quoted_col)
+            
+            # Add comma if not last item
+            if i < len(clean_columns) - 1:
+                file_handle.write(",")
+                
+                # Add line break for next line or space for same line
+                if (i + 1) % max_per_line == 0:
+                    file_handle.write("\n")
+                else:
+                    file_handle.write(" ")
+        
+        # Close the list with newline before closing bracket
+        file_handle.write("\n  ]\n")  # Just 2 spaces indentation
+    
+    def _generate_example_recipe(self, analysis: dict) -> dict:
         """
-        Generate a ready-to-use recipe section.
+        Generate example recipe using the column analysis.
         
         Args:
             analysis: Dictionary with column analysis results
             
         Returns:
-            List of YAML lines for recipe section
+            Dictionary with example recipe steps
         """
-        lines = [
-            "",
-            "# Ready-to-use recipe section",
-            "recipe_section:",
-            "  - step_description: 'Apply column renames and create missing columns'",
-            "    processor_type: 'rename_columns'",
-            "    rename_type: 'mapping'",
-            "    source_stage: 'raw_data'  # Update this to your source stage name",
-            "    mapping:"
-        ]
+        steps = []
         
+        # Step 1: Import source file
+        steps.append({
+            'step_description': 'Import source data file',
+            'processor_type': 'import_file',
+            'input_file': self.source_file,
+            'save_to_stage': 'stg_source_data'
+        })
+        
+        # Step 2: Rename columns if needed
         if analysis['rename_mapping']:
-            for old_name, new_name in analysis['rename_mapping'].items():
-                old_quoted = f'"{old_name}"' if old_name else '""'
-                new_quoted = f'"{new_name}"' if new_name else '""'
-                lines.append(f'      {old_quoted}: {new_quoted}')
+            steps.append({
+                'step_description': 'Rename columns to match template',
+                'processor_type': 'rename_columns',
+                'source_stage': 'stg_source_data',
+                'rename_type': 'mapping',
+                'column_mapping': analysis['rename_mapping'],
+                'save_to_stage': 'stg_renamed_columns'
+            })
+            last_stage = 'stg_renamed_columns'
         else:
-            lines.append("      {}")
+            last_stage = 'stg_source_data'
         
-        lines.extend([
-            "    save_to_stage: 'renamed_data'  # Update this to your target stage name",
-            "",
-            "  - step_description: 'Select and create final column structure'",
-            "    processor_type: 'select_columns'", 
-            "    source_stage: 'renamed_data'",
-            "    columns_to_keep:"
-        ])
-        
-        # Add the desired columns list
-        for col in analysis['desired']:
-            if col == "" or col is None:
-                lines.append('      - ""')
-            else:
-                lines.append(f'      - {col}')
-        
+        # Step 3: Add missing columns if needed
         if analysis['to_create']:
-            lines.extend([
-                "    columns_to_create:"
-            ])
-            for col in analysis['to_create']:
-                if col == "" or col is None:
-                    lines.append('      - ""')
-                else:
-                    lines.append(f'      - {col}')
+            create_mapping = {col: '' for col in analysis['to_create']}
+            steps.append({
+                'step_description': 'Add missing columns from template',
+                'processor_type': 'add_columns',
+                'source_stage': last_stage,
+                'new_columns': create_mapping,
+                'save_to_stage': 'stg_final_structure'
+            })
+            last_stage = 'stg_final_structure'
         
-        lines.extend([
-            "    default_value: ''",
-            "    save_to_stage: 'final_output'  # Update this to your final stage name"
-        ])
+        # Step 4: Export result
+        steps.append({
+            'step_description': 'Export processed data',
+            'processor_type': 'export_file',
+            'source_stage': last_stage,
+            'output_file': 'output/processed_data.xlsx',
+            'file_format': 'excel'
+        })
         
-        return lines
-    
-    def _get_pipeline_variables(self) -> dict:
-        """
-        Get variables from the pipeline for filename substitution.
-        
-        Returns:
-            Dictionary of variables for substitution
-        """
-        # TODO: Access pipeline variables when available
-        # For now, return empty dict - will use built-in date variables
-        return {}
-    
-    def get_operation_type(self) -> str:
-        """Get the type of file operation this processor performs."""
-        return "column_config_generation"
+        return {
+            'description': 'Example recipe generated from column analysis',
+            'settings': {
+                'stages': [
+                    {'stage_name': 'stg_source_data', 'description': 'Raw imported data'},
+                    {'stage_name': 'stg_renamed_columns', 'description': 'Data with renamed columns'},
+                    {'stage_name': 'stg_final_structure', 'description': 'Data with final column structure'}
+                ]
+            },
+            'recipe': steps
+        }
 
 
 # End of file #

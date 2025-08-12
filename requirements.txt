@@ -2,5 +2,6 @@
 # Add your package dependencies here
 openpyxl>=3.0.0
 pandas>=1.0.0
+prompt-toolkit>=3.0.0
 pyyaml>=6.0.0
 requests>=2.25.0

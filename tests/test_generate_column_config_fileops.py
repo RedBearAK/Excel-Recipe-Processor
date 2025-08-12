@@ -188,27 +188,24 @@ def test_excel_processing_with_data_check():
         processor = GenerateColumnConfigProcessor(step_config)
         result = processor.execute()
         
-        # Read the generated configuration
+        # Read and parse the generated configuration using yaml library
         with open(output_file, 'r') as f:
-            content = f.read()
+            config_data = yaml.safe_load(f)
         
         # Check that ghost columns (trailing empty columns with no headers) were trimmed
         # Notes should be KEPT (has header, even if no data - it's a template column)
-        if 'Notes' in content:
+        desired_columns = config_data['desired_columns']
+        
+        if 'Notes' in desired_columns:
             print("✓ Template column 'Notes' preserved correctly")
         else:
             print("✗ Template column 'Notes' was incorrectly trimmed")
             return False
         
-        # The last meaningful column should be 'Notes', so result should end there
-        # The 3 trailing empty columns with no headers should be trimmed
-        with open(output_file, 'r') as f:
-            config_content = f.read()
-        
         # Count empty string entries in desired_columns to see if ghost columns were trimmed
         # Should have: Product_ID, 8/4/2025, "", Status, Notes (5 total)
         # Should NOT have the 3 trailing "" ghost columns
-        empty_str_count = config_content.count('- ""')
+        empty_str_count = desired_columns.count("")
         if empty_str_count == 1:  # Only the formatting column between data
             print("✓ Ghost columns trimmed correctly")
         else:
@@ -216,14 +213,14 @@ def test_excel_processing_with_data_check():
             return False
         
         # Check that date header was preserved (not converted by pandas)
-        if '8/4/2025' in content:
+        if '8/4/2025' in desired_columns:
             print("✓ Date format preserved in Excel reading")
         else:
             print("✗ Date format was not preserved")
             return False
         
         # Check that empty column between data was preserved
-        if '""' in content:
+        if "" in desired_columns:
             print("✓ Empty columns between data preserved")
         else:
             print("✗ Empty columns between data not preserved")
@@ -263,13 +260,15 @@ def test_headers_only_mode():
         processor = GenerateColumnConfigProcessor(step_config)
         result = processor.execute()
         
-        # Read the generated configuration
+        # Read and parse the generated configuration using yaml library
         with open(output_file, 'r') as f:
-            content = f.read()
+            config_data = yaml.safe_load(f)
         
         # In headers-only mode, columns should still be trimmed based on headers
         # (not data), but the result should be the same: preserve meaningful columns
-        if 'Notes' in content:
+        desired_columns = config_data['desired_columns']
+        
+        if 'Notes' in desired_columns:
             print("✓ Headers-only mode preserved columns with headers")
         else:
             print("✗ Headers-only mode incorrectly trimmed columns with headers")
@@ -277,25 +276,11 @@ def test_headers_only_mode():
         
         # Check that trailing empty-header columns were still trimmed
         # Should have the same 5 columns as data-checking mode, just for different reasons
-        lines = content.split('\n')
-        in_desired_section = False
-        desired_section_lines = []
-        
-        for line in lines:
-            if line.startswith('desired_columns:'):
-                in_desired_section = True
-                continue
-            elif line.startswith('columns_to_create:'):
-                in_desired_section = False
-                break
-            elif in_desired_section and line.strip():
-                desired_section_lines.append(line)
-        
         # Should have 5 columns total: Product_ID, 8/4/2025, "", Status, Notes
-        if len(desired_section_lines) == 5:
+        if len(desired_columns) == 5:
             print("✓ Headers-only mode trimmed trailing empty-header columns")
         else:
-            print(f"✗ Expected 5 columns in headers-only mode, found {len(desired_section_lines)}")
+            print(f"✗ Expected 5 columns in headers-only mode, found {len(desired_columns)}")
             return False
         
         print("✓ Headers-only mode test passed")

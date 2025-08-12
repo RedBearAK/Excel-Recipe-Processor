@@ -49,7 +49,7 @@ class GenerateColumnConfigProcessor(ExportBaseProcessor):
     def get_minimal_config(cls) -> dict:
         return {
             'source_stage': 'raw_data',
-            'target_stage': 'desired_data', 
+            'template_stage': 'desired_data', 
             'output_file': 'column_config.yaml'
         }
     
@@ -57,9 +57,9 @@ class GenerateColumnConfigProcessor(ExportBaseProcessor):
         super().__init__(step_config)
         
         # Validate required configuration beyond what ExportBaseProcessor handles
-        self.target_stage = self.get_config_value('target_stage')
-        if not self.target_stage:
-            raise StepProcessorError(f"Step '{self.step_name}' requires target_stage")
+        self.template_stage = self.get_config_value('template_stage')
+        if not self.template_stage:
+            raise StepProcessorError(f"Step '{self.step_name}' requires template_stage")
         
         self.output_file = self.get_config_value('output_file')
         if not self.output_file:
@@ -78,9 +78,9 @@ class GenerateColumnConfigProcessor(ExportBaseProcessor):
         """
         try:
             # Load target stage for comparison
-            target_data = StageManager.load_stage(self.target_stage)
+            target_data = StageManager.load_stage(self.template_stage)
             if target_data is None or target_data.empty:
-                raise StepProcessorError(f"Target stage '{self.target_stage}' not found or empty")
+                raise StepProcessorError(f"Target stage '{self.template_stage}' not found or empty")
             
             # Extract column names from both stages - use the data parameter from ExportBaseProcessor
             raw_columns = list(data.columns)
@@ -94,9 +94,9 @@ class GenerateColumnConfigProcessor(ExportBaseProcessor):
             
             logger.info(f"Generated column configuration in {self.output_file}")
             logger.info(f"Raw columns: {len(analysis['raw'])}, "
-                       f"Desired: {len(analysis['desired'])}, "
-                       f"To create: {len(analysis['to_create'])}, "
-                       f"Renames: {len(analysis['rename_mapping'])}")
+                        f"Desired: {len(analysis['desired'])}, "
+                        f"To create: {len(analysis['to_create'])}, "
+                        f"Renames: {len(analysis['rename_mapping'])}")
             
         except Exception as e:
             raise StepProcessorError(f"Failed to generate column configuration: {e}")
@@ -399,7 +399,7 @@ class GenerateColumnConfigProcessor(ExportBaseProcessor):
                 'confidence_levels': ['very_high (≥0.95)', 'high (≥0.9)', 'medium (≥0.8)', 'low (<0.8)']
             },
             'parameters': {
-                'required': ['source_stage', 'target_stage', 'output_file'],
+                'required': ['source_stage', 'template_stage', 'output_file'],
                 'optional': ['similarity_threshold', 'include_recipe_section']
             },
             'column_handling': {

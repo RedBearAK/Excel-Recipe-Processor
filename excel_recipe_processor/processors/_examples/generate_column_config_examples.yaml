@@ -37,7 +37,7 @@ basic_example:
         # REQ - Stage with original/raw column names
         source_stage: "raw_download"
         # REQ - Stage with desired column names in final order
-        target_stage: "desired_format"
+        template_stage: "desired_format"
         # REQ - Output file path for generated YAML configuration
         output_file: "configs/column_config.yaml"
 
@@ -75,7 +75,7 @@ recipe_integration_example:
         step_description: "Generate column config with recipe section"
         processor_type: "generate_column_config"
         source_stage: "database_export"
-        target_stage: "template_format"
+        template_stage: "template_format"
         # REQ - Output file with variable substitution
         output_file: "configs/column_config_{config_date}.yaml"
         # OPT - Include complete recipe section for rename_columns
@@ -115,7 +115,7 @@ advanced_fuzzy_matching_example:
         step_description: "Generate config with aggressive rename detection"
         processor_type: "generate_column_config"
         source_stage: "legacy_export"
-        target_stage: "business_format"
+        template_stage: "business_format"
         output_file: "configs/legacy_to_business_mapping.yaml"
         # OPT - Lower threshold to catch more potential renames
         # Values: 0.0 (match anything) to 1.0 (exact match only)
@@ -152,7 +152,7 @@ parameter_details:
       - "legacy_data"
     note: "Column names will be extracted from this stage's DataFrame columns"
 
-  target_stage:
+  template_stage:
     type: string
     required: true
     description: "Stage containing data with desired column names in final order (must be declared in settings.stages)"
@@ -198,7 +198,7 @@ parameter_details:
 output_format:
   variables_generated:
     var_columns_raw: "List of column names from source_stage (max 3 per line, bracket format)"
-    var_columns_to_keep: "List of column names from target_stage in order (max 3 per line, bracket format)"
+    var_columns_to_keep: "List of column names from template_stage in order (max 3 per line, bracket format)"
     var_columns_to_create: "Alphabetized list of columns to create (max 3 per line, bracket format)"
     var_rename_mapping: "Dictionary mapping old names to new names for rename_columns processor"
   

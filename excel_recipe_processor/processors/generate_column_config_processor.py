@@ -140,25 +140,25 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
                     f"Unsupported file format for {file_param}: {extension}. "
                     f"Got: {file_path} (supported: {', '.join(sorted(supported_extensions))})"
                     )
-    
+
     def perform_file_operation(self) -> str:
         """
         Generate column configuration by comparing files.
         
-        Returns:
-            Description of operation performed
+        Fixed to use correct analysis data for each file's trimming.
         """
         try:
-            # Read source file headers
+            # Read source file headers with analysis
             logger.info(f"Reading source file: '{self.source_file}'")
-            source_columns = self._read_file_headers(self.source_file, self.source_sheet)
+            source_columns, source_analysis = self._read_file_headers(self.source_file, self.source_sheet)
             
-            # Read template file headers
+            # Read template file headers with analysis  
             logger.info(f"Reading template file: '{self.template_file}'")
-            template_columns = self._read_file_headers(self.template_file, self.template_sheet)
+            template_columns, template_analysis = self._read_file_headers(self.template_file, self.template_sheet)
             
-            # Trim trailing empty columns from template
-            template_columns = self._trim_trailing_empty_columns(template_columns)
+            # Trim trailing empty columns using correct analysis for each file
+            source_columns = self._trim_trailing_empty_columns(source_columns, source_analysis)
+            template_columns = self._trim_trailing_empty_columns(template_columns, template_analysis)
             
             logger.info(f"Column analysis: Source={len(source_columns)}, Template={len(template_columns)} (after trimming)")
             
@@ -174,38 +174,35 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             # Write YAML configuration file
             self._write_yaml_config(analysis)
             
-            result_msg =    (f"Generated column config: {len(analysis['raw'])} source columns, "
-                            f"{len(analysis['desired'])} template columns, "
-                            f"{len(analysis['to_create'])} to create, "
-                            f"{len(actual_renames)} renames")  # Use actual count
+            result_msg = (f"Generated column config: {len(analysis['raw'])} source columns, "
+                        f"{len(analysis['desired'])} template columns, "
+                        f"{len(analysis['to_create'])} to create, "
+                        f"{len(actual_renames)} renames")
             
             logger.info(f"Wrote configuration to: {self.output_file}")
             return result_msg
             
         except Exception as e:
             raise StepProcessorError(f"Failed to generate column configuration: {e}")
-    
-    def _read_file_headers(self, file_path: str, sheet_name=None) -> list:
+
+    def _read_file_headers(self, file_path: str, sheet_name=None) -> tuple:
         """
-        Read column headers from either Excel or CSV file using super fast methods.
+        Read column headers from either Excel or CSV file.
         
-        Args:
-            file_path: Path to file
-            sheet_name: Sheet name for Excel files (ignored for CSV)
-            
         Returns:
-            List of column header names as strings
+            Tuple of (headers_list, analysis_data_or_none)
         """
         file_path_obj = Path(file_path)
         extension = file_path_obj.suffix.lower()
         
         if extension == '.csv':
-            return self._read_csv_headers_fast(file_path)
+            headers = self._read_csv_headers_fast(file_path)
+            return headers, None  # No analysis data for CSV
         elif extension in {'.xlsx', '.xls', '.xlsm', '.xlsb'}:
             return self._read_excel_headers_super_fast(file_path, sheet_name)
         else:
             raise StepProcessorError(f"Unsupported file format: {extension}")
-    
+
     def _read_csv_headers_fast(self, file_path: str) -> list:
         """
         Read column headers from CSV file.
@@ -235,87 +232,68 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
 
     def _read_excel_headers_super_fast(self, file_path: str, sheet_name=None) -> list:
         """
-        Read Excel headers with datetime objects converted to ISO format.
+        Read Excel headers with enhanced empty header replacement.
         
-        Args:
-            file_path: Path to Excel file
-            sheet_name: Sheet name or None for active sheet
-            
-        Returns:
-            List of column header names with datetimes in ISO format
+        Returns both processed headers AND stores analysis data for trimming.
         """
         try:
-            import openpyxl
-            from datetime import datetime
+            # Always use enhanced reader with data analysis (pandas is fast enough)
+            from excel_recipe_processor.readers.openpyxl_excel_reader import OpenpyxlExcelReader
             
-            workbook = openpyxl.load_workbook(file_path, read_only=True)
+            analysis = OpenpyxlExcelReader.read_headers_with_data_check(
+                file_path=file_path,
+                sheet_name=sheet_name,
+                max_rows=self.get_config_value('max_rows', 1000)
+            )
             
-            # Get worksheet
-            if sheet_name is None:
-                worksheet = workbook.active
-                actual_sheet_name = worksheet.title
-            elif isinstance(sheet_name, int):
-                if sheet_name < 1 or sheet_name > len(workbook.sheetnames):
-                    available_sheets = workbook.sheetnames
-                    workbook.close()
-                    raise StepProcessorError(
-                        f"Sheet index {sheet_name} out of range. "
-                        f"Available sheets (1-{len(workbook.sheetnames)}): {available_sheets}"
-                    )
-                worksheet = workbook.worksheets[sheet_name - 1]
-                actual_sheet_name = worksheet.title
-            else:
-                if sheet_name not in workbook.sheetnames:
-                    available_sheets = workbook.sheetnames
-                    workbook.close()
-                    raise StepProcessorError(f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}")
-                worksheet = workbook[sheet_name]
-                actual_sheet_name = sheet_name
+            # Store analysis for trimming method
+            self._last_excel_analysis = analysis
             
-            # Read headers with datetime standardization
-            headers = []
-            max_col = worksheet.max_column or 1
-            datetime_count = 0
+            # Replace empty headers based on data presence
+            processed_headers = self._replace_empty_headers(
+                analysis['headers'], 
+                analysis['column_has_data']
+            )
             
-            for col in range(1, max_col + 1):
-                cell = worksheet.cell(row=self.header_row, column=col)
-                
-                if cell.value is None:
-                    headers.append("")
-                elif isinstance(cell.value, datetime):
-                    # EXPLICIT DATETIME CONVERSION:
-                    # Excel stores dates as datetime objects. When converted to strings,
-                    # they automatically become ISO format like "2025-08-04 00:00:00".
-                    # We make this conversion explicit here for clarity and self-documentation.
-                    # This is the SAME result as str(cell.value), but makes the behavior obvious.
-                    iso_format = cell.value.strftime('%Y-%m-%d %H:%M:%S')
-                    headers.append(iso_format)
-                    datetime_count += 1
-                else:
-                    # Regular string/number
-                    headers.append(str(cell.value))
+            logger.debug(f"Enhanced Excel headers: {len(processed_headers)} columns, data-aware replacements applied")
             
-            workbook.close()
-            
-            # Clean summary logging
-            if datetime_count > 0:
-                logger.info(f"Converted {datetime_count} datetime headers to ISO format")
-            
-            # Optional data checking
-            if self.check_column_data:
-                empty_count = self._pandas_data_check_by_index(
-                    file_path, actual_sheet_name, len(headers)
-                )
-                if empty_count > 0:
-                    logger.info(f"Data analysis found {empty_count} empty columns")
-            
-            logger.debug(f"Read {len(headers)} Excel headers from {file_path}[{actual_sheet_name}]")
-            return headers
+            # Return both headers and analysis for immediate trimming
+            return processed_headers, analysis
             
         except Exception as e:
-            if hasattr(locals(), 'workbook'):
-                workbook.close()
             raise StepProcessorError(f"Failed to read Excel headers from {file_path}: {e}")
+
+    def _replace_empty_headers(self, headers: list, column_has_data: list) -> list:
+        """
+        Replace empty headers based on data presence following pandas convention.
+        
+        Args:
+            headers: Original headers from Excel
+            column_has_data: Boolean list indicating if each column has data
+            
+        Returns:
+            Headers with empty strings replaced appropriately
+        """
+        processed_headers = []
+        unnamed_counter = 0
+        empty_counter = 0
+        
+        for header, has_data in zip(headers, column_has_data):
+            if not header.strip():  # Empty header
+                if has_data:
+                    # Column has data but no header - use pandas convention
+                    processed_headers.append(f"Unnamed: {unnamed_counter}")
+                    unnamed_counter += 1
+                else:
+                    # Column has no header and no data - mark as empty for trimming
+                    processed_headers.append(f"Empty: {empty_counter}")
+                    empty_counter += 1
+            else:
+                # Keep original header
+                processed_headers.append(header)
+        
+        logger.debug(f"Header replacement: {unnamed_counter} unnamed, {empty_counter} empty columns")
+        return processed_headers
 
     def _pandas_data_check_by_index(self, file_path: str, sheet_name: str, num_headers: int) -> int:
         """
@@ -470,9 +448,112 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         result = self._fast_pandas_data_check(file_path, sheet_name, headers)
         return result['empty_column_count']
 
-    def _trim_trailing_empty_columns(self, headers: list) -> list:
+    def _trim_trailing_empty_columns(self, headers: list, analysis_data: dict = None) -> list:
         """
-        Remove trailing empty columns from headers list.
+        Enhanced trimming that removes trailing ghost columns intelligently.
+        
+        Args:
+            headers: List of header strings (possibly with "Empty: X" replacements)
+            analysis_data: Optional analysis data to use instead of self._last_excel_analysis
+            
+        Returns:
+            Headers with trailing ghost columns removed
+        """
+        # Use provided analysis data or fall back to stored analysis
+        if analysis_data:
+            column_has_data = analysis_data.get('column_has_data', [])
+            if len(column_has_data) == len(headers):
+                return self._trim_with_data_analysis(headers, column_has_data)
+        
+        # Try stored analysis if no analysis_data provided
+        elif hasattr(self, '_last_excel_analysis') and self._last_excel_analysis:
+            analysis = self._last_excel_analysis
+            column_has_data = analysis.get('column_has_data', [])
+            
+            if len(column_has_data) == len(headers):
+                return self._trim_with_data_analysis(headers, column_has_data)
+        
+        # Fall back to header-only logic for non-Excel files or when data analysis unavailable
+        return self._trim_header_only(headers)
+
+    def _trim_with_data_analysis(self, headers: list, column_has_data: list) -> list:
+        """
+        Trim using both header and data information for precise ghost column detection.
+        
+        Args:
+            headers: List of header strings
+            column_has_data: Boolean list indicating data presence
+            
+        Returns:
+            Trimmed headers list
+        """
+        logger.info(f"DEBUG TRIMMING: Starting trim analysis with {len(headers)} headers")
+        logger.info(f"DEBUG TRIMMING: Headers length = {len(headers)}, Data analysis length = {len(column_has_data)}")
+        
+        # Show the last 20 columns for debugging
+        debug_start_idx = max(0, len(headers) - 20)
+        logger.info(f"DEBUG TRIMMING: Last 20 columns (starting at index {debug_start_idx}):")
+        for i in range(debug_start_idx, len(headers)):
+            header = headers[i]
+            has_data = column_has_data[i] if i < len(column_has_data) else False
+            logger.info(f"  [{i}] header='{header}' has_data={has_data}")
+        
+        # Find the last column that should be kept
+        # Keep if: non-empty header OR has data
+        last_keep_index = -1
+        
+        logger.info(f"DEBUG TRIMMING: Evaluating trim conditions (working backwards):")
+        
+        for i in range(len(headers) - 1, -1, -1):
+            header = headers[i]
+            has_data = column_has_data[i] if i < len(column_has_data) else False
+            
+            # Detailed condition evaluation
+            header_stripped = header.strip()
+            is_empty_pattern = header.startswith("Empty: ")
+            has_meaningful_header = header_stripped and not is_empty_pattern
+            
+            should_keep = has_meaningful_header or has_data
+            
+            # Log the evaluation for debugging
+            if i >= debug_start_idx:  # Only log last 20 for readability
+                logger.info(f"  [{i}] '{header}': "
+                        f"stripped='{header_stripped}' "
+                        f"is_empty_pattern={is_empty_pattern} "
+                        f"meaningful_header={has_meaningful_header} "
+                        f"has_data={has_data} "
+                        f"should_keep={should_keep}")
+            
+            # Special debugging for Empty: columns
+            if header.startswith("Empty: "):
+                logger.warning(f"DEBUG EMPTY COLUMN [{i}] '{header}': "
+                            f"has_data={has_data} should_keep={should_keep} "
+                            f"(This should normally be False/False for trailing empties)")
+            
+            if should_keep:
+                last_keep_index = i
+                logger.info(f"DEBUG TRIMMING: Found last column to keep at index {i}: '{header}'")
+                break
+        
+        # Return trimmed list
+        if last_keep_index >= 0:
+            trimmed = headers[:last_keep_index + 1]
+            trimmed_count = len(headers) - len(trimmed)
+            logger.info(f"DEBUG TRIMMING: Trimming {trimmed_count} columns "
+                    f"(keeping indices 0 through {last_keep_index})")
+            
+            if trimmed_count > 0:
+                logger.info(f"DEBUG TRIMMING: Trimmed columns: {headers[last_keep_index + 1:]}")
+            
+            return trimmed
+        else:
+            # All columns are ghosts
+            logger.warning("DEBUG TRIMMING: All columns detected as ghosts, returning empty list")
+            return []
+
+    def _trim_header_only(self, headers: list) -> list:
+        """
+        Fallback trimming logic using only header information.
         
         Args:
             headers: List of header strings
@@ -490,11 +571,13 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         # Return trimmed list
         if last_non_empty >= 0:
             trimmed = headers[:last_non_empty + 1]
-            if len(trimmed) < len(headers):
-                logger.debug(f"Trimmed {len(headers) - len(trimmed)} trailing empty columns")
+            trimmed_count = len(headers) - len(trimmed)
+            if trimmed_count > 0:
+                logger.debug(f"Basic trimming removed {trimmed_count} trailing empty columns")
             return trimmed
         else:
             # All headers are empty
+            logger.debug("All headers empty, returning empty list")
             return []
 
     def _analyze_columns(self, source_columns: list, template_columns: list) -> dict:

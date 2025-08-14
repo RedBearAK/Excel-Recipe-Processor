@@ -1,0 +1,149 @@
+# Usage examples for seed_donor_formulas processor
+# processors/_examples/seed_donor_formulas_examples.yaml
+
+# Basic example - transplant formulas using Excel column references
+basic_column_references:
+  description: "Transplant formulas from template to new file using column letters"
+  yaml: |
+    - step_description: "Seed calculation formulas from template"
+      processor_type: "seed_donor_formulas"
+      source_file: "templates/budget_template.xlsx"
+      source_sheet: "Summary"
+      target_file: "output/monthly_budget.xlsx"
+      target_sheet: "Summary"
+      columns: ["C", "D", "E"]  # Total, Tax, Net columns
+      start_row: 2
+      row_count: 3
+
+# Advanced example - mixed column references and names
+mixed_column_types:
+  description: "Mix Excel references and column names for flexibility"
+  yaml: |
+    - step_description: "Transplant revenue calculation formulas"
+      processor_type: "seed_donor_formulas"
+      source_file: "templates/financial_model.xlsx"
+      source_sheet: "Calculations"
+      target_file: "output/q4_projections.xlsx"
+      target_sheet: "Calculations"
+      columns: ["B", "Total_Revenue", "C", "Profit_Margin", "ROI"]
+      force_column_names: false  # Auto-detect column types
+      start_row: 3
+      row_count: 5
+
+# Column names only example
+column_names_only:
+  description: "Use only column names for more readable configurations"
+  yaml: |
+    - step_description: "Seed inventory formulas by name"
+      processor_type: "seed_donor_formulas"
+      source_file: "templates/inventory_tracker.xlsx"
+      source_sheet: "Stock"
+      target_file: "output/warehouse_A_inventory.xlsx"
+      target_sheet: "Stock"
+      columns: ["Units_On_Hand", "Reorder_Point", "Total_Value"]
+      force_column_names: true  # Treat all as column names
+      start_row: 2
+      row_count: 4
+
+# Typical workflow integration
+workflow_integration:
+  description: "Common workflow pattern - create file, then seed formulas"
+  yaml: |
+    - step_description: "Export base data to new file"
+      processor_type: "export_file"
+      source_stage: "stg_inventory_data"
+      output_file: "output/location_inventory.xlsx"
+      sheet_name: "Current_Stock"
+      
+    - step_description: "Seed calculation formulas"
+      processor_type: "seed_donor_formulas"
+      source_file: "templates/inventory_calculations.xlsx"
+      source_sheet: "Current_Stock"
+      target_file: "output/location_inventory.xlsx"
+      target_sheet: "Current_Stock"
+      columns: ["D", "E", "F"]  # Value, Reorder, Status columns
+      start_row: 2
+      row_count: 10
+
+# Parameter documentation
+parameter_details:
+  source_file:
+    type: "string"
+    required: true
+    description: "Path to Excel file containing the formula templates"
+    note: "File must exist and be a valid Excel workbook"
+    
+  source_sheet:
+    type: "string" 
+    required: true
+    description: "Sheet name in source file containing formulas"
+    note: "Sheet must exist in the source workbook"
+    
+  target_file:
+    type: "string"
+    required: true
+    description: "Path to Excel file where formulas will be planted"
+    note: "File must exist (create with export_file first if needed)"
+    
+  target_sheet:
+    type: "string"
+    required: true
+    description: "Sheet name in target file for formula placement"
+    note: "Sheet must exist in the target workbook"
+    
+  columns:
+    type: "list"
+    required: true
+    description: "List of column specifications (Excel refs or names)"
+    examples:
+      - ["A", "B", "C"]  # Excel column references
+      - ["Total", "Tax", "Net"]  # Column names
+      - ["A", "Total", "C", "Net"]  # Mixed types
+    note: "Auto-detects type unless force_column_names is true"
+    
+  start_row:
+    type: "integer"
+    required: false
+    default: 2
+    description: "Starting row number for formula sampling (1-indexed)"
+    note: "Row 1 typically contains headers"
+    
+  row_count:
+    type: "integer" 
+    required: false
+    default: 3
+    description: "Number of rows to process (maximum 10)"
+    note: "Limited to 10 rows for performance with openpyxl"
+    
+  force_column_names:
+    type: "boolean"
+    required: false
+    default: false
+    description: "Force all column specs to be treated as names"
+    note: "Use when column headers might look like Excel references"
+
+# Integration notes
+integration_notes:
+  timing: "Must be used AFTER target file exists - typically after export_file step"
+  file_operations: "This is a FileOpsBaseProcessor - doesn't use stage system for data flow"
+  openpyxl_dependency: "Requires openpyxl library for Excel file manipulation"
+  formula_preservation: "Copies formulas exactly as-is - no reference adjustments"
+  empty_cell_handling: "Logs when source cells are empty (possible column mismatch)"
+  collision_detection: "Errors if target cells already contain data (no overwriting)"
+
+# Workflow patterns
+workflow_patterns:
+  template_seeding: "Export base data → Seed formulas from template → Manual formula fills"
+  model_creation: "Build data file → Transplant calculation logic → Create working Excel model"
+  batch_processing: "Create multiple files → Seed same formulas → Consistent calculation logic"
+  progressive_enhancement: "Export → Format → Seed formulas → Final Excel deliverable"
+
+# Common use cases
+common_use_cases:
+  financial_models: "Transplant calculation formulas for budgets, forecasts, and reports"
+  inventory_tracking: "Seed reorder calculations, value formulas, and status indicators"
+  sales_reporting: "Add commission calculations, targets, and performance metrics"
+  project_management: "Transplant timeline formulas, resource calculations, and status tracking"
+  template_deployment: "Efficiently deploy formula logic across multiple similar files"
+
+# End of file #

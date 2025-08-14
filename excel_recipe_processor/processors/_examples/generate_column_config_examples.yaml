@@ -1,128 +1,102 @@
-# Revision date: 2025-08-11
+# excel_recipe_processor/processors/_examples/generate_column_config_examples.yaml
+# Revision date: 2025-08-14
 
-description: "Generate column configuration files by comparing raw and desired column structures. Perfect for automating the tedious process of maintaining column configurations when manual reports change their structure."
+description: "Generate column configuration files by comparing raw and desired column structures from Excel or CSV files. Perfect for automating the tedious process of maintaining column configurations when manual reports change their structure."
 
-basic_example:
+basic_file_example:
   description: "Compare two files and generate column configuration"
   yaml: |
     settings:
-      description: "Generate column config from raw download and desired format"
-      stages:
-        - stage_name: "raw_download"
-          description: "Data as downloaded from system"
-          protected: false
-        - stage_name: "desired_format"
-          description: "Data with desired column names and order"
-          protected: false
-
+      description: "Generate column config from raw download and desired format files"
+      
     recipe:
-      - # Step 1: Import raw data file
-        step_description: "Import raw database export"
-        processor_type: "import_file"
-        input_file: "downloads/raw_export.xlsx"
-        save_to_stage: "raw_download"
-
-      - # Step 2: Import desired format file
-        step_description: "Import manually formatted file"
-        processor_type: "import_file"
-        input_file: "templates/desired_format.xlsx"
-        save_to_stage: "desired_format"
-
-      - # Step 3: Generate column configuration
-        # OPT - Human-readable step description
-        # Default value: "Unnamed generate_column_config step"
+      - # Generate column configuration by comparing files directly
         step_description: "Generate column configuration for recipe sync"
         # REQ - Must be "generate_column_config" for this processor type
         processor_type: "generate_column_config"
-        # REQ - Stage with original/raw column names
-        source_stage: "raw_download"
-        # REQ - Stage with desired column names in final order
-        template_stage: "desired_format"
+        # REQ - File with original/raw column names
+        source_file: "downloads/raw_export.xlsx"
+        # REQ - File with desired column names in final order
+        template_file: "templates/desired_format.xlsx"
         # REQ - Output file path for generated YAML configuration
         output_file: "configs/column_config.yaml"
 
-recipe_integration_example:
-  description: "Generate config with complete recipe section"
+excel_sheet_selection_example:
+  description: "Generate config from specific Excel sheets"
   yaml: |
     settings:
-      description: "Generate column config with ready-to-use recipe section"
+      description: "Generate column config with specific sheet selection"
       variables:
         config_date: "{YYYY-MM-DD}"
         raw_file: "exports/database_export_{YYYYMMDD}.xlsx"
         template_file: "templates/cash_flow_format.xlsx"
-      stages:
-        - stage_name: "database_export"
-          description: "Raw database export"
-          protected: false
-        - stage_name: "template_format"
-          description: "Template with desired column structure"
-          protected: false
-
+        
     recipe:
-      - # Step 1: Import variable-named raw file
-        step_description: "Import daily database export"
-        processor_type: "import_file"
-        input_file: "{raw_file}"
-        save_to_stage: "database_export"
-
-      - # Step 2: Import template
-        step_description: "Import column template file"
-        processor_type: "import_file"
-        input_file: "{template_file}"
-        save_to_stage: "template_format"
-
-      - # Step 3: Generate comprehensive config
-        step_description: "Generate column config with recipe section"
+      - # Generate column configuration with sheet selection
+        step_description: "Generate column config from specific Excel sheets"
         processor_type: "generate_column_config"
-        source_stage: "database_export"
-        template_stage: "template_format"
-        # REQ - Output file with variable substitution
-        output_file: "configs/column_config_{config_date}.yaml"
-        # OPT - Include complete recipe section for rename_columns
-        # Default value: false
+        # REQ - Source Excel file path
+        source_file: "{str:raw_file}"
+        # REQ - Template Excel file path  
+        template_file: "{str:template_file}"
+        # OPT - Specific sheet in source file (name or 1-based number)
+        source_sheet: "Database Export"
+        # OPT - Specific sheet in template file (name or 1-based number)
+        template_sheet: 2
+        # REQ - Output configuration file
+        output_file: "configs/cash_flow_column_config_{str:config_date}.yaml"
+        # OPT - Include ready-to-use recipe section
         include_recipe_section: true
-        # OPT - Similarity threshold for fuzzy matching renames
-        # Default value: 0.8
-        similarity_threshold: 0.6
 
-advanced_fuzzy_matching_example:
-  description: "Advanced rename detection with custom similarity threshold"
+advanced_configuration_example:
+  description: "Advanced configuration with custom similarity threshold"
   yaml: |
     settings:
-      description: "Detect column renames with relaxed fuzzy matching"
-      stages:
-        - stage_name: "legacy_export"
-          description: "Data from legacy system with technical names"
-          protected: false
-        - stage_name: "business_format"
-          description: "Business-friendly column names"
-          protected: false
-
+      description: "Generate column config with custom analysis settings"
+      
     recipe:
-      - # Step 1: Import legacy data
-        step_description: "Import legacy system export"
-        processor_type: "import_file"
-        input_file: "legacy/technical_export.csv"
-        save_to_stage: "legacy_export"
-
-      - # Step 2: Import business template
-        step_description: "Import business template"
-        processor_type: "import_file"
-        input_file: "templates/business_names.xlsx"
-        save_to_stage: "business_format"
-
-      - # Step 3: Generate config with relaxed matching
-        step_description: "Generate config with aggressive rename detection"
+      - # Advanced column configuration generation
+        step_description: "Generate column config with custom similarity matching"
         processor_type: "generate_column_config"
-        source_stage: "legacy_export"
-        template_stage: "business_format"
+        source_file: "data/legacy_system_export.csv"
+        template_file: "templates/business_format.xlsx"
+        template_sheet: "Column Template"
         output_file: "configs/legacy_to_business_mapping.yaml"
         # OPT - Lower threshold to catch more potential renames
         # Values: 0.0 (match anything) to 1.0 (exact match only)
-        # Default value: 0.7
+        # Default value: 0.8
         similarity_threshold: 0.5
+        # OPT - Which row contains headers (1-based for Excel)
+        # Default value: 1
+        header_row: 3
+        # OPT - Number of sample rows to analyze for empty columns
+        # Default value: 5 (keep low for performance)
+        sample_rows: 10
+        # OPT - Whether to check for empty columns in data
+        # Default value: true
+        check_column_data: true
         # OPT - Include recipe for immediate use
         include_recipe_section: true
+
+mixed_file_formats_example:
+  description: "Compare CSV source with Excel template"
+  yaml: |
+    settings:
+      description: "Generate config comparing different file formats"
+      
+    recipe:
+      - # Mixed file format comparison
+        step_description: "Compare CSV export with Excel template"
+        processor_type: "generate_column_config"
+        # Source can be CSV, Excel, etc.
+        source_file: "downloads/daily_export.csv"
+        # Template can be different format
+        template_file: "templates/report_format.xlsx"
+        template_sheet: "Report Layout"
+        output_file: "configs/daily_export_mapping.yaml"
+        # CSV files ignore sheet parameters (no error)
+        source_sheet: null  # Explicitly null for clarity
+        include_recipe_section: false  # Just generate variables
 
 parameter_details:
   processor_type:
@@ -142,25 +116,27 @@ parameter_details:
       - "Update column mappings from latest template"
       - "Detect column changes in manual report"
 
-  source_stage:
+  source_file:
     type: string
     required: true
-    description: "Stage containing data with original/raw column names (must be declared in settings.stages)"
+    description: "Path to file containing original/raw column names"
     examples:
-      - "raw_download"
-      - "database_export" 
-      - "legacy_data"
-    note: "Column names will be extracted from this stage's DataFrame columns"
+      - "downloads/raw_export.xlsx"
+      - "data/database_export.csv"
+      - "imports/legacy_data.xls"
+    variable_support: "Supports built-in date/time variables and custom recipe variables"
+    supported_formats: "Excel (.xlsx, .xls, .xlsm, .xlsb), CSV (.csv), TSV (.tsv)"
 
-  template_stage:
+  template_file:
     type: string
     required: true
-    description: "Stage containing data with desired column names in final order (must be declared in settings.stages)"
+    description: "Path to file containing desired column names in final order"
     examples:
-      - "desired_format"
-      - "template_structure"
-      - "business_format"
-    note: "Column order from this stage will be preserved in desired_columns list"
+      - "templates/desired_format.xlsx"
+      - "templates/business_layout.csv"
+      - "formats/standard_report.xlsx"
+    variable_support: "Supports built-in date/time variables and custom recipe variables"
+    supported_formats: "Excel (.xlsx, .xls, .xlsm, .xlsb), CSV (.csv), TSV (.tsv)"
 
   output_file:
     type: string
@@ -172,52 +148,86 @@ parameter_details:
       - "templates/generated_config.yaml"
     variable_support: "Supports built-in date/time variables and custom recipe variables"
 
-  include_recipe_section:
+  source_sheet:
+    type: string_or_integer
+    required: false
+    default: null
+    description: "Specific sheet in source Excel file (ignored for CSV files)"
+    examples:
+      - "Data Export"        # Sheet name
+      - 2                    # Sheet number (1-based)
+      - "Sheet1"             # Default sheet name
+    notes: 
+      - "If null/omitted, uses first sheet"
+      - "Ignored for CSV files (no error raised)"
+      - "Sheet numbers are 1-based (Excel convention)"
+
+  template_sheet:
+    type: string_or_integer
+    required: false
+    default: null
+    description: "Specific sheet in template Excel file (ignored for CSV files)"
+    examples:
+      - "Column Template"    # Sheet name
+      - 1                    # First sheet
+      - "Report Format"      # Named template sheet
+    notes:
+      - "If null/omitted, uses first sheet"
+      - "Ignored for CSV files (no error raised)"
+      - "Sheet numbers are 1-based (Excel convention)"
+
+  header_row:
+    type: integer
+    required: false
+    default: 1
+    description: "Row number containing column headers (1-based for Excel)"
+    examples:
+      - 1    # Headers in first row
+      - 3    # Headers in third row (skip title/metadata rows)
+      - 2    # Headers in second row
+    notes: "Use 1-based numbering to match Excel row numbers"
+
+  sample_rows:
+    type: integer
+    required: false
+    default: 5
+    description: "Number of data rows to sample for empty column detection"
+    examples:
+      - 5     # Default - good balance of speed and accuracy
+      - 10    # More thorough analysis
+      - 25    # Maximum recommended for large files
+    performance_warning: "Values >25 may significantly slow processing on large files"
+
+  check_column_data:
     type: boolean
     required: false
-    default: false
-    description: "Whether to include a complete recipe section with rename_columns step"
+    default: true
+    description: "Whether to analyze data rows to detect truly empty columns"
     examples:
-      - true   # Include ready-to-use recipe section
-      - false  # Only generate variable lists
-    use_cases:
-      - "Set to true for immediate copy-paste into recipes"
-      - "Set to false when only updating variable lists"
+      - true   # Analyze data to find empty columns (recommended)
+      - false  # Only use header row analysis (faster)
+    use_case: "Set false for header-only analysis or very large files"
 
   similarity_threshold:
     type: float
     required: false
     default: 0.8
-    description: "Minimum similarity score (0.0-1.0) for suggesting column renames"
+    description: "Minimum similarity score for automatic column name matching"
     examples:
-      - 0.6   # Aggressive matching (more rename suggestions)
-      - 0.8   # Balanced matching (default)
-      - 0.95  # Conservative matching (only very similar names)
-    note: "Lower values detect more potential renames but may include false positives"
+      - 0.8    # Default - good balance
+      - 0.5    # More lenient matching (catches more renames)
+      - 1.0    # Exact matches only
+      - 0.0    # Match everything (not recommended)
+    range: "0.0 (match anything) to 1.0 (exact match only)"
 
-output_format:
-  variables_generated:
-    var_columns_raw: "List of column names from source_stage (max 3 per line, bracket format)"
-    var_columns_to_keep: "List of column names from template_stage in order (max 3 per line, bracket format)"
-    var_columns_to_create: "Alphabetized list of columns to create (max 3 per line, bracket format)"
-    var_rename_mapping: "Dictionary mapping old names to new names for rename_columns processor"
-  
-  optional_recipe_section:
-    description: "Complete rename_columns step ready for copy-paste"
-    conditions: "Only included when include_recipe_section: true"
-    processor_used: "rename_columns with mapping type"
-    variable_references: "Uses {dict:var_rename_mapping} for mapping parameter"
+  include_recipe_section:
+    type: boolean
+    required: false
+    default: false
+    description: "Whether to include a complete recipe section with import/rename/select steps"
+    examples:
+      - true   # Include ready-to-use recipe section
+      - false  # Only generate variable lists
+    use_case: "Set true to generate complete recipes for immediate use"
 
-integration_notes:
-  workflow_purpose: "Automates syncing recipe column configurations with changing manual reports"
-  file_operation: "Writes YAML directly (not through FileWriter) for precise formatting"
-  fuzzy_matching: "Uses difflib.SequenceMatcher for intelligent rename detection"
-  formatting_rules: "All column lists use bracket format with max 3 per line for easy copy/paste"
-  variable_naming: "Uses 'columns' terminology for precision, prefix matches select_columns processor"
-
-common_use_cases:
-  recipe_maintenance: "Update column lists when manual reports change structure"
-  format_standardization: "Generate mappings between technical and business column names"
-  template_synchronization: "Keep recipe configurations in sync with Excel templates"
-  rename_detection: "Automatically detect when columns are renamed vs newly created"
-  configuration_generation: "Create reusable column configuration files for recipe families"
+# End of file #

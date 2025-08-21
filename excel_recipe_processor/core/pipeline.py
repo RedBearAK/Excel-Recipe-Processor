@@ -510,9 +510,11 @@ from excel_recipe_processor.processors.group_data_processor             import G
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
 from excel_recipe_processor.processors.inject_formulas_processor        import InjectFormulasProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
+from excel_recipe_processor.processors.manage_named_objects_processor   import ManageNamedObjectsProcessor
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
 from excel_recipe_processor.processors.rename_columns_processor         import RenameColumnsProcessor
+from excel_recipe_processor.processors.seed_donor_formulas_processor    import SeedDonorFormulasProcessor
 from excel_recipe_processor.processors.select_columns_processor         import SelectColumnsProcessor
 from excel_recipe_processor.processors.slice_data_processor             import SliceDataProcessor
 from excel_recipe_processor.processors.sort_data_processor              import SortDataProcessor
@@ -543,9 +545,11 @@ def register_standard_processors():
     registry.register('import_file',                    ImportFileProcessor                 )
     registry.register('inject_formulas',                InjectFormulasProcessor             )
     registry.register('lookup_data',                    LookupDataProcessor                 )
+    registry.register('manage_named_objects',           ManageNamedObjectsProcessor         )
     registry.register('merge_data',                     MergeDataProcessor                  )
     registry.register('pivot_table',                    PivotTableProcessor                 )
     registry.register('rename_columns',                 RenameColumnsProcessor              )
+    registry.register('seed_donor_formulas',            SeedDonorFormulasProcessor          )
     registry.register('select_columns',                 SelectColumnsProcessor              )
     registry.register('slice_data',                     SliceDataProcessor                  )
     registry.register('sort_data',                      SortDataProcessor                   )

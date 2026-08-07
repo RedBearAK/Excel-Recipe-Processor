@@ -110,9 +110,18 @@ def process_recipe(args: Namespace) -> int:
     try:
         # Parse CLI variable overrides
         cli_variables = {}
+
+        # --set NAME VALUE pairs are merged first, so an explicit --var of the
+        # same name later on the command line wins
+        if getattr(args, 'variable_pairs', None):
+            for name, value in args.variable_pairs:
+                cli_variables[name] = value
+            print()     # blank line to separate from command line
+            logger.info(f"Parsed {len(cli_variables)} variable overrides from --set")
+
         if hasattr(args, 'variable_overrides') and args.variable_overrides:
             try:
-                cli_variables = parse_cli_variables(args.variable_overrides)
+                cli_variables.update(parse_cli_variables(args.variable_overrides))
                 if cli_variables:
                     print()     # blank line to separate from command line
                     logger.info(f"Parsed {len(cli_variables)} variable overrides from CLI")

@@ -139,6 +139,24 @@ For detailed documentation and more examples:
         metavar='NAME=VALUE',
         help='Override external variable (repeatable). Example: --var batch_id=A47 --var region=west'
     )
+
+    # Space-separated form of --var.
+    #
+    # '--var name=path' cannot be tab-completed in zsh, because zsh does not
+    # treat '=' as a word break and so never sees the path as a path. (bash does
+    # - '=' is in its COMP_WORDBREAKS - which is why this only bites on zsh.)
+    #
+    # Taking the value as its own argument makes it an ordinary word, so both
+    # shells complete filenames against it with no completion script at all.
+    parser.add_argument(
+        '--set',
+        action='append',
+        nargs=2,
+        dest='variable_pairs',
+        metavar=('NAME', 'VALUE'),
+        help='Override external variable, value as a separate argument so paths '
+             'tab-complete. Example: --set source_download downloads/latest.xlsx'
+    )
     
     # Verbose logging
     parser.add_argument(

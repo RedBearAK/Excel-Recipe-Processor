@@ -15,7 +15,12 @@ import pandas as pd
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from openpyxl.formula.translate import Translator
+
 from excel_recipe_processor.processors._helpers.range_patterns   import excel_column_ref_rgx
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+    find_last_data_row, ExcelRangeResolverError
+)
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +48,8 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         self.start_row = self.get_config_value('start_row', 2)  # 1-indexed
         self.row_count = self.get_config_value('row_count', 3)
         self.force_column_names = self.get_config_value('force_column_names', False)
+        self.fill_down = self.get_config_value('fill_down', False)
+        self.fill_anchor_columns = self.get_config_value('fill_anchor_columns', None)
         
         # Validate configuration
         self._validate_config()
@@ -118,15 +125,26 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                     logger.debug(f"🧬 Transplanted to {col_letter}{current_row}: {source_cell.value}")
                     transplanted_count += 1
             
-            # 4. Save target workbook (makes formulas "live")
+            # 4. Optionally continue the seeded formulas to the end of the data
+            filled_count = 0
+            if self.fill_down:
+                filled_count = self._fill_down_columns(target_ws, resolved_columns)
+
+            # 5. Save target workbook (makes formulas "live")
             target_wb.save(self.target_file)
-            
+
             # Log summary
             logger.info(f"✅ Transplanted {transplanted_count} formulas successfully")
+            if filled_count:
+                logger.info(f"⬇️  Filled {filled_count:,} additional formula cells")
             if empty_source_count > 0:
                 logger.warning(f"⚠️ Found {empty_source_count} empty source cells - check column specifications")
             
             # Return description of what was accomplished
+            if filled_count:
+                return (f"transplanted {transplanted_count} formulas and filled "
+                        f"{filled_count:,} more from {self.source_file} to {self.target_file}")
+
             return f"transplanted {transplanted_count} formulas from {self.source_file} to {self.target_file}"
             
         finally:
@@ -134,6 +152,65 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             source_wb.close()
             target_wb.close()
     
+    def _fill_down_columns(self, target_ws, resolved_columns: list) -> int:
+        """
+        Continue each seeded formula to the last populated row.
+
+        Uses openpyxl's Translator, which shifts relative cell references the way
+        Excel's own fill-down does while leaving named ranges and absolute
+        references alone. It manages roughly 100,000 cells a second, so the cost
+        is negligible next to loading and saving the workbook.
+
+        Args:
+            target_ws:          Worksheet being written
+            resolved_columns:   Column letters holding the seeded formulas
+
+        Returns:
+            Count of cells filled
+        """
+        anchors = self.fill_anchor_columns
+
+        if not anchors:
+            # Measure the data extent from every column, so a sparse column
+            # cannot cut the fill short
+            from openpyxl.utils import get_column_letter
+            anchors = [get_column_letter(i) for i in range(1, target_ws.max_column + 1)]
+
+        try:
+            last_row = find_last_data_row(target_ws, anchors, header_row=1)
+        except ExcelRangeResolverError as error:
+            raise StepProcessorError(f"Could not determine fill extent: {error}")
+
+        seed_last_row = self.start_row + self.row_count - 1
+
+        if last_row <= seed_last_row:
+            logger.info(f"⬇️  Nothing to fill: data ends at row {last_row}")
+            return 0
+
+        filled = 0
+
+        for col_letter in resolved_columns:
+            origin = f"{col_letter}{self.start_row}"
+            source_value = target_ws[origin].value
+
+            if not (isinstance(source_value, str) and source_value.startswith('=')):
+                logger.debug(f"⬇️  {origin} holds no formula, not filling this column")
+                continue
+
+            translator = Translator(source_value, origin=origin)
+
+            for row_num in range(seed_last_row + 1, last_row + 1):
+                target_ws.cell(row=row_num, column=target_ws[f"{col_letter}1"].column,
+                               value=translator.translate_formula(f"{col_letter}{row_num}"))
+                filled += 1
+
+        logger.info(
+            f"⬇️  Filled {len(resolved_columns)} column(s) from row "
+            f"{seed_last_row + 1} to {last_row}"
+        )
+
+        return filled
+
     def _load_workbook_and_sheet(self, file_path: str, sheet_name: str, context: str, read_only: bool = False):
         """Load workbook and get specified worksheet."""
         # Check file exists

@@ -166,10 +166,11 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         header_font_color = rule.get('header_font_color')
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
+        width = rule.get('width')
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
                       font_bold, font_italic, header_font_color,
-                      header_background_color, header_bold)
+                      header_background_color, header_bold, width)
 
         if all(value is None for value in actionable):
             raise ColumnFormatError(
@@ -275,6 +276,8 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"bold {font_bold}")
         if header_font_color is not None or header_background_color is not None:
             parts.append("header styling")
+        if width is not None:
+            parts.append(f"width {width}")
 
         description = f"{', '.join(parts)} on {len(letters)} column(s): {', '.join(columns[:4])}"
         if len(columns) > 4:
@@ -282,6 +285,59 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
 
         applied.append(description)
         logger.info(f"🔢 [{worksheet.title}] {description}")
+
+    return applied
+
+
+def apply_column_widths(worksheet, rules: list, header_row: int = 1,
+                        on_missing: str = 'warn') -> list:
+    """
+    Apply explicit column widths from any rule carrying a 'width'.
+
+    Kept separate from apply_column_formats because widths must be set AFTER
+    auto-fit, or auto-fit overwrites them. Everything else in a rule has to be
+    applied BEFORE auto-fit so that widths are measured against formatted text.
+
+    Args:
+        worksheet:      openpyxl worksheet object
+        rules:          The same rule list passed to apply_column_formats
+        header_row:     Row holding the headers
+        on_missing:     'error', 'warn', or 'skip' for unresolvable columns
+
+    Returns:
+        List of descriptions of what was set
+    """
+    applied = []
+
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            continue
+
+        width = rule.get('width')
+
+        if width is None:
+            continue
+
+        columns = rule.get('columns', [])
+
+        try:
+            letters = resolve_column_letters(
+                worksheet, columns, header_row,
+                force_column_names=rule.get('force_column_names', False),
+                on_missing=on_missing
+            )
+        except ExcelRangeResolverError as error:
+            if on_missing == 'error':
+                raise ColumnFormatError(f"column_formats rule {index + 1} width: {error}")
+            logger.warning(f"column_formats rule {index + 1} width: {error}")
+            continue
+
+        for letter in letters:
+            worksheet.column_dimensions[letter].width = float(width)
+
+        description = f"width {width} on {len(letters)} column(s)"
+        applied.append(description)
+        logger.info(f"📏 [{worksheet.title}] {description}: {', '.join(columns[:4])}")
 
     return applied
 

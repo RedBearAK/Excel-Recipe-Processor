@@ -20,8 +20,8 @@ from openpyxl.utils import get_column_letter
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
-    apply_column_formats, apply_hidden_columns, ColumnFormatError,
-    NUMBER_FORMAT_ALIASES
+    apply_column_formats, apply_column_widths, apply_hidden_columns,
+    ColumnFormatError, NUMBER_FORMAT_ALIASES
 )
 
 
@@ -735,6 +735,21 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             self._auto_fit_columns(worksheet, formatting)
             applied_operations.append("auto-fit columns")
         
+        # STEP 3a: Explicit widths AFTER auto-fit, so a stated width wins over
+        # a measured one
+        if column_formats:
+            try:
+                width_notes = apply_column_widths(
+                    worksheet, column_formats,
+                    header_row=formatting.get('header_row', 1),
+                    on_missing=formatting.get('on_missing_column', 'warn')
+                )
+            except ColumnFormatError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+
+            if width_notes:
+                applied_operations.append(f"explicit widths ({len(width_notes)})")
+
         # STEP 3b: Hide columns AFTER sizing, so auto-fit does not spend effort
         # measuring a column nobody will see
         hidden_columns = formatting.get('hidden_columns', [])
@@ -1176,6 +1191,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             for cell in column:
                 try:
                     if cell.value:
+                        # A formula cell holds its SOURCE TEXT, not its result.
+                        # Measuring that sizes the column to the formula -
+                        # '=IF(COUNTIF(rng_carrier,AK2)>0,"OK","CHECK")' is 43
+                        # characters wide for a column that displays "OK".
+                        # openpyxl cannot know the computed value, so the honest
+                        # move is to ignore formula cells and let the header and
+                        # any literal cells decide the width.
+                        if isinstance(cell.value, str) and cell.value.startswith('='):
+                            continue
+
                         # Consider font size for width calculation
                         content_length = len(str(cell.value))
                         

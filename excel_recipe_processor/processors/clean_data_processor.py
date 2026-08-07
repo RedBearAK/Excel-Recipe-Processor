@@ -90,6 +90,26 @@ class CleanDataProcessor(BaseStepProcessor):
         
         return cleaned_data
 
+    # These actions all route through .astype(str), which silently converts a
+    # numeric or datetime column to text. A Price of 123.45 becomes the string
+    # "123.45", which Excel writes left-aligned as text with number formats no
+    # longer applying, and Product ID 10001 becomes "10001.0".
+    #
+    # Applying them to a typed column is never what the recipe author meant, so
+    # those columns are skipped rather than coerced. This is what makes a blanket
+    # "clean every column" rule safe to write.
+    # Sentinel accepted in place of a column list, meaning every column.
+    ALL_COLUMNS = '*'
+
+    TEXT_ONLY_ACTIONS = (
+        'uppercase', 'lowercase', 'title_case', 'strip_whitespace',
+        'remove_special_chars', 'remove_invisible_chars', 'normalize_whitespace',
+    )
+
+    def _is_text_column(self, series) -> bool:
+        """Report whether a column holds text and can take a string operation."""
+        return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+
     def _apply_cleaning_rule(self, df: pd.DataFrame, rule: dict, rule_index: int) -> pd.DataFrame:
         """
         Apply a single cleaning rule to the DataFrame.
@@ -114,10 +134,21 @@ class CleanDataProcessor(BaseStepProcessor):
         
         columns = rule['columns']
         action = rule['action']
-        
+
+        # "*" targets every column in the frame. Combined with the dtype guard
+        # below, this makes a blanket cleaning rule practical to write without
+        # naming all 66 columns of a download, and safe because typed columns
+        # are skipped rather than coerced to text.
+        if columns == self.ALL_COLUMNS:
+            columns = list(df.columns)
+            logger.debug(f"Cleaning rule {rule_index + 1} targets all {len(columns)} columns")
+
         # Guard clauses for rule parameters
         if not isinstance(columns, list):
-            raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns' must be a list")
+            raise StepProcessorError(
+                f"Cleaning rule {rule_index + 1} 'columns' must be a list, "
+                f"or \"{self.ALL_COLUMNS}\" for every column"
+            )
         
         if len(columns) == 0:
             raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns' list cannot be empty")
@@ -177,9 +208,19 @@ class CleanDataProcessor(BaseStepProcessor):
         # Apply the cleaning action to each existing column
         successful_columns = []
         failed_columns = []
+        skipped_columns = []
         
         for column in existing_columns:
             try:
+                # Guard: never coerce a typed column to text
+                if action in self.TEXT_ONLY_ACTIONS and not self._is_text_column(df[column]):
+                    logger.debug(
+                        f"Skipping '{action}' on column '{column}': dtype is "
+                        f"{df[column].dtype}, not text"
+                    )
+                    skipped_columns.append(column)
+                    continue
+
                 # Create a temporary rule for this single column (for compatibility with existing methods)
                 single_column_rule = rule.copy()
                 single_column_rule['column'] = column  # Individual methods still expect 'column' key

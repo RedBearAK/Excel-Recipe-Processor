@@ -106,6 +106,34 @@ class CleanDataProcessor(BaseStepProcessor):
         'remove_special_chars', 'remove_invisible_chars', 'normalize_whitespace',
     )
 
+    def _apply_to_text_values(self, series, operation):
+        """
+        Apply a string operation to the non-null values of a column only.
+
+        Calling .astype(str) on a whole column turns every null into the literal
+        string "nan". Under pandas 3 the string dtype happens to preserve nulls
+        and hides the problem, but under pandas 2 an object column of mostly
+        blank cells comes back full of "nan" text - which then survives into the
+        Excel output as real content.
+
+        Masking to the populated cells makes the behaviour identical on both.
+
+        Args:
+            series:     Column to operate on
+            operation:  Callable taking a string accessor and returning a Series
+
+        Returns:
+            The column with the operation applied and nulls left alone
+        """
+        result = series.copy()
+        populated = series.notna()
+
+        if not populated.any():
+            return result
+
+        result.loc[populated] = operation(series.loc[populated].astype(str).str)
+        return result
+
     def _is_text_column(self, series) -> bool:
         """Report whether a column holds text and can take a string operation."""
         return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
@@ -231,21 +259,22 @@ class CleanDataProcessor(BaseStepProcessor):
                 elif action == 'regex_replace':
                     df = self._apply_regex_replace(df, single_column_rule, column, rule_index)
                 elif action == 'uppercase':
-                    df[column] = df[column].astype(str).str.upper()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.upper())
                     logger.debug(f"Applied uppercase to column '{column}'")
                 elif action == 'lowercase':
-                    df[column] = df[column].astype(str).str.lower()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.lower())
                     logger.debug(f"Applied lowercase to column '{column}'")
                 elif action == 'title_case':
-                    df[column] = df[column].astype(str).str.title()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.title())
                     logger.debug(f"Applied title case to column '{column}'")
                 elif action == 'strip_whitespace':
-                    df[column] = df[column].astype(str).str.strip()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.strip())
                     logger.debug(f"Stripped whitespace from column '{column}'")
                 elif action == 'remove_special_chars':
                     pattern = rule.get('pattern', r'[^a-zA-Z0-9\s]')
                     replacement = rule.get('replacement', '')
-                    df[column] = df[column].astype(str).str.replace(pattern, replacement, regex=True)
+                    df[column] = self._apply_to_text_values(
+                        df[column], lambda acc: acc.replace(pattern, replacement, regex=True))
                     logger.debug(f"Removed special characters from column '{column}' using pattern: {pattern}")
                 elif action == 'fix_numeric':
                     df = self._apply_fix_numeric(df, single_column_rule, column, rule_index)
@@ -649,11 +678,13 @@ class CleanDataProcessor(BaseStepProcessor):
         
         # First replace space-like chars with regular space
         space_pattern = '[' + ''.join(space_chars) + ']'
-        df[column] = df[column].astype(str).str.replace(space_pattern, ' ', regex=True)
+        df[column] = self._apply_to_text_values(
+            df[column], lambda acc: acc.replace(space_pattern, ' ', regex=True))
         
         # Then remove zero-width chars completely
         remove_pattern = '[' + ''.join(remove_chars) + ']'
-        df[column] = df[column].astype(str).str.replace(remove_pattern, '', regex=True)
+        df[column] = self._apply_to_text_values(
+            df[column], lambda acc: acc.replace(remove_pattern, '', regex=True))
         
         # Finally, trim leading/trailing spaces that may have resulted from replacements
         df[column] = df[column].str.strip()
@@ -669,7 +700,7 @@ class CleanDataProcessor(BaseStepProcessor):
         
         # Step 2: Normalize regular whitespace
         # Remove leading/trailing whitespace
-        df[column] = df[column].astype(str).str.strip()
+        df[column] = self._apply_to_text_values(df[column], lambda acc: acc.strip())
         
         # Collapse multiple whitespace into single spaces
         df[column] = df[column].str.replace(r'\s+', ' ', regex=True)

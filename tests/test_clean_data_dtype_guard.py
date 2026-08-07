@@ -160,6 +160,64 @@ def test_explicit_numeric_target_is_skipped_not_errored():
     return False
 
 
+def test_nulls_never_become_literal_nan():
+    """
+    Nulls must survive every text action, on any pandas version.
+
+    Calling .astype(str) on a whole column turns nulls into the literal string
+    "nan". Under pandas 3 the string dtype hides this; under pandas 2 it does
+    not, and the "nan" text reaches the Excel output as real content. This test
+    asserts on the values rather than the dtype, so it catches the problem on
+    either version.
+    """
+    print("\nTesting nulls survive every text action...")
+
+    passed = True
+
+    for action in ['strip_whitespace', 'uppercase', 'lowercase', 'title_case',
+                   'normalize_whitespace', 'remove_invisible_chars']:
+        df = pd.DataFrame({
+            'Customer Ref #': pd.Series(['  PO 1  ', np.nan, 'PO 2', np.nan], dtype=object),
+            'Notes': pd.Series([np.nan, np.nan, np.nan, np.nan], dtype=object),
+        })
+        result = run_clean(df, action, ['Customer Ref #', 'Notes'])
+
+        literal = [
+            v for v in result['Customer Ref #'].tolist()
+            if isinstance(v, str) and v.strip().lower() in ('nan', 'none', '<na>')
+        ]
+        still_null = result['Customer Ref #'].isna().sum()
+        notes_null = result['Notes'].isna().sum()
+
+        if literal or still_null != 2 or notes_null != 4:
+            print(f"  ✗ {action:22} nulls={still_null}/2 notes_nulls={notes_null}/4 literal={literal}")
+            passed = False
+        else:
+            print(f"  ✓ {action:22} nulls preserved in partly and fully empty columns")
+
+    return passed
+
+
+def test_all_empty_object_column():
+    """A column that is entirely blank must stay entirely blank."""
+    print("\nTesting a fully empty text column...")
+
+    df = pd.DataFrame({
+        'Temp Logger': pd.Series([np.nan] * 5, dtype=object),
+        'Customer': ['a', 'b', 'c', 'd', 'e'],
+    })
+    result = run_clean(df, 'strip_whitespace', ['Temp Logger', 'Customer'])
+
+    non_null = result['Temp Logger'].notna().sum()
+
+    if non_null == 0:
+        print("  ✓ Fully empty column still fully empty")
+        return True
+
+    print(f"  ✗ {non_null} cells gained content: {result['Temp Logger'].tolist()[:3]}")
+    return False
+
+
 def main():
     """Run every test and report a final score."""
     print("=== clean_data dtype guard tests ===")
@@ -171,6 +229,8 @@ def main():
         test_nulls_survive,
         test_case_actions_also_guarded,
         test_explicit_numeric_target_is_skipped_not_errored,
+        test_nulls_never_become_literal_nan,
+        test_all_empty_object_column,
     ]
 
     passed = 0

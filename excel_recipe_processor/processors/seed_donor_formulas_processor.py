@@ -15,7 +15,7 @@ import pandas as pd
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
-from excel_recipe_processor.processors._helpers.formula_patterns import excel_column_ref_rgx
+from excel_recipe_processor.processors._helpers.range_patterns   import excel_column_ref_rgx
 
 
 logger = logging.getLogger(__name__)

@@ -128,7 +128,8 @@ def test_basic_csv_processing():
             content = f.read()
         
         # Check for expected sections
-        required_sections = ['raw_columns:', 'desired_columns:', 'columns_to_create:', 'rename_mapping:']
+        required_sections = ['var_columns_original:', 'var_columns_to_keep:',
+                             'var_columns_to_create:', 'var_columns_to_rename:']
         missing_sections = [section for section in required_sections if section not in content]
         
         if missing_sections:
@@ -194,7 +195,7 @@ def test_excel_processing_with_data_check():
         
         # Check that ghost columns (trailing empty columns with no headers) were trimmed
         # Notes should be KEPT (has header, even if no data - it's a template column)
-        desired_columns = config_data['desired_columns']
+        desired_columns = config_data['settings']['variables']['var_columns_to_keep']
         
         if 'Notes' in desired_columns:
             print("✓ Template column 'Notes' preserved correctly")
@@ -202,14 +203,18 @@ def test_excel_processing_with_data_check():
             print("✗ Template column 'Notes' was incorrectly trimmed")
             return False
         
-        # Count empty string entries in desired_columns to see if ghost columns were trimmed
-        # Should have: Product_ID, 8/4/2025, "", Status, Notes (5 total)
-        # Should NOT have the 3 trailing "" ghost columns
-        empty_str_count = desired_columns.count("")
-        if empty_str_count == 1:  # Only the formatting column between data
+        # Count placeholder entries to confirm ghost columns were trimmed.
+        # Should have: Product_ID, 8/4/2025, "Empty: 0", Status, Notes (5 total).
+        # Should NOT have the 3 trailing ghost columns.
+        # Interior empty columns are preserved as "Empty: N" placeholders rather
+        # than bare empty strings, so match on the prefix.
+        placeholder_count = sum(
+            1 for col in desired_columns if str(col).startswith('Empty: ')
+        )
+        if placeholder_count == 1:  # Only the formatting column between data
             print("✓ Ghost columns trimmed correctly")
         else:
-            print(f"✗ Expected 1 empty column (formatting), found {empty_str_count}")
+            print(f"✗ Expected 1 empty column (formatting), found {placeholder_count}")
             return False
         
         # Check that date header was preserved (not converted by pandas)
@@ -219,8 +224,8 @@ def test_excel_processing_with_data_check():
             print("✗ Date format was not preserved")
             return False
         
-        # Check that empty column between data was preserved
-        if "" in desired_columns:
+        # Check that the empty column between data was preserved
+        if any(str(col).startswith('Empty: ') for col in desired_columns):
             print("✓ Empty columns between data preserved")
         else:
             print("✗ Empty columns between data not preserved")
@@ -266,7 +271,7 @@ def test_headers_only_mode():
         
         # In headers-only mode, columns should still be trimmed based on headers
         # (not data), but the result should be the same: preserve meaningful columns
-        desired_columns = config_data['desired_columns']
+        desired_columns = config_data['settings']['variables']['var_columns_to_keep']
         
         if 'Notes' in desired_columns:
             print("✓ Headers-only mode preserved columns with headers")
@@ -321,7 +326,8 @@ def test_recipe_section_generation():
             content = f.read()
         
         # Check for recipe section
-        recipe_indicators = ['recipe_section:', 'rename_columns', 'select_columns', 'columns_to_keep:', 'columns_to_create:']
+        recipe_indicators = ['example_recipe:', 'select_columns',
+                             'columns_to_keep:', 'columns_to_create:']
         missing_indicators = [indicator for indicator in recipe_indicators if indicator not in content]
         
         if missing_indicators:
@@ -522,7 +528,5 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
-
-
+    exit(0 if main() else 1)
 # End of file #

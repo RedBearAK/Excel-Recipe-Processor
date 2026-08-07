@@ -123,7 +123,7 @@ def test_column_resolution_patterns():
     
     # This test doesn't need actual Excel files, just tests the pattern matching
     try:
-        from excel_recipe_processor.processors._helpers.formula_patterns import excel_column_ref_rgx
+        from excel_recipe_processor.processors._helpers.range_patterns import excel_column_ref_rgx
         
         # Test valid Excel column references
         valid_refs = ['A', 'B', 'Z', 'AA', 'AB', 'ZZ', 'AAA']
@@ -182,7 +182,5 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
-
-
+    exit(0 if main() else 1)
 # End of file #

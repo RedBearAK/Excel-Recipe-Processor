@@ -46,6 +46,10 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             'output_file': 'configs/column_config.yaml'
         }
     
+    def get_operation_type(self) -> str:
+        """Report the operation type, matching the convention used by other FileOps processors."""
+        return "column_config_generation"
+
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
@@ -128,12 +132,14 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         # Validate input files exist and have supported extensions
         supported_extensions = {'.csv', '.xlsx', '.xls', '.xlsm', '.xlsb'}
         
+        # Existence is deliberately NOT checked here. This method runs during
+        # __init__, before variable substitution resolves paths like
+        # "export_{date}.xlsx", and capability discovery instantiates every
+        # processor from get_minimal_config() placeholder paths. Existence is
+        # checked in perform_file_operation() instead, once paths are real.
         for file_param in ['source_file', 'template_file']:
             file_path = self.get_config_value(file_param)
-            
-            if not Path(file_path).exists():
-                raise StepProcessorError(f"File not found: {file_path}")
-            
+
             extension = Path(file_path).suffix.lower()
             if extension not in supported_extensions:
                 raise StepProcessorError(
@@ -141,12 +147,29 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
                     f"Got: {file_path} (supported: {', '.join(sorted(supported_extensions))})"
                     )
 
+    def _validate_input_files_exist(self) -> None:
+        """
+        Confirm the input files are present.
+
+        Runs at execution time rather than construction time, so that variable
+        substitution has already resolved the paths.
+
+        Raises:
+            StepProcessorError: If either input file is missing
+        """
+        for label, file_path in [('source_file', self.source_file),
+                                 ('template_file', self.template_file)]:
+            if not Path(file_path).exists():
+                raise StepProcessorError(f"File not found for {label}: {file_path}")
+
     def perform_file_operation(self) -> str:
         """
         Generate column configuration by comparing files.
         
         Fixed to use correct analysis data for each file's trimming.
         """
+        self._validate_input_files_exist()
+
         try:
             # Read source file headers with analysis
             logger.info(f"Reading source file: '{self.source_file}'")
@@ -219,8 +242,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
                 file_path,
                 dtype=str,  # Force string reading to prevent conversions
                 nrows=0,    # Only read headers
-                parse_dates=False,  # Disable date parsing completely
-                infer_datetime_format=False  # Disable datetime inference
+                parse_dates=False   # Disable date parsing completely
             )
             
             headers = [str(col) for col in df.columns]

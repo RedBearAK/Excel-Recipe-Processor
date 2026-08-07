@@ -16,7 +16,15 @@ import openpyxl
 from pathlib import Path
 from datetime import datetime
 
+from openpyxl.workbook.defined_name import DefinedName
+
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+    resolve_range, ExcelRangeResolverError
+)
+from excel_recipe_processor.processors._helpers.defined_name_validator import (
+    validate_defined_name, DefinedNameError
+)
 from excel_recipe_processor.processors._helpers.named_objects_patterns import (
     excel_lambda_detection_rgx, excel_lambda_params_rgx, excel_param_name_rgx,
     excel_lambda_body_rgx, human_lambda_detection_rgx, human_lambda_params_rgx,
@@ -39,9 +47,21 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     
     SUPPORTED_OPERATIONS = [
         'export_all', 'export_filtered', 'import_all', 'import_filtered',
-        'list_objects', 'validate_yaml', 'copy_direct'
+        'list_objects', 'validate_yaml', 'copy_direct', 'create_from_columns'
     ]
-    
+
+    # What to do when a name already exists in the target workbook. Defaults to
+    # 'error' because silently replacing a name is a form of data loss.
+    EXISTING_NAME_POLICIES = ['error', 'replace', 'skip']
+
+    # How hard to check names before writing them. Foreign workbooks contain
+    # legal names that violate house style, so import defaults to 'excel'
+    # while names authored by a recipe default to 'house'.
+    NAME_VALIDATION_LEVELS = ['none', 'excel', 'house']
+
+    # Object categories carried in the export structure, in write order.
+    OBJECT_SECTIONS = ['named_ranges', 'lambda_functions', 'named_formulas']
+
     def __init__(self, step_config: dict):
         super().__init__(step_config)
         self.operation = self.get_config_value('operation')
@@ -74,6 +94,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             return self._execute_list_objects()
         elif self.operation == 'validate_yaml':
             return self._execute_validate_yaml()
+        elif self.operation == 'create_from_columns':
+            return self._execute_create_from_columns()
         elif self.operation == 'copy_direct':
             return self._execute_copy_direct()
         else:
@@ -237,33 +259,31 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Extract worksheet-specific named objects."""
         
         local_objects = {}
-        
+
         for worksheet in workbook.worksheets:
             sheet_objects = {'named_ranges': []}
-            
-            # Check for local defined names
-            for defined_name in workbook.defined_names.values():
-                if (defined_name.localSheetId is not None and 
-                    defined_name.localSheetId < len(workbook.worksheets) and
-                    workbook.worksheets[defined_name.localSheetId] == worksheet):
-                    
-                    object_type = self.detect_object_type(defined_name)
-                    
-                    local_obj = {
-                        'name': defined_name.name,
-                        'type': object_type,
-                        'scope': 'local',
-                        'local_sheet': worksheet.title,
-                        'description': self._generate_description(defined_name),
-                        'definition': defined_name.attr_text,
-                        'excel_definition': defined_name.attr_text
-                    }
-                    sheet_objects['named_ranges'].append(local_obj)
-            
+
+            # openpyxl 3.1 moved sheet-scoped names onto the worksheet. They no
+            # longer appear in workbook.defined_names at all, so scanning the
+            # workbook for a non-null localSheetId finds nothing.
+            for defined_name in worksheet.defined_names.values():
+                object_type = self.detect_object_type(defined_name)
+
+                local_obj = {
+                    'name': defined_name.name,
+                    'type': object_type,
+                    'scope': 'local',
+                    'local_sheet': worksheet.title,
+                    'description': self._generate_description(defined_name),
+                    'definition': defined_name.attr_text,
+                    'excel_definition': defined_name.attr_text
+                }
+                sheet_objects['named_ranges'].append(local_obj)
+
             # Only include sheets that have local objects
             if sheet_objects['named_ranges']:
                 local_objects[worksheet.title] = sheet_objects
-        
+
         return local_objects
     
     # =============================================================================
@@ -720,30 +740,660 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         finally:
             workbook.close()
     
+    # =============================================================================
+    # WRITE OPERATIONS - SHARED MACHINERY
+    # =============================================================================
+
+    def _get_write_policies(self, default_validation: str = 'excel') -> tuple:
+        """
+        Read and validate the two policies that govern every write.
+
+        Args:
+            default_validation: Validation level when the recipe does not say
+
+        Returns:
+            Tuple of (on_existing, name_validation)
+        """
+        on_existing = self.get_config_value('on_existing', 'error')
+        name_validation = self.get_config_value('name_validation', default_validation)
+
+        if on_existing not in self.EXISTING_NAME_POLICIES:
+            valid = ', '.join(self.EXISTING_NAME_POLICIES)
+            raise StepProcessorError(
+                f"Invalid on_existing '{on_existing}'. Supported: {valid}"
+            )
+
+        if name_validation not in self.NAME_VALIDATION_LEVELS:
+            valid = ', '.join(self.NAME_VALIDATION_LEVELS)
+            raise StepProcessorError(
+                f"Invalid name_validation '{name_validation}'. Supported: {valid}"
+            )
+
+        return on_existing, name_validation
+
+    def _check_name(self, name: str, name_validation: str) -> None:
+        """
+        Validate a name against the configured level.
+
+        Args:
+            name:               Candidate defined name
+            name_validation:    'none', 'excel', or 'house'
+
+        Raises:
+            StepProcessorError: If the name is unacceptable at this level
+        """
+        if name_validation == 'none':
+            return
+
+        try:
+            validate_defined_name(name, enforce_house_style=(name_validation == 'house'))
+        except DefinedNameError as error:
+            raise StepProcessorError(str(error))
+
+    def _name_exists(self, workbook, name: str, sheet_name=None) -> bool:
+        """Report whether a name is already defined at the given scope."""
+        if sheet_name is None:
+            return name in workbook.defined_names
+
+        if sheet_name not in workbook.sheetnames:
+            return False
+
+        return name in workbook[sheet_name].defined_names
+
+    def _remove_name(self, workbook, name: str, sheet_name=None) -> None:
+        """Delete an existing name at the given scope."""
+        if sheet_name is None:
+            del workbook.defined_names[name]
+        else:
+            del workbook[sheet_name].defined_names[name]
+
+    def write_named_object(self, workbook, name: str, definition: str,
+                           sheet_name=None, on_existing: str = 'error',
+                           name_validation: str = 'excel') -> str:
+        """
+        Write a single defined name into a workbook.
+
+        Passing sheet_name makes the name sheet-scoped. Leaving it None makes
+        the name workbook-scoped, which is what formulas on other sheets need.
+
+        Args:
+            workbook:           openpyxl workbook, opened for writing
+            name:               Defined name to create
+            definition:         Reference or formula text
+            sheet_name:         Sheet for local scope, or None for global
+            on_existing:        'error', 'replace', or 'skip'
+            name_validation:    'none', 'excel', or 'house'
+
+        Returns:
+            'written', 'replaced', or 'skipped'
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise StepProcessorError("Defined name must be a non-empty string")
+
+        if not isinstance(definition, str) or not definition.strip():
+            raise StepProcessorError(f"Definition for '{name}' must be a non-empty string")
+
+        clean_name = name.strip()
+        clean_definition = definition.strip()
+
+        self._check_name(clean_name, name_validation)
+
+        if sheet_name is not None and sheet_name not in workbook.sheetnames:
+            raise StepProcessorError(
+                f"Cannot scope '{clean_name}' to sheet '{sheet_name}': "
+                f"sheet not found. Available: {workbook.sheetnames}"
+            )
+
+        outcome = 'written'
+
+        if self._name_exists(workbook, clean_name, sheet_name):
+            scope_label = 'global' if sheet_name is None else f"sheet '{sheet_name}'"
+
+            if on_existing == 'error':
+                raise StepProcessorError(
+                    f"Defined name '{clean_name}' already exists at {scope_label} scope. "
+                    f"Set on_existing to 'replace' or 'skip' to proceed."
+                )
+
+            if on_existing == 'skip':
+                logger.debug(f"Skipping existing name '{clean_name}' at {scope_label} scope")
+                return 'skipped'
+
+            self._remove_name(workbook, clean_name, sheet_name)
+            outcome = 'replaced'
+
+        defined_name = DefinedName(clean_name, attr_text=clean_definition)
+
+        if sheet_name is None:
+            workbook.defined_names[clean_name] = defined_name
+        else:
+            workbook[sheet_name].defined_names[clean_name] = defined_name
+
+        logger.debug(f"{outcome.title()} '{clean_name}' -> {clean_definition}")
+        return outcome
+
+    def _definition_for_write(self, obj: dict) -> str:
+        """
+        Choose the text to write for an extracted object.
+
+        Prefers 'excel_definition' because that is the round-trip-faithful form.
+        Lambdas edited by hand in the YAML carry a human-readable 'definition'
+        instead, and are translated back on the way in.
+
+        Args:
+            obj: One object from an export structure
+
+        Returns:
+            Definition text ready for Excel
+        """
+        object_type = obj.get('type', 'range')
+
+        if object_type == 'lambda':
+            human = obj.get('definition')
+            parameters = obj.get('parameters', [])
+
+            if isinstance(human, str) and human_lambda_detection_rgx.search(human):
+                return self.translate_lambda_to_excel(human, parameters)
+
+        excel_definition = obj.get('excel_definition')
+        if isinstance(excel_definition, str) and excel_definition.strip():
+            return excel_definition
+
+        definition = obj.get('definition')
+        if isinstance(definition, str) and definition.strip():
+            return definition
+
+        raise StepProcessorError(
+            f"Object '{obj.get('name', 'unknown')}' has no usable definition"
+        )
+
+    def write_objects_to_workbook(self, workbook, objects_dict: dict,
+                                  on_existing: str = 'error',
+                                  name_validation: str = 'excel',
+                                  include_local: bool = True,
+                                  include_patterns=None,
+                                  exclude_patterns=None) -> dict:
+        """
+        Write every named object in an export structure into a workbook.
+
+        Tables are not created. Rebuilding a table requires its data region to
+        already exist with matching dimensions, which this processor has no way
+        to guarantee, so tables are reported as skipped rather than guessed at.
+
+        Args:
+            workbook:           openpyxl workbook, opened for writing
+            objects_dict:       Structure produced by extract_all_named_objects
+            on_existing:        'error', 'replace', or 'skip'
+            name_validation:    'none', 'excel', or 'house'
+            include_local:      Also write sheet-scoped names
+            include_patterns:   Wildcard patterns to include
+            exclude_patterns:   Wildcard patterns to exclude
+
+        Returns:
+            Dictionary of counts and per-name outcomes
+        """
+        results = {
+            'written': [],
+            'replaced': [],
+            'skipped': [],
+            'skipped_tables': [],
+            'failed': []
+        }
+
+        for section in self.OBJECT_SECTIONS:
+            objects = objects_dict.get(section, [])
+
+            if not isinstance(objects, list):
+                continue
+
+            for obj in self.apply_name_filters(objects, include_patterns, exclude_patterns):
+                self._write_object_recording_result(
+                    workbook, obj, None, on_existing, name_validation, results
+                )
+
+        if include_local:
+            local_objects = objects_dict.get('local_objects', {})
+
+            if isinstance(local_objects, dict):
+                for sheet_name, sheet_objects in local_objects.items():
+                    objects = sheet_objects.get('named_ranges', [])
+                    filtered = self.apply_name_filters(
+                        objects, include_patterns, exclude_patterns
+                    )
+
+                    for obj in filtered:
+                        self._write_object_recording_result(
+                            workbook, obj, sheet_name, on_existing, name_validation, results
+                        )
+
+        tables = objects_dict.get('named_tables', [])
+        if isinstance(tables, list):
+            for table in self.apply_name_filters(tables, include_patterns, exclude_patterns):
+                results['skipped_tables'].append(table.get('name', 'unknown'))
+
+        if results['skipped_tables']:
+            logger.warning(
+                f"Skipped {len(results['skipped_tables'])} table definitions: table "
+                f"creation requires a matching data region and is not attempted"
+            )
+
+        return results
+
+    def _write_object_recording_result(self, workbook, obj: dict, sheet_name,
+                                       on_existing: str, name_validation: str,
+                                       results: dict) -> None:
+        """Write one object and record the outcome in the results dictionary."""
+        name = obj.get('name', 'unknown')
+
+        try:
+            definition = self._definition_for_write(obj)
+            outcome = self.write_named_object(
+                workbook, name, definition, sheet_name, on_existing, name_validation
+            )
+
+            if outcome == 'written':
+                results['written'].append(name)
+            elif outcome == 'replaced':
+                results['replaced'].append(name)
+            else:
+                results['skipped'].append(name)
+
+        except StepProcessorError as error:
+            if on_existing == 'error':
+                raise
+            logger.warning(f"Could not write '{name}': {error}")
+            results['failed'].append({'name': name, 'reason': str(error)})
+
+    def _load_target_workbook(self, target_file: str):
+        """Open a workbook for writing, with a clear error when it is absent."""
+        target_path = Path(target_file)
+
+        if not target_path.exists():
+            raise StepProcessorError(
+                f"Target file not found: {target_file}. Named objects are written "
+                f"into an existing workbook, so run export_file first."
+            )
+
+        return openpyxl.load_workbook(target_path, data_only=False)
+
+    # =============================================================================
+    # WRITE OPERATIONS - EXECUTION METHODS
+    # =============================================================================
+
     def _execute_export_filtered(self) -> dict:
-        """Execute filtered export operation."""
-        # Implementation would include filter logic
-        raise NotImplementedError("export_filtered not yet implemented")
-    
+        """Export named objects matching the configured name patterns."""
+
+        source_file = self.get_config_value('source_file')
+        export_file = self.get_config_value('export_file')
+        vba_file = self.get_config_value('vba_file')
+        include_patterns = self.get_config_value('include_patterns')
+        exclude_patterns = self.get_config_value('exclude_patterns')
+
+        if not source_file:
+            raise StepProcessorError("source_file required for export_filtered operation")
+
+        if not export_file and not vba_file:
+            raise StepProcessorError(
+                "At least one of export_file or vba_file required for export_filtered"
+            )
+
+        if not include_patterns and not exclude_patterns:
+            raise StepProcessorError(
+                "export_filtered requires include_patterns or exclude_patterns. "
+                "Use export_all to export everything."
+            )
+
+        workbook = openpyxl.load_workbook(source_file, data_only=False)
+
+        try:
+            objects_dict = self.extract_all_named_objects(workbook)
+            objects_dict['metadata']['source_file'] = str(source_file)
+
+            total_kept = 0
+
+            for section in self.OBJECT_SECTIONS + ['named_tables']:
+                kept = self.apply_name_filters(
+                    objects_dict.get(section, []), include_patterns, exclude_patterns
+                )
+                objects_dict[section] = kept
+                total_kept += len(kept)
+
+            local_objects = objects_dict.get('local_objects', {})
+            filtered_local = {}
+
+            for sheet_name, sheet_objects in local_objects.items():
+                kept = self.apply_name_filters(
+                    sheet_objects.get('named_ranges', []), include_patterns, exclude_patterns
+                )
+                if kept:
+                    filtered_local[sheet_name] = {'named_ranges': kept}
+                    total_kept += len(kept)
+
+            objects_dict['local_objects'] = filtered_local
+            objects_dict['metadata']['total_objects'] = total_kept
+            objects_dict['export_summary'] = {
+                section: len(objects_dict.get(section, []))
+                for section in self.OBJECT_SECTIONS + ['named_tables']
+            }
+            objects_dict['export_summary']['total_exported'] = total_kept
+
+            exports_completed = []
+
+            if export_file:
+                self.export_to_yaml(objects_dict, export_file)
+                exports_completed.append(f"YAML: {export_file}")
+
+            if vba_file:
+                self.export_to_vba_format(objects_dict, vba_file)
+                exports_completed.append(f"VBA: {vba_file}")
+
+            return {
+                'operation': 'export_filtered',
+                'source_file': str(source_file),
+                'exports_completed': exports_completed,
+                'objects_exported': total_kept,
+                'summary': objects_dict['export_summary']
+            }
+
+        finally:
+            workbook.close()
+
     def _execute_import_all(self) -> dict:
-        """Execute import all operation."""
-        # Implementation would include object creation logic
-        raise NotImplementedError("import_all not yet implemented")
-    
+        """Create every named object described by a YAML file."""
+        return self._import_from_yaml_file(filtered=False)
+
     def _execute_import_filtered(self) -> dict:
-        """Execute filtered import operation."""
-        # Implementation would include filtered import logic
-        raise NotImplementedError("import_filtered not yet implemented")
-    
+        """Create the named objects from a YAML file that match name patterns."""
+        return self._import_from_yaml_file(filtered=True)
+
+    def _import_from_yaml_file(self, filtered: bool) -> dict:
+        """Shared implementation for import_all and import_filtered."""
+
+        import_file = self.get_config_value('import_file')
+        target_file = self.get_config_value('target_file')
+        include_local = self.get_config_value('include_local', True)
+        include_patterns = self.get_config_value('include_patterns')
+        exclude_patterns = self.get_config_value('exclude_patterns')
+
+        operation_name = 'import_filtered' if filtered else 'import_all'
+
+        if not import_file:
+            raise StepProcessorError(f"import_file required for {operation_name} operation")
+
+        if not target_file:
+            raise StepProcessorError(f"target_file required for {operation_name} operation")
+
+        if filtered and not include_patterns and not exclude_patterns:
+            raise StepProcessorError(
+                "import_filtered requires include_patterns or exclude_patterns. "
+                "Use import_all to import everything."
+            )
+
+        if not filtered:
+            include_patterns = None
+            exclude_patterns = None
+
+        on_existing, name_validation = self._get_write_policies('excel')
+
+        objects_dict = self.import_from_yaml(import_file)
+        workbook = self._load_target_workbook(target_file)
+
+        try:
+            results = self.write_objects_to_workbook(
+                workbook, objects_dict, on_existing, name_validation,
+                include_local, include_patterns, exclude_patterns
+            )
+
+            workbook.save(target_file)
+
+        finally:
+            workbook.close()
+
+        logger.info(
+            f"Imported named objects into '{target_file}': "
+            f"{len(results['written'])} written, {len(results['replaced'])} replaced, "
+            f"{len(results['skipped'])} skipped"
+        )
+
+        return {
+            'operation': operation_name,
+            'import_file': str(import_file),
+            'target_file': str(target_file),
+            'written': results['written'],
+            'replaced': results['replaced'],
+            'skipped': results['skipped'],
+            'skipped_tables': results['skipped_tables'],
+            'failed': results['failed'],
+            'objects_written': len(results['written']) + len(results['replaced'])
+        }
+
     def _execute_validate_yaml(self) -> dict:
-        """Execute YAML validation operation."""
-        # Implementation would include validation logic
-        raise NotImplementedError("validate_yaml not yet implemented")
-    
+        """Check a YAML export for structural and naming problems without writing."""
+
+        import_file = self.get_config_value('import_file')
+
+        if not import_file:
+            raise StepProcessorError("import_file required for validate_yaml operation")
+
+        name_validation = self.get_config_value('name_validation', 'excel')
+
+        if name_validation not in self.NAME_VALIDATION_LEVELS:
+            valid = ', '.join(self.NAME_VALIDATION_LEVELS)
+            raise StepProcessorError(
+                f"Invalid name_validation '{name_validation}'. Supported: {valid}"
+            )
+
+        objects_dict = self.import_from_yaml(import_file)
+
+        problems = []
+        checked = 0
+        seen_global = set()
+
+        for section in self.OBJECT_SECTIONS + ['named_tables']:
+            for obj in objects_dict.get(section, []):
+                checked += 1
+                name = obj.get('name', 'unknown')
+
+                try:
+                    self._check_name(name, name_validation)
+                except StepProcessorError as error:
+                    problems.append({'name': name, 'section': section, 'problem': str(error)})
+
+                if name in seen_global:
+                    problems.append({
+                        'name': name,
+                        'section': section,
+                        'problem': 'Duplicate name at global scope'
+                    })
+                seen_global.add(name)
+
+                if section != 'named_tables':
+                    try:
+                        self._definition_for_write(obj)
+                    except StepProcessorError as error:
+                        problems.append({
+                            'name': name, 'section': section, 'problem': str(error)
+                        })
+
+        for sheet_name, sheet_objects in objects_dict.get('local_objects', {}).items():
+            for obj in sheet_objects.get('named_ranges', []):
+                checked += 1
+                name = obj.get('name', 'unknown')
+
+                try:
+                    self._check_name(name, name_validation)
+                except StepProcessorError as error:
+                    problems.append({
+                        'name': name, 'section': f"local:{sheet_name}", 'problem': str(error)
+                    })
+
+        return {
+            'operation': 'validate_yaml',
+            'import_file': str(import_file),
+            'objects_checked': checked,
+            'valid': len(problems) == 0,
+            'problems': problems
+        }
+
     def _execute_copy_direct(self) -> dict:
-        """Execute direct copy between files operation."""
-        # Implementation would include direct copying logic
-        raise NotImplementedError("copy_direct not yet implemented")
+        """Copy named objects straight from one workbook into another."""
+
+        source_file = self.get_config_value('source_file')
+        target_file = self.get_config_value('target_file')
+        include_local = self.get_config_value('include_local', True)
+        include_patterns = self.get_config_value('include_patterns')
+        exclude_patterns = self.get_config_value('exclude_patterns')
+
+        if not source_file:
+            raise StepProcessorError("source_file required for copy_direct operation")
+
+        if not target_file:
+            raise StepProcessorError("target_file required for copy_direct operation")
+
+        on_existing, name_validation = self._get_write_policies('excel')
+
+        source_workbook = openpyxl.load_workbook(source_file, data_only=False)
+
+        try:
+            objects_dict = self.extract_all_named_objects(source_workbook)
+        finally:
+            source_workbook.close()
+
+        target_workbook = self._load_target_workbook(target_file)
+
+        try:
+            results = self.write_objects_to_workbook(
+                target_workbook, objects_dict, on_existing, name_validation,
+                include_local, include_patterns, exclude_patterns
+            )
+
+            target_workbook.save(target_file)
+
+        finally:
+            target_workbook.close()
+
+        logger.info(
+            f"Copied named objects from '{source_file}' to '{target_file}': "
+            f"{len(results['written'])} written, {len(results['replaced'])} replaced"
+        )
+
+        return {
+            'operation': 'copy_direct',
+            'source_file': str(source_file),
+            'target_file': str(target_file),
+            'written': results['written'],
+            'replaced': results['replaced'],
+            'skipped': results['skipped'],
+            'skipped_tables': results['skipped_tables'],
+            'failed': results['failed'],
+            'objects_written': len(results['written']) + len(results['replaced'])
+        }
+
+    def _execute_create_from_columns(self) -> dict:
+        """
+        Build named ranges from column names on generated data.
+
+        This is the operation that makes named ranges survive a regenerated
+        file. Rather than copying a fixed address, each range is recomputed
+        from the actual data extent on every run, so a range cannot fall behind
+        the data the way a hand-maintained one does.
+        """
+
+        target_file = self.get_config_value('target_file')
+        range_specs = self.get_config_value('ranges')
+
+        if not target_file:
+            raise StepProcessorError("target_file required for create_from_columns operation")
+
+        if not isinstance(range_specs, list) or len(range_specs) == 0:
+            raise StepProcessorError(
+                "create_from_columns requires a non-empty 'ranges' list"
+            )
+
+        on_existing, name_validation = self._get_write_policies('house')
+
+        workbook = self._load_target_workbook(target_file)
+
+        created = []
+        replaced = []
+        skipped = []
+
+        try:
+            for index, spec in enumerate(range_specs):
+                if not isinstance(spec, dict):
+                    raise StepProcessorError(
+                        f"Range entry {index + 1} must be a dictionary"
+                    )
+
+                name = spec.get('name')
+                sheet = spec.get('sheet')
+                columns = spec.get('columns')
+
+                if not name:
+                    raise StepProcessorError(f"Range entry {index + 1} missing 'name'")
+
+                if not sheet:
+                    raise StepProcessorError(f"Range '{name}' missing 'sheet'")
+
+                if not isinstance(columns, list) or len(columns) == 0:
+                    raise StepProcessorError(
+                        f"Range '{name}' requires a non-empty 'columns' list"
+                    )
+
+                if sheet not in workbook.sheetnames:
+                    raise StepProcessorError(
+                        f"Range '{name}' targets sheet '{sheet}', which was not found. "
+                        f"Available: {workbook.sheetnames}"
+                    )
+
+                worksheet = workbook[sheet]
+
+                try:
+                    reference = resolve_range(
+                        worksheet,
+                        columns,
+                        row_mode=spec.get('row_mode', 'data_with_header'),
+                        header_row=spec.get('header_row', 1),
+                        anchor_columns=spec.get('anchor_columns'),
+                        expand_span=spec.get('expand_span', True),
+                        force_column_names=spec.get('force_column_names', False),
+                        on_missing=spec.get('on_missing', 'error'),
+                        absolute=spec.get('absolute', True),
+                        qualify_sheet=True
+                    )
+                except ExcelRangeResolverError as error:
+                    raise StepProcessorError(f"Could not resolve range '{name}': {error}")
+
+                scope_sheet = sheet if spec.get('scope', 'global') == 'local' else None
+
+                outcome = self.write_named_object(
+                    workbook, name, reference, scope_sheet, on_existing, name_validation
+                )
+
+                record = {'name': name, 'definition': reference, 'sheet': sheet}
+
+                if outcome == 'written':
+                    created.append(record)
+                elif outcome == 'replaced':
+                    replaced.append(record)
+                else:
+                    skipped.append(record)
+
+                logger.info(f"📐 {outcome.title()} '{name}' -> {reference}")
+
+            workbook.save(target_file)
+
+        finally:
+            workbook.close()
+
+        return {
+            'operation': 'create_from_columns',
+            'target_file': str(target_file),
+            'created': created,
+            'replaced': replaced,
+            'skipped': skipped,
+            'ranges_written': len(created) + len(replaced)
+        }
     
     def get_operation_type(self) -> str:
         return "named_objects_management"
@@ -753,10 +1403,22 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         return {
             'description': 'Manage Excel named ranges, formulas, lambda functions, and tables',
             'operations': self.SUPPORTED_OPERATIONS,
+            'read_operations': ['export_all', 'export_filtered', 'list_objects', 'validate_yaml'],
+            'write_operations': ['import_all', 'import_filtered', 'copy_direct', 'create_from_columns'],
             'supported_object_types': ['range', 'constant', 'formula', 'lambda', 'table'],
             'scope_options': ['global', 'local'],
             'export_formats': ['yaml', 'vba_compatible'],
             'dual_export_support': True,
+            'write_features': [
+                'column_name_addressing', 'automatic_extent_detection',
+                'defined_name_validation', 'existing_name_policies',
+                'global_and_sheet_scope', 'lambda_round_trip'
+            ],
+            'existing_name_policies': self.EXISTING_NAME_POLICIES,
+            'name_validation_levels': self.NAME_VALIDATION_LEVELS,
+            'write_limitations': [
+                'tables are not created; they require a matching data region'
+            ],
             'lambda_features': [
                 'parameter_extraction', 'excel_format_translation', 
                 'human_readable_conversion', 'syntax_validation'

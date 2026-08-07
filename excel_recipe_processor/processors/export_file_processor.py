@@ -81,6 +81,13 @@ class ExportFileProcessor(ExportBaseProcessor):
             if sheets:
                 # Multi-sheet export
                 sheets_data = self._build_sheets_data(sheets)
+
+                logger.info(f"📄 Writing {len(sheets_data)} sheets:")
+                for sheet_label, sheet_frame in sheets_data.items():
+                    logger.info(
+                        f"   • {sheet_label}: {len(sheet_frame):,} rows × "
+                        f"{len(sheet_frame.columns)} columns"
+                    )
                 FileWriter.write_multi_sheet_excel(
                     sheets_data,
                     resolved_file,

@@ -284,7 +284,18 @@ class CleanDataProcessor(BaseStepProcessor):
         
         # Log summary of what was applied
         if successful_columns:
+            logger.info(
+                f"🧹 Rule {rule_index + 1} '{action}': cleaned {len(successful_columns)} "
+                f"column(s)"
+            )
             logger.debug(f"Cleaning rule {rule_index + 1} applied '{action}' to columns: {successful_columns}")
+
+        if skipped_columns:
+            logger.info(
+                f"   ↳ skipped {len(skipped_columns)} non-text column(s): "
+                f"{', '.join(skipped_columns[:8])}"
+                f"{' ...' if len(skipped_columns) > 8 else ''}"
+            )
         
         if failed_columns:
             logger.warning(f"Cleaning rule {rule_index + 1} failed on columns: {failed_columns}")

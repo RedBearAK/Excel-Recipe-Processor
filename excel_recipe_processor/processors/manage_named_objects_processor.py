@@ -1379,7 +1379,17 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                 else:
                     skipped.append(record)
 
-                logger.info(f"📐 {outcome.title()} '{name}' -> {reference}")
+                span = reference.split('!')[-1]
+                logger.info(
+                    f"📐 {outcome.title():8} {name:16} -> {reference}"
+                    f"   [{spec.get('row_mode', 'data_with_header')}]"
+                )
+
+            logger.info(
+                f"📐 Named ranges: {len(created)} written, {len(replaced)} replaced, "
+                f"{len(skipped)} skipped, across "
+                f"{len({r['sheet'] for r in created + replaced + skipped})} sheet(s)"
+            )
 
             workbook.save(target_file)
 

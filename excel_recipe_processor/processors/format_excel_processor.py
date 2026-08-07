@@ -19,6 +19,10 @@ from openpyxl.utils import get_column_letter
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
+    apply_column_formats, apply_hidden_columns, ColumnFormatError,
+    NUMBER_FORMAT_ALIASES
+)
 
 
 logger = logging.getLogger(__name__)
@@ -266,6 +270,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
+            'column_formats', 'hidden_columns', 'header_row', 'on_missing_column',
             'row_heights',
             
             # Phase 1 Enhanced: Header text formatting
@@ -704,12 +709,45 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             self._apply_row_heights(worksheet, row_heights)
             applied_operations.append(f"row heights ({len(row_heights)} rows)")
         
+        # STEP 2b: Column-addressed number formats and alignment. Runs before
+        # auto-fit so widths are measured against the formatted text - "1,234"
+        # is wider than "1234", and an accounting format wider still.
+        column_formats = formatting.get('column_formats', [])
+        if column_formats:
+            try:
+                descriptions = apply_column_formats(
+                    worksheet, column_formats,
+                    header_row=formatting.get('header_row', 1),
+                    on_missing=formatting.get('on_missing_column', 'warn')
+                )
+            except ColumnFormatError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+
+            if descriptions:
+                applied_operations.append(f"column formats ({len(descriptions)} rules)")
+
         # STEP 3: Column sizing (auto-fit or explicit sizing)
         if formatting.get('auto_fit_columns'):
             logger.info(f"📐 [{sheet_name}] Auto-fitting column widths")
             self._auto_fit_columns(worksheet, formatting)
             applied_operations.append("auto-fit columns")
         
+        # STEP 3b: Hide columns AFTER sizing, so auto-fit does not spend effort
+        # measuring a column nobody will see
+        hidden_columns = formatting.get('hidden_columns', [])
+        if hidden_columns:
+            try:
+                hidden = apply_hidden_columns(
+                    worksheet, hidden_columns,
+                    header_row=formatting.get('header_row', 1),
+                    on_missing=formatting.get('on_missing_column', 'warn')
+                )
+            except ColumnFormatError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+
+            if hidden:
+                applied_operations.append(f"hid {len(hidden)} column(s)")
+
         # STEP 4: Worksheet-level features
         if formatting.get('freeze_top_row'):
             logger.info(f"🧊 [{sheet_name}] Freezing top row")

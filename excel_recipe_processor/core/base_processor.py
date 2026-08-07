@@ -28,6 +28,16 @@ class BaseStepProcessor(ABC):
     All step types (filter_data, pivot_table, etc.) inherit from this class
     and implement the execute method.
     """
+
+    # Whether the recipe loader should insist on the standard stage fields.
+    #
+    # Most processors read one stage and write another. A few do not:
+    # create_stage invents a stage from inline data and takes 'stage_name'
+    # instead, and copy_stage reads a source but names its output the same way.
+    # Declaring it here keeps the loader from having to carry a hardcoded list
+    # of exceptions that drifts out of step with the processors themselves.
+    requires_source_stage = True
+    requires_save_to_stage = True
     
     def __init__(self, step_config: dict):
         """

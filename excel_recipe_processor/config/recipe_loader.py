@@ -356,14 +356,19 @@ class RecipeLoader:
             pass
         
         else:
-            # Regular processing steps need both source_stage and save_to_stage
-            if 'source_stage' not in step:
-                errors.append(f"Step '{step_name}': missing required field 'source_stage'")
-                errors.append("💡 Processing steps must specify which stage to read data from")
-            
-            if 'save_to_stage' not in step:
-                errors.append(f"Step '{step_name}': missing required field 'save_to_stage'")
-                errors.append("💡 Processing steps must specify where to save results")
+            # Regular processing steps need both source_stage and save_to_stage,
+            # unless the processor declares otherwise. create_stage builds a
+            # stage from inline data and copy_stage names its output with
+            # 'stage_name', so neither fits the standard shape.
+            if getattr(processor_class, 'requires_source_stage', True):
+                if 'source_stage' not in step:
+                    errors.append(f"Step '{step_name}': missing required field 'source_stage'")
+                    errors.append("💡 Processing steps must specify which stage to read data from")
+
+            if getattr(processor_class, 'requires_save_to_stage', True):
+                if 'save_to_stage' not in step:
+                    errors.append(f"Step '{step_name}': missing required field 'save_to_stage'")
+                    errors.append("💡 Processing steps must specify where to save results")
 
         return {'errors': errors, 'warnings': warnings}
 

@@ -8,6 +8,7 @@ Key changes:
 """
 
 import logging
+import pandas as pd
 
 from enum import Enum
 from pathlib import Path
@@ -207,6 +208,16 @@ class RecipePipeline:
                     processor.execute_export()
                 elif isinstance(processor, FileOpsBaseProcessor):
                     processor.execute()
+                elif not processor.requires_source_stage:
+                    # Processors that invent a stage rather than transform one -
+                    # create_stage builds from inline recipe data. They declare
+                    # this themselves rather than the pipeline carrying a list.
+                    # Checked by attribute, NOT by isinstance, for the reason in
+                    # the comment below.
+                    # create_stage still takes a pass-through DataFrame it
+                    # ignores, a leftover from before stages. An empty frame
+                    # satisfies that without inventing data.
+                    processor.execute(pd.DataFrame())
                 else:
                     # This looks lost/generic to syntax highlighter because we can't check for 
                     # the base processor. It would match any processor, even ones that should 

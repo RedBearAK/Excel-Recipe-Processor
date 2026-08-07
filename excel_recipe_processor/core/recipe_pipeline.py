@@ -392,6 +392,18 @@ class RecipePipeline:
         custom_variables = settings.get('variables', {})
         
         for name, template_value in custom_variables.items():
+            # A name supplied on the command line must not be overwritten by the
+            # recipe's own template for it. Without this guard, re-resolution
+            # runs after every external variable is added and quietly restores
+            # the recipe value, so --set donor_file appears to be accepted and
+            # then has no effect.
+            if name in self._external_variables:
+                logger.debug(
+                    f"📝 Keeping externally supplied '{name}', not re-resolving "
+                    f"the recipe's own value"
+                )
+                continue
+
             # Only try to resolve if it's a string with variable references
             if isinstance(template_value, str) and '{' in template_value:
                 try:
@@ -430,8 +442,14 @@ class RecipePipeline:
         if not self.recipe_data:
             return
             
-        # Create variable system
-        self.variable_substitution = VariableSubstitution()
+        # Create variable system.
+        #
+        # Passing the recipe path is what supplies {recipe_dir} and
+        # {recipe_parent_dir}, which let a recipe reference its own siblings
+        # regardless of the directory the command was run from. Without it those
+        # variables never resolve and the run fails at load with "Unresolved
+        # variables detected" - correct, but only after the user wonders why.
+        self.variable_substitution = VariableSubstitution(recipe_path=self._recipe_path)
         
         # Add recipe-defined variables (preserving original types)
         settings = self.recipe_data.get('settings', {})

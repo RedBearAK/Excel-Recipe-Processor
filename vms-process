@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# vms-process — run the VMS pipeline on a download, from wherever it sits.
+#
+# Install as a real command rather than an alias, so it also works in scripts,
+# cron, editor build steps, and anywhere else the shell RC file is not sourced:
+#
+#   mkdir -p ~/.local/bin
+#   cp vms-process ~/.local/bin/
+#   chmod +x ~/.local/bin/vms-process
+#
+# and make sure ~/.local/bin is on PATH.
+#
+# Usage:
+#   vms-process 260806_VMS_All_2026sh-0800.xlsx
+#   vms-process ~/Downloads/whatever.xlsx --set output_dir .
+#
+# Any extra arguments are passed straight through to excel-recipe-processor,
+# so --set, --var and --verbose all still work.
+
+set -euo pipefail
+
+# The one thing that has to be configured
+PROJECT_DIR="${VMS_PROJECT_DIR:-${HOME}/DropBox/Tech_scripts/VMS_Downloads}"
+RECIPE="${PROJECT_DIR}/recipe_files/vms_process.yaml"
+
+# Locate the tool. Prefer a real console entry point if one is installed;
+# otherwise fall back to the module form, which is what the alias uses.
+run_processor() {
+    if command -v excel-recipe-processor >/dev/null 2>&1; then
+        excel-recipe-processor "$@"
+    else
+        python -m excel_recipe_processor "$@"
+    fi
+}
+
+usage() {
+    cat <<'USAGE'
+Usage: vms-process DOWNLOAD [extra arguments...]
+
+Runs the VMS pipeline on DOWNLOAD, which may be a relative or absolute path.
+The recipe and lookup tables are found from the project directory, so this
+works from any folder.
+
+  vms-process 260806_VMS_All_2026sh-0800.xlsx
+  vms-process ~/Downloads/latest.xlsx --set output_dir .
+  vms-process latest.xlsx --verbose
+
+Environment:
+  VMS_PROJECT_DIR   Project folder. Defaults to
+                    ~/DropBox/Tech_scripts/VMS_Downloads
+USAGE
+}
+
+if [ $# -lt 1 ] || [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    usage
+    exit 0
+fi
+
+download="$1"
+shift
+
+if [ ! -f "$download" ]; then
+    echo "ERROR: download not found: $download" >&2
+    exit 1
+fi
+
+if [ ! -f "$RECIPE" ]; then
+    echo "ERROR: recipe not found: $RECIPE" >&2
+    echo "Set VMS_PROJECT_DIR if the project lives somewhere else." >&2
+    exit 1
+fi
+
+# Resolve to an absolute path. The recipe anchors its own paths to the recipe
+# location, but the download is given relative to wherever the user is standing,
+# and nothing else in the run shares that reference point.
+download_abs="$(cd "$(dirname "$download")" && pwd)/$(basename "$download")"
+
+run_processor "$RECIPE" --set source_download "$download_abs" "$@"
+
+# End of file #

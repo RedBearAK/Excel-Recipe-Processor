@@ -75,9 +75,9 @@ class AggregateDataProcessor(BaseStepProcessor):
         keep_group_columns = self.get_config_value('keep_group_columns', True)
         sort_by_groups = self.get_config_value('sort_by_groups', True)
         reset_index = self.get_config_value('reset_index', True)
-        save_to_stage = self.get_config_value('save_to_stage', None)
-        stage_overwrite = self.get_config_value('stage_overwrite', False)
-        stage_description = self.get_config_value('stage_description', '')
+        # save_to_stage is handled by the base class in save_output_data().
+        # Saving here as well produced a double write, which the stage manager
+        # rejected as "Stage already exists".
         
         # Apply variable substitution to configuration
         variables = getattr(self, '_variables', {})
@@ -95,10 +95,6 @@ class AggregateDataProcessor(BaseStepProcessor):
                 result_data, group_by, aggregations, keep_group_columns, 
                 sort_by_groups, reset_index
             )
-            
-            # Save to stage if requested
-            if save_to_stage:
-                self._save_aggregation_to_stage(result_data, save_to_stage, stage_overwrite, stage_description)
             
             result_info = f"aggregated {len(data)} rows into {len(result_data)} groups"
             self.log_step_complete(result_info)
@@ -381,27 +377,6 @@ class AggregateDataProcessor(BaseStepProcessor):
             substituted_aggregations.append(substituted_config)
         
         return group_by, substituted_aggregations
-    
-    def _save_aggregation_to_stage(self, result_data: pd.DataFrame, stage_name: str, overwrite: bool, description: str) -> None:
-        """Save aggregation results to a named stage."""
-        
-        try:
-            # Use provided description or create default
-            if not description:
-                description = f"Aggregated data from step '{self.step_name}'"
-            
-            StageManager.save_stage(
-                stage_name, 
-                result_data.copy(), 
-                overwrite=overwrite,
-                description=description,
-                step_name=self.step_name
-            )
-            
-            logger.info(f"Saved aggregation results to stage '{stage_name}' ({len(result_data)} rows)")
-            
-        except StageError as e:
-            raise StepProcessorError(f"Failed to save aggregation results to stage '{stage_name}': {e}")
     
     def _validate_aggregation_config(self, df: pd.DataFrame, group_by: Union[str, list], aggregations: list) -> None:
         """

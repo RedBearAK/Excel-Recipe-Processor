@@ -3,7 +3,8 @@ Column-addressed formatting for format_excel.
 
 excel_recipe_processor/processors/_helpers/format_excel_column_formats.py
 
-Number formats, column hiding and per-column alignment all need the same thing:
+Number formats, font colours, column hiding and per-column alignment all need
+the same thing:
 turn a column NAME into a column letter, then act on that whole column below the
 header. Resolution is delegated to excel_range_resolver, which already does this
 for named-range creation, so a column name means the same thing everywhere.
@@ -15,7 +16,7 @@ is still accepted.
 
 import logging
 
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter, column_index_from_string
 
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
@@ -60,6 +61,22 @@ VALID_HORIZONTAL = (
 VALID_VERTICAL = ('top', 'center', 'bottom', 'justify', 'distributed')
 
 
+def _default_color_normalizer(color) -> str:
+    """Fall back to plain hex handling when the processor supplies nothing."""
+    text = str(color).strip().lstrip('#').upper()
+
+    if len(text) == 3:
+        text = ''.join(char * 2 for char in text)
+
+    if len(text) != 6:
+        raise ColumnFormatError(
+            f"Cannot interpret colour '{color}'. Use 6-digit hex, or run this "
+            f"through format_excel so CSS names are available."
+        )
+
+    return text
+
+
 class ColumnFormatError(Exception):
     """Raised when a column formatting rule cannot be applied."""
     pass
@@ -88,19 +105,29 @@ def resolve_number_format(spec: str) -> str:
 
 
 def apply_column_formats(worksheet, rules: list, header_row: int = 1,
-                         on_missing: str = 'warn') -> list:
+                         on_missing: str = 'warn', color_normalizer=None) -> list:
     """
-    Apply number formats and alignment to whole columns, addressed by name.
+    Apply number formats, fonts and alignment to whole columns, by name.
+
+    A rule may style the data rows, that column's header cell, or both. Header
+    styling here is per column, unlike the sheet-wide header_* options, which
+    is what makes it possible to mark a subset of columns - the ten this recipe
+    inserts, for instance - without touching the rest.
 
     Args:
-        worksheet:      openpyxl worksheet object
-        rules:          List of rule dictionaries
-        header_row:     Row holding the headers
-        on_missing:     'error', 'warn', or 'skip' for unresolvable columns
+        worksheet:          openpyxl worksheet object
+        rules:              List of rule dictionaries
+        header_row:         Row holding the headers
+        on_missing:         'error', 'warn', or 'skip' for unresolvable columns
+        color_normalizer:   Callable turning a colour spec into 6-digit hex.
+                            Supplied by the processor so CSS names such as
+                            "red" work the same way they do elsewhere.
 
     Returns:
         List of human-readable descriptions of what was applied
     """
+    if color_normalizer is None:
+        color_normalizer = _default_color_normalizer
     if not isinstance(rules, list):
         raise ColumnFormatError("column_formats must be a list of rules")
 
@@ -133,11 +160,23 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         horizontal = rule.get('alignment_horizontal')
         vertical = rule.get('alignment_vertical')
         wrap_text = rule.get('wrap_text')
+        font_color = rule.get('font_color')
+        font_bold = rule.get('font_bold')
+        font_italic = rule.get('font_italic')
+        header_font_color = rule.get('header_font_color')
+        header_background_color = rule.get('header_background_color')
+        header_bold = rule.get('header_bold')
 
-        if number_format is None and horizontal is None and vertical is None and wrap_text is None:
+        actionable = (number_format, horizontal, vertical, wrap_text, font_color,
+                      font_bold, font_italic, header_font_color,
+                      header_background_color, header_bold)
+
+        if all(value is None for value in actionable):
             raise ColumnFormatError(
                 f"column_formats rule {index + 1} does nothing: supply number_format, "
-                f"alignment_horizontal, alignment_vertical, or wrap_text"
+                f"alignment_horizontal, alignment_vertical, wrap_text, font_color, "
+                f"font_bold, font_italic, header_font_color, header_background_color, "
+                f"or header_bold"
             )
 
         if horizontal is not None and horizontal not in VALID_HORIZONTAL:
@@ -167,9 +206,33 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             continue
 
         format_code = resolve_number_format(number_format) if number_format else None
+        data_color = color_normalizer(font_color) if font_color is not None else None
+        head_color = color_normalizer(header_font_color) if header_font_color is not None else None
+        head_fill = (color_normalizer(header_background_color)
+                     if header_background_color is not None else None)
+
+        touches_data_font = data_color is not None or font_bold is not None or font_italic is not None
+        touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
+        touches_header = head_color is not None or head_fill is not None or header_bold is not None
 
         for letter in letters:
             col_index = column_index_from_string(letter)
+
+            if touches_header:
+                header_cell = worksheet.cell(row=header_row, column=col_index)
+                existing_font = header_cell.font
+                header_cell.font = Font(
+                    name=existing_font.name,
+                    size=existing_font.size,
+                    bold=header_bold if header_bold is not None else existing_font.bold,
+                    italic=existing_font.italic,
+                    color=head_color if head_color is not None else (
+                        existing_font.color.rgb if existing_font.color else None)
+                )
+                if head_fill is not None:
+                    header_cell.fill = PatternFill(
+                        start_color=head_fill, end_color=head_fill, fill_type='solid'
+                    )
 
             for row_num in range(header_row + 1, last_row + 1):
                 cell = worksheet.cell(row=row_num, column=col_index)
@@ -177,7 +240,18 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                 if format_code:
                     cell.number_format = format_code
 
-                if horizontal is not None or vertical is not None or wrap_text is not None:
+                if touches_data_font:
+                    existing = cell.font
+                    cell.font = Font(
+                        name=existing.name,
+                        size=existing.size,
+                        bold=font_bold if font_bold is not None else existing.bold,
+                        italic=font_italic if font_italic is not None else existing.italic,
+                        color=data_color if data_color is not None else (
+                            existing.color.rgb if existing.color else None)
+                    )
+
+                if touches_alignment:
                     existing = cell.alignment
                     cell.alignment = Alignment(
                         horizontal=horizontal if horizontal is not None else existing.horizontal,
@@ -195,6 +269,12 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"v-align {vertical}")
         if wrap_text is not None:
             parts.append(f"wrap {wrap_text}")
+        if font_color is not None:
+            parts.append(f"font {font_color}")
+        if font_bold is not None:
+            parts.append(f"bold {font_bold}")
+        if header_font_color is not None or header_background_color is not None:
+            parts.append("header styling")
 
         description = f"{', '.join(parts)} on {len(letters)} column(s): {', '.join(columns[:4])}"
         if len(columns) > 4:

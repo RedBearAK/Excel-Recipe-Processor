@@ -239,6 +239,124 @@ def test_rule_with_no_effect_is_rejected():
         return False
 
 
+def test_per_column_header_styling():
+    """A rule can restyle only its own columns' headers."""
+    print("\nTesting per-column header styling...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = str(Path(temp_dir) / 'wb.xlsx')
+        build_workbook(path)
+
+        run_format(path, {
+            'header_background': True,
+            'header_background_color': '1F4E79',
+            'header_text_color': 'white',
+            'column_formats': [
+                {'columns': ['Cases (24)', 'Price'],
+                 'font_color': 'red',
+                 'header_font_color': 'white',
+                 'header_background_color': 'red',
+                 'header_bold': True},
+            ]})
+
+        workbook = openpyxl.load_workbook(path)
+        worksheet = workbook['VMS Data']
+
+        def fill(ref):
+            colour = worksheet[ref].fill.start_color.rgb
+            return colour if isinstance(colour, str) else None
+
+        def font(ref):
+            colour = worksheet[ref].font.color
+            return colour.rgb if colour and isinstance(colour.rgb, str) else None
+
+        targeted_header = fill('B1')
+        other_header = fill('A1')
+        targeted_data = font('B2')
+        other_data = font('A2')
+        workbook.close()
+
+        passed = True
+
+        if targeted_header and targeted_header.endswith('FF0000'):
+            print("  ✓ Targeted header went red")
+        else:
+            print(f"  ✗ Targeted header fill is {targeted_header}")
+            passed = False
+
+        if other_header and other_header.endswith('1F4E79'):
+            print("  ✓ Untargeted header kept the sheet-wide colour")
+        else:
+            print(f"  ✗ Untargeted header fill is {other_header}")
+            passed = False
+
+        if targeted_data and targeted_data.endswith('FF0000'):
+            print("  ✓ Targeted data font went red")
+        else:
+            print(f"  ✗ Targeted data font is {targeted_data}")
+            passed = False
+
+        if not (other_data and other_data.endswith('FF0000')):
+            print("  ✓ Untargeted data font left alone")
+        else:
+            print(f"  ✗ Untargeted data font is {other_data}")
+            passed = False
+
+        return passed
+
+
+def test_css_colour_names_resolve():
+    """CSS names work here the same way they do in header_* options."""
+    print("\nTesting CSS colour names...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = str(Path(temp_dir) / 'wb.xlsx')
+        build_workbook(path)
+
+        run_format(path, {'column_formats': [
+            {'columns': ['Price'], 'font_color': 'forestgreen'},
+        ]})
+
+        workbook = openpyxl.load_workbook(path)
+        colour = workbook['VMS Data']['D2'].font.color
+        value = colour.rgb if colour and isinstance(colour.rgb, str) else None
+        workbook.close()
+
+        if value and value.endswith('228B22'):
+            print(f"  ✓ 'forestgreen' resolved to {value}")
+            return True
+
+        print(f"  ✗ Got {value}")
+        return False
+
+
+def test_number_format_and_font_combine():
+    """One rule can set a number format and a font colour together."""
+    print("\nTesting combined number format and font colour...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = str(Path(temp_dir) / 'wb.xlsx')
+        build_workbook(path)
+
+        run_format(path, {'column_formats': [
+            {'columns': ['Cases (24)'], 'number_format': 'thousands', 'font_color': 'red'},
+        ]})
+
+        workbook = openpyxl.load_workbook(path)
+        cell = workbook['VMS Data']['B2']
+        fmt = cell.number_format
+        colour = cell.font.color
+        value = colour.rgb if colour and isinstance(colour.rgb, str) else None
+        workbook.close()
+
+        if fmt == '#,##0' and value and value.endswith('FF0000'):
+            print("  ✓ Both applied to the same column")
+            return True
+
+        print(f"  ✗ format={fmt} colour={value}")
+        return False
+
+
 def main():
     """Run every test and report a final score."""
     print("=== format_excel column formatting tests ===")
@@ -251,6 +369,9 @@ def main():
         test_per_column_alignment,
         test_missing_column_policy,
         test_rule_with_no_effect_is_rejected,
+        test_per_column_header_styling,
+        test_css_colour_names_resolve,
+        test_number_format_and_font_combine,
     ]
 
     passed = 0

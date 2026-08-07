@@ -718,7 +718,10 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 descriptions = apply_column_formats(
                     worksheet, column_formats,
                     header_row=formatting.get('header_row', 1),
-                    on_missing=formatting.get('on_missing_column', 'warn')
+                    on_missing=formatting.get('on_missing_column', 'warn'),
+                    # Pass the processor's own normalizer so CSS names such as
+                    # "red" behave here exactly as they do in header_* options
+                    color_normalizer=self._normalize_color
                 )
             except ColumnFormatError as error:
                 raise StepProcessorError(f"Sheet '{sheet_name}': {error}")

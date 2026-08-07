@@ -1,21 +1,47 @@
-# Development dependencies
+# Development dependencies for excel-recipe-processor
+
 -r requirements.txt
 
-# Testing
-pytest>=6.0.0
-pytest-cov>=2.0.0
-pytest-mock>=3.0.0
+# --- Testing ----------------------------------------------------------------
 
-# Code quality
-black>=20.0.0
-flake8>=3.8.0
-isort>=5.0.0
-mypy>=0.800
+pytest>=7.0.0
 
-# Documentation
-sphinx>=3.0.0
-sphinx-rtd-theme>=0.5.0
+# Test modules are runnable directly and are not written in pytest style, but
+# they remain pytest-collectable. Floor raised from 6.0 because the suite runs
+# under Python 3.12+, where older pytest has collection problems.
+#
+# Reminder on the exit convention: main() returns truthy on overall pass and
+# the inversion happens once, at the exit call:
+#
+#     if __name__ == '__main__':
+#         exit(0 if main() else 1)
+#
+# Never exit(main()). See TEST_EXIT_CONVENTION.md.
 
-# Development tools
-pre-commit>=2.0.0
-tox>=3.20.0
+pytest-cov>=4.0.0
+
+# --- Code quality -----------------------------------------------------------
+
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+
+# --- Documentation ----------------------------------------------------------
+
+sphinx>=6.0.0
+sphinx-rtd-theme>=1.2.0
+
+# --- Development tools ------------------------------------------------------
+
+pre-commit>=3.0.0
+
+# --- Removed ----------------------------------------------------------------
+
+# pytest-mock: no test module imports it; the suite builds real files in
+#     tempfile directories rather than mocking.
+# mypy: the project deliberately avoids the typing module and relies on guard
+#     clauses for runtime type narrowing, so a static type checker has little
+#     to work with and would flag the intended style as errors.
+# tox: no tox.ini in the repository.
+
+# End of file #

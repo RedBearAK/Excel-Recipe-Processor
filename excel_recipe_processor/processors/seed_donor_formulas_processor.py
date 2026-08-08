@@ -20,7 +20,7 @@ from openpyxl.worksheet.formula import ArrayFormula
 
 from excel_recipe_processor.processors._helpers.range_patterns   import excel_column_ref_rgx
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
-    find_last_data_row, ExcelRangeResolverError
+    find_last_data_row, resolve_column_letters, ExcelRangeResolverError
 )
 
 
@@ -208,6 +208,19 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         """
         anchors = self.fill_anchor_columns
 
+        if anchors:
+            # Accept header names, not just column letters. find_last_data_row
+            # needs letters, and requiring the caller to know that would leak an
+            # implementation detail into every recipe.
+            try:
+                anchors = resolve_column_letters(
+                    target_ws, anchors, header_row=1,
+                    force_column_names=self.force_column_names,
+                    on_missing='error'
+                )
+            except ExcelRangeResolverError as error:
+                raise StepProcessorError(f"Invalid fill_anchor_columns: {error}")
+
         if not anchors:
             # Measure the data extent from every column, so a sparse column
             # cannot cut the fill short
@@ -230,6 +243,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             return 0
 
         filled = 0
+        preserved = 0
         columns_with_formulas = []
 
         for col_letter in resolved_columns:
@@ -270,6 +284,17 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 )
 
             for row_num in range(seed_last_row + 1, last_row + 1):
+                target_cell = target_ws.cell(row=row_num, column=column_number)
+
+                # Never write over an existing value. The transplant already
+                # refuses to, and the fill should behave the same way: a cell
+                # holding something was put there deliberately. This is what
+                # protects the XXXX sentinel row, which sits below the data and
+                # would otherwise be counted as part of the fill extent.
+                if target_cell.value is not None:
+                    preserved += 1
+                    continue
+
                 target_reference = f"{col_letter}{row_num}"
                 translated = translator.translate_formula(target_reference)
 
@@ -278,7 +303,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                     # treats them as one spilled block anchored at the origin
                     translated = ArrayFormula(ref=target_reference, text=translated)
 
-                target_ws.cell(row=row_num, column=column_number, value=translated)
+                target_cell.value = translated
                 filled += 1
 
         if filled:
@@ -289,6 +314,12 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         else:
             logger.warning(
                 "⬇️  Nothing filled: no seeded formulas were found to continue"
+            )
+
+        if preserved:
+            logger.info(
+                f"⬇️  Left {preserved} cell(s) alone that already held a value "
+                f"(sentinel row, or data placed deliberately)"
             )
 
         return filled

@@ -51,6 +51,24 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         self.force_column_names = self.get_config_value('force_column_names', False)
         self.fill_down = self.get_config_value('fill_down', False)
         self.fill_anchor_columns = self.get_config_value('fill_anchor_columns', None)
+
+        # What to do with a donor cell holding an array (CSE) formula.
+        #
+        #   "preserve"  write it back as an array formula, faithful to the donor
+        #   "convert"   write it as an ordinary formula
+        #
+        # Converting is safe when the formula is scalar - nothing but single-cell
+        # comparisons and ordinary functions - which is the common case for a
+        # formula that was entered with Ctrl-Shift-Enter out of habit rather than
+        # necessity. Ordinary formulas are also what Excel fills down natively,
+        # so they behave predictably for anyone editing afterwards.
+        self.array_formula_mode = self.get_config_value('array_formula_mode', 'preserve')
+
+        if self.array_formula_mode not in ('preserve', 'convert'):
+            raise StepProcessorError(
+                f"Invalid array_formula_mode '{self.array_formula_mode}'. "
+                f"Supported: preserve, convert"
+            )
         
         # Validate configuration
         self._validate_config()
@@ -117,7 +135,16 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                         )
                     
                     # Transplant the formula (openpyxl handles making it "live")
-                    target_cell.value = source_cell.value
+                    source_formula = source_cell.value
+
+                    # Honour array_formula_mode on the seeded rows too, so the
+                    # whole column is consistent rather than array at the top and
+                    # ordinary below it
+                    if (isinstance(source_formula, ArrayFormula)
+                            and self.array_formula_mode == 'convert'):
+                        source_formula = source_formula.text
+
+                    target_cell.value = source_formula
                     
                     # If source had a formula, copy it exactly
                     if hasattr(source_cell, 'formula') and source_cell.formula:
@@ -192,9 +219,13 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         except ExcelRangeResolverError as error:
             raise StepProcessorError(f"Could not determine fill extent: {error}")
 
-        seed_last_row = self.start_row + self.row_count - 1
+        # Where the seeded block was ASKED to end. The donor may hold fewer rows
+        # than row_count, in which case some of those cells were never written -
+        # so filling from here would step over them and leave a gap. The real
+        # starting point is found per column below.
+        requested_last_row = self.start_row + self.row_count - 1
 
-        if last_row <= seed_last_row:
+        if last_row <= requested_last_row:
             logger.info(f"⬇️  Nothing to fill: data ends at row {last_row}")
             return 0
 
@@ -223,11 +254,26 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             translator = Translator(formula_text, origin=origin)
             column_number = target_ws[f"{col_letter}1"].column
 
+            # Fill from the last row that actually received a formula, not from
+            # the last row that was requested. A donor with fewer rows than
+            # row_count would otherwise leave the difference blank.
+            seed_last_row = self.start_row - 1
+            for probe_row in range(self.start_row, requested_last_row + 1):
+                if target_ws.cell(row=probe_row, column=column_number).value is not None:
+                    seed_last_row = probe_row
+
+            if seed_last_row < requested_last_row:
+                logger.debug(
+                    f"⬇️  {col_letter}: donor supplied {seed_last_row - self.start_row + 1} "
+                    f"of {self.row_count} requested rows, filling from "
+                    f"{seed_last_row + 1}"
+                )
+
             for row_num in range(seed_last_row + 1, last_row + 1):
                 target_reference = f"{col_letter}{row_num}"
                 translated = translator.translate_formula(target_reference)
 
-                if is_array:
+                if is_array and self.array_formula_mode == 'preserve':
                     # Each filled cell needs its own single-cell ref, or Excel
                     # treats them as one spilled block anchored at the origin
                     translated = ArrayFormula(ref=target_reference, text=translated)

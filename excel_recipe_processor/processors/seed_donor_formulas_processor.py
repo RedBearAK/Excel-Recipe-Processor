@@ -52,6 +52,27 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         self.fill_down = self.get_config_value('fill_down', False)
         self.fill_anchor_columns = self.get_config_value('fill_anchor_columns', None)
 
+        # What to do when a target cell already holds something.
+        #
+        #   "error"      stop and say which cell (the default)
+        #   "skip"       leave it alone and count it
+        #   "overwrite"  write anyway
+        #
+        # Applies to the seeded rows and the filled rows alike. Previously the
+        # two halves disagreed - the transplant raised, the fill silently
+        # skipped - which meant the same collision produced different outcomes
+        # depending on which row it landed on.
+        #
+        # "skip" is what a trailing marker row wants, so that a fill sweeping to
+        # the end of the data steps around it rather than halting.
+        self.on_existing_cell = self.get_config_value('on_existing_cell', 'error')
+
+        if self.on_existing_cell not in ('error', 'skip', 'overwrite'):
+            raise StepProcessorError(
+                f"Invalid on_existing_cell '{self.on_existing_cell}'. "
+                f"Supported: error, skip, overwrite"
+            )
+
         # What to do with a donor cell holding an array (CSE) formula.
         #
         #   "preserve"  write it back as an array formula, faithful to the donor
@@ -111,6 +132,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             
             # 3. Extract and transplant formulas
             transplanted_count = 0
+            preserved_seed = 0
             empty_source_count = 0
             
             for col_letter in resolved_columns:
@@ -129,10 +151,15 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                     
                     # Check if target cell is occupied
                     if target_cell.value is not None:
-                        raise StepProcessorError(
-                            f"Target cell {col_letter}{current_row} already contains data: '{target_cell.value}'. "
-                            f"Cannot overwrite existing data."
-                        )
+                        if self.on_existing_cell == 'error':
+                            raise StepProcessorError(
+                                f"Target cell {col_letter}{current_row} already contains data: "
+                                f"'{target_cell.value}'. Set on_existing_cell to 'skip' or "
+                                f"'overwrite' to proceed."
+                            )
+                        if self.on_existing_cell == 'skip':
+                            preserved_seed += 1
+                            continue
                     
                     # Transplant the formula (openpyxl handles making it "live")
                     source_formula = source_cell.value
@@ -175,6 +202,11 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             logger.info(f"✅ Transplanted {transplanted_count} formulas successfully")
             if filled_count:
                 logger.info(f"⬇️  Filled {filled_count:,} additional formula cells")
+
+            if preserved_seed:
+                logger.info(
+                    f"🧬 Skipped {preserved_seed} seeded cell(s) that already held a value"
+                )
             if empty_source_count > 0:
                 logger.warning(f"⚠️ Found {empty_source_count} empty source cells - check column specifications")
             
@@ -286,14 +318,16 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             for row_num in range(seed_last_row + 1, last_row + 1):
                 target_cell = target_ws.cell(row=row_num, column=column_number)
 
-                # Never write over an existing value. The transplant already
-                # refuses to, and the fill should behave the same way: a cell
-                # holding something was put there deliberately. This is what
-                # protects the XXXX sentinel row, which sits below the data and
-                # would otherwise be counted as part of the fill extent.
                 if target_cell.value is not None:
-                    preserved += 1
-                    continue
+                    if self.on_existing_cell == 'error':
+                        raise StepProcessorError(
+                            f"Fill target {col_letter}{row_num} already contains data: "
+                            f"'{target_cell.value}'. Set on_existing_cell to 'skip' or "
+                            f"'overwrite' to proceed."
+                        )
+                    if self.on_existing_cell == 'skip':
+                        preserved += 1
+                        continue
 
                 target_reference = f"{col_letter}{row_num}"
                 translated = translator.translate_formula(target_reference)

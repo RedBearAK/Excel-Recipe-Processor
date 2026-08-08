@@ -16,6 +16,7 @@ from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from openpyxl.formula.translate import Translator
+from openpyxl.worksheet.formula import ArrayFormula
 
 from excel_recipe_processor.processors._helpers.range_patterns   import excel_column_ref_rgx
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
@@ -204,16 +205,34 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             origin = f"{col_letter}{self.start_row}"
             source_value = target_ws[origin].value
 
-            if not (isinstance(source_value, str) and source_value.startswith('=')):
+            # An array formula arrives as an ArrayFormula object rather than a
+            # string, so a plain startswith('=') test skips it. SALE TYPE1 in the
+            # VMS workbook is one of these, and skipping it left that column
+            # empty below the seeded rows while the log still claimed success.
+            is_array = isinstance(source_value, ArrayFormula)
+
+            if is_array:
+                formula_text = source_value.text
+            elif isinstance(source_value, str) and source_value.startswith('='):
+                formula_text = source_value
+            else:
                 logger.debug(f"⬇️  {origin} holds no formula, not filling this column")
                 continue
 
             columns_with_formulas.append(col_letter)
-            translator = Translator(source_value, origin=origin)
+            translator = Translator(formula_text, origin=origin)
+            column_number = target_ws[f"{col_letter}1"].column
 
             for row_num in range(seed_last_row + 1, last_row + 1):
-                target_ws.cell(row=row_num, column=target_ws[f"{col_letter}1"].column,
-                               value=translator.translate_formula(f"{col_letter}{row_num}"))
+                target_reference = f"{col_letter}{row_num}"
+                translated = translator.translate_formula(target_reference)
+
+                if is_array:
+                    # Each filled cell needs its own single-cell ref, or Excel
+                    # treats them as one spilled block anchored at the origin
+                    translated = ArrayFormula(ref=target_reference, text=translated)
+
+                target_ws.cell(row=row_num, column=column_number, value=translated)
                 filled += 1
 
         if filled:

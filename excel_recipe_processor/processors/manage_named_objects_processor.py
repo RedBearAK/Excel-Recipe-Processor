@@ -1312,6 +1312,15 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
         on_existing, name_validation = self._get_write_policies('house')
 
+        # Names carrying the project prefix that this step does NOT define are
+        # reported, and optionally removed.
+        #
+        # Matters for the copy-a-template workflow: a name renamed by hand in
+        # the template is inherited by the copy, and regeneration then writes the
+        # expected name alongside it. Nothing breaks, but the orphan accumulates
+        # quietly across generations.
+        prune_prefix = self.get_config_value('prune_orphans_with_prefix', None)
+
         workbook = self._load_target_workbook(target_file)
 
         created = []
@@ -1390,6 +1399,27 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                 f"{len(skipped)} skipped, across "
                 f"{len({r['sheet'] for r in created + replaced + skipped})} sheet(s)"
             )
+
+            expected = {spec.get('name') for spec in range_specs if isinstance(spec, dict)}
+            orphans = sorted(
+                name for name in workbook.defined_names
+                if name not in expected
+                and (prune_prefix is None or name.startswith(prune_prefix))
+            )
+
+            if orphans and prune_prefix:
+                for name in orphans:
+                    del workbook.defined_names[name]
+                logger.warning(
+                    f"🧹 Removed {len(orphans)} orphaned '{prune_prefix}' name(s) "
+                    f"not defined by this step: {', '.join(orphans)}"
+                )
+            elif orphans:
+                logger.warning(
+                    f"⚠️  {len(orphans)} defined name(s) present but not managed "
+                    f"by this step: {', '.join(orphans)}. Set "
+                    f"prune_orphans_with_prefix to remove them."
+                )
 
             workbook.save(target_file)
 

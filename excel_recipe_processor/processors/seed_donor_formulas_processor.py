@@ -133,6 +133,16 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             # 5. Save target workbook (makes formulas "live")
             target_wb.save(self.target_file)
 
+            if transplanted_count == 0:
+                raise StepProcessorError(
+                    f"No formulas found in donor '{self.source_file}' sheet "
+                    f"'{self.source_sheet}' at rows {self.start_row}-"
+                    f"{self.start_row + self.row_count - 1} for columns "
+                    f"{self.columns}. The donor rows may have been deleted, or "
+                    f"start_row may not point at them. Writing a formula-free "
+                    f"file silently is worse than stopping here."
+                )
+
             # Log summary
             logger.info(f"✅ Transplanted {transplanted_count} formulas successfully")
             if filled_count:
@@ -188,6 +198,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             return 0
 
         filled = 0
+        columns_with_formulas = []
 
         for col_letter in resolved_columns:
             origin = f"{col_letter}{self.start_row}"
@@ -197,6 +208,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 logger.debug(f"⬇️  {origin} holds no formula, not filling this column")
                 continue
 
+            columns_with_formulas.append(col_letter)
             translator = Translator(source_value, origin=origin)
 
             for row_num in range(seed_last_row + 1, last_row + 1):
@@ -204,10 +216,15 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                                value=translator.translate_formula(f"{col_letter}{row_num}"))
                 filled += 1
 
-        logger.info(
-            f"⬇️  Filled {len(resolved_columns)} column(s) from row "
-            f"{seed_last_row + 1} to {last_row}"
-        )
+        if filled:
+            logger.info(
+                f"⬇️  Filled {len(columns_with_formulas)} column(s) from row "
+                f"{seed_last_row + 1} to {last_row}"
+            )
+        else:
+            logger.warning(
+                "⬇️  Nothing filled: no seeded formulas were found to continue"
+            )
 
         return filled
 

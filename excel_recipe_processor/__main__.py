@@ -158,6 +158,46 @@ For detailed documentation and more examples:
              'tab-complete. Example: --set source_download downloads/latest.xlsx'
     )
     
+    # ---- Recipe development aids -------------------------------------------
+    #
+    # All of these are external to the recipe file. Editing a recipe to observe
+    # it changes the thing being observed, and the recipe is usually the
+    # artifact under test.
+
+    parser.add_argument(
+        '--dump-stage',
+        action='append',
+        dest='dump_stages',
+        metavar='NAME[:SPEC]',
+        help='Write a stage to CSV as it is produced, then carry on (repeatable). '
+             'SPEC selects rows: 20 first, -20 last, 100-150 a range, 20,-20 both '
+             'ends. Omit SPEC for every row. Example: --dump-stage stg_enriched:20'
+    )
+
+    parser.add_argument(
+        '--dump-dir',
+        dest='dump_dir',
+        default='.',
+        metavar='DIR',
+        help='Where --dump-stage writes its CSVs (default: current directory)'
+    )
+
+    parser.add_argument(
+        '--stop-after',
+        dest='stop_after_stage',
+        metavar='STAGE',
+        help='Halt once this stage has been written. Pairs with --dump-stage to '
+             'avoid running the rest of a pipeline you are not inspecting yet.'
+    )
+
+    parser.add_argument(
+        '--list-stages',
+        dest='list_stages_recipe',
+        metavar='RECIPE',
+        help='Print the stages a recipe declares, with descriptions, and exit. '
+             'Tells you what to ask --dump-stage for without reading the YAML.'
+    )
+
     # Verbose logging
     parser.add_argument(
         '--verbose', '-v',

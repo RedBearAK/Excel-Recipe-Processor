@@ -24,6 +24,9 @@ from excel_recipe_processor.core.base_processor import (
     StepProcessorError,
 )
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
+from excel_recipe_processor.core.stage_inspection import (
+    dump_stage_to_file, StageInspectionError
+)
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.interactive_variables import (
     InteractiveVariablePrompt, InteractiveVariableError
@@ -49,6 +52,13 @@ class RecipePipeline:
     """Pure stage-based recipe orchestrator with variable support and friendly error reporting."""
     
     def __init__(self):
+        # Development-time inspection, driven entirely from the command line so
+        # that examining a recipe never means editing it.
+        self._dump_requests = {}        # stage name -> row spec (or None)
+        self._dumped_stages = set()     # dumped once, even if a stage is rewritten
+        self._dump_output_dir = '.'
+        self._stop_after_stage = None
+
         self.recipe_loader = RecipeLoader()
         self.recipe_data = None
         self.variable_substitution = None
@@ -227,6 +237,16 @@ class RecipePipeline:
                 
                 self.steps_executed += 1
                 logger.info(f"✅ Step {step_index + 1} completed successfully")
+
+                self._dump_requested_stages()
+
+                if self._should_stop_after(step_config):
+                    logger.info(
+                        f"🛑 Stopping after '{self._stop_after_stage}' as requested "
+                        f"(--stop-after). {self.steps_executed} of "
+                        f"{recipe_steps_cnt} steps ran."
+                    )
+                    break
                 
             except (StageError, StepProcessorError, Exception) as e:
                 # Handle error according to configured action
@@ -296,6 +316,52 @@ class RecipePipeline:
         except InteractiveVariableError as e:
             logger.error(f"❌ Failed to collect external variables: {e}")
             raise RecipePipelineError(f"Failed to collect external variables: {e}")
+
+    def configure_inspection(self, dump_requests: dict = None,
+                             stop_after_stage: str = None,
+                             dump_output_dir: str = '.') -> None:
+        """
+        Set up development-time stage inspection.
+
+        Args:
+            dump_requests:    Stage name -> row spec (or None for all rows)
+            stop_after_stage: Halt once this stage has been written
+            dump_output_dir:  Where dumped CSVs go
+        """
+        self._dump_requests = dump_requests or {}
+        self._stop_after_stage = stop_after_stage
+        self._dump_output_dir = dump_output_dir or '.'
+
+    def _dump_requested_stages(self) -> None:
+        """Write out any requested stage that now exists."""
+        if not self._dump_requests:
+            return
+
+        from excel_recipe_processor.core.stage_manager import StageManager
+
+        for stage_name, spec in self._dump_requests.items():
+            if stage_name in self._dumped_stages:
+                continue
+
+            if not StageManager.stage_exists(stage_name):
+                continue
+
+            try:
+                dump_stage_to_file(
+                    stage_name, StageManager.load_stage(stage_name),
+                    spec, self._dump_output_dir
+                )
+                self._dumped_stages.add(stage_name)
+            except StageInspectionError as error:
+                raise StepProcessorError(f"--dump-stage {stage_name}: {error}")
+
+    def _should_stop_after(self, step_config: dict) -> bool:
+        """Report whether this step wrote the stage named by --stop-after."""
+        if not self._stop_after_stage:
+            return False
+
+        written = step_config.get('save_to_stage') or step_config.get('stage_name')
+        return written == self._stop_after_stage
 
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""

@@ -358,4 +358,40 @@ parameter_details:
       "remove_special_chars", "remove_duplicates"
       ]
 
+
+all_columns_example:
+  description: "Clean every column without naming them"
+  yaml: |
+    # "*" targets every column in the frame. Practical as a first step on a raw
+    # download, where naming all sixty-odd columns would defeat the purpose.
+
+    settings:
+      description: "Strip stray whitespace from a raw download"
+      stages:
+        - stage_name: "stg_raw"
+          description: "Untouched import"
+          protected: false
+        - stage_name: "stg_cleaned"
+          description: "Whitespace stripped from every text column"
+          protected: false
+
+    recipe:
+      - step_description: "Strip whitespace from every text column"
+        processor_type: "clean_data"
+        source_stage: "stg_raw"
+        rules:
+          - # REQ - a list of column names, or "*" for every column
+            columns: "*"
+            action: "strip_whitespace"
+        save_to_stage: "stg_cleaned"
+
+
+type_safety_notes:
+  typed_columns_are_skipped:
+    description: "The text actions - strip_whitespace, uppercase, lowercase, title_case, remove_special_chars, remove_invisible_chars, normalize_whitespace - route through a string conversion. Applied to a numeric or datetime column that would silently turn it into text: a Price of 123.45 becomes the string '123.45', written to Excel left-aligned with number formats no longer applying. Those columns are skipped instead, and the count is logged."
+  why_that_makes_the_star_safe:
+    description: "A blanket rule is only reasonable because typed columns are skipped. The two features are meant to be used together."
+  nulls_are_preserved:
+    description: "String operations apply only to populated cells, so a null never becomes the literal text 'nan'. This matters most on a column that is mostly empty, where a whole column of 'nan' would otherwise reach the output as real content."
+
 # End of file #

@@ -1435,6 +1435,24 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             'ranges_written': len(created) + len(replaced)
         }
     
+    @classmethod
+    def get_minimal_config(cls) -> dict:
+        """
+        Smallest configuration that constructs and validates.
+
+        Read by capability discovery, which instantiates every processor to
+        report what it can do. Without this the processor silently drops out of
+        --list-capabilities.
+
+        Uses list_objects because it is the only operation needing nothing but a
+        source file - export_all wants an output path, and the write operations
+        want a target.
+        """
+        return {
+            'operation': 'list_objects',
+            'source_file': 'workbook.xlsx'
+        }
+
     def get_operation_type(self) -> str:
         return "named_objects_management"
     

@@ -56,6 +56,9 @@ multi_sheet_example:
       # Previous steps would populate the stages
       - step_description: "Export comprehensive quarterly report"
         processor_type: "export_file"
+        # REQ - Still required in multi-sheet mode. The sheets list says what
+        # goes on each tab; source_stage is what the step consumes.
+        source_stage: "executive_summary"
         # REQ - Output file path with variable substitution
         # Built-in variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}
         # Custom variables: defined in recipe settings or CLI --var
@@ -264,3 +267,46 @@ common_use_cases:
   external_integration: "Export to CSV/TSV for integration with external systems"
   intermediate_exports: "Export stage data at various points for debugging or audit"
   dynamic_naming: "Use variables for automated file naming in batch processing"
+
+
+template_example:
+  description: "Copy an existing workbook and replace one sheet inside it"
+  yaml: |
+    # Normally export_file builds a new workbook from nothing. Template mode
+    # byte-copies an existing one and rewrites only the named sheet, so
+    # everything else rides along untouched: other sheets, named ranges,
+    # formatting, charts, images.
+    #
+    # This is what makes a "copy the last good file and swap the data" workflow
+    # possible without rebuilding every lookup table each run.
+
+    settings:
+      description: "Refresh the data sheet in a copy of a prepared workbook"
+      stages:
+        - stage_name: "stg_report_data"
+          description: "Processed rows ready to write"
+          protected: false
+
+    recipe:
+      - step_description: "Copy the template and replace the data sheet"
+        processor_type: "export_file"
+        source_stage: "stg_report_data"
+        # REQ in template mode - workbook to copy
+        template_file: "templates/report_template.xlsx"
+        # REQ - where the copy goes
+        output_file: "output/report_2026_08.xlsx"
+        # REQ in template mode - which sheet inside the copy to replace
+        sheet_name: "Data"
+
+
+template_notes:
+  what_survives:
+    description: "Verified against a workbook carrying one of each: sheets, named ranges, formulas, fonts and fills, freeze panes, auto-filter, hidden columns, column widths, number formats, conditional formatting, data validation, charts and PNG images all survive the copy."
+  what_does_not:
+    description: "WMF images are dropped, with a warning on the console. Pivot table support in openpyxl is partial and untested here. If a template carries either, confirm they survive one run before relying on it."
+  do_not_chain:
+    description: "Each run puts the template through one load-and-save cycle. That is survivable once. It compounds if each output becomes the next run's template, so keep one pinned template and copy it every time rather than chaining outputs."
+  sheet_position:
+    description: "The replaced sheet is cleared in place rather than deleted and recreated, so it keeps its position in the tab order."
+
+# End of file #

@@ -66,6 +66,23 @@ class AggregateDataProcessor(BaseStepProcessor):
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Aggregate data step '{self.step_name}' requires a pandas DataFrame")
         
+        # An empty input is a legitimate result for an aggregation, not an
+        # error: a summary of nothing is an empty summary. Halting here would
+        # turn "this download has no matching rows yet" into "no output file at
+        # all", which is the wrong trade. The empty frame keeps the declared
+        # output columns so downstream sheets and ranges still line up.
+        if hasattr(data, 'empty') and data.empty:
+            group_by = self.get_config_value('group_by', [])
+            aggregations = self.get_config_value('aggregations', [])
+            out_cols = list(group_by) + [
+                a.get('output_name') or f"{a.get('column')}_{a.get('function')}"
+                for a in aggregations
+            ]
+            logger.warning(
+                f"⚠️  '{self.step_name}': input is empty; producing an empty "
+                f"summary with columns {out_cols}"
+            )
+            return pd.DataFrame(columns=out_cols)
         self.validate_data_not_empty(data)
         
         # Load aggregation configuration from various sources

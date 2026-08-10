@@ -508,6 +508,7 @@ from excel_recipe_processor.processors.format_excel_processor           import F
 from excel_recipe_processor.processors.generate_column_config_processor import GenerateColumnConfigProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
+from excel_recipe_processor.processors.file_metadata_processor          import FileMetadataProcessor
 from excel_recipe_processor.processors.inject_formulas_processor        import InjectFormulasProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
 from excel_recipe_processor.processors.manage_named_objects_processor   import ManageNamedObjectsProcessor
@@ -530,6 +531,7 @@ def register_standard_processors():
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('combine_data',                   CombineDataProcessor                )
+    registry.register('file_metadata',                  FileMetadataProcessor               )
     registry.register('copy_stage',                     CopyStageProcessor                  )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )

@@ -37,6 +37,16 @@ class FileReader:
     
     ALL_FORMATS = EXCEL_FORMATS | CSV_FORMATS | TSV_FORMATS
     
+    # pandas' documented default NA strings (the set keep_default_na=True
+    # applies). Named here so the verbatim-columns policy can reproduce the
+    # default coercion for UNPROTECTED columns after a raw read, instead of
+    # importing pandas internals.
+    DEFAULT_NA_STRINGS = (
+        '#N/A', '#N/A N/A', '#NA', '-1.#IND', '-1.#QNAN', '-NaN', '-nan',
+        '1.#IND', '1.#QNAN', '<NA>', 'N/A', 'NA', 'NULL', 'NaN', 'None',
+        'n/a', 'nan', 'null',
+    )
+
     # Extension to logical format mapping
     EXTENSION_TO_FORMAT = {
         '.xlsx': 'xlsx',
@@ -49,7 +59,8 @@ class FileReader:
     }
     
     @staticmethod
-    def read_file(filename, sheet=1, encoding='utf-8', separator=',', explicit_format=None):
+    def read_file(filename, sheet=1, encoding='utf-8', separator=',', explicit_format=None,
+                  verbatim_text_columns=None):
         """
         Read a file with automatic format detection
         
@@ -87,13 +98,24 @@ class FileReader:
             
             # Delegate to appropriate reader based on logical format
             if file_format in FileReader.EXCEL_FORMATS:
-                return FileReader._read_excel_file(filename, sheet_for_excel)
+                data = FileReader._read_excel_file(
+                    filename, sheet_for_excel,
+                    raw_na=bool(verbatim_text_columns))
             elif file_format in FileReader.CSV_FORMATS:
-                return FileReader._read_csv_file(filename, encoding, separator)
+                data = FileReader._read_csv_file(
+                    filename, encoding, separator,
+                    raw_na=bool(verbatim_text_columns))
             elif file_format in FileReader.TSV_FORMATS:
-                return FileReader._read_tsv_file(filename, encoding)
+                data = FileReader._read_tsv_file(
+                    filename, encoding,
+                    raw_na=bool(verbatim_text_columns))
             else:
                 raise FileReaderError(f"Unsupported file format: {file_format}")
+
+            if verbatim_text_columns:
+                data = FileReader._apply_na_policy(data, verbatim_text_columns)
+
+            return data
                 
         except FileReaderError:
             raise
@@ -257,7 +279,55 @@ class FileReader:
             return 'xlsx'
     
     @staticmethod
-    def _read_excel_file(filename, sheet):
+    def _apply_na_policy(data, verbatim_text_columns):
+        """
+        Restore default NA behavior everywhere EXCEPT the designated columns.
+
+        A raw read (keep_default_na=False) preserves strings like "N/A" that
+        pandas would otherwise coerce to missing - but it preserves them in
+        EVERY column and turns genuinely empty cells into '' instead of NaN.
+        This helper puts the world back except where told not to:
+
+        - unprotected columns: the documented default NA strings and '' both
+          become NaN, reproducing a normal read
+        - protected (verbatim) columns: only '' becomes NaN, so a blank cell
+          stays a blank cell while "N/A" stays the two characters someone
+          typed
+        - dtypes re-inferred afterward, so a numeric column that carried
+          blanks returns to float instead of staying object
+
+        Args:
+            data:                  Frame from a raw (keep_default_na=False) read
+            verbatim_text_columns: Columns whose text must survive verbatim
+
+        Returns:
+            Frame with default NA semantics restored outside the designated columns
+        """
+        import numpy as np
+
+        missing = [c for c in verbatim_text_columns if c not in data.columns]
+        if missing:
+            logger.warning(
+                f"⚠️  verbatim_text_columns not found (check spelling): {missing}. "
+                f"Available: {list(data.columns)}"
+            )
+
+        default_na = set(FileReader.DEFAULT_NA_STRINGS)
+
+        for column in data.columns:
+            if data[column].dtype != object and str(data[column].dtype) != 'str':
+                continue
+            if column in verbatim_text_columns:
+                data[column] = data[column].replace('', np.nan)
+            else:
+                data[column] = data[column].map(
+                    lambda v: np.nan if (isinstance(v, str) and (v == '' or v in default_na)) else v
+                )
+
+        return data.infer_objects()
+
+    @staticmethod
+    def _read_excel_file(filename, sheet, raw_na=False):
         """Read Excel file using ExcelReader."""
         try:
             excel_reader = ExcelReader()
@@ -272,7 +342,10 @@ class FileReader:
                     )
             
             # Read the file
-            data = excel_reader.read_file(filename, sheet_name=sheet)
+            if raw_na:
+                data = excel_reader.read_file(filename, sheet_name=sheet, keep_default_na=False)
+            else:
+                data = excel_reader.read_file(filename, sheet_name=sheet)
             
             logger.debug(f"Read Excel file '{filename}', sheet: {sheet}, shape: {data.shape}")
             return data
@@ -281,7 +354,7 @@ class FileReader:
             raise FileReaderError(f"Excel reading error for '{filename}': {e}")
     
     @staticmethod
-    def _read_csv_file(filename, encoding, separator):
+    def _read_csv_file(filename, encoding, separator, raw_na=False):
         """Read CSV file with robust options."""
         try:
             data = pd.read_csv(
@@ -290,8 +363,8 @@ class FileReader:
                 sep=separator,
                 # Robust CSV reading options
                 skipinitialspace=True,
-                na_values=['', 'NULL', 'null', 'N/A', 'n/a', 'NA', 'None'],
-                keep_default_na=True,
+                na_values=[] if raw_na else ['', 'NULL', 'null', 'N/A', 'n/a', 'NA', 'None'],
+                keep_default_na=not raw_na,
                 dtype=str,  # Read as strings initially to avoid data loss
                 low_memory=False
             )
@@ -306,7 +379,7 @@ class FileReader:
             raise FileReaderError(f"CSV reading error for '{filename}': {e}")
     
     @staticmethod
-    def _read_tsv_file(filename, encoding):
+    def _read_tsv_file(filename, encoding, raw_na=False):
         """Read TSV file with robust options."""
         try:
             data = pd.read_csv(
@@ -315,8 +388,8 @@ class FileReader:
                 sep='\t',
                 # Robust TSV reading options
                 skipinitialspace=True,
-                na_values=['', 'NULL', 'null', 'N/A', 'n/a', 'NA', 'None'],
-                keep_default_na=True,
+                na_values=[] if raw_na else ['', 'NULL', 'null', 'N/A', 'n/a', 'NA', 'None'],
+                keep_default_na=not raw_na,
                 dtype=str,  # Read as strings initially to avoid data loss
                 low_memory=False
             )

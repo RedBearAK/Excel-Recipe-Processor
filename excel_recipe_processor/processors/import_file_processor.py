@@ -99,12 +99,21 @@ class ImportFileProcessor(ImportBaseProcessor):
         
         # FileReader gets the fully resolved filename
         try:
+            # OPT verbatim_text_columns: columns whose literal text must
+            # survive import untouched. pandas normally coerces strings like
+            # "N/A", "NA", "NULL" to missing values; for a designated column
+            # they stay the characters someone typed, while a genuinely
+            # empty cell still imports as missing. Required for any column
+            # that carries literal "N/A" entries a filter needs to match.
+            verbatim_text_columns = self.get_config_value('verbatim_text_columns', None)
+
             data = FileReader.read_file(
                 resolved_file,  # No variables parameter needed
                 sheet=sheet,
                 encoding=encoding,
                 separator=separator,
-                explicit_format=explicit_format
+                explicit_format=explicit_format,
+                verbatim_text_columns=verbatim_text_columns
             )
             
             # Final import summary with comprehensive sheet information

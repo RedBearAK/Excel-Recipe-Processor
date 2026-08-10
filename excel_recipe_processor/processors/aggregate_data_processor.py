@@ -484,40 +484,36 @@ class AggregateDataProcessor(BaseStepProcessor):
         # Build aggregation dictionary for pandas
         agg_dict = {}
         column_renames = {}
-        
+
         for agg in aggregations:
             column = agg['column']
             function = agg['function']
             # Support both 'new_column_name' and 'output_name' for backward compatibility
             new_name = agg.get('new_column_name', agg.get('output_name', f"{column}_{function}"))
-            
-            # Handle multiple aggregations on the same column
+
             if column not in agg_dict:
                 agg_dict[column] = []
-            
+
             agg_dict[column].append(function)
-            
-            # Track what to rename columns to
-            current_name = f"{column}_{function}" if len(agg_dict[column]) > 1 else column
-            column_renames[current_name] = new_name
-        
+
+            # With dict-of-lists aggregation the result columns are always a
+            # (column, function) MultiIndex, so after flattening the name is
+            # deterministically "column_function". Rename by that EXACT name.
+            #
+            # The previous implementation guessed the pre-flatten name and then
+            # matched by SUBSTRING ("if old_name in col"), so with columns
+            # "Major Species" and "Species" the 'Species' rename captured
+            # "Major Species_first" first - silently mislabeling both outputs.
+            column_renames[f"{column}_{function}"] = new_name
+
         # Perform the aggregation
         result = grouped.agg(agg_dict)
-        
-        # Flatten multi-level columns if necessary
+
+        # Dict-of-lists always yields a MultiIndex; flatten to column_function
         if result.columns.nlevels > 1:
             result.columns = ['_'.join(col).strip() for col in result.columns.values]
-        
-        # Apply column renames
-        rename_dict = {}
-        for old_name, new_name in column_renames.items():
-            # Find the actual column name in result
-            matching_cols = [col for col in result.columns if old_name in col]
-            if matching_cols:
-                rename_dict[matching_cols[0]] = new_name
-        
-        if rename_dict:
-            result = result.rename(columns=rename_dict)
+
+        result = result.rename(columns=column_renames)
         
         # Reset index if requested (brings group columns back as regular columns)
         if reset_index:

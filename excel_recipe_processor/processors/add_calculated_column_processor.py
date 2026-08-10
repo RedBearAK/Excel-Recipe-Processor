@@ -75,7 +75,9 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         
         try:
             # Apply the calculation based on type
-            if calculation_type == 'expression':
+            if calculation_type == 'constant':
+                result_data = self._apply_constant(result_data, new_column, calculation)
+            elif calculation_type == 'expression':
                 result_data = self._apply_expression_calculation(result_data, new_column, calculation)
             elif calculation_type == 'concat':
                 result_data = self._apply_concatenation(result_data, new_column, calculation)
@@ -669,6 +671,31 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         logger.debug(f"Formula: {formula} → {safe_formula}")
         return safe_formula
     
+    def _apply_constant(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
+        """
+        Fill the new column with one literal value on every row.
+
+        The simplest calculation there is, and the one that was missing: a
+        marker or category column ("Record Status": "current") has no source
+        column to compute from.
+
+        Args:
+            df:          Frame to add the column to
+            new_column:  Column to create
+            calculation: Must carry 'value', the literal to fill with
+
+        Returns:
+            Frame with the new column added
+        """
+        if 'value' not in calculation:
+            raise StepProcessorError(
+                "Constant calculation requires a 'value' to fill the column with"
+            )
+
+        result = df.copy()
+        result[new_column] = calculation['value']
+        return result
+
     def get_supported_calculation_types(self) -> list:
         """
         Get list of supported calculation types.
@@ -676,7 +703,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         Returns:
             List of supported calculation type strings
         """
-        return ['expression', 'concat', 'conditional', 'math', 'date', 'text']
+        return ['constant', 'expression', 'concat', 'conditional', 'math', 'date', 'text']
     
     def get_supported_conditions(self) -> list:
         """

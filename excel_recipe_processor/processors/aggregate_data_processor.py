@@ -547,7 +547,7 @@ class AggregateDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities and features."""
         return {
-            'description': 'Groups data and calculates summary statistics',
+            'description': 'Group data and calculate summary statistics',
             'aggregation_functions': self.get_supported_functions(),
             'source_types': self.get_supported_source_types(),
             'file_formats': self.get_supported_file_formats(),

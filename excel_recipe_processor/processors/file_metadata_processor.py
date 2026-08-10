@@ -62,6 +62,20 @@ class FileMetadataProcessor(ImportBaseProcessor):
                 f"Invalid on_missing '{self.on_missing}'. Supported: error, note, skip"
             )
 
+    def get_capabilities(self) -> dict:
+        """
+        Get processor capabilities information.
+
+        Returns:
+            Dictionary with processor capabilities
+        """
+        return {
+            'description': 'List file names, modification times, and sizes for provenance tabs',
+            'file_columns': ['File', 'Modified', 'Size (KB)'],
+            'missing_file_handling': ['error', 'note', 'skip'],
+            'preserves_listed_order': True,
+        }
+
     def load_data(self) -> pd.DataFrame:
         """Stat each listed file and assemble the metadata frame."""
         rows = []

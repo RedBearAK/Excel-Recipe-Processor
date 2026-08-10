@@ -1,0 +1,118 @@
+# Revision date: 2026-08-10
+
+description: "Collapse rows to one per key, keeping all columns and reporting any key whose duplicate rows carried genuinely different values"
+
+
+basic_example:
+  description: "One row per key, first occurrence wins"
+  yaml: |
+    # All columns are kept - unlike dedupe-via-aggregation, nothing has to be
+    # enumerated, so a column added upstream cannot silently vanish here.
+    # Duplicate rows that are pure repetition collapse without comment.
+
+    settings:
+      description: "Collapse a line-item export to order grain"
+      stages:
+        - stage_name: "stg_line_items"
+          description: "One row per order x product"
+          protected: false
+        - stage_name: "stg_orders"
+          description: "One row per order"
+          protected: false
+
+    recipe:
+      - step_description: "Collapse to one row per order"
+        processor_type: "deduplicate_data"
+        source_stage: "stg_line_items"
+        # REQ - Columns that define uniqueness
+        key_columns: ["Order ID"]
+        # OPT - Which duplicate survives: "first" (default) or "last"
+        keep: "first"
+        save_to_stage: "stg_orders"
+
+
+conflict_reporting_example:
+  description: "Surface keys whose duplicates disagreed - the reason this processor exists"
+  yaml: |
+    # A join export SHOULD leave identical rows per key once item columns are
+    # dropped. When it does not - a header line carrying different order
+    # attributes than the real lines - blind dedupe silently picks a winner.
+    # Here the winner is picked AND reported three ways: warning log lines
+    # with the disputed values, an optional stage of the conflicted rows, and
+    # an optional report file written ONLY when conflicts exist, so the
+    # file's presence is itself the signal. Point the file beside the source
+    # download and it becomes the evidence list for cleaning the source
+    # database.
+
+    settings:
+      description: "Order collapse with conflict evidence"
+      variables:
+        report_file: "output/contracts_collapse_conflicts.xlsx"
+      stages:
+        - stage_name: "stg_line_items"
+          description: "Line-item grain input"
+          protected: false
+        - stage_name: "stg_orders"
+          description: "Order grain output"
+          protected: false
+        - stage_name: "stg_collapse_conflicts"
+          description: "Rows of keys that failed to collapse cleanly"
+          protected: false
+
+    recipe:
+      - step_description: "Collapse to order grain, reporting dirty keys"
+        processor_type: "deduplicate_data"
+        source_stage: "stg_line_items"
+        key_columns: ["Order ID"]
+        # OPT - Stage receiving every row of every conflicted key, kept and
+        # discarded alike, annotated with 'Dedupe Status' and
+        # 'Conflicting Columns'
+        save_conflicts_to_stage: "stg_collapse_conflicts"
+        # OPT - Report file with the same contents; NOT written when the
+        # collapse is clean
+        conflicts_file: "{report_file}"
+        save_to_stage: "stg_orders"
+
+
+multi_column_key_example:
+  description: "Uniqueness defined by more than one column"
+  yaml: |
+    # The key is the combination: one row per (booking, origin, species).
+
+    settings:
+      description: "Deduplicate on a compound key"
+      stages:
+        - stage_name: "stg_shipments"
+          description: "Shipment rows, possibly repeated"
+          protected: false
+        - stage_name: "stg_unique_shipments"
+          description: "One row per booking-origin-species"
+          protected: false
+
+    recipe:
+      - step_description: "One row per booking, origin and species"
+        processor_type: "deduplicate_data"
+        source_stage: "stg_shipments"
+        key_columns: ["Booking", "Product Origin", "Major Species"]
+        save_to_stage: "stg_unique_shipments"
+
+
+parameter_details:
+  key_columns:
+    required: true
+    description: "Columns defining uniqueness. One row per distinct combination survives."
+  keep:
+    required: false
+    default: "first"
+    description: "Which duplicate row survives: first or last, in input order"
+  save_conflicts_to_stage:
+    required: false
+    description: "Stage receiving all rows of conflicted keys, annotated with Dedupe Status (kept/discarded) and Conflicting Columns"
+  conflicts_file:
+    required: false
+    description: "Report file with the conflicted rows, written only when conflicts exist. Variables substitute as usual."
+  save_to_stage:
+    required: true
+    description: "Stage receiving the deduplicated frame, all original columns intact"
+
+# End of file #

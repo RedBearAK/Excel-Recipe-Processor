@@ -139,6 +139,20 @@ class ExportFileProcessor(ExportBaseProcessor):
         return (f"wrote {len(data)} rows into sheet '{sheet_name}' of a copy of "
                 f"'{template_path.name}'")
 
+    def get_capabilities(self) -> dict:
+        """
+        Get processor capabilities information.
+
+        Returns:
+            Dictionary with processor capabilities
+        """
+        return {
+            'description': 'Export stages to Excel or CSV, including multi-sheet workbooks, backing up any file being replaced',
+            'file_formats': ['xlsx', 'csv', 'tsv'],
+            'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
+            'safety': ['automatic .backup of an existing output file (create_backup: false to disable)'],
+        }
+
     def save_data(self, data):
         """Save data to file (implements ExportBaseProcessor abstract method)."""
         output_file = self.get_config_value('output_file')

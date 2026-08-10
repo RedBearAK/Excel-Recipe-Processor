@@ -29,6 +29,20 @@ class ImportFileProcessor(ImportBaseProcessor):
             'save_to_stage': 'imported_data'  # Required for import processors
         }
     
+    def get_capabilities(self) -> dict:
+        """
+        Get processor capabilities information.
+
+        Returns:
+            Dictionary with processor capabilities
+        """
+        return {
+            'description': 'Import Excel, CSV, or TSV files into stages, with sheet selection and variable-substituted paths',
+            'file_formats': ['xlsx', 'xls', 'xlsm', 'xlsb', 'csv', 'tsv', 'txt (as tsv)'],
+            'excel_options': ['sheet selection by name or index'],
+            'path_features': ['recipe variable substitution'],
+        }
+
     def load_data(self):
         """Load data from file (implements ImportBaseProcessor abstract method)."""
         input_file = self.get_config_value('input_file')

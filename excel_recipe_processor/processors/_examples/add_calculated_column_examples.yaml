@@ -291,3 +291,34 @@ migration_guide:
     old_syntax: 'formula: "(Revenue - Cost) / Revenue * 100"'
     new_syntax: 'formula_components: [["Revenue", "-", "Cost"], "/", "Revenue", "*", "100"]'
     benefits: "Explicit grouping, no parsing ambiguity"
+
+
+row_number_example:
+  description: "Number rows 1..N as a sort anchor for order-dependent sheets"
+  yaml: |
+    # A display sheet whose meaning depends on row order (blanked repeated
+    # labels, running groups) gets a column that lets anyone sort BACK to
+    # baseline after re-sorting in Excel. Add it after the final sort and
+    # before any order-dependent display step.
+
+    settings:
+      description: "Sort anchor for a display sheet"
+      stages:
+        - stage_name: "stg_summary"
+          description: "Summary in its shipping order"
+          protected: false
+        - stage_name: "stg_summary_numbered"
+          description: "Summary with the Sort Order anchor"
+          protected: false
+
+    recipe:
+      - step_description: "Number the baseline row order"
+        processor_type: "add_calculated_column"
+        source_stage: "stg_summary"
+        new_column: "Sort Order"
+        calculation_type: "row_number"
+        calculation:
+          # REQ - Number of the first row (the calculation dict cannot be
+          # empty, so state the start explicitly)
+          start: 1
+        save_to_stage: "stg_summary_numbered"

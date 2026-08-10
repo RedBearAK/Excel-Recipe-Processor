@@ -17,6 +17,16 @@ so the flattened name is deterministically "column_function"; renames now map
 that exact name. Verified: the collision case labels correctly, and multiple
 functions on one column (sum + max) name correctly.
 
+## add_calculated_column: new 'row_number' calculation type
+
+    calculation_type: "row_number"
+    calculation:
+      start: 1
+
+Numbers rows 1..N in current order - a sort anchor for display sheets whose
+meaning depends on row order (blanked repeats). Sorting on it restores the
+shipped order after any Excel re-sort. The examples file documents it.
+
 ## add_calculated_column: new 'constant' calculation type
 
     calculation_type: "constant"

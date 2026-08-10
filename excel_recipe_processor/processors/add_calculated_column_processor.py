@@ -77,6 +77,8 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             # Apply the calculation based on type
             if calculation_type == 'constant':
                 result_data = self._apply_constant(result_data, new_column, calculation)
+            elif calculation_type == 'row_number':
+                result_data = self._apply_row_number(result_data, new_column, calculation)
             elif calculation_type == 'expression':
                 result_data = self._apply_expression_calculation(result_data, new_column, calculation)
             elif calculation_type == 'concat':
@@ -696,6 +698,38 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         result[new_column] = calculation['value']
         return result
 
+    def _apply_row_number(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
+        """
+        Number the rows 1..N in current order.
+
+        The motivating case: a display sheet whose meaning depends on row
+        order (pivot-style blanked repeats) gets a sort-anchor column, so a
+        user who re-sorts in Excel can always sort back to baseline.
+
+        Position in the recipe matters twice over: add this AFTER the final
+        sort (so the numbers describe the order that ships) and BEFORE any
+        order-dependent display step (so what it restores is the state those
+        steps assumed).
+
+        Args:
+            df:          Frame to number
+            new_column:  Column to create
+            calculation: Optional 'start' for the first row's number (default 1)
+
+        Returns:
+            Frame with the numbering column added
+        """
+        start = calculation.get('start', 1)
+
+        if not isinstance(start, int):
+            raise StepProcessorError(
+                f"row_number 'start' must be an integer, got {type(start).__name__}"
+            )
+
+        result = df.copy()
+        result[new_column] = range(start, start + len(result))
+        return result
+
     def get_supported_calculation_types(self) -> list:
         """
         Get list of supported calculation types.
@@ -703,7 +737,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         Returns:
             List of supported calculation type strings
         """
-        return ['constant', 'expression', 'concat', 'conditional', 'math', 'date', 'text']
+        return ['constant', 'row_number', 'expression', 'concat', 'conditional', 'math', 'date', 'text']
     
     def get_supported_conditions(self) -> list:
         """

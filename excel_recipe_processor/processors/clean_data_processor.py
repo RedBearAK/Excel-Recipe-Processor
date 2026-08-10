@@ -57,6 +57,14 @@ class CleanDataProcessor(BaseStepProcessor):
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Clean data step '{self.step_name}' requires a pandas DataFrame")
         
+        # Cleaning nothing is nothing, not an error. A summary stage can be
+        # legitimately empty (a download with no matching rows), and halting
+        # here would turn that into "no output file at all" - the same trade
+        # aggregate_data already refuses to make.
+        if hasattr(data, 'empty') and data.empty:
+            logger.warning(f"⚠️  '{self.step_name}': input is empty; nothing to clean")
+            self.log_step_complete("0 rows in, 0 rows out")
+            return data.copy()
         self.validate_data_not_empty(data)
         
         # Validate required configuration
@@ -132,6 +140,54 @@ class CleanDataProcessor(BaseStepProcessor):
             return result
 
         result.loc[populated] = operation(series.loc[populated].astype(str).str)
+        return result
+
+    def _apply_blank_repeats(self, df, group_columns, rule_index):
+        """
+        Blank a group of columns on rows that repeat the previous row.
+
+        Reproduces the pivot-table "don't repeat item labels" display: the
+        first row of a run keeps its values; continuation rows show blanks.
+        A row is a continuation only when EVERY listed column equals the row
+        above, and then every listed column is blanked - the group moves
+        together, as pivot outline levels do.
+
+        This is a display transformation for humans reading the sheet. The
+        blanks are static: unlike a pivot, re-sorting the sheet in Excel
+        will not restore the values. Apply it last, after any sorting.
+
+        Args:
+            df:            Frame to transform
+            group_columns: Columns forming the no-repeat group, outline order
+            rule_index:    Rule position, for logging
+
+        Returns:
+            Frame with continuation rows blanked in the group columns
+        """
+        if len(df) < 2:
+            return df
+
+        result = df.copy()
+
+        # A continuation row equals the previous row in every group column.
+        # NaN-safe: two missing values count as equal, matching how a pivot
+        # treats an empty label.
+        same_as_previous = None
+        for column in group_columns:
+            this_col = result[column]
+            col_same = (this_col == this_col.shift()) | (this_col.isna() & this_col.shift().isna())
+            same_as_previous = col_same if same_as_previous is None else (same_as_previous & col_same)
+
+        blank_count = int(same_as_previous.sum())
+
+        if blank_count:
+            result.loc[same_as_previous, group_columns] = ''
+
+        logger.info(
+            f"👻 Rule {rule_index + 1}: blanked repeats in {group_columns} "
+            f"on {blank_count} continuation row(s)"
+        )
+
         return result
 
     def _is_text_column(self, series) -> bool:
@@ -233,6 +289,14 @@ class CleanDataProcessor(BaseStepProcessor):
             logger.warning(f"Cleaning rule {rule_index + 1}: no target columns found, skipping rule")
             return df
         
+        # blank_repeats works on the rule's columns AS A GROUP, so it is
+        # handled before the per-column loop: a row is a continuation only
+        # when ALL listed columns repeat the previous row, and then all of
+        # them are blanked together. Blanking each column independently would
+        # wrongly blank a value whose neighbor differs.
+        if action == 'blank_repeats':
+            return self._apply_blank_repeats(df, existing_columns, rule_index)
+
         # Apply the cleaning action to each existing column
         successful_columns = []
         failed_columns = []
@@ -723,7 +787,7 @@ class CleanDataProcessor(BaseStepProcessor):
             'strip_whitespace', 'normalize_whitespace', 'remove_invisible_chars',
             'remove_special_chars', 'fix_numeric', 'fix_dates',
             'fill_empty', 'remove_duplicates', 'standardize_values'
-        ]
+        , 'blank_repeats']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""

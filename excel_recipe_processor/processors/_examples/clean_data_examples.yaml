@@ -395,3 +395,37 @@ type_safety_notes:
     description: "String operations apply only to populated cells, so a null never becomes the literal text 'nan'. This matters most on a column that is mostly empty, where a whole column of 'nan' would otherwise reach the output as real content."
 
 # End of file #
+
+
+blank_repeats_example:
+  description: "Pivot-style no-repeat display: blank grouped columns on continuation rows"
+  yaml: |
+    # Reproduces the pivot-table "don't repeat item labels" look: the first
+    # row of a run keeps its values, continuation rows show blanks. The
+    # listed columns move AS A GROUP - a row is a continuation only when
+    # every one of them equals the row above, and then all are blanked
+    # together, so a value whose neighbor differs is never wrongly blanked.
+    #
+    # This is a display transformation, and the blanks are static: unlike a
+    # live pivot, re-sorting the sheet in Excel will not restore the values.
+    # Apply it LAST, after all sorting, and only to sheets meant for
+    # reading rather than further processing.
+
+    settings:
+      description: "Summary sheet with pivot-style label suppression"
+      stages:
+        - stage_name: "stg_summary_sorted"
+          description: "Summary rows, sorted so groups are contiguous"
+          protected: false
+        - stage_name: "stg_summary_display"
+          description: "Display version with repeated labels blanked"
+          protected: false
+
+    recipe:
+      - step_description: "Blank repeated booking and tracking on continuation rows"
+        processor_type: "clean_data"
+        source_stage: "stg_summary_sorted"
+        rules:
+          - columns: ["Booking", "Carrier Tracking No"]
+            action: "blank_repeats"
+        save_to_stage: "stg_summary_display"

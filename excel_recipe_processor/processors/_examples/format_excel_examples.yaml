@@ -529,3 +529,23 @@ ordering_notes:
     description: "Auto-fit ignores formula cells, because a cell holds its formula source text rather than its result and openpyxl cannot know the computed value. Width comes from the header and any literal cells instead."
 
 # End of file #
+
+
+autofit_scan_limit_example:
+  description: "Cap the auto-fit scan on very large sheets"
+  yaml: |
+    # Auto-fit measures EVERY cell by default - correctness first, because a
+    # long value near the bottom would otherwise get a too-narrow column.
+    # On big sheets that full scan dominates formatting time. A recipe that
+    # knows its data (uniform-width codes, dates, numbers) can cap the scan
+    # to the first N data rows; the header row is always measured.
+
+    recipe:
+      - step_description: "Format with a capped auto-fit scan"
+        processor_type: "format_excel"
+        target_file: "big_output.xlsx"
+        formatting:
+          - sheet: "Data"
+            auto_fit_columns: true
+            # OPT - Measure only the first 2000 data rows (default: all)
+            autofit_scan_rows: 2000

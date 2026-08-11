@@ -15,6 +15,7 @@ import pandas as pd
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 from openpyxl.formula.translate import Translator
 from openpyxl.worksheet.formula import ArrayFormula
 
@@ -123,7 +124,17 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         
         # 1. Validate files and sheets exist
         source_wb, source_ws = self._load_workbook_and_sheet(self.source_file, self.source_sheet, "source", read_only=True)
-        target_wb, target_ws = self._load_workbook_and_sheet(self.target_file, self.target_sheet, "target", read_only=False)
+        # Target through the session: the named ranges a previous step wrote
+        # are present in this same live object, and the save happens once at
+        # run end. The donor stays a plain read-only load - different file,
+        # never written.
+        target_wb = WorkbookSession.get_workbook(self.target_file)
+        if self.target_sheet not in target_wb.sheetnames:
+            raise StepProcessorError(
+                f"Target sheet '{self.target_sheet}' not found in "
+                f"'{self.target_file}'. Available: {target_wb.sheetnames}"
+            )
+        target_ws = target_wb[self.target_sheet]
         
         try:
             # 2. Resolve column specifications to Excel column letters
@@ -186,7 +197,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 filled_count = self._fill_down_columns(target_ws, resolved_columns)
 
             # 5. Save target workbook (makes formulas "live")
-            target_wb.save(self.target_file)
+            WorkbookSession.mark_dirty(self.target_file)
 
             if transplanted_count == 0:
                 raise StepProcessorError(
@@ -220,7 +231,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         finally:
             # Clean up workbook resources
             source_wb.close()
-            target_wb.close()
+            pass  # the session owns the target workbook's lifetime
     
     def _fill_down_columns(self, target_ws, resolved_columns: list) -> int:
         """

@@ -19,6 +19,7 @@ from datetime import datetime
 from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
     resolve_range, ExcelRangeResolverError
 )
@@ -1014,7 +1015,9 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                 f"into an existing workbook, so run export_file first."
             )
 
-        return openpyxl.load_workbook(target_path, data_only=False)
+        # Session-cached: consecutive file operations on the same target
+        # share one live workbook, loaded once and saved once at run end
+        return WorkbookSession.get_workbook(target_path)
 
     # =============================================================================
     # WRITE OPERATIONS - EXECUTION METHODS
@@ -1144,10 +1147,10 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                 include_local, include_patterns, exclude_patterns
             )
 
-            workbook.save(target_file)
+            WorkbookSession.mark_dirty(target_file)
 
         finally:
-            workbook.close()
+            pass  # the session owns the workbook's lifetime
 
         logger.info(
             f"Imported named objects into '{target_file}': "
@@ -1267,10 +1270,10 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                 include_local, include_patterns, exclude_patterns
             )
 
-            target_workbook.save(target_file)
+            WorkbookSession.mark_dirty(target_file)
 
         finally:
-            target_workbook.close()
+            pass  # the session owns the workbook's lifetime
 
         logger.info(
             f"Copied named objects from '{source_file}' to '{target_file}': "
@@ -1421,10 +1424,10 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     f"prune_orphans_with_prefix to remove them."
                 )
 
-            workbook.save(target_file)
+            WorkbookSession.mark_dirty(target_file)
 
         finally:
-            workbook.close()
+            pass  # the session owns the workbook's lifetime
 
         return {
             'operation': 'create_from_columns',

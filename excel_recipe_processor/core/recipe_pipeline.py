@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor,
     ExportBaseProcessor,
@@ -154,6 +155,7 @@ class RecipePipeline:
         
         if step_on_error == ErrorAction.HALT:
             logger.error(f"❌ Step {step_num} failed - Halting execution: {error}")
+            WorkbookSession.discard_all()
             raise RecipePipelineError(f"Step {step_num} failed: {error}")
         
         elif step_on_error == ErrorAction.CONTINUE:
@@ -188,6 +190,8 @@ class RecipePipeline:
         
         recipe_steps_cnt = len(recipe_steps)
         self._run_started_at = time.perf_counter()
+        WorkbookSession.reset()
+        WorkbookSession.set_deferred(True)
         logger.info(f"🚀 Executing {recipe_steps_cnt} recipe steps")
         
         # Reset execution state
@@ -268,6 +272,9 @@ class RecipePipeline:
         # Generate completion report
         self._completion_report = self._generate_completion_report()
         
+        # All steps succeeded: write every session workbook exactly once
+        WorkbookSession.flush_all()
+
         # Enhanced completion logging
         if skipped_steps > 0:
             logger.info(f"🎯 Recipe execution completed: {self.steps_executed} steps executed, "

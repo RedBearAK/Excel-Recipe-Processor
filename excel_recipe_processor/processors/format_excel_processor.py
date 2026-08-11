@@ -20,6 +20,7 @@ from openpyxl.utils import get_column_letter
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
     apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
@@ -271,6 +272,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
+            'autofit_scan_rows',
             'column_formats', 'hidden_columns', 'header_row', 'on_missing_column',
             'row_heights',
             
@@ -577,11 +579,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             template_names = ', '.join(f"'{name}'" for name in template_lookup.keys())
             logger.info(f"📝 Available templates: {template_names}")
         
-        # Load workbook - on a large output file this is the single most
-        # expensive part of formatting, so it gets its own timing line
-        _load_clock = time.perf_counter()
-        workbook = openpyxl.load_workbook(filename)
-        logger.info(f"⏱️  Workbook loaded in {time.perf_counter() - _load_clock:.1f}s")
+        # Session-cached: when earlier steps (named ranges, seeding) already
+        # opened this file, formatting reuses their live workbook and the
+        # load below is instant; the session logs its own load timing on a
+        # cold start.
+        workbook = WorkbookSession.get_workbook(filename)
         sheets_processed = 0
         total_sheets = len(workbook.worksheets)
         
@@ -590,7 +592,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Check if we have sheet configurations
         if not sheet_configs:
             logger.warning("⚠️ No sheet formatting configurations found - no formatting applied")
-            workbook.close()
             return 0
             
         logger.info(f"🎯 Processing {len(sheet_configs)} explicit sheet configuration(s)")
@@ -598,7 +599,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Process each sheet configuration
         for i, sheet_config in enumerate(sheet_configs):
             if 'sheet' not in sheet_config:
-                workbook.close()
                 raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet' key")
             
             sheet_spec = sheet_config['sheet']
@@ -633,11 +633,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 logger.warning(f"⚠️ Active sheet '{active_sheet}' not found")
         
         # Save workbook
-        logger.info(f"💾 Saving formatted workbook...")
-        _save_clock = time.perf_counter()
-        workbook.save(filename)
-        logger.info(f"⏱️  Workbook saved in {time.perf_counter() - _save_clock:.1f}s")
-        workbook.close()
+        WorkbookSession.mark_dirty(filename)
+        logger.info(f"💾 Formatting recorded; the workbook saves at run end (session)")
         
         logger.info(f"✅ Excel formatting completed: {sheets_processed}/{total_sheets} sheets processed")
         return sheets_processed
@@ -1182,6 +1179,20 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         max_width = formatting.get('max_column_width', 100)
         min_width = formatting.get('min_column_width', 8)
+
+        # OPT autofit_scan_rows: measure only the first N data rows instead
+        # of every cell. The DEFAULT is a full scan - correctness first,
+        # because a late long value would otherwise get a too-narrow column.
+        # On big sheets the full scan dominates formatting time, so a recipe
+        # that knows its data (uniform-width codes, dates, numbers) can cap
+        # the scan; the header row is always measured regardless.
+        scan_rows = formatting.get('autofit_scan_rows', None)
+        if scan_rows is not None:
+            scan_rows = int(scan_rows)
+            if scan_rows < 1:
+                raise StepProcessorError(
+                    f"autofit_scan_rows must be a positive integer, got {scan_rows}"
+                )
         
         # Check if auto-filter is enabled (adds dropdown arrows that need space)
         has_auto_filter = (
@@ -1195,7 +1206,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         for column in worksheet.columns:
             max_length = 0
             column_letter = column[0].column_letter
-            
+
+            if scan_rows is not None:
+                # header + the first scan_rows data rows
+                column = column[:scan_rows + 1]
+
             for cell in column:
                 try:
                     if cell.value:

@@ -511,6 +511,7 @@ from excel_recipe_processor.processors.import_file_processor            import I
 from excel_recipe_processor.processors.file_metadata_processor          import FileMetadataProcessor
 from excel_recipe_processor.processors.deduplicate_data_processor      import DeduplicateDataProcessor
 from excel_recipe_processor.processors.free_stages_processor           import FreeStagesProcessor
+from excel_recipe_processor.processors.verify_columns_processor        import VerifyColumnsProcessor
 from excel_recipe_processor.processors.inject_formulas_processor        import InjectFormulasProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
 from excel_recipe_processor.processors.manage_named_objects_processor   import ManageNamedObjectsProcessor
@@ -536,6 +537,7 @@ def register_standard_processors():
     registry.register('deduplicate_data',               DeduplicateDataProcessor            )
     registry.register('file_metadata',                  FileMetadataProcessor               )
     registry.register('free_stages',                    FreeStagesProcessor                 )
+    registry.register('verify_columns',                 VerifyColumnsProcessor              )
     registry.register('copy_stage',                     CopyStageProcessor                  )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )

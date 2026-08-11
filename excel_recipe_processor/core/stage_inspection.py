@@ -21,6 +21,8 @@ import logging
 
 import pandas as pd
 
+from datetime import datetime
+
 from pathlib import Path
 
 
@@ -202,7 +204,7 @@ def apply_row_spec(data: pd.DataFrame, spec) -> pd.DataFrame:
 
 
 def dump_stage_to_file(stage_name: str, data: pd.DataFrame, spec,
-                       output_dir: str = '.') -> str:
+                       output_dir: str = '.', save_number: int = 1) -> str:
     """
     Write a stage to CSV for inspection.
 
@@ -223,7 +225,16 @@ def dump_stage_to_file(stage_name: str, data: pd.DataFrame, spec,
     # Stage names are recipe identifiers, so they are already filename-safe,
     # but a stray separator would silently write somewhere unexpected
     safe_name = stage_name.replace('/', '_').replace('\\', '_')
-    output_path = Path(output_dir) / f"{safe_name}.csv"
+
+    # A re-used stage dumps on EVERY save. The first dump keeps the plain
+    # name; later saves append the save number AND a full timestamp, so
+    # repeated dumps can never overwrite one another - not within a run
+    # (distinct save numbers) and not across runs (distinct timestamps).
+    if save_number <= 1:
+        output_path = Path(output_dir) / f"{safe_name}.csv"
+    else:
+        stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_path = Path(output_dir) / f"{safe_name}_save{save_number}_{stamp}.csv"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     selected.to_csv(output_path, index=False)

@@ -55,7 +55,10 @@ class RecipePipeline:
         # Development-time inspection, driven entirely from the command line so
         # that examining a recipe never means editing it.
         self._dump_requests = {}        # stage name -> row spec (or None)
-        self._dumped_stages = set()     # dumped once, even if a stage is rewritten
+        # stage name -> save count already dumped. A stage saved again after
+        # its dump gets dumped again: a re-used stage that only dumped once
+        # would be untroubleshootable from the outside.
+        self._dumped_versions = {}
         self._dump_output_dir = '.'
         self._stop_after_stage = None
 
@@ -340,18 +343,19 @@ class RecipePipeline:
         from excel_recipe_processor.core.stage_manager import StageManager
 
         for stage_name, spec in self._dump_requests.items():
-            if stage_name in self._dumped_stages:
+            if not StageManager.stage_exists(stage_name):
                 continue
 
-            if not StageManager.stage_exists(stage_name):
+            save_count = StageManager.get_stage_save_count(stage_name)
+            if save_count <= self._dumped_versions.get(stage_name, 0):
                 continue
 
             try:
                 dump_stage_to_file(
                     stage_name, StageManager.load_stage(stage_name),
-                    spec, self._dump_output_dir
+                    spec, self._dump_output_dir, save_number=save_count
                 )
-                self._dumped_stages.add(stage_name)
+                self._dumped_versions[stage_name] = save_count
             except StageInspectionError as error:
                 raise StepProcessorError(f"--dump-stage {stage_name}: {error}")
 

@@ -63,7 +63,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             resolved_file = target_file
         
         # Check file exists
-        if not Path(resolved_file).exists():
+        # On-disk OR live in the session (the export bridge)
+        if not Path(resolved_file).exists() and not WorkbookSession.is_open(resolved_file):
             raise StepProcessorError(f"Target file not found: {resolved_file}")
         
         # Load and format the workbook

@@ -1009,7 +1009,9 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Open a workbook for writing, with a clear error when it is absent."""
         target_path = Path(target_file)
 
-        if not target_path.exists():
+        # "Exists" means on disk OR live in the session - under the export
+        # bridge the workbook may not have touched disk yet.
+        if not target_path.exists() and not WorkbookSession.is_open(target_path):
             raise StepProcessorError(
                 f"Target file not found: {target_file}. Named objects are written "
                 f"into an existing workbook, so run export_file first."

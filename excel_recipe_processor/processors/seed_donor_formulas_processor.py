@@ -160,8 +160,9 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                         empty_source_count += 1
                         continue
                     
-                    # Check if target cell is occupied
-                    if target_cell.value is not None:
+                    # Check if target cell is occupied. An empty string is
+                    # NOT data - it is what pandas' na_rep leaves behind.
+                    if target_cell.value is not None and target_cell.value != '':
                         if self.on_existing_cell == 'error':
                             raise StepProcessorError(
                                 f"Target cell {col_letter}{current_row} already contains data: "
@@ -329,7 +330,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             for row_num in range(seed_last_row + 1, last_row + 1):
                 target_cell = target_ws.cell(row=row_num, column=column_number)
 
-                if target_cell.value is not None:
+                if target_cell.value is not None and target_cell.value != '':
                     if self.on_existing_cell == 'error':
                         raise StepProcessorError(
                             f"Fill target {col_letter}{row_num} already contains data: "

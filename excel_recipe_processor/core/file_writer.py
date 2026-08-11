@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 
 from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 
 logger = logging.getLogger(__name__)
 
@@ -377,10 +378,24 @@ class FileWriter:
     
     @staticmethod
     def _set_active_sheet(filename, sheet_name):
-        """Set active sheet in Excel file (requires openpyxl)."""
+        """Set active sheet, on the session workbook when one exists."""
         try:
             import openpyxl
-            
+
+            # Under the export bridge the file may not exist on disk yet -
+            # and even when it does, the session copy is the truth. This
+            # also erases what used to be a THIRD full load-and-save round
+            # trip, done only to flip the active-sheet flag.
+            if WorkbookSession.is_open(filename):
+                workbook = WorkbookSession.get_workbook(filename)
+                if sheet_name in workbook.sheetnames:
+                    workbook.active = workbook[sheet_name]
+                    WorkbookSession.mark_dirty(filename)
+                    logger.debug(f"Set active sheet to '{sheet_name}' (session)")
+                else:
+                    logger.warning(f"Sheet '{sheet_name}' not found, cannot set as active")
+                return
+
             workbook = openpyxl.load_workbook(filename)
             if sheet_name in workbook.sheetnames:
                 workbook.active = workbook[sheet_name]

@@ -15,9 +15,13 @@ simply PRESENT in the object the next step seeds, because it is the same
 object. There is no merge, no reconciliation, no rereading.
 
 Failure semantics: on any step failure the pipeline DISCARDS the session
-without saving. The exported file on disk stays exactly as the export step
-wrote it, and a rerun regenerates the file operations from scratch - better
-than resuming from a half-modified workbook.
+without saving. With the export bridge active (the normal pipeline case),
+the export itself lives in the session, so a crash before flush leaves NO
+output file at all - the same outcome as crashing anywhere earlier while
+stages exist only in memory. The run failed; rerun it. A recipe that wants
+a post-export checkpoint on disk can place a flush_workbooks step right
+after its export step, at the cost of the save the bridge would have
+skipped.
 
 Recipes may open any number of files; the session tracks them all by
 absolute path and flushes every dirty one at pipeline end. A recipe can
@@ -114,9 +118,61 @@ class WorkbookSession:
         cls._dirty_paths.add(key)
 
     @classmethod
+    def adopt_workbook(cls, file_path, workbook) -> None:
+        """
+        Register an already-populated workbook as the live session copy.
+
+        The export bridge: instead of the export step saving to disk only
+        for the next file operation to read the identical bytes back, the
+        export hands its in-memory workbook straight to the session. The
+        adopted workbook is immediately dirty - it exists nowhere on disk
+        yet, so it MUST be written at flush.
+
+        Failure semantics follow from that: a crash between adoption and
+        flush leaves NO output file at all - the same outcome as crashing
+        anywhere earlier in the pipeline while stages are only in memory.
+        A recipe that wants a post-export checkpoint on disk can place a
+        flush_workbooks step right after the export.
+
+        Args:
+            file_path: Destination path the workbook will save to at flush
+            workbook:  Fully populated openpyxl Workbook
+
+        Raises:
+            WorkbookSessionError: If the path already has a session workbook
+        """
+        key = cls._key(file_path)
+
+        if key in cls._open_workbooks:
+            raise WorkbookSessionError(
+                f"adopt_workbook for a path the session already holds: {key}. "
+                f"Two steps exported to the same file without a flush between."
+            )
+
+        if not cls._deferred:
+            # Standalone semantics: no session lifecycle exists to flush
+            # later, so adoption degenerates to an immediate save.
+            started = time.perf_counter()
+            workbook.save(key)
+            logger.info(
+                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
+                f"(immediate; no pipeline session active)"
+            )
+            return
+
+        cls._open_workbooks[key] = workbook
+        cls._dirty_paths.add(key)
+        logger.info(f"🔗 Export bridged to the session; the file writes once, at run end")
+
+    @classmethod
     def set_deferred(cls, deferred: bool) -> None:
         """Pipeline lifecycle hook: batch saves (True) or save-per-step (False)."""
         cls._deferred = bool(deferred)
+
+    @classmethod
+    def is_deferred(cls) -> bool:
+        """Whether a pipeline session is batching saves right now."""
+        return cls._deferred
 
     @classmethod
     def is_open(cls, file_path) -> bool:

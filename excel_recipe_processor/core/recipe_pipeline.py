@@ -602,6 +602,7 @@ class RecipePipeline:
                     'total_variables': len(self.get_available_variables())
                 },
                 'stages_created': stage_report.get('stages_created', []),
+                'stages_freed': stage_report.get('stages_freed', []),
                 'stages_declared': stage_report.get('stages_declared', 0),
                 'undeclared_stages_created': stage_report.get('undeclared_stages_created', []),
                 'final_stage_count': stage_report.get('stages_created', 0),

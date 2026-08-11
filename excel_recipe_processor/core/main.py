@@ -242,7 +242,11 @@ def process_recipe(args: Namespace) -> int:
         print()     # blank line to separate from last logging line
         print(f"✓ Recipe completed successfully")
         print(f"  Steps executed: {steps_executed}")
-        print(f"  Data stages created: {len(stages_created)}")
+        stages_freed = completion_report.get('stages_freed', [])
+        if stages_freed:
+            print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")
+        else:
+            print(f"  Data stages created: {len(stages_created)}")
         print(f"  Data stages declared: {len(stages_declared)}")
         print()     # blank line to separate from next command prompt
         

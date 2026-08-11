@@ -41,6 +41,15 @@ recipe can actually set - confirm_stage_replacement: true - now counts for
 unprotected stages too. Discovered while testing repeated dumps, which
 require a stage that saves twice.
 
+## Completion summary fix (stage_manager.py, recipe_pipeline.py, main.py)
+
+"Data stages created" counted stages STILL IN MEMORY at completion, so a
+recipe that frees its stages mid-run reported "created: 0" - reading as a
+broken run when it was a tidy one. Created now means saved-at-least-once
+(sourced from the save counter), and the summary annotates the cleanup:
+
+    Data stages created: 43 (34 freed during the run)
+
 Full suite: 20 failures, baseline. Discovery: 33/33 clean.
 
 # End of file #

@@ -356,7 +356,17 @@ class StageManager:
         """Generate comprehensive report after recipe completion."""
         return {
             'stages_declared':          list(cls._declared_stages.keys()),
-            'stages_created':           list(cls._current_stages.keys()),
+            # Created means SAVED AT LEAST ONCE this run - sourced from the
+            # save counter, not from what is still in memory. A recipe that
+            # frees its stages mid-run (free_stages) would otherwise report
+            # "created: 0" at completion, which reads as a broken run when it
+            # is actually a tidy one.
+            'stages_created':           list(cls._save_counts.keys()),
+            'stages_freed':             [
+                name for name in cls._save_counts.keys()
+                if name not in cls._current_stages
+            ],
+            'stages_in_memory':         list(cls._current_stages.keys()),
             'stages_unused':            cls.get_unused_stages(),
             'protected_stages':         list(cls._protected_stages),
             'undeclared_stages_created': [

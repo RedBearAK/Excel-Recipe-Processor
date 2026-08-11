@@ -8,6 +8,7 @@ Key changes:
 """
 
 import logging
+import time
 import pandas as pd
 
 from enum import Enum
@@ -186,6 +187,7 @@ class RecipePipeline:
             raise RecipePipelineError("Recipe contains no steps")
         
         recipe_steps_cnt = len(recipe_steps)
+        self._run_started_at = time.perf_counter()
         logger.info(f"🚀 Executing {recipe_steps_cnt} recipe steps")
         
         # Reset execution state
@@ -204,6 +206,7 @@ class RecipePipeline:
             self._log_step_separator(step_index, step_desc)
             
             # Log step start with error handling info if non-default
+            _step_clock = time.perf_counter()
             if step_on_error != ErrorAction.HALT:
                 logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
             else:
@@ -239,7 +242,7 @@ class RecipePipeline:
                     processor.execute_stage_to_stage()
                 
                 self.steps_executed += 1
-                logger.info(f"✅ Step {step_index + 1} completed successfully")
+                logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.1f}s)")
 
                 self._dump_requested_stages()
 
@@ -601,6 +604,10 @@ class RecipePipeline:
                     'external_variables': len(self._external_variables),
                     'total_variables': len(self.get_available_variables())
                 },
+                'elapsed_seconds': (
+                    time.perf_counter() - self._run_started_at
+                    if getattr(self, '_run_started_at', None) else None
+                ),
                 'stages_created': stage_report.get('stages_created', []),
                 'stages_freed': stage_report.get('stages_freed', []),
                 'stages_declared': stage_report.get('stages_declared', 0),

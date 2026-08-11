@@ -9,6 +9,7 @@ NEW: Template support for reusable formatting configurations.
 """
 
 import logging
+import time
 import openpyxl
 import webcolors
 
@@ -576,8 +577,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             template_names = ', '.join(f"'{name}'" for name in template_lookup.keys())
             logger.info(f"📝 Available templates: {template_names}")
         
-        # Load workbook
+        # Load workbook - on a large output file this is the single most
+        # expensive part of formatting, so it gets its own timing line
+        _load_clock = time.perf_counter()
         workbook = openpyxl.load_workbook(filename)
+        logger.info(f"⏱️  Workbook loaded in {time.perf_counter() - _load_clock:.1f}s")
         sheets_processed = 0
         total_sheets = len(workbook.worksheets)
         
@@ -612,7 +616,9 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                     applied_template_names = ', '.join(f"'{name}'" for name in sheet_config['apply_templates'])
                     logger.info(f"📝 Applied templates: {applied_template_names}")
                 
+                _sheet_clock = time.perf_counter()
                 self._apply_sheet_formatting(worksheet, enhanced_config)
+                logger.info(f"⏱️  [{sheet_name}] formatted in {time.perf_counter() - _sheet_clock:.1f}s")
                 sheets_processed += 1
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")
@@ -628,7 +634,9 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Save workbook
         logger.info(f"💾 Saving formatted workbook...")
+        _save_clock = time.perf_counter()
         workbook.save(filename)
+        logger.info(f"⏱️  Workbook saved in {time.perf_counter() - _save_clock:.1f}s")
         workbook.close()
         
         logger.info(f"✅ Excel formatting completed: {sheets_processed}/{total_sheets} sheets processed")

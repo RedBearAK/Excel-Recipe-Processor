@@ -6,6 +6,7 @@ Defines the interface and common functionality that all step processors must imp
 
 import pandas as pd
 import logging
+import time
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -159,7 +160,8 @@ class BaseStepProcessor(ABC):
             raise StepProcessorError(f"Step '{self.step_name}' received empty dictionary")
     
     def log_step_start(self) -> None:
-        """Log the start of step execution."""
+        """Log the start of step execution and start the step's clock."""
+        self._step_started_at = time.perf_counter()
         logger.info(f"Executing step: '{self.step_name}' ({self.step_type})")
     
     def log_step_complete(self, result_info: str = "") -> None:
@@ -169,11 +171,17 @@ class BaseStepProcessor(ABC):
         Args:
             result_info: Optional information about the result
         """
+        # Elapsed since log_step_start, when the step used it. Guard clause
+        # rather than hasattr-and-hope: a processor that never called
+        # log_step_start simply gets no timing rather than a crash.
+        started = getattr(self, '_step_started_at', None)
+        elapsed_text = f" ({time.perf_counter() - started:.1f}s)" if started else ""
+
         if result_info:
-            logger.info(f"Completed step: '{self.step_name}'")
+            logger.info(f"Completed step: '{self.step_name}'{elapsed_text}")
             logger.info(f" - {result_info}")
         else:
-            logger.info(f"Completed step: '{self.step_name}'")
+            logger.info(f"Completed step: '{self.step_name}'{elapsed_text}")
     
     def log_step_error(self, error: Exception) -> None:
         """

@@ -240,7 +240,13 @@ def process_recipe(args: Namespace) -> int:
         stages_declared = completion_report.get('stages_declared', [])
         
         print()     # blank line to separate from last logging line
-        print(f"✓ Recipe completed successfully")
+        elapsed = completion_report.get('elapsed_seconds')
+        elapsed_text = ""
+        if elapsed is not None:
+            minutes, seconds = divmod(elapsed, 60)
+            elapsed_text = f" in {int(minutes)}m {seconds:.1f}s" if minutes else f" in {seconds:.1f}s"
+
+        print(f"✓ Recipe completed successfully{elapsed_text}")
         print(f"  Steps executed: {steps_executed}")
         stages_freed = completion_report.get('stages_freed', [])
         if stages_freed:

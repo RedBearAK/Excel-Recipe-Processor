@@ -6,6 +6,15 @@ format detection, and consistent error handling.
 """
 
 import pandas as pd
+
+from importlib.util import find_spec
+
+# calamine is a fast Rust-based Excel READER with prebuilt PyPI wheels.
+# Optional: when the wheel is present, Excel imports use it (several times
+# faster on large files, values identical - see tests/test_calamine_reader);
+# when absent, the openpyxl path serves exactly as before. Detected once at
+# import, without importing the package itself.
+CALAMINE_AVAILABLE = find_spec('python_calamine') is not None
 import logging
 
 from pathlib import Path
@@ -349,10 +358,17 @@ class FileReader:
                     )
             
             # Read the file
+            # Engine choice: calamine when available, openpyxl otherwise.
+            # Both were proven value-for-value equal across dtypes,
+            # datetimes, blanks, the raw-NA path and formula cells; the
+            # fallback keeps machines without the wheel working unchanged.
+            engine_kwargs = {'engine': 'calamine'} if CALAMINE_AVAILABLE else {}
+
             if raw_na:
-                data = excel_reader.read_file(filename, sheet_name=sheet, keep_default_na=False)
+                data = excel_reader.read_file(filename, sheet_name=sheet,
+                                              keep_default_na=False, **engine_kwargs)
             else:
-                data = excel_reader.read_file(filename, sheet_name=sheet)
+                data = excel_reader.read_file(filename, sheet_name=sheet, **engine_kwargs)
             
             logger.debug(f"Read Excel file '{filename}', sheet: {sheet}, shape: {data.shape}")
             return data

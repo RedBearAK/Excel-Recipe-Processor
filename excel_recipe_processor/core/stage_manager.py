@@ -235,6 +235,32 @@ class StageManager:
             )
 
     @classmethod
+    def delete_stage(cls, stage_name: str) -> None:
+        """
+        Delete a stage, freeing its memory.
+
+        Refuses protected stages: protection means "this must survive the
+        run", and a memory-trimming step does not outrank that declaration.
+
+        Args:
+            stage_name: Stage to delete
+
+        Raises:
+            StageError: If the stage does not exist or is protected
+        """
+        if stage_name not in cls._current_stages:
+            similar = cls._suggest_similar_stage_names(stage_name, list(cls._current_stages.keys()))
+            hint = f" Did you mean: {similar}?" if similar else ""
+            raise StageError(f"Cannot delete stage '{stage_name}': not found.{hint}")
+
+        if cls.is_stage_protected(stage_name):
+            raise StageError(
+                f"Cannot delete stage '{stage_name}': declared protected"
+            )
+
+        del cls._current_stages[stage_name]
+
+    @classmethod
     def load_stage(cls, stage_name: str) -> pd.DataFrame:
         """
         Load data from a named stage.

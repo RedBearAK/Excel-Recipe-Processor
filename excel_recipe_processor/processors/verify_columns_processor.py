@@ -53,6 +53,11 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
         self.stage = self.get_config_value('stage', None)
         self.expected_columns = self.get_config_value('expected_columns', None)
 
+        # The expectation can come from another stage's columns instead of a
+        # literal list - comparing two FILES' shapes is then two imports and
+        # one verify step. Exactly one of the two sources must be given.
+        self.expected_from_stage = self.get_config_value('expected_from_stage', None)
+
         # What a column present in the data but absent from the expectation
         # does: "warn" (default) logs and proceeds; "error" halts.
         self.on_unexpected = self.get_config_value('on_unexpected', 'warn')
@@ -67,9 +72,13 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
                 f"Step '{self.step_name}' requires 'stage': the stage to verify"
             )
 
-        if not self.expected_columns or not isinstance(self.expected_columns, list):
+        has_list = bool(self.expected_columns) and isinstance(self.expected_columns, list)
+        has_stage = bool(self.expected_from_stage)
+
+        if has_list == has_stage:
             raise StepProcessorError(
-                f"Step '{self.step_name}' requires 'expected_columns': a list of column names"
+                f"Step '{self.step_name}' requires exactly one of 'expected_columns' "
+                f"(a list) or 'expected_from_stage' (a stage name)"
             )
 
         for knob, value in (('on_unexpected', self.on_unexpected),
@@ -91,7 +100,16 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
             )
 
         actual = list(StageManager.load_stage(self.stage).columns)
-        expected = list(self.expected_columns)
+
+        if self.expected_from_stage:
+            if not StageManager.stage_exists(self.expected_from_stage):
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': expected_from_stage "
+                    f"'{self.expected_from_stage}' does not exist"
+                )
+            expected = list(StageManager.load_stage(self.expected_from_stage).columns)
+        else:
+            expected = list(self.expected_columns)
 
         unexpected = [col for col in actual if col not in expected]
         missing = [col for col in expected if col not in actual]
@@ -104,21 +122,33 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
             return f"{len(expected)} columns verified"
 
         if missing:
-            message = (
-                f"Expected column(s) MISSING from '{self.stage}': {missing}. "
-                f"The source system's export has changed shape."
-            )
+            if self.expected_from_stage:
+                message = (
+                    f"Column(s) in '{self.expected_from_stage}' but NOT in "
+                    f"'{self.stage}': {missing}"
+                )
+            else:
+                message = (
+                    f"Expected column(s) MISSING from '{self.stage}': {missing}. "
+                    f"The source system's export has changed shape."
+                )
             if self.on_missing_expected == 'error':
                 raise StepProcessorError(f"Step '{self.step_name}': {message}")
             logger.warning(f"⚠️  {message}")
 
         if unexpected:
-            message = (
-                f"NEW column(s) in '{self.stage}' not in the expected list: "
-                f"{unexpected}. The source system added something - review "
-                f"whether the recipe should use it, then add it to the "
-                f"expected list either way so this notice retires."
-            )
+            if self.expected_from_stage:
+                message = (
+                    f"Column(s) in '{self.stage}' but NOT in "
+                    f"'{self.expected_from_stage}': {unexpected}"
+                )
+            else:
+                message = (
+                    f"NEW column(s) in '{self.stage}' not in the expected list: "
+                    f"{unexpected}. The source system added something - review "
+                    f"whether the recipe should use it, then add it to the "
+                    f"expected list either way so this notice retires."
+                )
             if self.on_unexpected == 'error':
                 raise StepProcessorError(f"Step '{self.step_name}': {message}")
             logger.warning(f"⚠️  {message}")

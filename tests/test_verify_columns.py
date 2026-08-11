@@ -117,6 +117,51 @@ def test_knobs_invert_the_defaults():
     return passed
 
 
+def test_expected_from_stage_compares_two_stages():
+    """The expectation can be another stage's columns; messages name both."""
+    print("\nTesting expected_from_stage...")
+
+    StageManager.initialize_stages(max_stages=5)
+    StageManager.declare_recipe_stages({'settings': {'stages': [
+        {'stage_name': 'stg_check', 'description': 'x', 'protected': False},
+        {'stage_name': 'stg_other', 'description': 'x', 'protected': False}]}})
+    StageManager.save_stage('stg_check', pd.DataFrame(columns=['X', 'OnlyA']), overwrite=True)
+    StageManager.save_stage('stg_other', pd.DataFrame(columns=['X', 'OnlyB']), overwrite=True)
+
+    result = build(None, expected_columns=None, expected_from_stage='stg_other',
+                   on_missing_expected='warn', on_unexpected='warn').perform_file_operation()
+
+    if '1 missing' in result and '1 new' in result:
+        print(f"  ✓ Both directions reported: {result!r}")
+        return True
+    print(f"  ✗ {result!r}")
+    return False
+
+
+def test_exactly_one_expectation_source():
+    """Neither or both expectation sources fail at construction."""
+    print("\nTesting expectation-source exclusivity...")
+
+    passed = True
+
+    try:
+        VerifyColumnsProcessor({'processor_type': 'verify_columns', 'stage': 'stg_check'})
+        print("  ✗ Neither source accepted")
+        passed = False
+    except Exception:
+        print("  ✓ Neither source rejected")
+
+    try:
+        VerifyColumnsProcessor({'processor_type': 'verify_columns', 'stage': 'stg_check',
+                                'expected_columns': ['A'], 'expected_from_stage': 'stg_other'})
+        print("  ✗ Both sources accepted")
+        passed = False
+    except Exception:
+        print("  ✓ Both sources rejected")
+
+    return passed
+
+
 def main():
     """Run every test and report a final score."""
     print("=== verify_columns tests ===")
@@ -127,6 +172,8 @@ def main():
         test_missing_expected_halts_naming_it,
         test_new_column_warns_and_proceeds,
         test_knobs_invert_the_defaults,
+        test_expected_from_stage_compares_two_stages,
+        test_exactly_one_expectation_source,
     ]
 
     passed = 0

@@ -85,6 +85,13 @@ class FileReader:
             # Determine logical format
             file_format = FileReader._determine_format(filename, explicit_format)
             
+            # A sheet index that traveled through variable substitution
+            # arrives as the STRING "1", which would otherwise be treated as
+            # a sheet NAME and fail. A purely-numeric string sheet is an
+            # index; a real sheet named "1" would need... a better name.
+            if isinstance(sheet, str) and sheet.isdigit():
+                sheet = int(sheet)
+
             # Convert 1-based sheet index to 0-based for Excel files
             if file_format in FileReader.EXCEL_FORMATS and isinstance(sheet, int):
                 if sheet < 1:

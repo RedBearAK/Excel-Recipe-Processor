@@ -45,13 +45,62 @@ basic_example:
         on_unexpected: "warn"
 
 
+compare_two_files_example:
+  description: "Compare the columns of two files, both directions"
+  yaml: |
+    # The expectation can come from another stage instead of a literal list,
+    # so comparing two FILES is two imports and one verify step. Both knobs
+    # on warn make it a report rather than a gate: the log lines "in A not
+    # B" and "in B not A" ARE the output.
+
+    settings:
+      description: "Two-file column comparison"
+      required_external_vars:
+        file_a:
+          description: "First file"
+          example: "merged_raw.xlsx"
+        file_b:
+          description: "Second file"
+          example: "merged_processed.xlsx"
+      stages:
+        - stage_name: "stg_a"
+          description: "First file"
+          protected: false
+        - stage_name: "stg_b"
+          description: "Second file"
+          protected: false
+
+    recipe:
+      - step_description: "Import A"
+        processor_type: "import_file"
+        input_file: "{file_a}"
+        save_to_stage: "stg_a"
+
+      - step_description: "Import B"
+        processor_type: "import_file"
+        input_file: "{file_b}"
+        save_to_stage: "stg_b"
+
+      - step_description: "Compare columns, both directions"
+        processor_type: "verify_columns"
+        stage: "stg_a"
+        # OPT - Alternative to expected_columns: use this stage's columns
+        # as the expectation (exactly one of the two must be given)
+        expected_from_stage: "stg_b"
+        on_missing_expected: "warn"
+        on_unexpected: "warn"
+
+
 parameter_details:
   stage:
     required: true
     description: "Stage whose columns to verify; read without re-saving"
   expected_columns:
-    required: true
+    required: "one of expected_columns / expected_from_stage"
     description: "The full expected column list; names only, order ignored"
+  expected_from_stage:
+    required: "one of expected_columns / expected_from_stage"
+    description: "Stage whose columns form the expectation - two-file comparisons"
   on_missing_expected:
     required: false
     default: "error"

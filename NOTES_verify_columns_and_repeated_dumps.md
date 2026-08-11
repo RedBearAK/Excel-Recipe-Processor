@@ -50,6 +50,21 @@ broken run when it was a tidy one. Created now means saved-at-least-once
 
     Data stages created: 43 (34 freed during the run)
 
+## verify_columns: expected_from_stage (same processor file)
+
+The expectation can come from another stage's columns instead of a literal
+list - comparing two FILES is then two imports and one verify step, with
+messages naming both stages ("in A not B" / "in B not A"). Exactly one of
+expected_columns / expected_from_stage must be given. Tests 7/7.
+
+## file_reader: numeric-string sheets are indexes (core/file_reader.py)
+
+A sheet index routed through a recipe variable arrives as the STRING "1"
+and was treated as a sheet NAME. Purely-numeric string sheets now convert
+to indexes. (This archive's file_reader.py also carries the earlier
+verbatim_text_columns work - it supersedes the copy in
+erp_verbatim_text_columns.tgz, which has been refreshed to match.)
+
 Full suite: 20 failures, baseline. Discovery: 33/33 clean.
 
 # End of file #

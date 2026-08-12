@@ -358,3 +358,75 @@ common_patterns:
   development_recipes: "description + external variables + log_and_continue error handling"
   production_recipes: "description + protected stages + comprehensive validation + halt on errors"
   graceful_degradation: "description + continue/log_and_continue for non-critical steps"
+
+
+portable_paths_example:
+  description: "Anchor a recipe to its own location so it runs from any directory"
+  yaml: |
+    # Paths inside a recipe resolve against the CURRENT WORKING DIRECTORY, so
+    # lookup_dir: "lookup_source_files" only works if you happen to be standing
+    # in the project folder. Anchoring to the recipe's own location instead lets
+    # the command be run from wherever the input file happens to sit.
+
+    settings:
+      description: "Process a download from anywhere on disk"
+      variables:
+        # recipe_dir        the folder holding this recipe
+        # recipe_parent_dir its parent, which is the useful one when recipes
+        #                   live in a recipe_files/ subfolder
+        project_dir: "{recipe_parent_dir}"
+        lookup_dir:  "{recipe_parent_dir}/lookup_source_files"
+        output_dir:  "{recipe_parent_dir}/output"
+
+      required_external_vars:
+        source_download:
+          description: "File to process"
+          example: "260806_data_export.xlsx"
+
+
+builtin_variables:
+  description: "Variables available in any recipe without declaring them"
+  date_and_time:
+    date: "YYYYMMDD"
+    time: "HHMMSS"
+    timestamp: "Combined date and time"
+    year: "Four digit year"
+    month: "Two digit month"
+    day: "Two digit day"
+    hour: "Two digit hour"
+    minute: "Two digit minute"
+    second: "Two digit second"
+  recipe_location:
+    recipe_filename: "This recipe's filename with extension"
+    recipe_basename: "This recipe's filename without extension"
+    recipe_dir: "Absolute path of the folder holding this recipe"
+    recipe_parent_dir: "Absolute path of that folder's parent"
+  note: "input_filename, input_basename and input_extension exist but only resolve when the CLI is given an --input file, which the stages-only workflow does not use. A recipe referencing them fails at load with 'Unresolved variables detected' rather than writing a file with a literal placeholder in its name."
+
+
+command_line_options:
+  description: "Options that live outside the recipe file, for development and for varying a run"
+  note: "Editing a recipe to observe it changes the thing being observed, so inspection is deliberately external."
+
+  setting_variables:
+    "--set NAME VALUE": "Override an external variable, value as its own argument. Preferred over --var because the shell can tab-complete a path: zsh does not treat = as a word break, so --var name=path cannot be completed there."
+    "--var NAME=VALUE": "The original form. Still works, and wins over --set if the same name is given twice."
+
+  inspection:
+    "--dump-stage NAME[:SPEC]": "Write a stage to CSV as it is produced, then carry on. Repeatable."
+    "--dump-dir DIR": "Where dumped CSVs go. Defaults to the current directory."
+    "--stop-after STAGE": "Halt once that stage has been written, instead of running the rest of the pipeline."
+    "--list-stages RECIPE": "Print the stages a recipe declares, with the step that writes each, without running anything."
+
+  dump_row_specs:
+    description: "The optional :SPEC on --dump-stage"
+    "(omitted)": "Every row"
+    "20": "First 20 rows"
+    "-20": "Last 20 rows"
+    "100-150": "Rows 100 through 150, 1-based and inclusive"
+    "20,-20": "First 20 and last 20, with a ... marker between so the gap cannot be misread as contiguous"
+
+  validation:
+    "--validate-recipe RECIPE": "Check structure without running. Catches undeclared stages and unknown processor types."
+
+# End of file #

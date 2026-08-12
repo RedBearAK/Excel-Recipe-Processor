@@ -1,0 +1,63 @@
+#compdef excel-recipe-processor
+# shellcheck disable=all
+#
+# zsh completion for excel-recipe-processor.
+#
+# Install by putting this file somewhere on $fpath as _excel-recipe-processor,
+# for example:
+#
+#   mkdir -p ~/.zsh/completions
+#   cp _excel-recipe-processor ~/.zsh/completions/
+#
+# and adding this to ~/.zshrc BEFORE compinit runs:
+#
+#   fpath=(~/.zsh/completions $fpath)
+#   autoload -Uz compinit && compinit
+#
+# Why this exists: excel-recipe-processor is invoked through an alias, and zsh
+# resolves completion for an alias to the aliased command word, which here is
+# "python". Registering the completion under the alias name is what makes tab
+# work on the alias rather than offering python's own options.
+
+_excel_recipe_processor() {
+    local -a opts
+
+    opts=(
+        '--var[Override external variable as NAME=VALUE]:assignment:'
+        '*--set[Override external variable, value as its own word]:name:->varname:value:_files'
+        '--verbose[Enable verbose output and debug logging]'
+        '-v[Enable verbose output and debug logging]'
+        '--validate-recipe[Check a recipe without running it]:recipe:_files -g "*.(yaml|yml)"'
+        '--list-capabilities[List processors and what they support]'
+        '--get-usage-examples[Show usage examples for a processor]:processor:'
+        '--get-settings-examples[Show settings block examples]'
+        '--detailed[More detail in capability output]'
+        '--json[JSON output]'
+        '--yaml[YAML output]'
+        '--help[Show help]'
+        '-h[Show help]'
+        '--version[Show version]'
+        '1:recipe file:_files -g "*.(yaml|yml)"'
+    )
+
+    _arguments -s $opts && return 0
+
+    case $state in
+        varname)
+            # Offer the external variable names declared in the recipe on the
+            # command line, so the pair completes end to end
+            local recipe
+            recipe=${words[2]}
+            if [[ -f "$recipe" ]]; then
+                local -a names
+                names=(${(f)"$(sed -n '/required_external_vars:/,/^[a-z]/p' "$recipe" \
+                    | grep -oE '^    [a-z_]+:' | tr -d ' :')"})
+                _describe 'external variable' names
+            fi
+            ;;
+    esac
+}
+
+_excel_recipe_processor "$@"
+
+# End of file #

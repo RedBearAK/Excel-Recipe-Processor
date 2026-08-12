@@ -254,9 +254,10 @@ def test_stage_based_grouping():
         
         processor = GroupDataProcessor(config)
         
-        # Load from stage and execute
-        input_data = StageManager.load_stage('test_input')
-        result = processor.execute(input_data)
+        # Use the pipeline path. execute(data) does not write save_to_stage -
+        # no stage-to-stage processor does - so the stage assertion below only
+        # holds for execute_stage_to_stage().
+        result = processor.execute_stage_to_stage()
         
         # Verify result
         if not isinstance(result, pd.DataFrame):

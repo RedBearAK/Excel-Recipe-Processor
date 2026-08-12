@@ -5,7 +5,9 @@ Handles writing DataFrames to Excel with various formatting options and error ha
 """
 
 import logging
+import io
 from pathlib import Path
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 
 import pandas as pd
 
@@ -128,7 +130,18 @@ class ExcelWriter:
         logger.info(f"Writing {len(data_dict)} sheets to Excel: '{output_path}'")
         
         try:
-            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+            # THE EXPORT BRIDGE. Under a pipeline session, the workbook this
+            # writer populates is handed straight to the session instead of
+            # being saved - the very next file operation would only have
+            # read the identical bytes back. The writer targets a throwaway
+            # buffer so no disk handle ever opens; the live book saves once,
+            # at run end (or at an explicit flush_workbooks step).
+            # Standalone callers keep the legacy save-to-disk path below.
+            bridged = WorkbookSession.is_deferred()
+            writer_target = io.BytesIO() if bridged else output_path
+            writer = pd.ExcelWriter(writer_target, engine='openpyxl')
+
+            try:
                 for sheet_name, df in data_dict.items():
                     # Guard clauses for each sheet
                     if not isinstance(sheet_name, str) or not sheet_name.strip():
@@ -142,7 +155,29 @@ class ExcelWriter:
                     # Write this sheet
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
                     logger.debug(f"Wrote sheet '{sheet_name}': {len(df)} rows")
-            
+            finally:
+                if bridged:
+                    # Normalize to DISK EQUIVALENCE before adoption. pandas
+                    # materializes every NaN as a literal '' cell (na_rep
+                    # default); serializing to disk silently drops those, so
+                    # a reloaded file shows them as empty. The live book
+                    # must match, or downstream steps see phantom "data"
+                    # a disk round-trip would have erased.
+                    for worksheet in writer.book.worksheets:
+                        for row in worksheet.iter_rows():
+                            for cell in row:
+                                if cell.value == '':
+                                    cell.value = None
+
+                    # Hand the populated book to the session. close() is
+                    # DELIBERATELY not called on this path: closing is what
+                    # serializes the workbook, and serializing it into a
+                    # throwaway buffer is the exact cost the bridge removes.
+                    # The buffer holds no disk handle and is garbage.
+                    WorkbookSession.adopt_workbook(output_path, writer.book)
+                else:
+                    writer.close()
+
             self.last_output_path = output_path
             logger.info(f"Successfully wrote Excel file with {len(data_dict)} sheets")
             

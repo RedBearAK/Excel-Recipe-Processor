@@ -57,6 +57,14 @@ class CleanDataProcessor(BaseStepProcessor):
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Clean data step '{self.step_name}' requires a pandas DataFrame")
         
+        # Cleaning nothing is nothing, not an error. A summary stage can be
+        # legitimately empty (a download with no matching rows), and halting
+        # here would turn that into "no output file at all" - the same trade
+        # aggregate_data already refuses to make.
+        if hasattr(data, 'empty') and data.empty:
+            logger.warning(f"⚠️  '{self.step_name}': input is empty; nothing to clean")
+            self.log_step_complete("0 rows in, 0 rows out")
+            return data.copy()
         self.validate_data_not_empty(data)
         
         # Validate required configuration
@@ -90,6 +98,102 @@ class CleanDataProcessor(BaseStepProcessor):
         
         return cleaned_data
 
+    # These actions all route through .astype(str), which silently converts a
+    # numeric or datetime column to text. A Price of 123.45 becomes the string
+    # "123.45", which Excel writes left-aligned as text with number formats no
+    # longer applying, and Product ID 10001 becomes "10001.0".
+    #
+    # Applying them to a typed column is never what the recipe author meant, so
+    # those columns are skipped rather than coerced. This is what makes a blanket
+    # "clean every column" rule safe to write.
+    # Sentinel accepted in place of a column list, meaning every column.
+    ALL_COLUMNS = '*'
+
+    TEXT_ONLY_ACTIONS = (
+        'uppercase', 'lowercase', 'title_case', 'strip_whitespace',
+        'remove_special_chars', 'remove_invisible_chars', 'normalize_whitespace',
+    )
+
+    def _apply_to_text_values(self, series, operation):
+        """
+        Apply a string operation to the non-null values of a column only.
+
+        Calling .astype(str) on a whole column turns every null into the literal
+        string "nan". Under pandas 3 the string dtype happens to preserve nulls
+        and hides the problem, but under pandas 2 an object column of mostly
+        blank cells comes back full of "nan" text - which then survives into the
+        Excel output as real content.
+
+        Masking to the populated cells makes the behaviour identical on both.
+
+        Args:
+            series:     Column to operate on
+            operation:  Callable taking a string accessor and returning a Series
+
+        Returns:
+            The column with the operation applied and nulls left alone
+        """
+        result = series.copy()
+        populated = series.notna()
+
+        if not populated.any():
+            return result
+
+        result.loc[populated] = operation(series.loc[populated].astype(str).str)
+        return result
+
+    def _apply_blank_repeats(self, df, group_columns, rule_index):
+        """
+        Blank a group of columns on rows that repeat the previous row.
+
+        Reproduces the pivot-table "don't repeat item labels" display: the
+        first row of a run keeps its values; continuation rows show blanks.
+        A row is a continuation only when EVERY listed column equals the row
+        above, and then every listed column is blanked - the group moves
+        together, as pivot outline levels do.
+
+        This is a display transformation for humans reading the sheet. The
+        blanks are static: unlike a pivot, re-sorting the sheet in Excel
+        will not restore the values. Apply it last, after any sorting.
+
+        Args:
+            df:            Frame to transform
+            group_columns: Columns forming the no-repeat group, outline order
+            rule_index:    Rule position, for logging
+
+        Returns:
+            Frame with continuation rows blanked in the group columns
+        """
+        if len(df) < 2:
+            return df
+
+        result = df.copy()
+
+        # A continuation row equals the previous row in every group column.
+        # NaN-safe: two missing values count as equal, matching how a pivot
+        # treats an empty label.
+        same_as_previous = None
+        for column in group_columns:
+            this_col = result[column]
+            col_same = (this_col == this_col.shift()) | (this_col.isna() & this_col.shift().isna())
+            same_as_previous = col_same if same_as_previous is None else (same_as_previous & col_same)
+
+        blank_count = int(same_as_previous.sum())
+
+        if blank_count:
+            result.loc[same_as_previous, group_columns] = ''
+
+        logger.info(
+            f"👻 Rule {rule_index + 1}: blanked repeats in {group_columns} "
+            f"on {blank_count} continuation row(s)"
+        )
+
+        return result
+
+    def _is_text_column(self, series) -> bool:
+        """Report whether a column holds text and can take a string operation."""
+        return pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)
+
     def _apply_cleaning_rule(self, df: pd.DataFrame, rule: dict, rule_index: int) -> pd.DataFrame:
         """
         Apply a single cleaning rule to the DataFrame.
@@ -114,10 +218,21 @@ class CleanDataProcessor(BaseStepProcessor):
         
         columns = rule['columns']
         action = rule['action']
-        
+
+        # "*" targets every column in the frame. Combined with the dtype guard
+        # below, this makes a blanket cleaning rule practical to write without
+        # naming all 66 columns of a download, and safe because typed columns
+        # are skipped rather than coerced to text.
+        if columns == self.ALL_COLUMNS:
+            columns = list(df.columns)
+            logger.debug(f"Cleaning rule {rule_index + 1} targets all {len(columns)} columns")
+
         # Guard clauses for rule parameters
         if not isinstance(columns, list):
-            raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns' must be a list")
+            raise StepProcessorError(
+                f"Cleaning rule {rule_index + 1} 'columns' must be a list, "
+                f"or \"{self.ALL_COLUMNS}\" for every column"
+            )
         
         if len(columns) == 0:
             raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'columns' list cannot be empty")
@@ -174,12 +289,30 @@ class CleanDataProcessor(BaseStepProcessor):
             logger.warning(f"Cleaning rule {rule_index + 1}: no target columns found, skipping rule")
             return df
         
+        # blank_repeats works on the rule's columns AS A GROUP, so it is
+        # handled before the per-column loop: a row is a continuation only
+        # when ALL listed columns repeat the previous row, and then all of
+        # them are blanked together. Blanking each column independently would
+        # wrongly blank a value whose neighbor differs.
+        if action == 'blank_repeats':
+            return self._apply_blank_repeats(df, existing_columns, rule_index)
+
         # Apply the cleaning action to each existing column
         successful_columns = []
         failed_columns = []
+        skipped_columns = []
         
         for column in existing_columns:
             try:
+                # Guard: never coerce a typed column to text
+                if action in self.TEXT_ONLY_ACTIONS and not self._is_text_column(df[column]):
+                    logger.debug(
+                        f"Skipping '{action}' on column '{column}': dtype is "
+                        f"{df[column].dtype}, not text"
+                    )
+                    skipped_columns.append(column)
+                    continue
+
                 # Create a temporary rule for this single column (for compatibility with existing methods)
                 single_column_rule = rule.copy()
                 single_column_rule['column'] = column  # Individual methods still expect 'column' key
@@ -190,21 +323,22 @@ class CleanDataProcessor(BaseStepProcessor):
                 elif action == 'regex_replace':
                     df = self._apply_regex_replace(df, single_column_rule, column, rule_index)
                 elif action == 'uppercase':
-                    df[column] = df[column].astype(str).str.upper()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.upper())
                     logger.debug(f"Applied uppercase to column '{column}'")
                 elif action == 'lowercase':
-                    df[column] = df[column].astype(str).str.lower()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.lower())
                     logger.debug(f"Applied lowercase to column '{column}'")
                 elif action == 'title_case':
-                    df[column] = df[column].astype(str).str.title()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.title())
                     logger.debug(f"Applied title case to column '{column}'")
                 elif action == 'strip_whitespace':
-                    df[column] = df[column].astype(str).str.strip()
+                    df[column] = self._apply_to_text_values(df[column], lambda acc: acc.strip())
                     logger.debug(f"Stripped whitespace from column '{column}'")
                 elif action == 'remove_special_chars':
                     pattern = rule.get('pattern', r'[^a-zA-Z0-9\s]')
                     replacement = rule.get('replacement', '')
-                    df[column] = df[column].astype(str).str.replace(pattern, replacement, regex=True)
+                    df[column] = self._apply_to_text_values(
+                        df[column], lambda acc: acc.replace(pattern, replacement, regex=True))
                     logger.debug(f"Removed special characters from column '{column}' using pattern: {pattern}")
                 elif action == 'fix_numeric':
                     df = self._apply_fix_numeric(df, single_column_rule, column, rule_index)
@@ -243,7 +377,18 @@ class CleanDataProcessor(BaseStepProcessor):
         
         # Log summary of what was applied
         if successful_columns:
+            logger.info(
+                f"🧹 Rule {rule_index + 1} '{action}': cleaned {len(successful_columns)} "
+                f"column(s)"
+            )
             logger.debug(f"Cleaning rule {rule_index + 1} applied '{action}' to columns: {successful_columns}")
+
+        if skipped_columns:
+            logger.info(
+                f"   ↳ skipped {len(skipped_columns)} non-text column(s): "
+                f"{', '.join(skipped_columns[:8])}"
+                f"{' ...' if len(skipped_columns) > 8 else ''}"
+            )
         
         if failed_columns:
             logger.warning(f"Cleaning rule {rule_index + 1} failed on columns: {failed_columns}")
@@ -597,11 +742,13 @@ class CleanDataProcessor(BaseStepProcessor):
         
         # First replace space-like chars with regular space
         space_pattern = '[' + ''.join(space_chars) + ']'
-        df[column] = df[column].astype(str).str.replace(space_pattern, ' ', regex=True)
+        df[column] = self._apply_to_text_values(
+            df[column], lambda acc: acc.replace(space_pattern, ' ', regex=True))
         
         # Then remove zero-width chars completely
         remove_pattern = '[' + ''.join(remove_chars) + ']'
-        df[column] = df[column].astype(str).str.replace(remove_pattern, '', regex=True)
+        df[column] = self._apply_to_text_values(
+            df[column], lambda acc: acc.replace(remove_pattern, '', regex=True))
         
         # Finally, trim leading/trailing spaces that may have resulted from replacements
         df[column] = df[column].str.strip()
@@ -617,7 +764,7 @@ class CleanDataProcessor(BaseStepProcessor):
         
         # Step 2: Normalize regular whitespace
         # Remove leading/trailing whitespace
-        df[column] = df[column].astype(str).str.strip()
+        df[column] = self._apply_to_text_values(df[column], lambda acc: acc.strip())
         
         # Collapse multiple whitespace into single spaces
         df[column] = df[column].str.replace(r'\s+', ' ', regex=True)
@@ -640,7 +787,7 @@ class CleanDataProcessor(BaseStepProcessor):
             'strip_whitespace', 'normalize_whitespace', 'remove_invisible_chars',
             'remove_special_chars', 'fix_numeric', 'fix_dates',
             'fill_empty', 'remove_duplicates', 'standardize_values'
-        ]
+        , 'blank_repeats']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""

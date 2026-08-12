@@ -455,9 +455,20 @@ class VariableSubstitution:
         
         # Recipe file variables
         if self.recipe_path:
+            # recipe_dir is what lets a recipe be run from any directory. Paths
+            # inside the recipe otherwise resolve against the current working
+            # directory, so a lookup_dir of "lookup_source_files" only works if
+            # you happen to be standing in the project folder.
+            #
+            # Resolved to an absolute path so it stays correct no matter where
+            # the command was invoked from.
+            recipe_directory = self.recipe_path.resolve().parent
+
             variables.update({
                 'recipe_filename': self.recipe_path.name,
-                'recipe_basename': self.recipe_path.stem
+                'recipe_basename': self.recipe_path.stem,
+                'recipe_dir': str(recipe_directory),
+                'recipe_parent_dir': str(recipe_directory.parent)
             })
         
         return variables
@@ -733,7 +744,7 @@ def get_variable_documentation() -> dict:
 
         'file_variables': [
             'input_filename', 'input_basename', 'input_extension',
-            'recipe_filename', 'recipe_basename'
+            'recipe_filename', 'recipe_basename', 'recipe_dir', 'recipe_parent_dir'
         ],
 
         'custom_variables': 'Any variables defined in settings.variables section',

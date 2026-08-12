@@ -79,6 +79,11 @@ class SelectColumnsProcessor(BaseStepProcessor):
                 result_data = self._select_by_inclusion(
                     result_data, columns_to_keep, columns_to_create, allow_duplicates, strict_mode
                 )
+                if columns_to_create:
+                    logger.info(
+                        f"➕ Created {len(columns_to_create)} blank column(s): "
+                        f"{', '.join(str(c) for c in columns_to_create)}"
+                    )
                 operation_desc = f"selected {len(columns_to_keep)} column specifications"
             elif columns_to_drop is not None:
                 result_data = self._select_by_exclusion(

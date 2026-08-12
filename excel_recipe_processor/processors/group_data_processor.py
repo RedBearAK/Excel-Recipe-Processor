@@ -73,8 +73,7 @@ class GroupDataProcessor(BaseStepProcessor):
         unmatched_action = self.get_config_value('unmatched_action', 'keep_original')
         unmatched_value = self.get_config_value('unmatched_value', 'Other')
         case_sensitive = self.get_config_value('case_sensitive', False)     # default to False!
-        save_to_stage = self.get_config_value('save_to_stage', None)
-        stage_description = self.get_config_value('stage_description', '')
+        # save_to_stage is handled by the base class in save_output_data().
         
         # Load group definitions from various sources
         groups = self._load_group_definitions()
@@ -102,10 +101,6 @@ class GroupDataProcessor(BaseStepProcessor):
                 final_column = source_column
             else:
                 final_column = target_column
-            
-            # Save results to stage if requested
-            if save_to_stage:
-                self._save_grouping_to_stage(result_data, save_to_stage, stage_description)
             
             # Count successful groupings
             grouped_count = len(result_data)
@@ -421,24 +416,6 @@ class GroupDataProcessor(BaseStepProcessor):
             )
         
         return predefined_groups[predefined_type]
-    
-    def _save_grouping_to_stage(self, data: pd.DataFrame, stage_name: str, description: str) -> None:
-        """Save grouping results to a stage."""
-        
-        try:
-            stage_description = description or f"Grouping results from step '{self.step_name}'"
-            
-            StageManager.save_stage(
-                stage_name=stage_name,
-                data=data,
-                description=stage_description,
-                step_name=self.step_name
-            )
-            
-            logger.debug(f"Saved grouping results to stage '{stage_name}'")
-            
-        except StageError as e:
-            raise StepProcessorError(f"Failed to save grouping results to stage '{stage_name}': {e}")
     
     def _validate_grouping_config(self, df: pd.DataFrame, source_column: str, 
                                 groups: dict, target_column: str) -> None:

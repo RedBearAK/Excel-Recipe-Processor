@@ -1,7 +1,57 @@
-# Production dependencies
-# Add your package dependencies here
-openpyxl>=3.0.0
-pandas>=1.0.0
-prompt-toolkit>=3.0.0
-pyyaml>=6.0.0
-requests>=2.25.0
+# Production dependencies for excel-recipe-processor
+#
+# Every entry below is imported by the package. Verified by AST-scanning all
+# modules for third-party imports rather than by hand, so this should be
+# complete as of dev_beta @ 7badc89.
+#
+# Where the import name differs from the pip name, it is noted, since that
+# mismatch is the usual reason a dependency gets missed.
+
+# --- Core data handling -----------------------------------------------------
+
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# openpyxl 3.1 is a hard floor, not a preference. manage_named_objects reads
+# and writes sheet-scoped defined names via worksheet.defined_names, which does
+# not exist before 3.1 - in 3.0 defined names lived only on the workbook, as a
+# DefinedNameList. Installing 3.0.x gives an AttributeError at runtime.
+
+# --- Configuration and interaction ------------------------------------------
+
+pyyaml>=6.0.0                   # imports as 'yaml'
+prompt-toolkit>=3.0.0           # imports as 'prompt_toolkit'
+
+# --- Formatting -------------------------------------------------------------
+
+webcolors>=1.12                 # CSS colour names in format_excel
+
+# Imported unguarded at module scope in format_excel_processor. Previously
+# undeclared, so a fresh environment failed on any recipe touching formatting.
+
+# --- Term frequency analysis ------------------------------------------------
+
+scikit-learn>=1.0.0             # imports as 'sklearn'
+
+# Used only by filter_terms_detector, but imported unguarded at module scope,
+# and pipeline.py imports every processor eagerly. A missing scikit-learn
+# therefore breaks the entire CLI, not just that one processor. Heavy: pulls
+# numpy, scipy, joblib, and threadpoolctl.
+
+# --- Transitively available, but imported directly --------------------------
+
+python-dateutil>=2.8.2          # imports as 'dateutil'
+numpy>=1.24.0
+
+# Both arrive with pandas today, so nothing has broken yet. Declared because
+# the package imports them by name in its own modules, and relying on another
+# package's dependency tree is fragile. clean_data_processor guards its
+# dateutil import and degrades to basic date parsing; add_calculated_column
+# imports numpy unguarded.
+
+# --- Removed ----------------------------------------------------------------
+
+# requests was previously declared here but is imported nowhere in the
+# codebase. Dropped rather than carried forward.
+
+# End of file #

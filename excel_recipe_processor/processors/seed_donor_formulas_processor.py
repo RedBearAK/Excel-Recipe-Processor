@@ -15,7 +15,14 @@ import pandas as pd
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
-from excel_recipe_processor.processors._helpers.formula_patterns import excel_column_ref_rgx
+from excel_recipe_processor.core.workbook_session import WorkbookSession
+from openpyxl.formula.translate import Translator
+from openpyxl.worksheet.formula import ArrayFormula
+
+from excel_recipe_processor.processors._helpers.range_patterns   import excel_column_ref_rgx
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+    find_last_data_row, resolve_column_letters, ExcelRangeResolverError
+)
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +50,47 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         self.start_row = self.get_config_value('start_row', 2)  # 1-indexed
         self.row_count = self.get_config_value('row_count', 3)
         self.force_column_names = self.get_config_value('force_column_names', False)
+        self.fill_down = self.get_config_value('fill_down', False)
+        self.fill_anchor_columns = self.get_config_value('fill_anchor_columns', None)
+
+        # What to do when a target cell already holds something.
+        #
+        #   "error"      stop and say which cell (the default)
+        #   "skip"       leave it alone and count it
+        #   "overwrite"  write anyway
+        #
+        # Applies to the seeded rows and the filled rows alike. Previously the
+        # two halves disagreed - the transplant raised, the fill silently
+        # skipped - which meant the same collision produced different outcomes
+        # depending on which row it landed on.
+        #
+        # "skip" is what a trailing marker row wants, so that a fill sweeping to
+        # the end of the data steps around it rather than halting.
+        self.on_existing_cell = self.get_config_value('on_existing_cell', 'error')
+
+        if self.on_existing_cell not in ('error', 'skip', 'overwrite'):
+            raise StepProcessorError(
+                f"Invalid on_existing_cell '{self.on_existing_cell}'. "
+                f"Supported: error, skip, overwrite"
+            )
+
+        # What to do with a donor cell holding an array (CSE) formula.
+        #
+        #   "preserve"  write it back as an array formula, faithful to the donor
+        #   "convert"   write it as an ordinary formula
+        #
+        # Converting is safe when the formula is scalar - nothing but single-cell
+        # comparisons and ordinary functions - which is the common case for a
+        # formula that was entered with Ctrl-Shift-Enter out of habit rather than
+        # necessity. Ordinary formulas are also what Excel fills down natively,
+        # so they behave predictably for anyone editing afterwards.
+        self.array_formula_mode = self.get_config_value('array_formula_mode', 'preserve')
+
+        if self.array_formula_mode not in ('preserve', 'convert'):
+            raise StepProcessorError(
+                f"Invalid array_formula_mode '{self.array_formula_mode}'. "
+                f"Supported: preserve, convert"
+            )
         
         # Validate configuration
         self._validate_config()
@@ -76,7 +124,17 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         
         # 1. Validate files and sheets exist
         source_wb, source_ws = self._load_workbook_and_sheet(self.source_file, self.source_sheet, "source", read_only=True)
-        target_wb, target_ws = self._load_workbook_and_sheet(self.target_file, self.target_sheet, "target", read_only=False)
+        # Target through the session: the named ranges a previous step wrote
+        # are present in this same live object, and the save happens once at
+        # run end. The donor stays a plain read-only load - different file,
+        # never written.
+        target_wb = WorkbookSession.get_workbook(self.target_file)
+        if self.target_sheet not in target_wb.sheetnames:
+            raise StepProcessorError(
+                f"Target sheet '{self.target_sheet}' not found in "
+                f"'{self.target_file}'. Available: {target_wb.sheetnames}"
+            )
+        target_ws = target_wb[self.target_sheet]
         
         try:
             # 2. Resolve column specifications to Excel column letters
@@ -85,6 +143,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             
             # 3. Extract and transplant formulas
             transplanted_count = 0
+            preserved_seed = 0
             empty_source_count = 0
             
             for col_letter in resolved_columns:
@@ -101,15 +160,30 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                         empty_source_count += 1
                         continue
                     
-                    # Check if target cell is occupied
-                    if target_cell.value is not None:
-                        raise StepProcessorError(
-                            f"Target cell {col_letter}{current_row} already contains data: '{target_cell.value}'. "
-                            f"Cannot overwrite existing data."
-                        )
+                    # Check if target cell is occupied. An empty string is
+                    # NOT data - it is what pandas' na_rep leaves behind.
+                    if target_cell.value is not None and target_cell.value != '':
+                        if self.on_existing_cell == 'error':
+                            raise StepProcessorError(
+                                f"Target cell {col_letter}{current_row} already contains data: "
+                                f"'{target_cell.value}'. Set on_existing_cell to 'skip' or "
+                                f"'overwrite' to proceed."
+                            )
+                        if self.on_existing_cell == 'skip':
+                            preserved_seed += 1
+                            continue
                     
                     # Transplant the formula (openpyxl handles making it "live")
-                    target_cell.value = source_cell.value
+                    source_formula = source_cell.value
+
+                    # Honour array_formula_mode on the seeded rows too, so the
+                    # whole column is consistent rather than array at the top and
+                    # ordinary below it
+                    if (isinstance(source_formula, ArrayFormula)
+                            and self.array_formula_mode == 'convert'):
+                        source_formula = source_formula.text
+
+                    target_cell.value = source_formula
                     
                     # If source had a formula, copy it exactly
                     if hasattr(source_cell, 'formula') and source_cell.formula:
@@ -118,22 +192,184 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                     logger.debug(f"🧬 Transplanted to {col_letter}{current_row}: {source_cell.value}")
                     transplanted_count += 1
             
-            # 4. Save target workbook (makes formulas "live")
-            target_wb.save(self.target_file)
-            
+            # 4. Optionally continue the seeded formulas to the end of the data
+            filled_count = 0
+            if self.fill_down:
+                filled_count = self._fill_down_columns(target_ws, resolved_columns)
+
+            # 5. Save target workbook (makes formulas "live")
+            WorkbookSession.mark_dirty(self.target_file)
+
+            if transplanted_count == 0:
+                raise StepProcessorError(
+                    f"No formulas found in donor '{self.source_file}' sheet "
+                    f"'{self.source_sheet}' at rows {self.start_row}-"
+                    f"{self.start_row + self.row_count - 1} for columns "
+                    f"{self.columns}. The donor rows may have been deleted, or "
+                    f"start_row may not point at them. Writing a formula-free "
+                    f"file silently is worse than stopping here."
+                )
+
             # Log summary
             logger.info(f"✅ Transplanted {transplanted_count} formulas successfully")
+            if filled_count:
+                logger.info(f"⬇️  Filled {filled_count:,} additional formula cells")
+
+            if preserved_seed:
+                logger.info(
+                    f"🧬 Skipped {preserved_seed} seeded cell(s) that already held a value"
+                )
             if empty_source_count > 0:
                 logger.warning(f"⚠️ Found {empty_source_count} empty source cells - check column specifications")
             
             # Return description of what was accomplished
+            if filled_count:
+                return (f"transplanted {transplanted_count} formulas and filled "
+                        f"{filled_count:,} more from {self.source_file} to {self.target_file}")
+
             return f"transplanted {transplanted_count} formulas from {self.source_file} to {self.target_file}"
             
         finally:
             # Clean up workbook resources
             source_wb.close()
-            target_wb.close()
+            pass  # the session owns the target workbook's lifetime
     
+    def _fill_down_columns(self, target_ws, resolved_columns: list) -> int:
+        """
+        Continue each seeded formula to the last populated row.
+
+        Uses openpyxl's Translator, which shifts relative cell references the way
+        Excel's own fill-down does while leaving named ranges and absolute
+        references alone. It manages roughly 100,000 cells a second, so the cost
+        is negligible next to loading and saving the workbook.
+
+        Args:
+            target_ws:          Worksheet being written
+            resolved_columns:   Column letters holding the seeded formulas
+
+        Returns:
+            Count of cells filled
+        """
+        anchors = self.fill_anchor_columns
+
+        if anchors:
+            # Accept header names, not just column letters. find_last_data_row
+            # needs letters, and requiring the caller to know that would leak an
+            # implementation detail into every recipe.
+            try:
+                anchors = resolve_column_letters(
+                    target_ws, anchors, header_row=1,
+                    force_column_names=self.force_column_names,
+                    on_missing='error'
+                )
+            except ExcelRangeResolverError as error:
+                raise StepProcessorError(f"Invalid fill_anchor_columns: {error}")
+
+        if not anchors:
+            # Measure the data extent from every column, so a sparse column
+            # cannot cut the fill short
+            from openpyxl.utils import get_column_letter
+            anchors = [get_column_letter(i) for i in range(1, target_ws.max_column + 1)]
+
+        try:
+            last_row = find_last_data_row(target_ws, anchors, header_row=1)
+        except ExcelRangeResolverError as error:
+            raise StepProcessorError(f"Could not determine fill extent: {error}")
+
+        # Where the seeded block was ASKED to end. The donor may hold fewer rows
+        # than row_count, in which case some of those cells were never written -
+        # so filling from here would step over them and leave a gap. The real
+        # starting point is found per column below.
+        requested_last_row = self.start_row + self.row_count - 1
+
+        if last_row <= requested_last_row:
+            logger.info(f"⬇️  Nothing to fill: data ends at row {last_row}")
+            return 0
+
+        filled = 0
+        preserved = 0
+        columns_with_formulas = []
+
+        for col_letter in resolved_columns:
+            origin = f"{col_letter}{self.start_row}"
+            source_value = target_ws[origin].value
+
+            # An array formula arrives as an ArrayFormula object rather than a
+            # string, so a plain startswith('=') test skips it. SALE TYPE1 in the
+            # VMS workbook is one of these, and skipping it left that column
+            # empty below the seeded rows while the log still claimed success.
+            is_array = isinstance(source_value, ArrayFormula)
+
+            if is_array:
+                formula_text = source_value.text
+            elif isinstance(source_value, str) and source_value.startswith('='):
+                formula_text = source_value
+            else:
+                logger.debug(f"⬇️  {origin} holds no formula, not filling this column")
+                continue
+
+            columns_with_formulas.append(col_letter)
+            translator = Translator(formula_text, origin=origin)
+            column_number = target_ws[f"{col_letter}1"].column
+
+            # Fill from the last row that actually received a formula, not from
+            # the last row that was requested. A donor with fewer rows than
+            # row_count would otherwise leave the difference blank.
+            seed_last_row = self.start_row - 1
+            for probe_row in range(self.start_row, requested_last_row + 1):
+                if target_ws.cell(row=probe_row, column=column_number).value is not None:
+                    seed_last_row = probe_row
+
+            if seed_last_row < requested_last_row:
+                logger.debug(
+                    f"⬇️  {col_letter}: donor supplied {seed_last_row - self.start_row + 1} "
+                    f"of {self.row_count} requested rows, filling from "
+                    f"{seed_last_row + 1}"
+                )
+
+            for row_num in range(seed_last_row + 1, last_row + 1):
+                target_cell = target_ws.cell(row=row_num, column=column_number)
+
+                if target_cell.value is not None and target_cell.value != '':
+                    if self.on_existing_cell == 'error':
+                        raise StepProcessorError(
+                            f"Fill target {col_letter}{row_num} already contains data: "
+                            f"'{target_cell.value}'. Set on_existing_cell to 'skip' or "
+                            f"'overwrite' to proceed."
+                        )
+                    if self.on_existing_cell == 'skip':
+                        preserved += 1
+                        continue
+
+                target_reference = f"{col_letter}{row_num}"
+                translated = translator.translate_formula(target_reference)
+
+                if is_array and self.array_formula_mode == 'preserve':
+                    # Each filled cell needs its own single-cell ref, or Excel
+                    # treats them as one spilled block anchored at the origin
+                    translated = ArrayFormula(ref=target_reference, text=translated)
+
+                target_cell.value = translated
+                filled += 1
+
+        if filled:
+            logger.info(
+                f"⬇️  Filled {len(columns_with_formulas)} column(s) from row "
+                f"{seed_last_row + 1} to {last_row}"
+            )
+        else:
+            logger.warning(
+                "⬇️  Nothing filled: no seeded formulas were found to continue"
+            )
+
+        if preserved:
+            logger.info(
+                f"⬇️  Left {preserved} cell(s) alone that already held a value "
+                f"(sentinel row, or data placed deliberately)"
+            )
+
+        return filled
+
     def _load_workbook_and_sheet(self, file_path: str, sheet_name: str, context: str, read_only: bool = False):
         """Load workbook and get specified worksheet."""
         # Check file exists

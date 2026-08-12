@@ -406,4 +406,146 @@ template_best_practices:
        - Update templates to change multiple sheets at once
        - Validate templates independently before applying
 
+
+column_formats_example:
+  description: "Number formats, fonts and alignment applied to columns by NAME"
+  yaml: |
+    # Rules address columns by header name, not by letter, so they survive a
+    # column being inserted upstream. They apply to data rows only - the header
+    # keeps whatever the header_* options gave it.
+
+    settings:
+      description: "Format a report by column meaning rather than position"
+
+    recipe:
+      - step_description: "Apply column formats"
+        processor_type: "format_excel"
+        target_file: "output/report.xlsx"
+        formatting:
+          - sheet: "Data"
+            header_bold: true
+            header_background: true
+            header_background_color: "1F4E79"
+            header_text_color: "white"
+            auto_fit_columns: true
+            # OPT - "error", "warn" (default), or "skip" for a column name that
+            # cannot be resolved
+            on_missing_column: "error"
+            column_formats:
+              - # Thousands separator, no decimals
+                columns: ["Cases", "Gross Wt", "Packages", "Units"]
+                number_format: "thousands"
+
+              - # Currency pinned left, negatives in parentheses, zero as a dash
+                columns: ["Price", "Total Price"]
+                number_format: "accounting"
+
+              - columns: ["Product ID"]
+                alignment_horizontal: "center"
+
+              - # Per-column header styling, unlike the sheet-wide header_*
+                # options, so a subset of columns can be marked without
+                # touching the rest
+                columns: ["Region", "Country"]
+                font_color: "red"
+                header_font_color: "white"
+                header_background_color: "red"
+                header_bold: true
+
+              - # An explicit width overrides auto-fit. Worth setting on a
+                # formula column: auto-fit measures a formula cell's SOURCE
+                # TEXT, not its result, so a column displaying "OK" can end up
+                # sized for a forty character formula.
+                columns: ["Sale Type"]
+                width: 13
+
+            # OPT - Columns to hide. The data stays in the file and stays
+            # available to formulas; it simply is not displayed.
+            hidden_columns: ["Notes", "Internal Reference"]
+
+
+number_format_aliases:
+  description: "Readable names for the common Excel format codes"
+  note: "Any literal Excel format code is also accepted. The aliases exist because the accounting code in particular is easy to get subtly wrong by hand."
+  aliases:
+    thousands: "#,##0"
+    thousands_2dp: "#,##0.00"
+    accounting: '_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)'
+    accounting_0dp: "Accounting with no decimal places"
+    currency: "$#,##0.00"
+    currency_0dp: "$#,##0"
+    percent: "0%"
+    percent_2dp: "0.00%"
+    date: "mm/dd/yyyy"
+    date_iso: "yyyy-mm-dd"
+    datetime: "mm/dd/yyyy hh:mm"
+    integer: "0"
+    text: "@"
+
+
+column_format_parameter_details:
+  columns:
+    required: true
+    description: "Column header names, or Excel column letters. A name that looks like a column reference is read as one unless force_column_names is set."
+  number_format:
+    required: false
+    description: "An alias from the list above, or a literal Excel format code"
+  alignment_horizontal:
+    required: false
+    description: "left, center, right, justify, distributed, centerContinuous, fill, general"
+  alignment_vertical:
+    required: false
+    description: "top, center, bottom, justify, distributed"
+  wrap_text:
+    required: false
+    description: "Wrap long values within the cell"
+  font_color:
+    required: false
+    description: "Data row font colour. Accepts hex or a CSS name such as red or forestgreen."
+  font_bold:
+    required: false
+    description: "Bold the data rows of these columns"
+  font_italic:
+    required: false
+    description: "Italicise the data rows of these columns"
+  header_font_color:
+    required: false
+    description: "This column's header text colour, overriding the sheet-wide header_text_color"
+  header_background_color:
+    required: false
+    description: "This column's header fill, overriding the sheet-wide header_background_color"
+  header_bold:
+    required: false
+    description: "Bold this column's header specifically"
+  width:
+    required: false
+    description: "Explicit column width. Applied after auto-fit, so a stated width wins."
+
+
+ordering_notes:
+  within_format_excel:
+    description: "Column formats run before auto-fit, because formatted text measures wider - '1,234' is wider than '1234', and an accounting format wider still. Explicit widths run after auto-fit, or auto-fit would overwrite them. Hiding runs last, so auto-fit does not spend effort measuring a column nobody will see."
+  formula_columns:
+    description: "Auto-fit ignores formula cells, because a cell holds its formula source text rather than its result and openpyxl cannot know the computed value. Width comes from the header and any literal cells instead."
+
 # End of file #
+
+
+autofit_scan_limit_example:
+  description: "Cap the auto-fit scan on very large sheets"
+  yaml: |
+    # Auto-fit measures EVERY cell by default - correctness first, because a
+    # long value near the bottom would otherwise get a too-narrow column.
+    # On big sheets that full scan dominates formatting time. A recipe that
+    # knows its data (uniform-width codes, dates, numbers) can cap the scan
+    # to the first N data rows; the header row is always measured.
+
+    recipe:
+      - step_description: "Format with a capped auto-fit scan"
+        processor_type: "format_excel"
+        target_file: "big_output.xlsx"
+        formatting:
+          - sheet: "Data"
+            auto_fit_columns: true
+            # OPT - Measure only the first 2000 data rows (default: all)
+            autofit_scan_rows: 2000

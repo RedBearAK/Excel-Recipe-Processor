@@ -8,12 +8,15 @@ Key changes:
 """
 
 import logging
+import time
+import pandas as pd
 
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor,
     ExportBaseProcessor,
@@ -23,6 +26,9 @@ from excel_recipe_processor.core.base_processor import (
     StepProcessorError,
 )
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
+from excel_recipe_processor.core.stage_inspection import (
+    dump_stage_to_file, StageInspectionError
+)
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.interactive_variables import (
     InteractiveVariablePrompt, InteractiveVariableError
@@ -48,6 +54,16 @@ class RecipePipeline:
     """Pure stage-based recipe orchestrator with variable support and friendly error reporting."""
     
     def __init__(self):
+        # Development-time inspection, driven entirely from the command line so
+        # that examining a recipe never means editing it.
+        self._dump_requests = {}        # stage name -> row spec (or None)
+        # stage name -> save count already dumped. A stage saved again after
+        # its dump gets dumped again: a re-used stage that only dumped once
+        # would be untroubleshootable from the outside.
+        self._dumped_versions = {}
+        self._dump_output_dir = '.'
+        self._stop_after_stage = None
+
         self.recipe_loader = RecipeLoader()
         self.recipe_data = None
         self.variable_substitution = None
@@ -139,6 +155,7 @@ class RecipePipeline:
         
         if step_on_error == ErrorAction.HALT:
             logger.error(f"❌ Step {step_num} failed - Halting execution: {error}")
+            WorkbookSession.discard_all()
             raise RecipePipelineError(f"Step {step_num} failed: {error}")
         
         elif step_on_error == ErrorAction.CONTINUE:
@@ -172,6 +189,9 @@ class RecipePipeline:
             raise RecipePipelineError("Recipe contains no steps")
         
         recipe_steps_cnt = len(recipe_steps)
+        self._run_started_at = time.perf_counter()
+        WorkbookSession.reset()
+        WorkbookSession.set_deferred(True)
         logger.info(f"🚀 Executing {recipe_steps_cnt} recipe steps")
         
         # Reset execution state
@@ -190,6 +210,7 @@ class RecipePipeline:
             self._log_step_separator(step_index, step_desc)
             
             # Log step start with error handling info if non-default
+            _step_clock = time.perf_counter()
             if step_on_error != ErrorAction.HALT:
                 logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
             else:
@@ -207,6 +228,16 @@ class RecipePipeline:
                     processor.execute_export()
                 elif isinstance(processor, FileOpsBaseProcessor):
                     processor.execute()
+                elif not processor.requires_source_stage:
+                    # Processors that invent a stage rather than transform one -
+                    # create_stage builds from inline recipe data. They declare
+                    # this themselves rather than the pipeline carrying a list.
+                    # Checked by attribute, NOT by isinstance, for the reason in
+                    # the comment below.
+                    # create_stage still takes a pass-through DataFrame it
+                    # ignores, a leftover from before stages. An empty frame
+                    # satisfies that without inventing data.
+                    processor.execute(pd.DataFrame())
                 else:
                     # This looks lost/generic to syntax highlighter because we can't check for 
                     # the base processor. It would match any processor, even ones that should 
@@ -215,7 +246,17 @@ class RecipePipeline:
                     processor.execute_stage_to_stage()
                 
                 self.steps_executed += 1
-                logger.info(f"✅ Step {step_index + 1} completed successfully")
+                logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.1f}s)")
+
+                self._dump_requested_stages()
+
+                if self._should_stop_after(step_config):
+                    logger.info(
+                        f"🛑 Stopping after '{self._stop_after_stage}' as requested "
+                        f"(--stop-after). {self.steps_executed} of "
+                        f"{recipe_steps_cnt} steps ran."
+                    )
+                    break
                 
             except (StageError, StepProcessorError, Exception) as e:
                 # Handle error according to configured action
@@ -231,6 +272,9 @@ class RecipePipeline:
         # Generate completion report
         self._completion_report = self._generate_completion_report()
         
+        # All steps succeeded: write every session workbook exactly once
+        WorkbookSession.flush_all()
+
         # Enhanced completion logging
         if skipped_steps > 0:
             logger.info(f"🎯 Recipe execution completed: {self.steps_executed} steps executed, "
@@ -285,6 +329,53 @@ class RecipePipeline:
         except InteractiveVariableError as e:
             logger.error(f"❌ Failed to collect external variables: {e}")
             raise RecipePipelineError(f"Failed to collect external variables: {e}")
+
+    def configure_inspection(self, dump_requests: dict = None,
+                             stop_after_stage: str = None,
+                             dump_output_dir: str = '.') -> None:
+        """
+        Set up development-time stage inspection.
+
+        Args:
+            dump_requests:    Stage name -> row spec (or None for all rows)
+            stop_after_stage: Halt once this stage has been written
+            dump_output_dir:  Where dumped CSVs go
+        """
+        self._dump_requests = dump_requests or {}
+        self._stop_after_stage = stop_after_stage
+        self._dump_output_dir = dump_output_dir or '.'
+
+    def _dump_requested_stages(self) -> None:
+        """Write out any requested stage that now exists."""
+        if not self._dump_requests:
+            return
+
+        from excel_recipe_processor.core.stage_manager import StageManager
+
+        for stage_name, spec in self._dump_requests.items():
+            if not StageManager.stage_exists(stage_name):
+                continue
+
+            save_count = StageManager.get_stage_save_count(stage_name)
+            if save_count <= self._dumped_versions.get(stage_name, 0):
+                continue
+
+            try:
+                dump_stage_to_file(
+                    stage_name, StageManager.load_stage(stage_name),
+                    spec, self._dump_output_dir, save_number=save_count
+                )
+                self._dumped_versions[stage_name] = save_count
+            except StageInspectionError as error:
+                raise StepProcessorError(f"--dump-stage {stage_name}: {error}")
+
+    def _should_stop_after(self, step_config: dict) -> bool:
+        """Report whether this step wrote the stage named by --stop-after."""
+        if not self._stop_after_stage:
+            return False
+
+        written = step_config.get('save_to_stage') or step_config.get('stage_name')
+        return written == self._stop_after_stage
 
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
@@ -381,6 +472,18 @@ class RecipePipeline:
         custom_variables = settings.get('variables', {})
         
         for name, template_value in custom_variables.items():
+            # A name supplied on the command line must not be overwritten by the
+            # recipe's own template for it. Without this guard, re-resolution
+            # runs after every external variable is added and quietly restores
+            # the recipe value, so --set donor_file appears to be accepted and
+            # then has no effect.
+            if name in self._external_variables:
+                logger.debug(
+                    f"📝 Keeping externally supplied '{name}', not re-resolving "
+                    f"the recipe's own value"
+                )
+                continue
+
             # Only try to resolve if it's a string with variable references
             if isinstance(template_value, str) and '{' in template_value:
                 try:
@@ -419,8 +522,14 @@ class RecipePipeline:
         if not self.recipe_data:
             return
             
-        # Create variable system
-        self.variable_substitution = VariableSubstitution()
+        # Create variable system.
+        #
+        # Passing the recipe path is what supplies {recipe_dir} and
+        # {recipe_parent_dir}, which let a recipe reference its own siblings
+        # regardless of the directory the command was run from. Without it those
+        # variables never resolve and the run fails at load with "Unresolved
+        # variables detected" - correct, but only after the user wonders why.
+        self.variable_substitution = VariableSubstitution(recipe_path=self._recipe_path)
         
         # Add recipe-defined variables (preserving original types)
         settings = self.recipe_data.get('settings', {})
@@ -502,7 +611,12 @@ class RecipePipeline:
                     'external_variables': len(self._external_variables),
                     'total_variables': len(self.get_available_variables())
                 },
+                'elapsed_seconds': (
+                    time.perf_counter() - self._run_started_at
+                    if getattr(self, '_run_started_at', None) else None
+                ),
                 'stages_created': stage_report.get('stages_created', []),
+                'stages_freed': stage_report.get('stages_freed', []),
                 'stages_declared': stage_report.get('stages_declared', 0),
                 'undeclared_stages_created': stage_report.get('undeclared_stages_created', []),
                 'final_stage_count': stage_report.get('stages_created', 0),

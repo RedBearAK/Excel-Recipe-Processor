@@ -23,6 +23,11 @@ class CreateStageProcessor(BaseStepProcessor):
     in the recipe YAML, useful for lookup tables, filter lists, and 
     configuration data without requiring external files.
     """
+
+    # Builds a stage from inline recipe data, so there is nothing to read from
+    # and the destination is given as 'stage_name'.
+    requires_source_stage = False
+    requires_save_to_stage = False
     
     # Data size limits to prevent YAML bloat
     MAX_LIST_ITEMS = 100

@@ -220,3 +220,31 @@ common_use_cases:
   dynamic_imports: "Import files with variable paths based on dates or batch parameters"
   format_conversion: "Import CSV/TSV data for processing in Excel-like operations"
   staging_workflow: "Import multiple files to stages for later lookup/merge operations"
+
+
+verbatim_text_example:
+  description: "Protect literal N/A-style text in designated columns"
+  yaml: |
+    # pandas normally coerces strings like "N/A", "NA", "NULL" to missing
+    # values at import - reasonable for numbers, wrong for a text column
+    # where "N/A" is something a person deliberately typed and a filter
+    # needs to match. Listing a column here keeps its text verbatim, while
+    # a genuinely EMPTY cell still imports as missing, so blank and "N/A"
+    # stay distinguishable. Every other column behaves exactly as a normal
+    # import. Use this for any column whose literal N/A-like entries matter.
+
+    settings:
+      description: "Import with a protected text column"
+      stages:
+        - stage_name: "stg_import_raw"
+          description: "Download with Customer Ref # text preserved"
+          protected: false
+
+    recipe:
+      - step_description: "Import, keeping ref text verbatim"
+        processor_type: "import_file"
+        input_file: "download.xlsx"
+        sheet: "Van Detail Report"
+        # OPT - Columns whose literal text must survive import
+        verbatim_text_columns: ["Customer Ref #"]
+        save_to_stage: "stg_import_raw"

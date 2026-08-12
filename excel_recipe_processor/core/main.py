@@ -1,7 +1,9 @@
 """Main functionality for excel_recipe_processor package."""
 
+import yaml
 import logging
 
+from pathlib import Path
 from argparse import Namespace
 
 from excel_recipe_processor.core.pipeline import get_system_capabilities  # Keep for compatibility
@@ -18,6 +20,66 @@ from excel_recipe_processor.core.interactive_variables import (
 logger = logging.getLogger(__name__)
 
 
+def list_recipe_stages(recipe_path: str) -> int:
+    """
+    Print the stages a recipe declares, without running it.
+
+    Answers "what can I ask --dump-stage for" without reading the YAML.
+
+    Args:
+        recipe_path: Recipe to inspect
+
+    Returns:
+        Exit code
+    """
+    path = Path(recipe_path)
+
+    if not path.exists():
+        print(f"Recipe file not found: {recipe_path}")
+        return 1
+
+    try:
+        recipe = yaml.safe_load(path.read_text())
+    except yaml.YAMLError as error:
+        print(f"Could not parse recipe: {error}")
+        return 1
+
+    settings = recipe.get('settings', {}) or {}
+    declared = settings.get('stages', []) or []
+    steps = recipe.get('recipe', []) or []
+
+    # Which step writes each stage, so a name can be traced to its origin
+    written_by = {}
+    for position, step in enumerate(steps, start=1):
+        target = step.get('save_to_stage') or step.get('stage_name')
+        if target and target not in written_by:
+            written_by[target] = position
+
+    print(f"\n{path.name}: {len(steps)} steps, {len(declared)} declared stages\n")
+
+    for entry in declared:
+        name = entry.get('stage_name', '?')
+        description = entry.get('description', '')
+        position = written_by.get(name)
+        marker = f"step {position:>2}" if position else "   --  "
+        print(f"  {marker}  {name}")
+        if description:
+            print(f"            {description}")
+
+    undeclared = [
+        name for name in written_by
+        if not any(e.get('stage_name') == name for e in declared)
+    ]
+
+    if undeclared:
+        print(f"\n  Written but not declared: {', '.join(sorted(undeclared))}")
+
+    print("\nDump one with:   --dump-stage <name>[:20|-20|100-150|20,-20]")
+    print("Stop there with: --stop-after <name>\n")
+
+    return 0
+
+
 def run_main(args: Namespace) -> int:
     """
     Main entry point for the package functionality.
@@ -30,6 +92,9 @@ def run_main(args: Namespace) -> int:
     """
     try:
         # Handle special commands first (before setting up logging)
+        if getattr(args, 'list_stages_recipe', None):
+            return list_recipe_stages(args.list_stages_recipe)
+
         if hasattr(args, 'list_capabilities') and args.list_capabilities:
             # Check for output format flags
             detailed = getattr(args, 'detailed', False)
@@ -110,9 +175,18 @@ def process_recipe(args: Namespace) -> int:
     try:
         # Parse CLI variable overrides
         cli_variables = {}
+
+        # --set NAME VALUE pairs are merged first, so an explicit --var of the
+        # same name later on the command line wins
+        if getattr(args, 'variable_pairs', None):
+            for name, value in args.variable_pairs:
+                cli_variables[name] = value
+            print()     # blank line to separate from command line
+            logger.info(f"Parsed {len(cli_variables)} variable overrides from --set")
+
         if hasattr(args, 'variable_overrides') and args.variable_overrides:
             try:
-                cli_variables = parse_cli_variables(args.variable_overrides)
+                cli_variables.update(parse_cli_variables(args.variable_overrides))
                 if cli_variables:
                     print()     # blank line to separate from command line
                     logger.info(f"Parsed {len(cli_variables)} variable overrides from CLI")
@@ -122,6 +196,28 @@ def process_recipe(args: Namespace) -> int:
         
         # Create pipeline and run complete workflow
         pipeline = RecipePipeline()
+
+        # Development-time inspection, all driven from the command line
+        dump_requests = {}
+        if getattr(args, 'dump_stages', None):
+            from excel_recipe_processor.core.stage_inspection import (
+                parse_dump_argument, validate_spec, describe_spec, StageInspectionError
+            )
+            try:
+                for argument in args.dump_stages:
+                    name, spec = parse_dump_argument(argument)
+                    validate_spec(spec)
+                    dump_requests[name] = spec
+                    print(f"🔎 Will dump '{name}' ({describe_spec(spec)})")
+            except StageInspectionError as error:
+                print(f"Error: {error}")
+                return 1
+
+        pipeline.configure_inspection(
+            dump_requests=dump_requests,
+            stop_after_stage=getattr(args, 'stop_after_stage', None),
+            dump_output_dir=getattr(args, 'dump_dir', '.')
+        )
         
         try:
             # Use the integrated pipeline method that handles everything
@@ -144,9 +240,19 @@ def process_recipe(args: Namespace) -> int:
         stages_declared = completion_report.get('stages_declared', [])
         
         print()     # blank line to separate from last logging line
-        print(f"✓ Recipe completed successfully")
+        elapsed = completion_report.get('elapsed_seconds')
+        elapsed_text = ""
+        if elapsed is not None:
+            minutes, seconds = divmod(elapsed, 60)
+            elapsed_text = f" in {int(minutes)}m {seconds:.1f}s" if minutes else f" in {seconds:.1f}s"
+
+        print(f"✓ Recipe completed successfully{elapsed_text}")
         print(f"  Steps executed: {steps_executed}")
-        print(f"  Data stages created: {len(stages_created)}")
+        stages_freed = completion_report.get('stages_freed', [])
+        if stages_freed:
+            print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")
+        else:
+            print(f"  Data stages created: {len(stages_created)}")
         print(f"  Data stages declared: {len(stages_declared)}")
         print()     # blank line to separate from next command prompt
         

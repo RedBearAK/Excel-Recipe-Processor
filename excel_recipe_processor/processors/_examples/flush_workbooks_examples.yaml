@@ -1,0 +1,21 @@
+# Revision date: 2026-08-11
+
+description: "Write every session-held workbook to disk now, instead of at run end"
+
+
+basic_example:
+  description: "Checkpoint the output file mid-run"
+  yaml: |
+    # File operations (named ranges, formula seeding, formatting) share one
+    # live in-memory workbook per file and normally save ONCE, after the
+    # last step succeeds. If an external tool needs the file on disk
+    # mid-run, or you want a checkpoint before a risky operation, flush
+    # explicitly. After a flush the session is empty; a later file
+    # operation reloads from disk, which is correct because the disk copy
+    # is now the truth.
+
+    recipe:
+      - step_description: "Write all pending workbook changes to disk"
+        processor_type: "flush_workbooks"
+
+# End of file #

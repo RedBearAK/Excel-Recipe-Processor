@@ -66,6 +66,23 @@ class AggregateDataProcessor(BaseStepProcessor):
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Aggregate data step '{self.step_name}' requires a pandas DataFrame")
         
+        # An empty input is a legitimate result for an aggregation, not an
+        # error: a summary of nothing is an empty summary. Halting here would
+        # turn "this download has no matching rows yet" into "no output file at
+        # all", which is the wrong trade. The empty frame keeps the declared
+        # output columns so downstream sheets and ranges still line up.
+        if hasattr(data, 'empty') and data.empty:
+            group_by = self.get_config_value('group_by', [])
+            aggregations = self.get_config_value('aggregations', [])
+            out_cols = list(group_by) + [
+                a.get('output_name') or f"{a.get('column')}_{a.get('function')}"
+                for a in aggregations
+            ]
+            logger.warning(
+                f"⚠️  '{self.step_name}': input is empty; producing an empty "
+                f"summary with columns {out_cols}"
+            )
+            return pd.DataFrame(columns=out_cols)
         self.validate_data_not_empty(data)
         
         # Load aggregation configuration from various sources
@@ -75,9 +92,9 @@ class AggregateDataProcessor(BaseStepProcessor):
         keep_group_columns = self.get_config_value('keep_group_columns', True)
         sort_by_groups = self.get_config_value('sort_by_groups', True)
         reset_index = self.get_config_value('reset_index', True)
-        save_to_stage = self.get_config_value('save_to_stage', None)
-        stage_overwrite = self.get_config_value('stage_overwrite', False)
-        stage_description = self.get_config_value('stage_description', '')
+        # save_to_stage is handled by the base class in save_output_data().
+        # Saving here as well produced a double write, which the stage manager
+        # rejected as "Stage already exists".
         
         # Apply variable substitution to configuration
         variables = getattr(self, '_variables', {})
@@ -95,10 +112,6 @@ class AggregateDataProcessor(BaseStepProcessor):
                 result_data, group_by, aggregations, keep_group_columns, 
                 sort_by_groups, reset_index
             )
-            
-            # Save to stage if requested
-            if save_to_stage:
-                self._save_aggregation_to_stage(result_data, save_to_stage, stage_overwrite, stage_description)
             
             result_info = f"aggregated {len(data)} rows into {len(result_data)} groups"
             self.log_step_complete(result_info)
@@ -382,27 +395,6 @@ class AggregateDataProcessor(BaseStepProcessor):
         
         return group_by, substituted_aggregations
     
-    def _save_aggregation_to_stage(self, result_data: pd.DataFrame, stage_name: str, overwrite: bool, description: str) -> None:
-        """Save aggregation results to a named stage."""
-        
-        try:
-            # Use provided description or create default
-            if not description:
-                description = f"Aggregated data from step '{self.step_name}'"
-            
-            StageManager.save_stage(
-                stage_name, 
-                result_data.copy(), 
-                overwrite=overwrite,
-                description=description,
-                step_name=self.step_name
-            )
-            
-            logger.info(f"Saved aggregation results to stage '{stage_name}' ({len(result_data)} rows)")
-            
-        except StageError as e:
-            raise StepProcessorError(f"Failed to save aggregation results to stage '{stage_name}': {e}")
-    
     def _validate_aggregation_config(self, df: pd.DataFrame, group_by: Union[str, list], aggregations: list) -> None:
         """
         Validate aggregation configuration parameters.
@@ -492,40 +484,36 @@ class AggregateDataProcessor(BaseStepProcessor):
         # Build aggregation dictionary for pandas
         agg_dict = {}
         column_renames = {}
-        
+
         for agg in aggregations:
             column = agg['column']
             function = agg['function']
             # Support both 'new_column_name' and 'output_name' for backward compatibility
             new_name = agg.get('new_column_name', agg.get('output_name', f"{column}_{function}"))
-            
-            # Handle multiple aggregations on the same column
+
             if column not in agg_dict:
                 agg_dict[column] = []
-            
+
             agg_dict[column].append(function)
-            
-            # Track what to rename columns to
-            current_name = f"{column}_{function}" if len(agg_dict[column]) > 1 else column
-            column_renames[current_name] = new_name
-        
+
+            # With dict-of-lists aggregation the result columns are always a
+            # (column, function) MultiIndex, so after flattening the name is
+            # deterministically "column_function". Rename by that EXACT name.
+            #
+            # The previous implementation guessed the pre-flatten name and then
+            # matched by SUBSTRING ("if old_name in col"), so with columns
+            # "Major Species" and "Species" the 'Species' rename captured
+            # "Major Species_first" first - silently mislabeling both outputs.
+            column_renames[f"{column}_{function}"] = new_name
+
         # Perform the aggregation
         result = grouped.agg(agg_dict)
-        
-        # Flatten multi-level columns if necessary
+
+        # Dict-of-lists always yields a MultiIndex; flatten to column_function
         if result.columns.nlevels > 1:
             result.columns = ['_'.join(col).strip() for col in result.columns.values]
-        
-        # Apply column renames
-        rename_dict = {}
-        for old_name, new_name in column_renames.items():
-            # Find the actual column name in result
-            matching_cols = [col for col in result.columns if old_name in col]
-            if matching_cols:
-                rename_dict[matching_cols[0]] = new_name
-        
-        if rename_dict:
-            result = result.rename(columns=rename_dict)
+
+        result = result.rename(columns=column_renames)
         
         # Reset index if requested (brings group columns back as regular columns)
         if reset_index:
@@ -559,7 +547,7 @@ class AggregateDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities and features."""
         return {
-            'description': 'Groups data and calculates summary statistics',
+            'description': 'Group data and calculate summary statistics',
             'aggregation_functions': self.get_supported_functions(),
             'source_types': self.get_supported_source_types(),
             'file_formats': self.get_supported_file_formats(),

@@ -29,6 +29,20 @@ class ImportFileProcessor(ImportBaseProcessor):
             'save_to_stage': 'imported_data'  # Required for import processors
         }
     
+    def get_capabilities(self) -> dict:
+        """
+        Get processor capabilities information.
+
+        Returns:
+            Dictionary with processor capabilities
+        """
+        return {
+            'description': 'Import Excel, CSV, or TSV files into stages, with sheet selection and variable-substituted paths',
+            'file_formats': ['xlsx', 'xls', 'xlsm', 'xlsb', 'csv', 'tsv', 'txt (as tsv)'],
+            'excel_options': ['sheet selection by name or index'],
+            'path_features': ['recipe variable substitution'],
+        }
+
     def load_data(self):
         """Load data from file (implements ImportBaseProcessor abstract method)."""
         input_file = self.get_config_value('input_file')
@@ -85,12 +99,21 @@ class ImportFileProcessor(ImportBaseProcessor):
         
         # FileReader gets the fully resolved filename
         try:
+            # OPT verbatim_text_columns: columns whose literal text must
+            # survive import untouched. pandas normally coerces strings like
+            # "N/A", "NA", "NULL" to missing values; for a designated column
+            # they stay the characters someone typed, while a genuinely
+            # empty cell still imports as missing. Required for any column
+            # that carries literal "N/A" entries a filter needs to match.
+            verbatim_text_columns = self.get_config_value('verbatim_text_columns', None)
+
             data = FileReader.read_file(
                 resolved_file,  # No variables parameter needed
                 sheet=sheet,
                 encoding=encoding,
                 separator=separator,
-                explicit_format=explicit_format
+                explicit_format=explicit_format,
+                verbatim_text_columns=verbatim_text_columns
             )
             
             # Final import summary with comprehensive sheet information

@@ -31,6 +31,10 @@ class StageManager:
     
     # Shared state across all usage
     _current_stages: dict   = {}                # dict[str, pd.DataFrame]
+    # How many times each stage has been saved this run. Lets --dump-stage
+    # dump a stage on EVERY save, not just its first: a re-used stage that
+    # only dumped once would be untroubleshootable from the outside.
+    _save_counts: dict      = {}                # dict[str, int]
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
     _max_stages: int        = 100               # Configurable limit
@@ -146,6 +150,11 @@ class StageManager:
         return "\n".join(yaml_lines)
 
     @classmethod
+    def get_stage_save_count(cls, stage_name: str) -> int:
+        """How many times this stage has been saved in the current run."""
+        return cls._save_counts.get(stage_name, 0)
+
+    @classmethod
     def is_stage_declared(cls, stage_name: str) -> bool:
         """Check if stage was declared in recipe settings."""
         return stage_name in cls._declared_stages
@@ -191,10 +200,16 @@ class StageManager:
                 # First creation of protected stage - allowed
                 logger.info(f"Creating protected stage '{stage_name}' (first save)")
         
-        # Check if stage already exists (for non-protected stages)
-        if stage_name in cls._current_stages and not overwrite and stage_name not in cls._protected_stages:
+        # Check if stage already exists (for non-protected stages).
+        # confirm_replacement counts as consent here too: it is the key a
+        # recipe step can actually set ('confirm_stage_replacement: true'),
+        # and without honoring it, re-using an unprotected stage was
+        # impossible through any processor.
+        if stage_name in cls._current_stages and not overwrite and not confirm_replacement \
+                and stage_name not in cls._protected_stages:
             raise StageError(
-                f"Stage '{stage_name}' already exists. Use overwrite=true to replace it."
+                f"Stage '{stage_name}' already exists. Set 'confirm_stage_replacement: true' "
+                f"on the step (or overwrite=true programmatically) to replace it."
             )
         
         # Check stage limit
@@ -207,6 +222,7 @@ class StageManager:
         
         # Save the stage
         cls._current_stages[stage_name] = data.copy()
+        cls._save_counts[stage_name] = cls._save_counts.get(stage_name, 0) + 1
         cls._stage_metadata[stage_name] = {
             'rows': len(data),
             'columns': len(data.columns),
@@ -233,6 +249,32 @@ class StageManager:
             logger.info(
                 (f" - {description}" if description else "")
             )
+
+    @classmethod
+    def delete_stage(cls, stage_name: str) -> None:
+        """
+        Delete a stage, freeing its memory.
+
+        Refuses protected stages: protection means "this must survive the
+        run", and a memory-trimming step does not outrank that declaration.
+
+        Args:
+            stage_name: Stage to delete
+
+        Raises:
+            StageError: If the stage does not exist or is protected
+        """
+        if stage_name not in cls._current_stages:
+            similar = cls._suggest_similar_stage_names(stage_name, list(cls._current_stages.keys()))
+            hint = f" Did you mean: {similar}?" if similar else ""
+            raise StageError(f"Cannot delete stage '{stage_name}': not found.{hint}")
+
+        if cls.is_stage_protected(stage_name):
+            raise StageError(
+                f"Cannot delete stage '{stage_name}': declared protected"
+            )
+
+        del cls._current_stages[stage_name]
 
     @classmethod
     def load_stage(cls, stage_name: str) -> pd.DataFrame:
@@ -314,7 +356,17 @@ class StageManager:
         """Generate comprehensive report after recipe completion."""
         return {
             'stages_declared':          list(cls._declared_stages.keys()),
-            'stages_created':           list(cls._current_stages.keys()),
+            # Created means SAVED AT LEAST ONCE this run - sourced from the
+            # save counter, not from what is still in memory. A recipe that
+            # frees its stages mid-run (free_stages) would otherwise report
+            # "created: 0" at completion, which reads as a broken run when it
+            # is actually a tidy one.
+            'stages_created':           list(cls._save_counts.keys()),
+            'stages_freed':             [
+                name for name in cls._save_counts.keys()
+                if name not in cls._current_stages
+            ],
+            'stages_in_memory':         list(cls._current_stages.keys()),
             'stages_unused':            cls.get_unused_stages(),
             'protected_stages':         list(cls._protected_stages),
             'undeclared_stages_created': [
@@ -383,6 +435,7 @@ class StageManager:
         memory_freed = sum(meta.get('memory_usage_mb', 0.0) for meta in cls._stage_metadata.values())
         
         cls._current_stages.clear()
+        cls._save_counts.clear()
         cls._stage_metadata.clear()
         cls._stage_usage.clear()
         

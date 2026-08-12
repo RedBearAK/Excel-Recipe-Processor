@@ -1,0 +1,276 @@
+# Revision date: 2026-08-08
+
+description: "Read and write Excel named ranges, formulas, lambda functions and tables, with ranges computed from real data extent rather than copied as fixed addresses"
+
+
+basic_example:
+  description: "List every named object in a workbook"
+  yaml: |
+    # Report what a workbook already defines, without changing anything.
+    # Useful for auditing an inherited file before automating around it.
+
+    settings:
+      description: "Inventory the named objects in a lookup workbook"
+
+    recipe:
+      - step_description: "List named objects"
+        processor_type: "manage_named_objects"
+        # REQ - Operation to perform
+        operation: "list_objects"
+        # REQ - Workbook to read
+        source_file: "lookup_tables.xlsx"
+
+
+export_example:
+  description: "Export named objects to YAML, and to a VBA-friendly format"
+  yaml: |
+    # export_all writes both a YAML file for humans and recipes, and a
+    # pipe-delimited file that VBA can parse without a YAML library.
+
+    settings:
+      description: "Capture the named objects from a workbook"
+
+    recipe:
+      - step_description: "Export all named objects"
+        processor_type: "manage_named_objects"
+        operation: "export_all"
+        source_file: "reference_workbook.xlsx"
+        # OPT - YAML output path
+        export_file: "named_objects.yaml"
+        # OPT - Pipe-delimited output for VBA
+        vba_file: "named_objects.txt"
+        # OPT - Include sheet-scoped names as well as workbook-scoped
+        # Default value: true
+        include_local: true
+
+
+create_from_columns_example:
+  description: "Define named ranges from column names on generated data"
+  yaml: |
+    # The operation that makes named ranges survive a regenerated file.
+    #
+    # Rather than copying a fixed address, each range is recomputed from the
+    # actual data extent on every run. A hand-maintained range goes stale the
+    # moment someone appends a row; a regenerated one cannot.
+    #
+    # Must run AFTER the workbook exists, and BEFORE any formula that
+    # references these names. Excel resolves a formula naming a range that does
+    # not exist to #NAME?, and openpyxl writes it without complaint.
+
+    settings:
+      description: "Define lookup ranges on a freshly written workbook"
+      variables:
+        output_file: "output/report.xlsx"
+
+    recipe:
+      - step_description: "Define the lookup named ranges"
+        processor_type: "manage_named_objects"
+        operation: "create_from_columns"
+        # REQ - Workbook to write the names into
+        target_file: "{output_file}"
+        # OPT - "error" (default), "replace", or "skip"
+        on_existing: "replace"
+        # OPT - Delete inherited names with this prefix that are not defined
+        # below, instead of only reporting them. Useful when the workbook was
+        # copied from a template that may carry renamed leftovers.
+        prune_orphans_with_prefix: "rng_"
+        # REQ - The ranges to define
+        ranges:
+          - # REQ - Defined name. House style: rng_ prefix, and a separator
+            # before any digit so the name can never read as a cell reference
+            name: "rng_PID"
+            # REQ - Sheet holding the column
+            sheet: "Product_IDs"
+            # REQ - Column names, or Excel column letters
+            columns: ["Product ID"]
+            # OPT - "data" (default: data rows only), "data_with_header",
+            # "full_col", or "full_col_no_header"
+            row_mode: "data"
+
+          - # Adjacent entries expand into a span covering everything between,
+            # so this becomes $B$2:$E$854 rather than two separate columns
+            name: "rng_payterms"
+            sheet: "Sales_Orders"
+            columns: ["Payment Terms", "Deposit Application"]
+            row_mode: "data"
+            # OPT - Columns used to measure the extent. Defaults to the columns
+            # being defined, which truncates a sparse column - anchor on a dense
+            # one instead.
+            anchor_columns: ["SO No."]
+
+          - # full_col_no_header has no extent to fall behind, which suits a
+            # validation list someone extends by hand
+            name: "rng_carrier"
+            sheet: "Carriers"
+            columns: ["Carrier"]
+            row_mode: "full_col_no_header"
+
+
+import_example:
+  description: "Recreate named objects in another workbook from a YAML export"
+  yaml: |
+    # The reverse of export_all. Names are validated before being written,
+    # because Excel silently rejects some and refuses to open files containing
+    # others.
+
+    settings:
+      description: "Copy named objects into a generated workbook"
+
+    recipe:
+      - step_description: "Import named objects from YAML"
+        processor_type: "manage_named_objects"
+        operation: "import_all"
+        # REQ - YAML file produced by export_all
+        import_file: "named_objects.yaml"
+        # REQ - Workbook to write into, which must already exist
+        target_file: "output/report.xlsx"
+        # OPT - "error" (default), "replace", or "skip"
+        on_existing: "replace"
+        # OPT - "none", "excel" (default), or "house"
+        #   excel  Excel's own rules: no spaces, cannot look like a cell
+        #          reference, R and C are reserved
+        #   house  adds a three character minimum and requires a separator
+        #          before digits, so TAX24 must be TAX_24
+        # Names read out of a foreign workbook are already valid by
+        # construction, so "excel" is the sensible level for an import.
+        name_validation: "excel"
+
+
+copy_direct_example:
+  description: "Copy named objects straight from one workbook to another"
+  yaml: |
+    # Skips the YAML round trip when the source workbook is available.
+
+    settings:
+      description: "Transfer named objects between workbooks"
+
+    recipe:
+      - step_description: "Copy named objects"
+        processor_type: "manage_named_objects"
+        operation: "copy_direct"
+        # REQ - Workbook to read from
+        source_file: "reference_workbook.xlsx"
+        # REQ - Workbook to write to
+        target_file: "output/report.xlsx"
+        on_existing: "replace"
+        # OPT - Restrict to matching names
+        include_patterns: ["rng_*"]
+
+
+validate_example:
+  description: "Check a YAML export without writing anything"
+  yaml: |
+    # Reports every problem found rather than stopping at the first, so a
+    # recipe author sees the whole picture in one pass.
+
+    settings:
+      description: "Validate named object definitions before use"
+
+    recipe:
+      - step_description: "Validate the YAML export"
+        processor_type: "manage_named_objects"
+        operation: "validate_yaml"
+        import_file: "named_objects.yaml"
+        name_validation: "house"
+
+
+parameter_details:
+  operation:
+    required: true
+    description: "Which operation to perform"
+    values:
+      list_objects: "Report what a workbook defines. Reads only."
+      export_all: "Write every named object to YAML and/or a VBA-friendly file"
+      export_filtered: "As export_all, restricted by name patterns"
+      import_all: "Create named objects in a target workbook from YAML"
+      import_filtered: "As import_all, restricted by name patterns"
+      copy_direct: "Copy from one workbook to another with no YAML in between"
+      create_from_columns: "Build ranges from column names on real data"
+      validate_yaml: "Check a YAML export without writing"
+
+  source_file:
+    required: "for list_objects, export_all, export_filtered, copy_direct"
+    description: "Workbook to read named objects from"
+
+  target_file:
+    required: "for import_all, import_filtered, copy_direct, create_from_columns"
+    description: "Workbook to write into. Must already exist - named objects are added to a workbook, not used to create one."
+
+  import_file:
+    required: "for import_all, import_filtered, validate_yaml"
+    description: "YAML file previously produced by an export operation"
+
+  export_file:
+    required: false
+    description: "YAML output path for export operations"
+
+  vba_file:
+    required: false
+    description: "Pipe-delimited output path, for VBA that cannot parse YAML"
+
+  ranges:
+    required: "for create_from_columns"
+    description: "List of range definitions, each naming a sheet and its columns"
+
+  on_existing:
+    required: false
+    default: "error"
+    description: "What to do when a name already exists"
+    values:
+      error: "Stop. Replacing a name silently is a form of data loss."
+      replace: "Overwrite it"
+      skip: "Leave the existing definition alone"
+
+  name_validation:
+    required: false
+    default: "excel for import and copy, house for create_from_columns"
+    description: "How strictly names are checked before writing"
+    values:
+      none: "No checking"
+      excel: "Excel's own rules"
+      house: "Excel's rules plus a length minimum and digit separation"
+
+  prune_orphans_with_prefix:
+    required: false
+    description: "For create_from_columns. Delete inherited names carrying this prefix that this step does not define. Without it they are only reported. Matters when the target was copied from a template, since a name renamed by hand rides along and the regenerated name appears beside it."
+
+  include_patterns:
+    required: false
+    description: "Wildcard patterns limiting which names are handled"
+
+  exclude_patterns:
+    required: false
+    description: "Wildcard patterns excluding names from being handled"
+
+  include_local:
+    required: false
+    default: true
+    description: "Include sheet-scoped names as well as workbook-scoped ones"
+
+
+row_mode_details:
+  description: "How create_from_columns decides which rows a range covers"
+  data:
+    description: "Data rows only, header excluded"
+    example: "$C$2:$C$1915"
+    note: "Requires scanning for the last populated row"
+  data_with_header:
+    description: "Header row through the last data row"
+    example: "$C$1:$C$1915"
+  full_col:
+    description: "The entire column, header included"
+    example: "$C:$C"
+    note: "Purely positional, so it cannot go stale"
+  full_col_no_header:
+    description: "The entire column below the header"
+    example: "$C$2:$C$1048576"
+    note: "Cannot go stale either. Suits a validation list that a person extends by hand, where a data-extent range would silently exclude the newest entry."
+
+
+limitations:
+  tables:
+    description: "Named tables are reported but not created. Rebuilding a table needs a data region of matching dimensions already in place, which this processor cannot guarantee. Import and copy report them under skipped_tables."
+  ordering:
+    description: "Named ranges must exist before any formula that references them. Excel resolves an unknown name to #NAME? when the file is opened, and openpyxl writes such a formula without warning. Order: export_file -> manage_named_objects -> inject_formulas or seed_donor_formulas -> format_excel."
+
+# End of file #

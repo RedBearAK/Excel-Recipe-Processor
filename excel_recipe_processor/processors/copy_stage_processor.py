@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 
 class CopyStageProcessor(BaseStepProcessor):
     """Processor for saving current data as a named stage."""
+
+    # Reads a source stage but names its destination with 'stage_name'.
+    requires_save_to_stage = False
     
     @classmethod
     def get_minimal_config(cls) -> dict:

@@ -149,6 +149,14 @@ class WorkbookSession:
                 f"Two steps exported to the same file without a flush between."
             )
 
+        if not Path(key).parent.is_dir():
+            # Fail at the EXPORT step, the way a direct save would - not at
+            # the end-of-run flush, where a missing directory would surface
+            # long after its cause and could interrupt the batch of saves.
+            raise WorkbookSessionError(
+                f"Export destination directory does not exist: {Path(key).parent}"
+            )
+
         if not cls._deferred:
             # Standalone semantics: no session lifecycle exists to flush
             # later, so adoption degenerates to an immediate save.

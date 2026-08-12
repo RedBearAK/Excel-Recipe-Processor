@@ -549,3 +549,107 @@ autofit_scan_limit_example:
             auto_fit_columns: true
             # OPT - Measure only the first 2000 data rows (default: all)
             autofit_scan_rows: 2000
+
+
+pivot_style_example:
+  description: "Style the PivotTables a user builds in the generated file"
+  yaml: |
+    # THREE INDEPENDENT LEVERS, from cheapest to heaviest:
+    #
+    # 1. DEFAULT (nothing configured) - format_excel points the workbook's
+    #    defaultPivotStyle at PivotStyleLight19, the purple swatch beside
+    #    Excel's usual blue default (PivotStyleLight16). One attribute; no
+    #    theme change, no style definition. A pivot the user inserts comes
+    #    up purple, which makes a generated file recognisable at a glance.
+    #
+    # 2. default_pivot_style - name any other built-in gallery style.
+    #
+    # 3. pivot_style - define a NAMED style with exact colours and bold
+    #    total rows, and make it the workbook default. Built-in gallery
+    #    styles resolve their colours through the workbook's theme accents,
+    #    so only a custom style can pin an exact header colour, and only a
+    #    custom style can bold subtotals and grand totals.
+    #
+    # None of these touches explicit cell formatting - header fills, fonts
+    # and number formats are literal RGB and are unaffected.
+
+    recipe:
+      - step_description: "Name a different built-in default"
+        processor_type: "format_excel"
+        target_file: "report.xlsx"
+        # OPT - Any built-in gallery style name
+        default_pivot_style: "PivotStyleMedium19"
+        formatting:
+          - sheet: "Data"
+            header_bold: true
+
+      - step_description: "Define a custom pivot style instead"
+        processor_type: "format_excel"
+        target_file: "report2.xlsx"
+        pivot_style:
+          name: "Company Pivot"
+          header_background_color: "1F4E79"
+          header_font_color: "white"
+          header_bold: true
+          bold_subtotals: true
+          bold_grand_totals: true
+          # set_as_default: false     # register without making it default
+        formatting:
+          - sheet: "Data"
+            header_bold: true
+
+workbook_theming_example:
+  description: "Accent palette and a custom PivotTable style for user-built pivots"
+  yaml: |
+    # TWO DIFFERENT MECHANISMS, often confused:
+    #
+    # THE BASE: every workbook ERP constructs already carries the modern
+    # Office theme (Aptos font scheme, 156082/E97132/196B24/0F9ED5/A02B93/
+    # 4EA72E accents), applied by the writer. That is the floor, not an
+    # option - openpyxl's bundled 2007 palette is never what ships.
+    #
+    # workbook_theme is OPT-IN and layers ON TOP of that base.
+    # It replaces the six ACCENT SLOTS every gallery style resolves through,
+    # which is why the same gallery style looks more saturated in a file
+    # Excel wrote than in a generated one: openpyxl bundles a theme frozen
+    # at the Office 2007 palette. Use it to make generated files match what
+    # Excel produces, or to carry a brand palette. It changes the colours of
+    # EVERY gallery style in the file, so it is never applied by default.
+    #
+    # It does NOT touch explicit cell formatting - header fills, fonts and
+    # number formats applied below are literal RGB and are unaffected.
+
+    recipe:
+      - step_description: "Format with workbook theming"
+        processor_type: "format_excel"
+        target_file: "report.xlsx"
+
+        # OPT - ONE source: from_file, accent_colors, or preset
+        workbook_theme:
+          # from_file: "brand_book.xlsx"   # any OOXML: xlsx/xlsm/xltx/pptx/docx/thmx
+          # preset: "office_modern"        # purple (default), office_modern, office_legacy
+          accent_colors: ["1F4E79", "2E75B6", "9DC3E6", "203864", "8FAADC", "548235"]
+          # apply: false                   # leave the workbook's theme alone
+
+        # OPT - A named PivotTable style, set as the workbook default
+        pivot_style:
+          name: "Company Pivot"
+          header_background_color: "1F4E79"
+          header_font_color: "white"
+          header_bold: true
+          bold_subtotals: true
+          bold_grand_totals: true
+          # set_as_default: false          # register without making it default
+
+        formatting:
+          - sheet: "Data"
+            header_bold: true
+
+parameter_details_theming:
+  workbook_theme:
+    required: false
+    default: "the purple signature palette"
+    description: "Accent palette for style galleries; one of from_file / accent_colors / preset, or apply: false"
+  pivot_style:
+    required: false
+    description: "Named PivotTable style with exact colours and bold total rows, registered as the workbook default"

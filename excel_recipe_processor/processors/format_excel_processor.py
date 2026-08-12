@@ -21,6 +21,13 @@ from openpyxl.utils import get_column_letter
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.processors._helpers.format_excel_theme_manager import (
+    resolve_theme,
+    build_pivot_style,
+    set_default_pivot_style,
+    ERP_DEFAULT_PIVOT_STYLE,
+    ThemeManagerError,
+)
 from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
     apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
@@ -624,6 +631,40 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")
         
+        # ---- Workbook-level settings, applied once, after the sheets -------
+        # These act on the WORKBOOK, not on any sheet, and none of them
+        # touches the explicit cell formatting applied above - those colours
+        # are literal RGB and are unaffected.
+        try:
+            theme_config = self.get_config_value('workbook_theme', None)
+            pivot_config = self.get_config_value('pivot_style', None)
+            default_pivot_style = self.get_config_value('default_pivot_style', None)
+
+            # Theme injection is OPT-IN: it recolours every gallery style in
+            # the file, too large a side effect to happen by default.
+            theme_bytes = resolve_theme(workbook, theme_config,
+                                        color_normalizer=self._normalize_color)
+            if theme_bytes is not None:
+                workbook.loaded_theme = theme_bytes
+
+            if pivot_config:
+                # A full custom style definition, registered and (by default)
+                # made the workbook default.
+                build_pivot_style(workbook, pivot_config,
+                                  color_normalizer=self._normalize_color)
+            else:
+                # No custom style: point defaultPivotStyle at a built-in.
+                # Unless the recipe names one, that is the ERP purple
+                # signature - one attribute, no theme, no style definition,
+                # so a pivot the user inserts comes up purple rather than
+                # Excel's stock blue.
+                set_default_pivot_style(
+                    workbook, default_pivot_style or ERP_DEFAULT_PIVOT_STYLE
+                )
+
+        except ThemeManagerError as error:
+            raise StepProcessorError(f"Step '{self.step_name}': {error}")
+
         # Set active sheet if specified (supports both names and numbers)
         if active_sheet is not None:
             active_sheet_name = self._resolve_sheet_name(workbook, active_sheet)

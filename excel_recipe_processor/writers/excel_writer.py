@@ -8,6 +8,7 @@ import logging
 import io
 from pathlib import Path
 from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.processors._helpers.format_excel_theme_manager import apply_base_theme
 
 import pandas as pd
 
@@ -79,8 +80,15 @@ class ExcelWriter:
         logger.info(f"Writing DataFrame to Excel: {output_path}")
         
         try:
-            # Write the DataFrame
-            df.to_excel(output_path, sheet_name=sheet_name, index=index, **kwargs)
+            # Write the DataFrame through an explicit writer, so the
+            # constructed workbook can be given the modern Office theme
+            # before it is serialized (see apply_base_theme).
+            single_writer = pd.ExcelWriter(output_path, engine='openpyxl')
+            try:
+                df.to_excel(single_writer, sheet_name=sheet_name, index=index, **kwargs)
+            finally:
+                apply_base_theme(single_writer.book)
+                single_writer.close()
             
             self.last_output_path = output_path
             
@@ -156,6 +164,13 @@ class ExcelWriter:
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
                     logger.debug(f"Wrote sheet '{sheet_name}': {len(df)} rows")
             finally:
+                # Every workbook ERP constructs gets the modern Office theme
+                # as its base. openpyxl's bundled theme is the 2007 palette,
+                # which is why generated files offered washed-out colours in
+                # Excel's style galleries. Recipe workbook_theme directives
+                # layer on top of this later.
+                apply_base_theme(writer.book)
+
                 if bridged:
                     # Normalize to DISK EQUIVALENCE before adoption. pandas
                     # materializes every NaN as a literal '' cell (na_rep

@@ -181,6 +181,13 @@ class CleanDataProcessor(BaseStepProcessor):
         blank_count = int(same_as_previous.sum())
 
         if blank_count:
+            # Numeric/datetime group columns cannot take '' in-place (pandas 3
+            # raises on the dtype mismatch). The blanks make the column a
+            # display artifact anyway, so cast the whole group to object
+            # first. 2026-08-11: hit by a numeric SHIP REF group column.
+            for column in group_columns:
+                if not self._is_text_column(result[column]):
+                    result[column] = result[column].astype(object)
             result.loc[same_as_previous, group_columns] = ''
 
         logger.info(

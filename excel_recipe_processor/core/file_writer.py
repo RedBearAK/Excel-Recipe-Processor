@@ -177,11 +177,13 @@ class FileWriter:
             FileWriterError: If backup creation fails
         """
         try:
-            # Use ExcelWriter's backup functionality for all file types
+            # Use ExcelWriter's backup functionality for all file types.
+            # It logs the backup itself, at the point where the copy really
+            # happens; this wrapper deliberately does NOT log again - a
+            # duplicated line here read as two backups of one file.
             excel_writer = ExcelWriter()
             backup_path = excel_writer.create_backup(filename)
-            
-            logger.info(f"Created backup: {backup_path}")
+
             return str(backup_path)
             
         except ExcelWriterError as e:

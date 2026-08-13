@@ -47,6 +47,25 @@ included here).
    re-running is safe. If a formula ever comes back #NAME? with a function
    not listed, add it to the map - it is deliberately extensible.
 
+6. array_formula: true STORES THE CELL AS A SINGLE-CELL ARRAY FORMULA
+   (<f t="array" ref="AV2">). Excel applies IMPLICIT INTERSECTION to a plain
+   formula whose result could be an array - one containing XLOOKUP, say -
+   and displays it as =@IFS(...). The array marker tells Excel the result is
+   deliberate.
+
+   Worth recording how this was diagnosed, because the obvious theory was
+   wrong: seeded donor formulas were assumed to carry array metadata through
+   the copy, so moving the formula into the donor "should" have avoided the
+   @. Comparing the raw XML of a real output showed the seeded SALE TYPE1
+   and the injected World Region stored IDENTICALLY - plain <f>, no array
+   marker - so the donor route would have changed nothing. SALE TYPE1
+   escapes the @ only because all its branches return scalars; the trigger
+   is XLOOKUP, not the injection path.
+
+   What remains missing versus Excel's own output is cm="1" plus an
+   xl/metadata.xml part, which openpyxl cannot write. The array marker alone
+   is expected to suffice; confirm in Excel.
+
 ## Also included (from the superseded archive)
 
 - add_calculated_column: expression formulas substitute column names in ONE

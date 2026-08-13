@@ -22,6 +22,7 @@ from pathlib import Path
 
 from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.formula.translate import Translator
+from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
@@ -370,8 +371,14 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         # Handle cell vs range specification
         if 'cell' in formula_def:
             cell_ref = self._resolve_column_placeholders(worksheet, str(formula_def['cell']))
+            as_array = formula_def.get('array_formula', False)
             if formula_def.get('fill_down', False):
-                return self._apply_formula_with_fill_down(worksheet, cell_ref, formula, mode)
+                return self._apply_formula_with_fill_down(
+                    worksheet, cell_ref, formula, mode, as_array
+                )
+            if as_array:
+                self._store_formula(worksheet, cell_ref, formula, mode, True)
+                return 1
             return self._apply_formula_to_cell(worksheet, cell_ref, formula, mode)
         elif 'range' in formula_def:
             range_ref = self._resolve_column_placeholders(worksheet, str(formula_def['range']))
@@ -454,7 +461,40 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
 
         return column_placeholder_rgx.sub(substitute, formula)
 
-    def _apply_formula_with_fill_down(self, worksheet, cell_ref: str, formula: str, mode: str) -> int:
+    def _store_formula(self, worksheet, target_ref: str, formula_text: str,
+                       mode: str, as_array: bool) -> None:
+        """
+        Write one formula cell, optionally marked as an array formula.
+
+        Excel applies IMPLICIT INTERSECTION to a plain formula whose result
+        could be an array - a formula containing XLOOKUP, say - and displays
+        it with a leading @. Marking the cell as a single-cell array formula
+        (<f t="array" ref="AV2">) tells Excel the result is deliberate, and
+        implicit intersection does not apply.
+
+        This is what Excel itself writes for such a formula, minus the
+        cm="1" cell-metadata marker that also needs an xl/metadata.xml part
+        openpyxl cannot produce. The array marker alone is expected to be
+        enough; verify in Excel before relying on it.
+
+        Args:
+            worksheet:   Target sheet
+            target_ref:  Cell to write, e.g. 'AV2'
+            formula_text: Formula, already translated for this cell
+            mode:        'live' or 'dead'
+            as_array:    Store with the array marker
+        """
+        if mode != 'live':
+            worksheet[target_ref].value = f"'{formula_text}"
+            return
+
+        if as_array:
+            worksheet[target_ref].value = ArrayFormula(target_ref, formula_text)
+        else:
+            worksheet[target_ref].value = formula_text
+
+    def _apply_formula_with_fill_down(self, worksheet, cell_ref: str, formula: str, mode: str,
+                                      as_array: bool = False) -> int:
         """
         Write the formula at cell_ref and continue it to the last data row.
 
@@ -483,7 +523,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         for row_number in range(origin_cell.row, last_row + 1):
             target = f"{column_letter}{row_number}"
             adjusted = self._adjust_formula_for_cell(formula, target, cell_ref)
-            worksheet[target].value = adjusted if mode == 'live' else f"'{adjusted}"
+            self._store_formula(worksheet, target, adjusted, mode, as_array)
             written += 1
 
         logger.info(f"⬇️  Filled {column_letter}{origin_cell.row}:{column_letter}{last_row} "

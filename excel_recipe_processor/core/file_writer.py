@@ -10,7 +10,11 @@ import logging
 
 from pathlib import Path
 
-from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
+from excel_recipe_processor.writers.excel_writer import (
+    ExcelWriter,
+    ExcelWriterError,
+    DEFAULT_DELETE_BACKUPS_BEYOND,
+)
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,7 @@ class FileWriter:
     @staticmethod
     def write_file(data, filename, sheet_name='Data', index=False, 
                     create_backup=True, explicit_format=None,
+                    delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND,
                     encoding='utf-8', separator=','):
         """
         Write a DataFrame to file with automatic format detection
@@ -79,7 +84,7 @@ class FileWriter:
             
             # Create backup if requested
             if create_backup:
-                FileWriter._create_backup_if_exists(filename)
+                FileWriter._create_backup_if_exists(filename, delete_backups_beyond)
             
             # Determine file format
             file_format = FileWriter._determine_format(filename, explicit_format)
@@ -103,7 +108,8 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing file '{filename}': {e}")
     
     @staticmethod
-    def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None):
+    def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None,
+                                delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
@@ -141,7 +147,7 @@ class FileWriter:
             
             # Create backup if requested
             if create_backup:
-                FileWriter._create_backup_if_exists(filename)
+                FileWriter._create_backup_if_exists(filename, delete_backups_beyond)
             
             # Use ExcelWriter for multi-sheet writing
             excel_writer = ExcelWriter()
@@ -163,7 +169,7 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing multi-sheet Excel file '{filename}': {e}")
     
     @staticmethod
-    def create_backup(filename):
+    def create_backup(filename, delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
         """
         Create a backup copy of an existing file.
         
@@ -182,9 +188,9 @@ class FileWriter:
             # happens; this wrapper deliberately does NOT log again - a
             # duplicated line here read as two backups of one file.
             excel_writer = ExcelWriter()
-            backup_path = excel_writer.create_backup(filename)
+            backup_path = excel_writer.create_backup(filename, delete_backups_beyond)
 
-            return str(backup_path)
+            return str(backup_path) if backup_path else None
             
         except ExcelWriterError as e:
             raise FileWriterError(f"Backup creation error: {e}")
@@ -301,11 +307,11 @@ class FileWriter:
         file_path.parent.mkdir(parents=True, exist_ok=True)
     
     @staticmethod
-    def _create_backup_if_exists(filename):
-        """Create backup of existing file if it exists."""
+    def _create_backup_if_exists(filename, delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
+        """Create backup of existing file if it exists, then trim old ones."""
         file_path = Path(filename)
         if file_path.exists():
-            FileWriter.create_backup(filename)
+            FileWriter.create_backup(filename, delete_backups_beyond)
     
     @staticmethod
     def _determine_format(filename, explicit_format: str):

@@ -12,7 +12,7 @@ import openpyxl
 
 from pathlib import Path
 
-from excel_recipe_processor.writers.excel_writer import ExcelWriter
+from excel_recipe_processor.writers.excel_writer import ExcelWriter, DEFAULT_DELETE_BACKUPS_BEYOND
 
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
@@ -69,7 +69,8 @@ class ExportFileProcessor(ExportBaseProcessor):
 
 
     def _export_into_template(self, data, template_file: str, output_file: str,
-                              sheet_name: str, create_backup: bool) -> str:
+                              sheet_name: str, create_backup: bool,
+                              delete_backups_beyond: int) -> str:
         """
         Copy a template workbook and replace one sheet's contents with the data.
 
@@ -90,7 +91,7 @@ class ExportFileProcessor(ExportBaseProcessor):
             raise StepProcessorError(f"Template file not found: {template_file}")
 
         if output_path.exists() and create_backup:
-            ExcelWriter().create_backup(output_path)
+            ExcelWriter().create_backup(output_path, delete_backups_beyond)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -150,7 +151,10 @@ class ExportFileProcessor(ExportBaseProcessor):
             'description': 'Export stages to Excel or CSV, including multi-sheet workbooks, backing up any file being replaced',
             'file_formats': ['xlsx', 'csv', 'tsv'],
             'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
-            'safety': ['automatic .backup of an existing output file (create_backup: false to disable)'],
+            'safety': [
+                'timestamped backup of an existing output file, extension preserved',
+                'create_backup: false to disable; delete_backups_beyond keeps the newest N and deletes older',
+            ],
         }
 
     def save_data(self, data):
@@ -161,6 +165,15 @@ class ExportFileProcessor(ExportBaseProcessor):
         sheets = self.get_config_value('sheets', None)
         # See if user wants to disable the creation of a backup file to avoid clobbering same name
         create_backup = self.get_config_value('create_backup', True)
+
+        # OPT delete_backups_beyond: how many of the NEWEST timestamped
+        # backups to keep, counting the one about to be made; every older
+        # one is deleted. Named for what it does to the surplus rather than
+        # for a ceiling, because "max allowed" could be misread as refusing
+        # to make new backups once the count is reached - the opposite
+        # behaviour, and a dangerous one to assume.
+        delete_backups_beyond = self.get_config_value(
+            'delete_backups_beyond', DEFAULT_DELETE_BACKUPS_BEYOND)
         
         # Apply variable substitution BEFORE calling FileWriter
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -184,7 +197,8 @@ class ExportFileProcessor(ExportBaseProcessor):
                 resolved_template = template_file
 
             return self._export_into_template(
-                data, resolved_template, resolved_file, sheet_name, create_backup
+                data, resolved_template, resolved_file, sheet_name, create_backup,
+                delete_backups_beyond
             )
 
         try:

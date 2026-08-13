@@ -310,3 +310,47 @@ template_notes:
     description: "The replaced sheet is cleared in place rather than deleted and recreated, so it keeps its position in the tab order."
 
 # End of file #
+
+
+backup_control_example:
+  description: "Timestamped backups with a hard cap"
+  yaml: |
+    # An existing output file is backed up before being replaced. Backups
+    # are named with the marker BEFORE the extension:
+    #
+    #     report_erpbkup_260812_144320.xlsx
+    #
+    # so the file still opens in its default application - the old scheme
+    # appended ".backup" after the extension and broke that.
+    #
+    # Names are written once and never renamed: because the timestamp is
+    # zero-padded, sorting the names sorts them chronologically, so trimming
+    # is a pure deletion of the oldest. delete_backups_beyond says how many
+    # of the NEWEST to keep, counting the one being made - every older
+    # backup is deleted. Without it, an auto-generated file nobody looks at
+    # accumulates copies forever.
+    #
+    # Only names carrying the _erpbkup_ marker for THIS file's stem and
+    # extension are ever deleted. Backups from the older ".backup" scheme
+    # are reported once and left alone.
+
+    recipe:
+      - step_description: "Export with two backups kept"
+        processor_type: "export_file"
+        source_stage: "stg_final"
+        output_file: "report.xlsx"
+        # OPT - Back up an existing file first (default: true)
+        create_backup: true
+        # OPT - Keep this many newest backups, delete older ones
+        # (default: 2; 0 means make no backup at all)
+        delete_backups_beyond: 2
+
+parameter_details_backups:
+  create_backup:
+    required: false
+    default: true
+    description: "Back up an existing output file before replacing it"
+  delete_backups_beyond:
+    required: false
+    default: 2
+    description: "How many newest backups of this file to keep; every older one is deleted. 0 means no backup"

@@ -1,15 +1,21 @@
 """
-Tests for backup creation and its logging.
+Tests for timestamped backups, trimming, and backup logging.
 
 tests/test_backup_logging.py
 
-FileWriter.create_backup delegates to ExcelWriter.create_backup, which logs
-the backup at the point the copy happens. The wrapper used to log the same
-line again, which read in the run log as two backups of one file.
+Backups are named report_erpbkup_YYMMDD_HHMMSS.xlsx - extension preserved so
+the file still opens in its default application, and marked with a token
+that essentially cannot arise from anything but this tool, because the
+trimmer DELETES everything the pattern matches.
+
+The deletion tests matter most: a trimmer that reaches outside its own
+pattern would quietly destroy a neighbouring file's backups or a hand-named
+file, so those cases are asserted explicitly.
 
 Runnable with pytest, but written to run standalone and report a score.
 """
 
+import time
 import logging
 import tempfile
 
@@ -74,7 +80,7 @@ def test_one_backup_logs_exactly_one_line():
             print(f"  ✗ {len(backup_lines)} lines: {backup_lines}")
             passed = False
 
-        created = sorted(p.name for p in Path(temp_dir).iterdir() if '.backup' in p.name)
+        created = backups_in(temp_dir)
         if len(created) == 1:
             print(f"  ✓ Exactly one backup file on disk ({created[0]})")
         else:
@@ -90,24 +96,171 @@ def test_one_backup_logs_exactly_one_line():
         return passed
 
 
-def test_backups_accumulate_with_numbered_names():
-    """Repeat runs keep every earlier backup - documented behaviour."""
-    print("\nTesting repeated backups...")
+def backups_in(folder):
+    """Backup files present, newest last."""
+    return sorted(p.name for p in Path(folder).iterdir() if '_erpbkup_' in p.name)
+
+
+def test_backup_keeps_the_extension():
+    """The marker goes BEFORE the extension so the file still opens."""
+    print("\nTesting backup naming...")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         path = str(Path(temp_dir) / 'data.xlsx')
         make_file(path)
 
+        backup_path = Path(FileWriter.create_backup(path))
+
+        passed = True
+
+        if backup_path.suffix == '.xlsx':
+            print(f"  ✓ Extension preserved: {backup_path.name}")
+        else:
+            print(f"  ✗ Extension is {backup_path.suffix}")
+            passed = False
+
+        if '_erpbkup_' in backup_path.stem:
+            print("  ✓ Carries the _erpbkup_ marker")
+        else:
+            print(f"  ✗ Stem is {backup_path.stem}")
+            passed = False
+
+        return passed
+
+
+def test_trim_keeps_the_newest_and_deletes_the_rest():
+    """delete_backups_beyond: N keeps the N newest and deletes the rest."""
+    print("\nTesting delete_backups_beyond...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = str(Path(temp_dir) / 'data.xlsx')
+        make_file(path)
+
+        made = []
+        for _ in range(5):
+            made.append(Path(FileWriter.create_backup(path, delete_backups_beyond=2)).name)
+            time.sleep(1.05)   # distinct second, so timestamps differ
+
+        remaining = backups_in(temp_dir)
+
+        passed = True
+
+        if len(remaining) == 2:
+            print("  ✓ Two newest kept across 5 runs, older deleted")
+        else:
+            print(f"  ✗ {len(remaining)} remain: {remaining}")
+            passed = False
+
+        if remaining == made[-2:]:
+            print("  ✓ The two survivors are the newest two")
+        else:
+            print(f"  ✗ survivors {remaining}, expected {made[-2:]}")
+            passed = False
+
+        return passed
+
+
+def test_trim_never_reaches_outside_its_pattern():
+    """Neighbouring backups, lookalikes and legacy files must survive."""
+    print("\nTesting deletion safety...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        folder = Path(temp_dir)
+        path = str(folder / 'data.xlsx')
+        make_file(path)
+
+        untouchable = [
+            'other.xlsx',                          # a neighbouring file
+            'other_erpbkup_260101_000000.xlsx',    # ITS backup
+            'data_bkup_260101_000000.xlsx',        # human shorthand, not ours
+            'data_erpbkup_notatimestamp.xlsx',     # marker but malformed
+        ]
+        for name in untouchable:
+            make_file(str(folder / name))
+
+        legacy = folder / 'data.xlsx.backup'
+        legacy.write_text('legacy')
+
         for _ in range(3):
-            FileWriter.create_backup(path)
+            FileWriter.create_backup(path, delete_backups_beyond=1)
+            time.sleep(1.05)
 
-        created = sorted(p.name for p in Path(temp_dir).iterdir() if '.backup' in p.name)
+        survivors = {p.name for p in folder.iterdir()}
 
-        if created == ['data.xlsx.backup', 'data.xlsx.backup1', 'data.xlsx.backup2']:
-            print(f"  ✓ Three distinct backups kept: {created}")
+        passed = True
+
+        missing = [name for name in untouchable if name not in survivors]
+        if not missing:
+            print(f"  ✓ All {len(untouchable)} out-of-pattern files survived")
+        else:
+            print(f"  ✗ Deleted: {missing}")
+            passed = False
+
+        if legacy.name in survivors:
+            print("  ✓ Legacy .backup file left alone")
+        else:
+            print("  ✗ Legacy .backup file was deleted")
+            passed = False
+
+        # Count only WELL-FORMED backups of this file: the malformed
+        # lookalike planted above also contains the marker, and it is
+        # supposed to survive, so it must not be counted as one of ours.
+        import re as _re
+        well_formed = [name for name in survivors
+                       if _re.match(r'^data_erpbkup_\d{6}_\d{6}(?:_\d+)?\.xlsx$', name)]
+
+        if len(well_formed) == 1:
+            print(f"  ✓ Exactly one well-formed backup kept: {well_formed[0]}")
+        else:
+            print(f"  ✗ {well_formed}")
+            passed = False
+
+        return passed
+
+
+def test_same_second_collision_gets_a_distinct_name():
+    """Two backups inside one second must not overwrite each other."""
+    print("\nTesting same-second collisions...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = str(Path(temp_dir) / 'data.xlsx')
+        make_file(path)
+
+        first = Path(FileWriter.create_backup(path, delete_backups_beyond=5)).name
+        second = Path(FileWriter.create_backup(path, delete_backups_beyond=5)).name
+
+        if first != second and len(backups_in(temp_dir)) == 2:
+            print(f"  ✓ Distinct names within one second: {first}, {second}")
             return True
-        print(f"  ✗ {created}")
+        print(f"  ✗ {first} vs {second}")
         return False
+
+
+def test_zero_and_negative_values():
+    """Keeping zero means making none; a negative count is an error."""
+    print("\nTesting boundary values...")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = str(Path(temp_dir) / 'data.xlsx')
+        make_file(path)
+
+        passed = True
+
+        result = FileWriter.create_backup(path, delete_backups_beyond=0)
+        if result is None and not backups_in(temp_dir):
+            print("  ✓ Keeping zero makes no backup")
+        else:
+            print(f"  ✗ returned {result}, files {backups_in(temp_dir)}")
+            passed = False
+
+        try:
+            FileWriter.create_backup(path, delete_backups_beyond=-1)
+            print("  ✗ Negative count accepted")
+            passed = False
+        except Exception:
+            print("  ✓ Negative count rejected")
+
+        return passed
 
 
 def test_backup_content_matches_the_source():
@@ -138,7 +291,11 @@ def main():
 
     tests = [
         test_one_backup_logs_exactly_one_line,
-        test_backups_accumulate_with_numbered_names,
+        test_backup_keeps_the_extension,
+        test_trim_keeps_the_newest_and_deletes_the_rest,
+        test_trim_never_reaches_outside_its_pattern,
+        test_same_second_collision_gets_a_distinct_name,
+        test_zero_and_negative_values,
         test_backup_content_matches_the_source,
     ]
 

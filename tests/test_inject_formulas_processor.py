@@ -257,11 +257,15 @@ def test_range_formula_injection():
         
         workbook.close()
         
-        # All should have the same base formula (simple implementation for now)
-        if (formula_d2 == '=B2*C2' and 
-            formula_d3 == '=B2*C2' and 
-            formula_d6 == '=B2*C2'):
-            print("✓ Range formulas injected successfully")
+        # Relative references must TRANSLATE down the range, the way Excel
+        # shifts them when a formula is copied. This test previously asserted
+        # that every cell kept '=B2*C2' verbatim, which meant every row
+        # computed row 2's numbers - the behaviour, and the expectation, were
+        # both wrong. (2026-08-13)
+        if (formula_d2 == '=B2*C2' and
+                formula_d3 == '=B3*C3' and
+                formula_d6 == '=B6*C6'):
+            print("✓ Range formulas injected and translated per row")
             return True
         else:
             print(f"✗ Range formula injection failed: D2={formula_d2}, D3={formula_d3}, D6={formula_d6}")

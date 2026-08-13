@@ -21,9 +21,15 @@ from pathlib import Path
 #     OPENPYXL_AVAILABLE = False
 
 from openpyxl.utils import get_column_letter, column_index_from_string
+from openpyxl.formula.translate import Translator
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
+    column_placeholder_rgx,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -206,7 +212,9 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             resolved_file = target_file
         
         # Check file exists
-        if not Path(resolved_file).exists():
+        # "Exists" means on disk OR live in the workbook session - under the
+        # export bridge the file has not touched disk yet.
+        if not Path(resolved_file).exists() and not WorkbookSession.is_open(resolved_file):
             raise StepProcessorError(f"Target file not found: '{resolved_file}'")
         
         # Process the file based on mode
@@ -230,7 +238,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Description of operation performed
         """
-        workbook = openpyxl.load_workbook(filename)
+        workbook = WorkbookSession.get_workbook(filename)
         formulas_injected = 0
         sheets_processed = 0
         
@@ -250,8 +258,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             logger.debug(f"Injected {sheet_formulas} formulas in sheet '{sheet_name}'")
         
         # Save the modified workbook
-        workbook.save(filename)
-        workbook.close()
+        WorkbookSession.mark_dirty(filename)
         
         mode_desc = "live" if mode == "live" else "dead"
         return f"injected {formulas_injected} {mode_desc} formulas across {sheets_processed} sheets in {filename}"
@@ -268,7 +275,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Description of operation performed
         """
-        workbook = openpyxl.load_workbook(filename)
+        workbook = WorkbookSession.get_workbook(filename)
         formulas_awakened = 0
         sheets_processed = 0
         
@@ -285,8 +292,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             logger.debug(f"Awakened {sheet_awakened} formulas in sheet '{sheet_name}'")
         
         # Save the modified workbook
-        workbook.save(filename)
-        workbook.close()
+        WorkbookSession.mark_dirty(filename)
         
         return f"awakened {formulas_awakened} dead formulas across {sheets_processed} sheets in {filename}"
     
@@ -327,7 +333,10 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         Args:
             worksheet: openpyxl worksheet
-            formula_def: Dictionary with 'cell'/'range' and 'formula' keys
+            formula_def: Dictionary with 'cell'/'range' and 'formula' keys.
+                         The formula may use {col:Header Name} placeholders,
+                         resolved against the sheet's header row, and a cell
+                         target may set fill_down: true
             mode: 'live' or 'dead'
             
         Returns:
@@ -345,13 +354,94 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         if mode == 'live' and not formula.startswith('='):
             formula = '=' + formula
         
+        # Column names resolve to letters against THIS sheet's header row -
+        # in the formula AND in the target, since naming the column a formula
+        # is written INTO is the same fragility as naming ones it reads.
+        formula = self._resolve_column_placeholders(worksheet, formula)
+
         # Handle cell vs range specification
         if 'cell' in formula_def:
-            return self._apply_formula_to_cell(worksheet, formula_def['cell'], formula, mode)
+            cell_ref = self._resolve_column_placeholders(worksheet, str(formula_def['cell']))
+            if formula_def.get('fill_down', False):
+                return self._apply_formula_with_fill_down(worksheet, cell_ref, formula, mode)
+            return self._apply_formula_to_cell(worksheet, cell_ref, formula, mode)
         elif 'range' in formula_def:
-            return self._apply_formula_to_range(worksheet, formula_def['range'], formula, mode)
+            range_ref = self._resolve_column_placeholders(worksheet, str(formula_def['range']))
+            return self._apply_formula_to_range(worksheet, range_ref, formula, mode)
         else:
             raise StepProcessorError("Formula definition must include either 'cell' or 'range' key")
+
+    def _resolve_column_placeholders(self, worksheet, formula: str) -> str:
+        """
+        Replace {col:Header Name} with that column's letter on THIS sheet.
+
+        Excel formulas address columns by letter, which makes a recipe
+        fragile: inserting one column shifts every letter after it and the
+        formula silently reads the wrong data. Naming the column instead
+        means the letter is resolved from the header row at injection time,
+        so a layout change costs nothing.
+
+        Args:
+            worksheet: Sheet whose header row supplies the positions
+            formula:   Formula text, possibly containing placeholders
+
+        Returns:
+            Formula with every placeholder replaced by a column letter
+        """
+        if '{col:' not in formula:
+            return formula
+
+        headers = {}
+        for column_index, cell in enumerate(worksheet[1], start=1):
+            if cell.value is not None:
+                headers[str(cell.value).strip()] = get_column_letter(column_index)
+
+        def substitute(match):
+            name = match.group(1).strip()
+            if name not in headers:
+                raise StepProcessorError(
+                    f"Formula references column '{name}', which is not in the header row "
+                    f"of sheet '{worksheet.title}'. Available: {sorted(headers)[:8]}..."
+                )
+            return headers[name]
+
+        return column_placeholder_rgx.sub(substitute, formula)
+
+    def _apply_formula_with_fill_down(self, worksheet, cell_ref: str, formula: str, mode: str) -> int:
+        """
+        Write the formula at cell_ref and continue it to the last data row.
+
+        The row extent comes from the sheet itself, so the fill follows
+        however many rows this run produced.
+
+        Args:
+            worksheet: openpyxl worksheet
+            cell_ref:  Where the formula starts, e.g. 'AV2'
+            formula:   Formula text, already placeholder-resolved
+            mode:      'live' or 'dead'
+
+        Returns:
+            Number of cells written
+        """
+        origin_cell = worksheet[cell_ref]
+        last_row = worksheet.max_row
+
+        if last_row < origin_cell.row:
+            logger.warning(f"⚠️  Nothing to fill: sheet ends at row {last_row}")
+            return 0
+
+        written = 0
+        column_letter = origin_cell.column_letter
+
+        for row_number in range(origin_cell.row, last_row + 1):
+            target = f"{column_letter}{row_number}"
+            adjusted = self._adjust_formula_for_cell(formula, target, cell_ref)
+            worksheet[target].value = adjusted if mode == 'live' else f"'{adjusted}"
+            written += 1
+
+        logger.info(f"⬇️  Filled {column_letter}{origin_cell.row}:{column_letter}{last_row} "
+                    f"({written:,} cells)")
+        return written
     
     def _apply_formula_to_cell(self, worksheet, cell_ref: str, formula: str, mode: str) -> int:
         """
@@ -383,6 +473,9 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         return 1
     
     def _apply_formula_to_range(self, worksheet, range_ref: str, formula: str, mode: str) -> int:
+        # The range's FIRST cell is the origin the formula was written for;
+        # every other cell gets the formula translated relative to it.
+        range_origin = range_ref.split(':')[0].replace('$', '')
         """
         Apply formula to a range of cells.
         
@@ -411,7 +504,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                 if hasattr(row, '__iter__'):
                     # Row is iterable (multiple cells)
                     for cell in row:
-                        adjusted_formula = self._adjust_formula_for_cell(formula, cell.coordinate)
+                        adjusted_formula = self._adjust_formula_for_cell(formula, cell.coordinate, range_origin)
                         if mode == 'live':
                             cell.value = adjusted_formula
                         else:
@@ -419,7 +512,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                         cells_modified += 1
                 else:
                     # Single cell in row
-                    adjusted_formula = self._adjust_formula_for_cell(formula, row.coordinate)
+                    adjusted_formula = self._adjust_formula_for_cell(formula, row.coordinate, range_origin)
                     if mode == 'live':
                         row.value = adjusted_formula
                     else:
@@ -427,7 +520,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                     cells_modified += 1
         else:
             # Single cell range
-            adjusted_formula = self._adjust_formula_for_cell(formula, cell_range.coordinate)
+            adjusted_formula = self._adjust_formula_for_cell(formula, cell_range.coordinate, range_origin)
             if mode == 'live':
                 cell_range.value = adjusted_formula
             else:
@@ -471,7 +564,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         return formulas_awakened
     
-    def _adjust_formula_for_cell(self, base_formula: str, cell_coord: str) -> str:
+    def _adjust_formula_for_cell(self, base_formula: str, cell_coord: str, origin: str = None) -> str:
         """
         Adjust a base formula for a specific cell location.
         
@@ -485,14 +578,18 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Adjusted formula for the specific cell
         """
-        # Simple implementation - just return the base formula
-        # Future enhancement: parse and adjust relative references
-        
-        # Ensure formula starts with = if not already
         if not base_formula.startswith('='):
-            return '=' + base_formula
-        
-        return base_formula
+            base_formula = '=' + base_formula
+
+        if origin is None or origin == cell_coord:
+            return base_formula
+
+        # openpyxl's Translator shifts relative references the way Excel does
+        # when a formula is copied: A2 written at row 2 becomes A3 at row 3,
+        # while $A$2 and named ranges stay put. Without this, a formula
+        # applied to a range repeated the ORIGIN's references in every cell,
+        # so every row silently read row 2's data.
+        return Translator(base_formula, origin=origin).translate_formula(cell_coord)
     
     def _is_valid_cell_reference(self, cell_ref: str) -> bool:
         """Check if a string is a valid Excel cell reference."""

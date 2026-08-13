@@ -35,6 +35,8 @@ import openpyxl
 
 from pathlib import Path
 
+from excel_recipe_processor.core.dynamic_array_metadata import save_workbook_with_declaration
+
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,14 @@ class WorkbookSession:
     # away, so a processor used outside a pipeline still writes its file.
     # The pipeline turns deferral on at run start and flushes at run end.
     _deferred: bool          = False
+
+    # When on, every session save routes the workbook bytes through the
+    # dynamic-array declaration before they touch disk, so injected and
+    # seeded formulas open in Excel without the implicit-intersection @.
+    # OPT-IN via recipe settings (declare_dynamic_formulas: true); see
+    # core/dynamic_array_metadata.py for what the declaration is and why
+    # the default vocabulary makes the pass safe by construction.
+    _declare_dynamic: bool   = False
 
     @classmethod
     def _key(cls, file_path) -> str:
@@ -107,15 +117,33 @@ class WorkbookSession:
             )
 
         if not cls._deferred:
-            started = time.perf_counter()
-            cls._open_workbooks[key].save(key)
-            logger.info(
-                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
-                f"(immediate; no pipeline session active)"
-            )
+            cls._save_workbook(cls._open_workbooks[key], key,
+                               "immediate; no pipeline session active")
             return
 
         cls._dirty_paths.add(key)
+
+    @classmethod
+    def _save_workbook(cls, workbook, key: str, context: str) -> None:
+        """
+        The one place session workbooks are written to disk.
+
+        With the dynamic-array declaration enabled, the workbook serializes
+        to memory, the declaration is applied to the bytes, and only the
+        corrected package touches disk - so the file never exists on disk
+        in the form that draws the implicit-intersection @.
+        """
+        started = time.perf_counter()
+
+        if cls._declare_dynamic:
+            save_workbook_with_declaration(workbook, key)
+        else:
+            workbook.save(key)
+
+        logger.info(
+            f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
+            f"({context}): {Path(key).name}"
+        )
 
     @classmethod
     def adopt_workbook(cls, file_path, workbook) -> None:
@@ -160,12 +188,8 @@ class WorkbookSession:
         if not cls._deferred:
             # Standalone semantics: no session lifecycle exists to flush
             # later, so adoption degenerates to an immediate save.
-            started = time.perf_counter()
-            workbook.save(key)
-            logger.info(
-                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
-                f"(immediate; no pipeline session active)"
-            )
+            cls._save_workbook(workbook, key,
+                               "immediate; no pipeline session active")
             return
 
         cls._open_workbooks[key] = workbook
@@ -176,6 +200,11 @@ class WorkbookSession:
     def set_deferred(cls, deferred: bool) -> None:
         """Pipeline lifecycle hook: batch saves (True) or save-per-step (False)."""
         cls._deferred = bool(deferred)
+
+    @classmethod
+    def set_declare_dynamic(cls, declare: bool) -> None:
+        """Pipeline lifecycle hook: apply the dynamic-array declaration at save."""
+        cls._declare_dynamic = bool(declare)
 
     @classmethod
     def is_deferred(cls) -> bool:
@@ -198,15 +227,17 @@ class WorkbookSession:
         written = 0
 
         for key in sorted(cls._dirty_paths):
-            started = time.perf_counter()
-            cls._open_workbooks[key].save(key)
-            logger.info(
-                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s (session): "
-                f"{Path(key).name}"
-            )
+            cls._save_workbook(cls._open_workbooks[key], key, "session")
             written += 1
 
-        cls.reset()
+        # Empty the caches but KEEP the mode flags. A full reset() here
+        # silently dropped _deferred after a mid-run flush_workbooks step,
+        # so every later file operation paid an immediate per-step save -
+        # the batching the session exists for, quietly lost. The pipeline
+        # sets the flags at run start and reset() still clears them on the
+        # failure path and at the next run's start.
+        cls._open_workbooks = {}
+        cls._dirty_paths = set()
         return written
 
     @classmethod
@@ -237,5 +268,6 @@ class WorkbookSession:
         cls._open_workbooks = {}
         cls._dirty_paths = set()
         cls._deferred = False
+        cls._declare_dynamic = False
 
 # End of file #

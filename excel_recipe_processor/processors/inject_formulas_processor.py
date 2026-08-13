@@ -468,14 +468,16 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
 
         Excel applies IMPLICIT INTERSECTION to a plain formula whose result
         could be an array - a formula containing XLOOKUP, say - and displays
-        it with a leading @. Marking the cell as a single-cell array formula
-        (<f t="array" ref="AV2">) tells Excel the result is deliberate, and
-        implicit intersection does not apply.
+        it with a leading @.
 
-        This is what Excel itself writes for such a formula, minus the
-        cm="1" cell-metadata marker that also needs an xl/metadata.xml part
-        openpyxl cannot produce. The array marker alone is expected to be
-        enough; verify in Excel before relying on it.
+        CORRECTED CLAIM (2026-08-13): the array marker alone is NOT enough
+        to retire the @ - it trades it for legacy {CSE} braces, because
+        t="array" without the cm="1"/xl/metadata.xml declaration means "old
+        Ctrl+Shift+Enter formula". Use array_formula only for a formula
+        that genuinely IS an array formula. The honest fix for the @ is the
+        dynamic-array declaration pass (settings: declare_dynamic_formulas,
+        or the declare_dynamic_formulas processor); see
+        core/dynamic_array_metadata.py.
 
         Args:
             worksheet:   Target sheet

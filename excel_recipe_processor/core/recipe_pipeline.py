@@ -192,6 +192,16 @@ class RecipePipeline:
         self._run_started_at = time.perf_counter()
         WorkbookSession.reset()
         WorkbookSession.set_deferred(True)
+
+        # OPT-IN: route every session save through the dynamic-array
+        # declaration so injected/seeded formulas open without the
+        # implicit-intersection @. See core/dynamic_array_metadata.py.
+        declare_dynamic = self.recipe_data.get('settings', {}).get(
+            'declare_dynamic_formulas', False
+        )
+        WorkbookSession.set_declare_dynamic(bool(declare_dynamic))
+        if declare_dynamic:
+            logger.info("🧬 Dynamic-array declaration enabled for all session saves")
         logger.info(f"🚀 Executing {recipe_steps_cnt} recipe steps")
         
         # Reset execution state

@@ -22,4 +22,14 @@ import re
 # pattern stops at the closing brace rather than at whitespace.
 column_placeholder_rgx = re.compile(r'\{col:([^}]+)\}')
 
+# A function call in a formula: a name followed by an opening parenthesis.
+#
+# The negative lookbehind for a dot or a word character keeps an
+# already-prefixed name (_xlfn.IFS) and a longer name that merely ends with
+# a shorter one (MYIFS) from matching. String literals containing a
+# function-name-plus-paren would be rewritten too, which is why the
+# substitution is limited to names in the known-function map rather than
+# applied to every identifier.
+function_call_rgx = re.compile(r'(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_.]*)\s*\(')
+
 # End of file #

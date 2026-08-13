@@ -334,6 +334,38 @@ def test_configuration_validation():
         return False
 
 
+def test_future_functions_get_storage_prefixes():
+    """Post-2007 functions must be stored with _xlfn. or Excel shows #NAME?."""
+    print("Testing future-function prefixes...")
+
+    processor = InjectFormulasProcessor({
+        'processor_type': 'inject_formulas',
+        'target_file': 'unused.xlsx',
+        'mode': 'live',
+    })
+
+    cases = [
+        ('=IFS(A2=1,"x",TRUE,"y")',            '=_xlfn.IFS(A2=1,"x",TRUE,"y")'),
+        ('=XLOOKUP(A2,rng_a,rng_b)',           '=_xlfn.XLOOKUP(A2,rng_a,rng_b)'),
+        ('=_xlfn.IFS(A2=1,"x")',               '=_xlfn.IFS(A2=1,"x")'),
+        ('=SUM(A2:A9)+COUNTIF(B:B,"z")',       '=SUM(A2:A9)+COUNTIF(B:B,"z")'),
+        ('=MYIFS(A2)',                         '=MYIFS(A2)'),
+        ('=FILTER(A:A,B:B=1)',                 '=_xlfn._xlws.FILTER(A:A,B:B=1)'),
+    ]
+
+    passed = True
+
+    for written, expected in cases:
+        got = processor._prefix_future_functions(written)
+        if got == expected:
+            print(f"  \u2713 {written}")
+        else:
+            print(f"  \u2717 {written} -> {got}, expected {expected}")
+            passed = False
+
+    return passed
+
+
 def main():
     """Run all tests for InjectFormulasProcessor."""
     print("🧪 TESTING INJECT FORMULAS PROCESSOR")
@@ -345,6 +377,7 @@ def main():
         test_basic_live_formula_injection,
         test_dead_formula_injection,
         test_range_formula_injection,
+        test_future_functions_get_storage_prefixes,
     ]
     
     passed = 0

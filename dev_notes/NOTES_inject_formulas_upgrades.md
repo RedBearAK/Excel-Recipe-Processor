@@ -33,6 +33,20 @@ included here).
    "Target file not found". Now uses WorkbookSession like the other file-ops
    processors.
 
+5. FUTURE FUNCTIONS GET THEIR STORAGE PREFIX. Functions added after the
+   2007 file format - IFS, XLOOKUP, TEXTJOIN, FILTER and friends - must be
+   STORED as _xlfn.IFS, _xlfn.XLOOKUP, _xlfn._xlws.FILTER even though Excel
+   displays them without the prefix. Writing the plain name produced a cell
+   showing #NAME? with the formula rendered as:
+
+       =@IFS(AND(BB2="Export", ...))
+
+   Recipes now write ordinary Excel syntax and the processor adds the
+   prefixes from a map in _helpers/inject_formulas_functions.py. Names not
+   in the map are untouched, and an already-prefixed name is left alone, so
+   re-running is safe. If a formula ever comes back #NAME? with a function
+   not listed, add it to the map - it is deliberately extensible.
+
 ## Also included (from the superseded archive)
 
 - add_calculated_column: expression formulas substitute column names in ONE

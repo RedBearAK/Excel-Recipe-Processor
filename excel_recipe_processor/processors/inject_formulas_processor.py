@@ -29,6 +29,10 @@ from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, Bas
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
     column_placeholder_rgx,
+    function_call_rgx,
+)
+from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
+    FUTURE_FUNCTION_PREFIXES,
 )
 
 
@@ -354,6 +358,10 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         if mode == 'live' and not formula.startswith('='):
             formula = '=' + formula
         
+        # Functions added after the 2007 format must be STORED with an
+        # _xlfn. prefix or Excel shows #NAME?; see the prefix map for why.
+        formula = self._prefix_future_functions(formula)
+
         # Column names resolve to letters against THIS sheet's header row -
         # in the formula AND in the target, since naming the column a formula
         # is written INTO is the same fragility as naming ones it reads.
@@ -370,6 +378,45 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             return self._apply_formula_to_range(worksheet, range_ref, formula, mode)
         else:
             raise StepProcessorError("Formula definition must include either 'cell' or 'range' key")
+
+    def _prefix_future_functions(self, formula: str) -> str:
+        """
+        Give post-2007 Excel functions the storage prefix they require.
+
+        Excel stores XLOOKUP as _xlfn.XLOOKUP and displays it as XLOOKUP. A
+        formula written with the plain name is read as an unknown defined
+        name, so the cell shows #NAME? and the formula bar renders it with an
+        implicit-intersection marker (=@IFS(...)). Recipes therefore write
+        ordinary Excel syntax and this adds the prefixes.
+
+        Only names present in the map are touched, and a name that already
+        carries a prefix is left alone, so re-running is safe.
+
+        Args:
+            formula: Formula text as written in the recipe
+
+        Returns:
+            Formula with future-function names prefixed for storage
+        """
+        def substitute(match):
+            name = match.group(1)
+            prefix = FUTURE_FUNCTION_PREFIXES.get(name.upper())
+
+            if prefix is None:
+                return match.group(0)
+
+            return match.group(0).replace(name, f"{prefix}{name}", 1)
+
+        prefixed = function_call_rgx.sub(substitute, formula)
+
+        if prefixed != formula:
+            changed = sorted({
+                name for name in FUTURE_FUNCTION_PREFIXES
+                if f"{FUTURE_FUNCTION_PREFIXES[name]}{name}" in prefixed
+            })
+            logger.debug(f"Prefixed future function(s) for storage: {changed}")
+
+        return prefixed
 
     def _resolve_column_placeholders(self, worksheet, formula: str) -> str:
         """

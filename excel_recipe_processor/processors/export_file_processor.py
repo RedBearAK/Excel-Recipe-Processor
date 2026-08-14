@@ -43,7 +43,7 @@ class ExportFileProcessor(ExportBaseProcessor):
     #     output_file = self.get_config_value('output_file')
     #     sheet_name = self.get_config_value('sheet_name', 'Data')
     #     explicit_format = self.get_config_value('format', None)
-    #     sheets = self.get_config_value('sheets', None)
+    #     sheets = self.get_config_value('sheets_to_create', None)
         
     #     # Apply variable substitution if available
     #     if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -169,16 +169,19 @@ class ExportFileProcessor(ExportBaseProcessor):
         except ValueError as error:
             raise StepProcessorError(str(error))
         explicit_format = self.get_config_value('format', None)
-        if self.get_config_value('sheet_names', None):
-            raise StepProcessorError(
-                f"Export step '{self.step_name}': export's multi-sheet key is "
-                f"'sheets' - a list of ENTRIES (each with sheet_name and "
-                f"data_source), not a list of names. ('sheet_names' is the "
-                f"name-list key on addressing processors like inject_formulas; "
-                f"a sweep rename likely hit the wrong key. Silently ignoring "
-                f"it once caused a single-sheet 'Data' workbook in production.)"
-            )
-        sheets = self.get_config_value('sheets', None)
+        for retired_key in ('sheets', 'sheet_names'):
+            if self.get_config_value(retired_key, None):
+                raise StepProcessorError(
+                    f"Export step '{self.step_name}': the multi-sheet key is "
+                    f"'sheets_to_create' - a list of ENTRIES, each with "
+                    f"sheet_name and data_source. ('{retired_key}' is retired: "
+                    f"'sheets' was renamed 2026-08-14 to integrate the purpose "
+                    f"after a sweep rename crossed it with 'sheet_names', the "
+                    f"name-list key on addressing processors, and the silent "
+                    f"fallback wrote a single-sheet 'Data' workbook in "
+                    f"production.)"
+                )
+        sheets = self.get_config_value('sheets_to_create', None)
         # See if user wants to disable the creation of a backup file to avoid clobbering same name
         create_backup = self.get_config_value('create_backup', True)
 

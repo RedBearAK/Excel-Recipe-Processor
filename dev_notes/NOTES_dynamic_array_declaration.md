@@ -522,4 +522,17 @@ by the KEY'S OWNER (which processor reads it), never by spelling alone -
 two processors sharing a spelling for structurally different values is
 exactly when a blanket recipe rename does damage.
 
+## Export entry-list key: sheets_to_create (2026-08-14)
+
+The user's call after the production incident: integrate the PURPOSE into
+the name. Export's multi-sheet entry list is now 'sheets_to_create' -
+sibling of select_columns' columns_to_keep, stating that these entries
+CREATE tabs (each with sheet_name + data_source), and sharing no spelling
+adjacency with sheet_names so no blanket rename can ever cross them
+again. Both retired spellings ('sheets', 'sheet_names') draw a guided
+error naming the new key and citing the incident. Both recipes, the
+export examples, the commented legacy block, and the export test
+fixtures updated; the step 56 -> 58 chain re-proven on the new key
+(11 tabs, 13 named ranges, rng_PID present).
+
 # End of file #

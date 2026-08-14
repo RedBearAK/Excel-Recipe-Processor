@@ -146,7 +146,7 @@ def test_multi_sheet_export_current_data():
             'processor_type': 'export_file',
             'step_description': 'Test multi-sheet export',
             'output_file': str(output_path),
-            'sheets': [
+            'sheets_to_create': [
                 {
                     'sheet_name': 'All_Data',
                     'data_source': 'current',
@@ -226,7 +226,7 @@ def test_multi_sheet_export_with_stages():
                 'processor_type': 'export_file',
                 'step_description': 'Test stage export',
                 'output_file': str(output_path),
-                'sheets': [
+                'sheets_to_create': [
                     {
                         'sheet_name': 'Current_Data',
                         'data_source': 'current'
@@ -450,7 +450,7 @@ def test_error_handling():
                 'processor_type': 'export_file',
                 'step_description': 'Non-existent stage test',
                 'output_file': str(output_path),
-                'sheets': [
+                'sheets_to_create': [
                     {
                         'sheet_name': 'Test',
                         'data_source': 'NonExistentStage'

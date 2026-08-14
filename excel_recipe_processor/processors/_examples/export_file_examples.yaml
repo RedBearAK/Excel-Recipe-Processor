@@ -65,7 +65,7 @@ multi_sheet_example:
         output_file: "reports/{company}_Q{quarter}_{date}.xlsx"
         create_backup: true
         # OPT - List of sheet configurations for multi-sheet Excel export
-        sheets:
+        sheets_to_create:
           # First sheet from executive summary stage
           - sheet_name: "Executive Summary"
             # REQ - Stage name must match exactly what was saved
@@ -207,7 +207,7 @@ parameter_details:
     description: "Sheet name for single-sheet Excel export (ignored if sheets parameter is used)"
     applies_to: "Single-sheet Excel export only"
 
-  sheets:
+  sheets_to_create:
     type: list
     required: false
     description: "List of sheet configurations for multi-sheet Excel export"

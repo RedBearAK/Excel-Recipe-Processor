@@ -20,21 +20,6 @@ pytest>=7.0.0
 
 pytest-cov>=4.0.0
 
-# --- Code quality -----------------------------------------------------------
-
-black>=23.0.0
-flake8>=6.0.0
-isort>=5.12.0
-
-# --- Documentation ----------------------------------------------------------
-
-sphinx>=6.0.0
-sphinx-rtd-theme>=1.2.0
-
-# --- Development tools ------------------------------------------------------
-
-pre-commit>=3.0.0
-
 # --- Removed ----------------------------------------------------------------
 
 # pytest-mock: no test module imports it; the suite builds real files in
@@ -43,5 +28,20 @@ pre-commit>=3.0.0
 #     clauses for runtime type narrowing, so a static type checker has little
 #     to work with and would flag the intended style as errors.
 # tox: no tox.ini in the repository.
+# black, isort (2026-08-13): never used, and RUNNING either would actively
+#     rewrite the codebase against project conventions - isort destroys the
+#     length-sorted import ordering, black destroys aligned registry entries
+#     and deliberate spacing. Worse than dead weight: a formatter that
+#     enforces the wrong style is a loaded gun on the shelf. The [tool.black]
+#     config in pyproject.toml went with them.
+# flake8 (2026-08-13): never used, and with no config file in the repo its
+#     defaults would flag the house style itself (79-char lines, E221
+#     multiple-spaces-before-operator on aligned assignments) - pure noise.
+# sphinx, sphinx-rtd-theme (2026-08-13): docs/ is plain Markdown with no
+#     conf.py; nothing in the repository builds Sphinx documentation.
+# pre-commit (2026-08-13): no .pre-commit-config.yaml in the repository,
+#     and the hooks it would typically run are the formatters removed above.
+#
+# All of these date from early scaffolding suggestions; none were adopted.
 
 # End of file #

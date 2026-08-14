@@ -185,4 +185,47 @@ automatically through the registry.
 - `core/file_reader.py`: the CALAMINE_AVAILABLE detection sat BETWEEN
   import lines (executable code before `import logging`); imports
   reordered per convention, module docstring gained its path line.
+## Packaging repair (2026-08-13, fourth pass)
+
+`pip install .` previously produced a package declaring NO dependencies:
+setup.py's install_requires was an empty commented stub, python_requires
+said ">=3.7" (never true - even pandas 2.0 needs 3.8), and pyproject.toml
+had no [project] table. Fixed with pyproject.toml as the metadata home:
+
+- [project] table with dynamic version (from _version.py) and dynamic
+  dependencies (from requirements.txt) - the curated files stay the single
+  sources of truth and the wheel cannot drift from them. Verified by
+  building the wheel: all nine runtime deps present incl. python-calamine,
+  Requires-Python >=3.10, console script intact.
+- requires-python = ">=3.10": where the verified ecosystem lives (suite on
+  3.12+, pandas 3 needs 3.10+); package syntax alone would allow older,
+  but that combination is untested and unsupported.
+- setup.py reduced to a shim with a warning against re-adding metadata.
+  Its stale extras (mypy included) are gone; the dev extra in pyproject
+  mirrors requirements-dev.txt minus the "-r" include the setuptools file
+  parser cannot read - the two must be updated together (commented at both
+  sites... at the pyproject site).
+- [tool.mypy] removed: requirements-dev.txt had already removed mypy
+  itself with the documented no-typing-module rationale; a config with
+  disallow_untyped_defs=true described a project this is not.
+- [tool.black] target-version updated py310-py313. NOTE: black and isort
+  remain declared dev tools, but RUNNING them would rewrite the codebase
+  against project conventions (length-sorted imports, aligned registry
+  entries). Left declared pending a deliberate decision.
+- _version.py __description__ replaced (was the "A Python package for..."
+  placeholder); it now matches the pyproject description.
+- requirements-dev.txt needed no change for calamine: it inherits
+  requirements.txt via "-r".
+
+## Tool removal (2026-08-13, fifth pass)
+
+black, isort, flake8, sphinx, sphinx-rtd-theme, and pre-commit removed from
+requirements-dev.txt and the pyproject dev extra; [tool.black] config
+removed. None were ever adopted (no configs or docs builds exist for them),
+and the formatters were worse than dead weight: running black or isort
+would rewrite the codebase against the house conventions - length-sorted
+imports, aligned registry entries. Early-scaffolding suggestions, never
+used, now recorded in requirements-dev.txt's Removed section with per-tool
+rationale. Dev deps are now pytest + pytest-cov, full stop.
+
 # End of file #

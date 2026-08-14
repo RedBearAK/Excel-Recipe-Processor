@@ -52,7 +52,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
-            'target_file': 'output.xlsx'
+            'target_file': 'output.xlsx',
+            # One sheet entry, so the minimal config is valid WITHOUT the
+            # empty-formatting warning - which otherwise leaks into
+            # --list-capabilities, where every processor is instantiated
+            # from its minimal config.
+            'formatting': [
+                {'sheet': 'Data', 'auto_fit_columns': True},
+            ],
         }
 
     def perform_file_operation(self) -> str:

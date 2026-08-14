@@ -121,8 +121,8 @@ class DeclareDynamicFormulasProcessor(FileOpsBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Declare dynamic-era formulas in a finished xlsx so Excel '
-                           'shows them without the implicit-intersection @',
+            'description': 'Declare dynamic-era formulas in a finished xlsx to '
+                           'retire the implicit @',
             'when_to_use': 'repairing a file already on disk (an inherited donor, a '
                            'flushed output); for recipe outputs prefer the settings '
                            'key declare_dynamic_formulas: true',

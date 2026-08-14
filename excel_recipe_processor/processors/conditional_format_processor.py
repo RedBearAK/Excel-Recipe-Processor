@@ -494,8 +494,8 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Write native Excel conditional-formatting rules - live '
-                           'rules that keep re-evaluating as the file is edited',
+            'description': 'Write native Excel conditional-formatting rules that '
+                           'stay live in the file',
             'vocabulary': 'canonical ERP condition names (filter_data\'s equals, '
                           'greater_than, is_empty, ... plus between, duplicates, '
                           'unique in the same style); Excel-native spellings '

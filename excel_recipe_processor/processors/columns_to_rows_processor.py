@@ -195,9 +195,8 @@ class ColumnsToRowsProcessor(BaseStepProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Demote header columns into label/value rows (wide to '
-                           'long, de-crosstabbing) - a layout change, never a '
-                           'summarization; every cell moves and none is lost',
+            'description': 'Demote header columns into label/value rows - wide to '
+                           'long, nothing lost',
             'not_a_transpose': 'transpose (slice_data) rotates the grid keeping one '
                                'dimension in the headers; this ELIMINATES the '
                                'header dimension by turning header names into data',

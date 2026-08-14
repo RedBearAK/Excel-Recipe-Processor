@@ -320,4 +320,14 @@ conditional_format follow-ups deferred by decision: clear_existing (any
 "clear existing" semantics need their own careful design), top/bottom-N,
 above/below average, icon sets, case-sensitive text, date operands.
 
+## Capabilities listing polish (2026-08-13, tenth pass)
+
+--list-capabilities emitted "Empty formatting list - no sheets will be
+formatted" at the top: the lister instantiates every processor from its
+minimal config, and format_excel's omitted 'formatting' entirely, drawing
+the construction-time warning. The minimal config now carries one sheet
+entry - minimal AND quiet. Also shortened the five new processors'
+capability descriptions to single terminal lines; the trimmed nuance
+already lives in each processor's other capability keys.
+
 # End of file #

@@ -776,8 +776,8 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Inject formulas into existing Excel files with live/dead '
-                           'modes, name-addressed cells, and Excel-style fill-down',
+            'description': 'Inject live or dead formulas with name-addressed cells '
+                           'and fill-down',
             'operation_type': 'formula_injection',
             'supported_modes': ['live', 'dead', 'awaken'],
             'targeting_options': ['single_cell', 'cell_range', 'auto_scan'],

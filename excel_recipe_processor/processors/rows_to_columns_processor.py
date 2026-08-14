@@ -214,10 +214,8 @@ class RowsToColumnsProcessor(BaseStepProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Promote one column\'s values into the header row, '
-                           'spreading another column\'s values under them (long '
-                           'to wide, re-crosstabbing) - a pivot WITHOUT '
-                           'aggregation, enforced',
+            'description': 'Promote a column\'s values into headers - long to wide, '
+                           'silent aggregation refused',
             'losslessness': 'each (id, label) pair must map to at most one value; '
                             'duplicates halt naming the offending pairs, because '
                             'pivot_table would silently aggregate them and this '

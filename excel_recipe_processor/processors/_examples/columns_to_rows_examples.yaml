@@ -1,0 +1,71 @@
+# Revision date: 2026-08-13
+
+description: >
+  Demote header columns into label/value rows (wide to long,
+  de-crosstabbing). A layout change, never a summarization: every cell
+  moves and none is lost. The id columns repeat down the stacked rows,
+  making the result filterable, joinable, and re-pivotable on the demoted
+  dimension. Inverse: rows_to_columns.
+
+
+basic_example:
+  description: "Stack twelve month columns into month-per-row form"
+  yaml: |
+    settings:
+      description: "De-crosstab the monthly amounts download"
+      stages:
+        - stage_name: "stg_amounts_wide"
+          description: "Customer per row, one column per month"
+          protected: false
+        - stage_name: "stg_amounts_long"
+          description: "One row per customer-month"
+          protected: false
+
+    recipe:
+      - # Give id_columns OR value_columns; the other is the complement.
+        # With BOTH given, every column must be claimed - a column in
+        # neither would be silently dropped by a raw pandas melt, and this
+        # processor halts instead.
+        step_description: "Stack the month columns"
+        processor_type: "columns_to_rows"
+        source_stage: "stg_amounts_wide"
+        # OPT (this or value_columns) - Columns that stay put and repeat
+        id_columns: ["Customer", "Region"]
+        # OPT - Name for the column holding the old header names.
+        # Default value: "Field" - name the demoted dimension for real.
+        labels_to: "Month"
+        # OPT - Name for the column holding the cell contents
+        # Default value: "Value"
+        values_to: "Amount"
+        # OPT - Drop rows whose value is blank/NaN (wide grids are often
+        # sparse and the blanks rarely mean anything as rows)
+        # Default value: false
+        drop_empty_values: true
+        save_to_stage: "stg_amounts_long"
+
+parameter_details:
+  id_columns:
+    type: list of strings
+    required: false
+    description: "Columns that stay put; omitted means the complement of value_columns. At least one of the two lists is required."
+  value_columns:
+    type: list of strings
+    required: false
+    description: "Columns to demote; omitted means the complement of id_columns. Both given: every column must appear in exactly one."
+  labels_to:
+    type: string
+    required: false
+    default: "Field"
+    description: "Name for the new column carrying the old header names"
+  values_to:
+    type: string
+    required: false
+    default: "Value"
+    description: "Name for the new column carrying the cell contents"
+  drop_empty_values:
+    type: boolean
+    required: false
+    default: false
+    description: "Remove stacked rows whose value is blank or NaN"
+
+# End of file #

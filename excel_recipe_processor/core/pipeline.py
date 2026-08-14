@@ -495,6 +495,7 @@ from excel_recipe_processor.processors.add_subtotals_processor          import A
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.combine_data_processor           import CombineDataProcessor
+from excel_recipe_processor.processors.columns_to_rows_processor       import ColumnsToRowsProcessor
 from excel_recipe_processor.processors.conditional_format_processor     import ConditionalFormatProcessor
 from excel_recipe_processor.processors.copy_stage_processor             import CopyStageProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
@@ -521,6 +522,7 @@ from excel_recipe_processor.processors.manage_named_objects_processor   import M
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
 from excel_recipe_processor.processors.rename_columns_processor         import RenameColumnsProcessor
+from excel_recipe_processor.processors.rows_to_columns_processor       import RowsToColumnsProcessor
 from excel_recipe_processor.processors.seed_donor_formulas_processor    import SeedDonorFormulasProcessor
 from excel_recipe_processor.processors.select_columns_processor         import SelectColumnsProcessor
 from excel_recipe_processor.processors.slice_data_processor             import SliceDataProcessor
@@ -537,6 +539,7 @@ def register_standard_processors():
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('combine_data',                   CombineDataProcessor                )
+    registry.register('columns_to_rows',                ColumnsToRowsProcessor              )
     registry.register('conditional_format',             ConditionalFormatProcessor          )
     registry.register('deduplicate_data',               DeduplicateDataProcessor            )
     registry.register('file_metadata',                  FileMetadataProcessor               )
@@ -563,6 +566,7 @@ def register_standard_processors():
     registry.register('merge_data',                     MergeDataProcessor                  )
     registry.register('pivot_table',                    PivotTableProcessor                 )
     registry.register('rename_columns',                 RenameColumnsProcessor              )
+    registry.register('rows_to_columns',                RowsToColumnsProcessor              )
     registry.register('seed_donor_formulas',            SeedDonorFormulasProcessor          )
     registry.register('select_columns',                 SelectColumnsProcessor              )
     registry.register('slice_data',                     SliceDataProcessor                  )

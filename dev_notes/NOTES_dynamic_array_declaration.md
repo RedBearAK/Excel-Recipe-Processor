@@ -295,4 +295,29 @@ vms_process.yaml gains the proving-ground rule: entire-row highlight where
 Contracts is non-empty and Price is empty - the live twin of the
 No_Price_Product_Summary tab, deliberately without that tab's exclusions.
 
+## Reshape pair: columns_to_rows / rows_to_columns (2026-08-13, ninth pass)
+
+Two complementary data processors (registry now at 38). columns_to_rows
+demotes header columns into label/value rows - a LAYOUT change, never a
+summarization, and deliberately not named "unpivot" since the operation
+recovers nothing and the old name implied it did. Distinct from
+slice_data's transpose, which rotates the grid keeping one dimension in
+the headers; this eliminates the header dimension. Safety choice: pandas
+melt silently DROPS columns claimed by neither list; the processor halts
+naming them instead.
+
+rows_to_columns is the inverse - a pivot WITHOUT aggregation, enforced:
+each (id, label) pair must map to at most one value, duplicates halt
+naming the offending pairs and pointing at aggregate_data/pivot_table for
+deliberate aggregation. New columns keep first-appearance label order
+(months stay in arrival order). Explicit id_columns must claim every
+remaining column or the step halts - nothing vanishes silently.
+
+5/5 tests, the centerpiece being the round trip: wide -> long -> wide
+restores columns, order, and every value exactly.
+
+conditional_format follow-ups deferred by decision: clear_existing (any
+"clear existing" semantics need their own careful design), top/bottom-N,
+above/below average, icon sets, case-sensitive text, date operands.
+
 # End of file #

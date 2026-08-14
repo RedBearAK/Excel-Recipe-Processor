@@ -330,4 +330,27 @@ entry - minimal AND quiet. Also shortened the five new processors'
 capability descriptions to single terminal lines; the trimmed nuance
 already lives in each processor's other capability keys.
 
+## verify_data + verification ledger (2026-08-13, eleventh pass)
+
+Value-level verification, sibling of verify_columns. Rules carry per-rule
+severity - warn (default: count + sample logged, run continues) or halt.
+The condition vocabulary is filter_data's ENTIRE set, borrowed live: a
+shim FilterDataProcessor instance lends _apply_filter, violations are the
+index difference from the satisfied rows, and the two processors cannot
+drift. in_stage covers the referential case ("every Carrier must exist in
+the carriers lookup" - the CMA unresolved-lookup guard is now one rule).
+Sources: a stage, or a file sheet (session-held files read live,
+pre-save). Loud caveat documented: formula cells in files this framework
+wrote have no cached values, so file-mode rules on injected formula
+columns see blanks - verify formula inputs in stages.
+
+core/verification_ledger.py accumulates outcomes; recipe_pipeline resets
+it at run start and logs the 🔎 summary line at completion. 5/5 focused
+tests (one initially failed on a FIXTURE artifact worth remembering:
+pandas drops a trailing all-empty row on read_excel, so a single-column
+sheet whose last cell is blank reads back one row short).
+
+HANDOFF_2026-08-13_thread_state.md added: orientation layer for the next
+session, incl. the test-debt triage and the CMA wiring as next step.
+
 # End of file #

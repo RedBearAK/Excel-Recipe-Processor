@@ -17,6 +17,7 @@ from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.core.verification_ledger import VerificationLedger
 from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor,
     ExportBaseProcessor,
@@ -222,6 +223,7 @@ class RecipePipeline:
         recipe_steps_cnt = len(recipe_steps)
         self._run_started_at = time.perf_counter()
         WorkbookSession.reset()
+        VerificationLedger.reset()
         WorkbookSession.set_deferred(True)
 
         # OPT-IN: route every session save through the dynamic-array
@@ -322,6 +324,7 @@ class RecipePipeline:
                         f"{skipped_steps} steps skipped")
         else:
             logger.info(f"🎉 Recipe execution completed successfully: {self.steps_executed} steps")
+            VerificationLedger.log_summary()
             logger.info(
                 f"🧮 Recipe elements: {count_recipe_elements(self.recipe_data)} "
                 f"parsed from the YAML across {len(self.recipe_data.get('recipe', []))} "

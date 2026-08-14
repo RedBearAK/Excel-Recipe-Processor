@@ -37,6 +37,37 @@ from excel_recipe_processor.core.interactive_variables import (
 logger = logging.getLogger(__name__)
 
 
+def count_step_elements(value) -> int:
+    """
+    Ballpark "elements" in one step's config, parsed from the YAML alone.
+
+    The rule: every LIST ITEM the recipe author enumerated counts as one
+    element, at every nesting depth; dict keys and scalar option values
+    count as zero. A filters: list of five conditions is 5; a formula
+    definition is 1 regardless of how many options it carries; a
+    format_excel step counts its sheet entries plus each entry's nested
+    column_formats rules.
+
+    Known ballpark limits, accepted on purpose: a "{list:variable}" string
+    counts as 1 though it may expand to many items, and a step with no
+    list content at all reports 0 here (the caller floors it to 1). The
+    number is a property of what the author WROTE - stable across data
+    sizes, which is what makes it comparable between runs. A per-processor
+    semantic count would need every processor touched; this needs none.
+    """
+    if isinstance(value, list):
+        return len(value) + sum(count_step_elements(item) for item in value)
+    if isinstance(value, dict):
+        return sum(count_step_elements(inner) for inner in value.values())
+    return 0
+
+
+def count_recipe_elements(recipe_data: dict) -> int:
+    """Sum of per-step elements across the recipe, each step counting at least 1."""
+    steps = recipe_data.get('recipe', []) if isinstance(recipe_data, dict) else []
+    return sum(max(count_step_elements(step), 1) for step in steps)
+
+
 class ErrorAction(Enum):
     """Defines possible actions when an error occurs during step execution."""
     HALT = "halt"                    # Stop processing immediately (default)
@@ -291,6 +322,11 @@ class RecipePipeline:
                         f"{skipped_steps} steps skipped")
         else:
             logger.info(f"🎉 Recipe execution completed successfully: {self.steps_executed} steps")
+            logger.info(
+                f"🧮 Recipe elements: {count_recipe_elements(self.recipe_data)} "
+                f"parsed from the YAML across {len(self.recipe_data.get('recipe', []))} "
+                f"step(s) (ballpark: enumerated list items per step, min 1)"
+            )
         
         return self._completion_report
 

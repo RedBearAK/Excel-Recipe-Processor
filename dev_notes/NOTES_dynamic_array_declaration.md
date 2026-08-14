@@ -228,4 +228,18 @@ imports, aligned registry entries. Early-scaffolding suggestions, never
 used, now recorded in requirements-dev.txt's Removed section with per-tool
 rationale. Dev deps are now pytest + pytest-cov, full stop.
 
+## Recipe element count (2026-08-13, sixth pass)
+
+The end-of-run summary now logs a ballpark "elements" total parsed purely
+from the recipe YAML - no processor was touched. Rule: every enumerated
+LIST ITEM in a step's config counts as one element at every nesting depth;
+dict keys and scalar options count zero; a list-free step floors at 1.
+On the current recipes: vms_process 292 elements / 60 steps, cma_invoices
+112 / 28. Accepted limits, stated in the docstring: "{list:variable}"
+strings count as 1 regardless of expansion, and the number measures what
+the author wrote, not runtime work - which is what keeps it stable across
+data sizes and therefore comparable between runs. The per-processor
+semantic count remains a future item (count_step_elements in
+core/recipe_pipeline.py would become its fallback).
+
 # End of file #

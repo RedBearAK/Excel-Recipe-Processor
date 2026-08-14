@@ -95,4 +95,18 @@ formula_element_rgx = re.compile(r'(<f\b[^>]*>)(.*?)(</f>)', re.DOTALL)
 # Existing relationship ids in xl/_rels/workbook.xml.rels, to pick a free one
 relationship_id_rgx = re.compile(r'\bId="rId([0-9]+)"')
 
+# One <sheet .../> entry in xl/workbook.xml. Attribute order varies between
+# producers, so the tag is captured whole and its attributes read separately.
+sheet_entry_rgx = re.compile(r'<sheet\b[^>]*/?>')
+sheet_name_attr_rgx = re.compile(r'\bname="([^"]*)"')
+sheet_rid_attr_rgx = re.compile(r'\br:id="(rId[0-9]+)"')
+
+# One <Relationship .../> entry in a rels part, with its Id and Target
+relationship_entry_rgx = re.compile(r'<Relationship\b[^>]*/?>')
+relationship_target_attr_rgx = re.compile(r'\bTarget="([^"]*)"')
+relationship_id_attr_rgx = re.compile(r'\bId="(rId[0-9]+)"')
+
+# Split a cell reference into column letters and row number
+cell_ref_split_rgx = re.compile(r'^([A-Z]{1,3})([0-9]+)$')
+
 # End of file #

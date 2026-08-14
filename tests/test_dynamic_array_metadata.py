@@ -244,6 +244,74 @@ def test_unrecognized_metadata_part_fails_loud():
     return passed
 
 
+def test_provenance_marks_regardless_of_function():
+    """Injected cells are declared even for pre-dynamic-array functions; identical
+    unregistered cells are not, and sheet names resolve through workbook.xml."""
+    print("\nTesting provenance-based marking...")
+
+    passed = True
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        workbook = openpyxl.Workbook()
+        first_sheet = workbook.active
+        first_sheet.title = 'Front'
+        second_sheet = workbook.create_sheet('Data')
+
+        # Identical IFS formulas: B2 is "recipe-injected", D2 is "inherited".
+        # IFS predates dynamic arrays, so only provenance can mark it.
+        second_sheet['B2'] = '=_xlfn.IFS(A2=1,"yes",TRUE,"no")'
+        second_sheet['D2'] = '=_xlfn.IFS(A2=1,"yes",TRUE,"no")'
+
+        plain_path = str(Path(work_dir) / 'prov.xlsx')
+        workbook.save(plain_path)
+        workbook.close()
+
+        declared_path = str(Path(work_dir) / 'prov_declared.xlsx')
+        report = declare_dynamic_formulas_in_zip(
+            plain_path, declared_path,
+            injected_cells={'Data': [('B', 2, 2)]},
+        )
+
+        with zipfile.ZipFile(declared_path) as archive:
+            # 'Data' is the SECOND sheet - reading it via the resolver-declared
+            # marks below proves name->part resolution rather than tab order.
+            data_xml = archive.read('xl/worksheets/sheet2.xml').decode('utf-8')
+
+        b2_match = re.search(r'<c r="B2"[^>]*>', data_xml)
+        d2_match = re.search(r'<c r="D2"[^>]*>', data_xml)
+
+        if b2_match and 'cm="1"' in b2_match.group(0):
+            print("  ✓ Registered IFS cell B2 declared (provenance)")
+        else:
+            print(f"  ✗ B2 not declared: {b2_match.group(0) if b2_match else 'missing'}")
+            passed = False
+
+        if d2_match and 'cm="1"' not in d2_match.group(0):
+            print("  ✓ Identical unregistered IFS cell D2 left alone")
+        else:
+            print(f"  ✗ D2 wrongly touched: {d2_match.group(0) if d2_match else 'missing'}")
+            passed = False
+
+        if report['cells_marked_injected'] == 1 and report['cells_marked'] == 1:
+            print("  ✓ Report attributes the mark to injection provenance")
+        else:
+            print(f"  ✗ Report: marked {report['cells_marked']}, "
+                  f"injected {report['cells_marked_injected']}")
+            passed = False
+
+        try:
+            declare_dynamic_formulas_in_zip(
+                plain_path, str(Path(work_dir) / 'bad.xlsx'),
+                injected_cells={'NoSuchSheet': [('B', 2, 2)]},
+            )
+            print("  ✗ Unknown sheet name accepted silently")
+            passed = False
+        except DynamicArrayMetadataError:
+            print("  ✓ Unknown sheet name in injected_cells fails loud")
+
+    return passed
+
+
 def main():
     tests = [
         test_dynamic_cells_get_the_full_declaration,
@@ -251,6 +319,7 @@ def main():
         test_pass_is_idempotent_and_reopenable,
         test_legacy_cse_cell_gets_completed,
         test_unrecognized_metadata_part_fails_loud,
+        test_provenance_marks_regardless_of_function,
     ]
 
     passed = 0

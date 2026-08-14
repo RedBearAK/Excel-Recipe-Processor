@@ -57,6 +57,13 @@ from excel_recipe_processor.core.dynamic_array_metadata_rgx import (
     cell_open_tag_rgx,
     formula_element_rgx,
     relationship_id_rgx,
+    sheet_entry_rgx,
+    sheet_name_attr_rgx,
+    sheet_rid_attr_rgx,
+    relationship_entry_rgx,
+    relationship_target_attr_rgx,
+    relationship_id_attr_rgx,
+    cell_ref_split_rgx,
 )
 
 
@@ -108,7 +115,8 @@ SHEET_METADATA_REL_TYPE = (
 # Public entry points
 # --------------------------------------------------------------------------
 
-def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=None) -> dict:
+def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=None,
+                                    injected_cells=None) -> dict:
     """
     Apply the dynamic-array declaration to a finished xlsx.
 
@@ -117,22 +125,40 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
     and writes the result to `destination_path`. Source and destination may
     be the same path; the source is read fully before anything is written.
 
+    A cell qualifies on either of two grounds:
+
+    1. VOCABULARY: its formula contains a function that postdates dynamic
+       arrays (safe for formulas of unknown origin - see the module
+       docstring for why the default list is what it is).
+    2. PROVENANCE: the cell is listed in `injected_cells` - the caller
+       vouches that the formula was authored NOW, by the recipe, so
+       declaring it dynamic-array-aware states a fact regardless of which
+       functions it uses. This is how a recipe-injected IFS sheds its @:
+       the declaration mirrors what Excel writes for the same formula
+       typed by hand.
+
     Args:
         source:           Path to an xlsx, or a binary file-like object
                           positioned at 0 (e.g. BytesIO from workbook.save)
         destination_path: Path to write the resulting xlsx
         extra_functions:  Optional iterable of additional bare function
-                          names to treat as dynamic-era (e.g. ['IFS'] for a
-                          file whose formulas are known recipe-authored)
+                          names to treat as dynamic-era
+        injected_cells:   Optional dict of sheet NAME (the tab name, not
+                          the part name) -> list of (column_letters,
+                          first_row, last_row) ranges of recipe-authored
+                          formula cells
 
     Returns:
-        Report dict: cells_scanned, cells_marked, cells_completed (already
-        t="array", cm added), cells_already_declared, cells_shared_skipped,
-        metadata_part_added, per-sheet breakdown under 'sheets'
+        Report dict: cells_scanned, cells_marked, cells_marked_injected
+        (subset of cells_marked that qualified on provenance alone),
+        cells_completed (already t="array", cm added),
+        cells_already_declared, cells_shared_skipped, metadata_part_added,
+        per-sheet breakdown under 'sheets'
 
     Raises:
         DynamicArrayMetadataError: On an unrecognized existing metadata
-        part, or malformed package structure
+        part, malformed package structure, or an injected_cells sheet name
+        that does not exist in the workbook
     """
     vocabulary = set(DYNAMIC_ERA_FUNCTIONS)
     if extra_functions:
@@ -147,9 +173,12 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
 
     members = _read_all_members(source)
 
+    ranges_by_part = _resolve_injected_ranges(members, injected_cells)
+
     report = {
         'cells_scanned': 0,
         'cells_marked': 0,
+        'cells_marked_injected': 0,
         'cells_completed': 0,
         'cells_already_declared': 0,
         'cells_shared_skipped': 0,
@@ -159,11 +188,14 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
 
     for name in sorted(members):
         if name.startswith('xl/worksheets/') and name.endswith('.xml'):
-            new_bytes, sheet_report = _mark_sheet_cells(members[name], detection_rgx)
+            new_bytes, sheet_report = _mark_sheet_cells(
+                members[name], detection_rgx, ranges_by_part.get(name, [])
+            )
             members[name] = new_bytes
             report['sheets'][name] = sheet_report
-            for key in ('cells_scanned', 'cells_marked', 'cells_completed',
-                        'cells_already_declared', 'cells_shared_skipped'):
+            for key in ('cells_scanned', 'cells_marked', 'cells_marked_injected',
+                        'cells_completed', 'cells_already_declared',
+                        'cells_shared_skipped'):
                 report[key] += sheet_report[key]
 
     declaration_needed = (
@@ -180,7 +212,8 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
     _write_all_members(members, destination_path)
 
     logger.info(
-        f"🧬 Dynamic-array declaration: {report['cells_marked']} cell(s) marked, "
+        f"🧬 Dynamic-array declaration: {report['cells_marked']} cell(s) marked "
+        f"({report['cells_marked_injected']} by injection provenance), "
         f"{report['cells_completed']} completed, "
         f"{report['cells_already_declared']} already declared, "
         f"{report['cells_shared_skipped']} shared-formula cell(s) skipped "
@@ -190,7 +223,8 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
     return report
 
 
-def save_workbook_with_declaration(workbook, file_path, extra_functions=None) -> dict:
+def save_workbook_with_declaration(workbook, file_path, extra_functions=None,
+                                   injected_cells=None) -> dict:
     """
     Save an openpyxl workbook with the declaration applied in memory.
 
@@ -202,6 +236,8 @@ def save_workbook_with_declaration(workbook, file_path, extra_functions=None) ->
         workbook:        Live openpyxl Workbook
         file_path:       Destination path
         extra_functions: Passed through to declare_dynamic_formulas_in_zip
+        injected_cells:  Passed through: {sheet name: [(col, r1, r2), ...]}
+                         of recipe-authored formula cells
 
     Returns:
         The declaration report dict
@@ -210,16 +246,105 @@ def save_workbook_with_declaration(workbook, file_path, extra_functions=None) ->
     workbook.save(buffer)
     buffer.seek(0)
 
-    return declare_dynamic_formulas_in_zip(buffer, file_path, extra_functions)
+    return declare_dynamic_formulas_in_zip(
+        buffer, file_path, extra_functions, injected_cells
+    )
 
 
 # --------------------------------------------------------------------------
 # Worksheet surgery
 # --------------------------------------------------------------------------
 
-def _mark_sheet_cells(sheet_bytes: bytes, detection_rgx) -> tuple:
+def _resolve_injected_ranges(members: dict, injected_cells) -> dict:
+    """
+    Translate sheet NAMES to worksheet PART names for the injected ranges.
+
+    Sheet part numbering is not guaranteed to follow tab order, so the tab
+    name is resolved through xl/workbook.xml (name -> r:id) and
+    xl/_rels/workbook.xml.rels (r:id -> part path).
+
+    Args:
+        members:        The package's member dict
+        injected_cells: {sheet name: [(col, r1, r2), ...]} or None
+
+    Returns:
+        {part name: [(col, r1, r2), ...]}, empty when nothing was passed
+
+    Raises:
+        DynamicArrayMetadataError: If a named sheet does not exist
+    """
+    if not injected_cells:
+        return {}
+
+    workbook_xml = members.get('xl/workbook.xml', b'').decode('utf-8')
+    rels_xml = members.get('xl/_rels/workbook.xml.rels', b'').decode('utf-8')
+
+    rid_to_target = {}
+    for entry in relationship_entry_rgx.findall(rels_xml):
+        rid_match = relationship_id_attr_rgx.search(entry)
+        target_match = relationship_target_attr_rgx.search(entry)
+        if rid_match is None or target_match is None:
+            continue
+        target = target_match.group(1)
+        # Targets are workbook-relative ("worksheets/sheet1.xml"); a rare
+        # producer writes package-absolute ("/xl/worksheets/sheet1.xml").
+        part = target.lstrip('/') if target.startswith('/') else 'xl/' + target
+        rid_to_target[rid_match.group(1)] = part
+
+    name_to_part = {}
+    for entry in sheet_entry_rgx.findall(workbook_xml):
+        name_match = sheet_name_attr_rgx.search(entry)
+        rid_match = sheet_rid_attr_rgx.search(entry)
+        if name_match is None or rid_match is None:
+            continue
+        part = rid_to_target.get(rid_match.group(1))
+        if part:
+            # Excel escapes these in the name attribute; tab names cannot
+            # contain < or >, so these three cover the set.
+            sheet_name = (name_match.group(1)
+                          .replace('&amp;', '&')
+                          .replace('&quot;', '"')
+                          .replace('&apos;', "'"))
+            name_to_part[sheet_name] = part
+
+    ranges_by_part = {}
+    for sheet_name, ranges in injected_cells.items():
+        part = name_to_part.get(sheet_name)
+        if part is None:
+            raise DynamicArrayMetadataError(
+                f"injected_cells names a sheet not in the workbook: {sheet_name!r} "
+                f"(workbook has: {sorted(name_to_part)})"
+            )
+        ranges_by_part.setdefault(part, []).extend(ranges)
+
+    return ranges_by_part
+
+
+def _ref_in_ranges(cell_ref: str, injected_ranges) -> bool:
+    """Whether a cell reference falls inside any (col, first_row, last_row) range."""
+    if not injected_ranges:
+        return False
+
+    split_match = cell_ref_split_rgx.match(cell_ref)
+    if split_match is None:
+        return False
+
+    column_letters, row_text = split_match.groups()
+    row_number = int(row_text)
+
+    for range_column, first_row, last_row in injected_ranges:
+        if column_letters == range_column and first_row <= row_number <= last_row:
+            return True
+
+    return False
+
+
+def _mark_sheet_cells(sheet_bytes: bytes, detection_rgx, injected_ranges) -> tuple:
     """
     Mark qualifying formula cells in one worksheet's XML.
+
+    A cell qualifies through the function vocabulary or by appearing in
+    the injected (recipe-authored) ranges - see the entry point docstring.
 
     Returns:
         (new_bytes, sheet_report_dict)
@@ -229,6 +354,7 @@ def _mark_sheet_cells(sheet_bytes: bytes, detection_rgx) -> tuple:
     sheet_report = {
         'cells_scanned': 0,
         'cells_marked': 0,
+        'cells_marked_injected': 0,
         'cells_completed': 0,
         'cells_already_declared': 0,
         'cells_shared_skipped': 0,
@@ -261,13 +387,16 @@ def _mark_sheet_cells(sheet_bytes: bytes, detection_rgx) -> tuple:
             sheet_report['cells_shared_skipped'] += 1
             return cell_text
 
-        if detection_rgx.search(formula_text) is None:
-            return cell_text
-
         ref_match = cell_ref_attr_rgx.search(open_tag)
         if ref_match is None:
             return cell_text
         cell_ref = ref_match.group(1)
+
+        vocabulary_hit = detection_rgx.search(formula_text) is not None
+        provenance_hit = _ref_in_ranges(cell_ref, injected_ranges)
+
+        if not vocabulary_hit and not provenance_hit:
+            return cell_text
 
         new_open_tag = open_tag[:-1] + ' cm="1">'
 
@@ -279,6 +408,8 @@ def _mark_sheet_cells(sheet_bytes: bytes, detection_rgx) -> tuple:
         else:
             new_f_open = f_open[:-1] + f' t="array" ref="{cell_ref}">'
             sheet_report['cells_marked'] += 1
+            if provenance_hit and not vocabulary_hit:
+                sheet_report['cells_marked_injected'] += 1
 
         new_cell_text = cell_text.replace(open_tag, new_open_tag, 1)
         new_cell_text = new_cell_text.replace(

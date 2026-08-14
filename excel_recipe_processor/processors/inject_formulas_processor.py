@@ -23,6 +23,7 @@ from pathlib import Path
 from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.formula.translate import Translator
 from openpyxl.worksheet.formula import ArrayFormula
+from openpyxl.utils.cell import coordinate_from_string
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
@@ -246,7 +247,11 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         workbook = WorkbookSession.get_workbook(filename)
         formulas_injected = 0
         sheets_processed = 0
-        
+
+        # Per-cell live writes collected by _store_formula, keyed by sheet
+        # title; compressed to ranges and registered with the session below.
+        self._written_live_cells = {}
+
         # Determine which sheets to process
         target_sheets = self._get_target_sheets(workbook, sheets)
         
@@ -261,7 +266,14 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             sheets_processed += 1
             
             logger.debug(f"Injected {sheet_formulas} formulas in sheet '{sheet_name}'")
-        
+
+        # Register the recipe-authored cells BEFORE mark_dirty: in
+        # standalone (non-deferred) mode, mark_dirty saves immediately and
+        # the declaration pass reads the registry during that save.
+        for sheet_name, written_cells in self._written_live_cells.items():
+            ranges = self._compress_cells_to_ranges(written_cells)
+            WorkbookSession.register_injected_formulas(filename, sheet_name, ranges)
+
         # Save the modified workbook
         WorkbookSession.mark_dirty(filename)
         
@@ -301,6 +313,42 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         return f"awakened {formulas_awakened} dead formulas across {sheets_processed} sheets in {filename}"
     
+    @staticmethod
+    def _compress_cells_to_ranges(written_cells) -> list:
+        """
+        Collapse (column_letters, row) cells into (column, first, last) runs.
+
+        A fill-down of eight thousand rows becomes one entry; scattered
+        single cells stay single-row ranges. Keeps the session registry and
+        the declaration pass proportional to the number of injected
+        COLUMNS rather than cells.
+
+        Args:
+            written_cells: List of (column_letters, row_number)
+
+        Returns:
+            List of (column_letters, first_row, last_row)
+        """
+        by_column = {}
+        for column_letters, row_number in written_cells:
+            by_column.setdefault(column_letters, set()).add(row_number)
+
+        ranges = []
+        for column_letters in sorted(by_column):
+            rows = sorted(by_column[column_letters])
+            run_start = rows[0]
+            previous = rows[0]
+            for row_number in rows[1:]:
+                if row_number == previous + 1:
+                    previous = row_number
+                    continue
+                ranges.append((column_letters, run_start, previous))
+                run_start = row_number
+                previous = row_number
+            ranges.append((column_letters, run_start, previous))
+
+        return ranges
+
     def _get_target_sheets(self, workbook, sheets) -> list:
         """
         Determine which sheets to process.
@@ -495,6 +543,17 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         else:
             worksheet[target_ref].value = formula_text
 
+        # Record the write for the dynamic-array declaration's provenance
+        # registry: cells the recipe authored are declared aware at save
+        # regardless of function vocabulary. Collected per cell here (the
+        # one live-write funnel), compressed to ranges at registration.
+        if not hasattr(self, '_written_live_cells'):
+            self._written_live_cells = {}
+        column_letters, row_number = coordinate_from_string(target_ref)
+        self._written_live_cells.setdefault(worksheet.title, []).append(
+            (column_letters, row_number)
+        )
+
     def _apply_formula_with_fill_down(self, worksheet, cell_ref: str, formula: str, mode: str,
                                       as_array: bool = False) -> int:
         """
@@ -548,74 +607,62 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         # Validate cell reference
         if not self._is_valid_cell_reference(cell_ref):
             raise StepProcessorError(f"Invalid cell reference: {cell_ref}")
-        
-        cell = worksheet[cell_ref]
-        
-        if mode == 'live':
-            # Set as live formula (openpyxl auto-detects = prefix)
-            cell.value = formula
-        else:  # dead mode
-            # Set as text (prefix with single quote to force text)
-            cell.value = f"'{formula}"
-        
+
+        # All writes go through the one live-write funnel so the provenance
+        # registry sees every recipe-authored cell. (Until 2026-08-13 this
+        # wrote cell.value directly, invisibly to the declaration pass.)
+        self._store_formula(worksheet, cell_ref, formula, mode, False)
+
         logger.debug(f"Set {mode} formula in {cell_ref}: {formula}")
         return 1
     
     def _apply_formula_to_range(self, worksheet, range_ref: str, formula: str, mode: str) -> int:
-        # The range's FIRST cell is the origin the formula was written for;
-        # every other cell gets the formula translated relative to it.
-        range_origin = range_ref.split(':')[0].replace('$', '')
         """
         Apply formula to a range of cells.
-        
+
+        The range's FIRST cell is the origin the formula was written for;
+        every other cell gets the formula translated relative to it, the
+        way Excel's own fill does.
+
         Args:
             worksheet: openpyxl worksheet
             range_ref: Range reference like 'A1:A10', 'B2:D5', etc.
             formula: Base formula to inject (will be adjusted for each cell)
             mode: 'live' or 'dead'
-            
+
         Returns:
             Number of cells modified
         """
         # Validate range reference
         if not self._is_valid_range_reference(range_ref):
             raise StepProcessorError(f"Invalid range reference: {range_ref}")
-        
+
+        range_origin = range_ref.split(':')[0].replace('$', '')
         cells_modified = 0
-        
-        # Get the range
+
         cell_range = worksheet[range_ref]
-        
-        # Handle both single row/column and multi-dimensional ranges
-        if hasattr(cell_range, '__iter__') and not hasattr(cell_range, 'value'):
-            # Multi-dimensional range
-            for row in cell_range:
-                if hasattr(row, '__iter__'):
-                    # Row is iterable (multiple cells)
-                    for cell in row:
-                        adjusted_formula = self._adjust_formula_for_cell(formula, cell.coordinate, range_origin)
-                        if mode == 'live':
-                            cell.value = adjusted_formula
-                        else:
-                            cell.value = f"'{adjusted_formula}"
-                        cells_modified += 1
-                else:
-                    # Single cell in row
-                    adjusted_formula = self._adjust_formula_for_cell(formula, row.coordinate, range_origin)
-                    if mode == 'live':
-                        row.value = adjusted_formula
-                    else:
-                        row.value = f"'{adjusted_formula}"
-                    cells_modified += 1
+
+        # worksheet[range] yields a tuple of row tuples for a real range,
+        # or a bare Cell for a single-cell "range" like "B2:B2" - normalize
+        # to a flat cell walk so every write goes through the one funnel
+        # (which also feeds the provenance registry).
+        if hasattr(cell_range, 'coordinate'):
+            flat_cells = [cell_range]
         else:
-            # Single cell range
-            adjusted_formula = self._adjust_formula_for_cell(formula, cell_range.coordinate, range_origin)
-            if mode == 'live':
-                cell_range.value = adjusted_formula
-            else:
-                cell_range.value = f"'{adjusted_formula}"
+            flat_cells = []
+            for row in cell_range:
+                if hasattr(row, 'coordinate'):
+                    flat_cells.append(row)
+                else:
+                    flat_cells.extend(row)
+
+        for cell in flat_cells:
+            adjusted_formula = self._adjust_formula_for_cell(
+                formula, cell.coordinate, range_origin
+            )
+            self._store_formula(worksheet, cell.coordinate, adjusted_formula, mode, False)
             cells_modified += 1
-        
+
         logger.debug(f"Applied {mode} formula to range {range_ref}: {cells_modified} cells")
         return cells_modified
     

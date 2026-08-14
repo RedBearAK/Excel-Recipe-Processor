@@ -71,6 +71,15 @@ class WorkbookSession:
     # the default vocabulary makes the pass safe by construction.
     _declare_dynamic: bool   = False
 
+    # Provenance registry for the declaration pass: file path ->
+    # {sheet name: [(column_letters, first_row, last_row), ...]} of formula
+    # cells that inject_formulas wrote in live mode this run. Cells listed
+    # here are declared dynamic-array-aware at save REGARDLESS of which
+    # functions they use - the recipe authored them now, so the declaration
+    # states a fact, exactly as if the user had typed them into Excel 365.
+    # Cleared per file after its save, and wholesale on reset().
+    _injected_formula_ranges: dict = {}
+
     @classmethod
     def _key(cls, file_path) -> str:
         """Resolve to an absolute path so aliases share one workbook."""
@@ -136,14 +145,51 @@ class WorkbookSession:
         started = time.perf_counter()
 
         if cls._declare_dynamic:
-            save_workbook_with_declaration(workbook, key)
+            save_workbook_with_declaration(
+                workbook, key, injected_cells=cls._injected_formula_ranges.get(key)
+            )
         else:
             workbook.save(key)
+
+        # This save consumed the file's provenance entries; a later save of
+        # the same path re-registers whatever a later inject step writes.
+        # (Already-marked cells are recognized and skipped on re-saves.)
+        cls._injected_formula_ranges.pop(key, None)
 
         logger.info(
             f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
             f"({context}): {Path(key).name}"
         )
+
+    @classmethod
+    def register_injected_formulas(cls, file_path, sheet_name: str, ranges) -> None:
+        """
+        Record recipe-authored formula cells for the declaration pass.
+
+        Called by inject_formulas (live mode) with the cells it just wrote,
+        as (column_letters, first_row, last_row) ranges - one entry per
+        filled column, not one per cell. No-op checks are deliberate: the
+        registry simply accumulates; whether it is consumed depends on the
+        declare_dynamic setting at save time.
+
+        Args:
+            file_path:  Target workbook path (same value passed to
+                        get_workbook / mark_dirty)
+            sheet_name: Tab name the cells live on
+            ranges:     Iterable of (column_letters, first_row, last_row)
+        """
+        key = cls._key(file_path)
+
+        clean_ranges = []
+        for entry in ranges:
+            column_letters, first_row, last_row = entry
+            clean_ranges.append((str(column_letters), int(first_row), int(last_row)))
+
+        if not clean_ranges:
+            return
+
+        file_entry = cls._injected_formula_ranges.setdefault(key, {})
+        file_entry.setdefault(sheet_name, []).extend(clean_ranges)
 
     @classmethod
     def adopt_workbook(cls, file_path, workbook) -> None:
@@ -238,6 +284,7 @@ class WorkbookSession:
         # failure path and at the next run's start.
         cls._open_workbooks = {}
         cls._dirty_paths = set()
+        cls._injected_formula_ranges = {}
         return written
 
     @classmethod
@@ -269,5 +316,6 @@ class WorkbookSession:
         cls._dirty_paths = set()
         cls._deferred = False
         cls._declare_dynamic = False
+        cls._injected_formula_ranges = {}
 
 # End of file #

@@ -112,4 +112,57 @@ runtime. Flush now empties the caches but preserves the mode flags;
   Fishery-Group-for-Major-Species change in that summary is a non-event
   here: this recipe reads only Booking and Carrier Tracking No.
 
+## Provenance marking (2026-08-13, second pass)
+
+The first real run settled an open question: Excel DOES @-prefix a
+plain-stored `_xlfn.IFS` even when every branch returns a scalar (SALE
+TYPE1 came up as `=@IFS(...)`). Excel's analysis reacts to the function,
+not the branch types - the earlier theory that scalar branches escape the
+`@` was wrong, and the earlier sighting of `@` on SALE TYPE1 was real, just
+tangled up with the donor's braces at the time.
+
+IFS predates dynamic arrays, so it cannot join the safe-by-construction
+vocabulary (a legacy IFS could depend on implicit intersection). The
+always-safe automation is PROVENANCE, not analysis: `cm="1"`+XLDAPR means
+"authored dynamic-array-aware", and for cells `inject_formulas` itself
+wrote, that is true by construction for ANY function - the declaration
+makes the cell behave exactly as if the user had typed the formula into
+Excel 365, which is the stated purpose of injection. An explicit `@`
+written by a recipe author survives marking untouched, so there is no
+recipe formula whose meaning the mark can change.
+
+Mechanics: `_store_formula` (now the ONE live-write funnel - the
+single-cell and range writers previously bypassed it with direct
+`cell.value` writes, an Opus-5-era inconsistency fixed here, along with a
+docstring stranded below executable code in `_apply_formula_to_range`)
+records each live write; `_inject_formulas` compresses the cells to
+`(column, first_row, last_row)` runs and registers them with
+`WorkbookSession.register_injected_formulas()`. At save, the session hands
+the registry to the declaration pass, which resolves tab names to sheet
+part names through `xl/workbook.xml` + its rels (part numbering is not
+guaranteed positional) and marks every registered cell that holds a
+formula, regardless of vocabulary. Registry entries are consumed per file
+at save, and cleared by flush_all/reset.
+
+Scope and limits, stated honestly:
+
+- All seven injected columns now get the declaration, including the
+  scalar SEARCH/COUNTIF Test columns. Marking them is not what Excel's
+  own parsimony would do, but it is a true statement and behaviorally
+  identical in modern Excel; the alternative - deciding which functions
+  "need" it - is the fragile analysis this design exists to avoid.
+- Formulas from any other source (donors, templates, hand edits) still
+  get only the conservative vocabulary. For those, provenance is
+  unknowable and the vocabulary is the only claim we can stand behind.
+- Dead-mode injections register nothing; `awaken` mode does not register
+  its awakened cells (known gap, unused by these recipes - awakened
+  formulas qualify only through the vocabulary).
+- The report line now shows `(N by injection provenance)`; the log is the
+  audit trail for which ground a mark stood on.
+
+The `extra_functions` option and the standalone processor keep their
+prior semantics for on-disk files. No recipe change was needed: the
+existing `declare_dynamic_formulas: true` setting covers SALE TYPE1
+automatically through the registry.
+
 # End of file #

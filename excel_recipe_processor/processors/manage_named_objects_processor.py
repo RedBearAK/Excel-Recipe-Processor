@@ -66,12 +66,21 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     def __init__(self, step_config: dict):
         super().__init__(step_config)
         self.operation = self.get_config_value('operation')
-        
+
         if self.operation not in self.SUPPORTED_OPERATIONS:
             raise StepProcessorError(
                 f"Invalid operation '{self.operation}'. "
                 f"Supported: {', '.join(self.SUPPORTED_OPERATIONS)}"
             )
+
+        for retired_key in ('import_file', 'export_file'):
+            if self.get_config_value(retired_key, None):
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': '{retired_key}' was renamed to "
+                    f"'yaml_file' (2026-08-13 survey; the old names collided "
+                    f"with processor names). Direction follows the operation: "
+                    f"export_* writes it, import_*/validate_yaml reads it."
+                )
     
     def perform_file_operation(self, filename: str) -> dict:
         """
@@ -656,7 +665,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Execute export all operation."""
         
         source_file = self.get_config_value('source_file')
-        export_file = self.get_config_value('export_file')
+        export_file = self.get_config_value('yaml_file')
         vba_file = self.get_config_value('vba_file')
         export_formats = self.get_config_value('export_formats')
         
@@ -1029,7 +1038,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Export named objects matching the configured name patterns."""
 
         source_file = self.get_config_value('source_file')
-        export_file = self.get_config_value('export_file')
+        export_file = self.get_config_value('yaml_file')
         vba_file = self.get_config_value('vba_file')
         include_patterns = self.get_config_value('include_patterns')
         exclude_patterns = self.get_config_value('exclude_patterns')
@@ -1114,7 +1123,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     def _import_from_yaml_file(self, filtered: bool) -> dict:
         """Shared implementation for import_all and import_filtered."""
 
-        import_file = self.get_config_value('import_file')
+        import_file = self.get_config_value('yaml_file')
         target_file = self.get_config_value('target_file')
         include_local = self.get_config_value('include_local', True)
         include_patterns = self.get_config_value('include_patterns')
@@ -1123,7 +1132,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         operation_name = 'import_filtered' if filtered else 'import_all'
 
         if not import_file:
-            raise StepProcessorError(f"import_file required for {operation_name} operation")
+            raise StepProcessorError(f"yaml_file required for {operation_name} operation")
 
         if not target_file:
             raise StepProcessorError(f"target_file required for {operation_name} operation")
@@ -1175,10 +1184,10 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     def _execute_validate_yaml(self) -> dict:
         """Check a YAML export for structural and naming problems without writing."""
 
-        import_file = self.get_config_value('import_file')
+        import_file = self.get_config_value('yaml_file')
 
         if not import_file:
-            raise StepProcessorError("import_file required for validate_yaml operation")
+            raise StepProcessorError("yaml_file required for validate_yaml operation")
 
         name_validation = self.get_config_value('name_validation', 'excel')
 

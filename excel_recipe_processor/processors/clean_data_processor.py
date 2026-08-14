@@ -1,6 +1,8 @@
 """
 Enhanced clean data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/clean_data_processor.py
+
 Handles various data cleaning operations including conditional replacements.
 """
 
@@ -821,3 +823,5 @@ class CleanDataProcessor(BaseStepProcessor):
     def get_usage_examples(self) -> dict:
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('clean_data')
+
+# End of file #

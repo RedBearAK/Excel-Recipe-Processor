@@ -33,8 +33,9 @@ class BaseStepProcessor(ABC):
     # Whether the recipe loader should insist on the standard stage fields.
     #
     # Most processors read one stage and write another. A few do not:
-    # create_stage invents a stage from inline data and takes 'stage_name'
-    # instead, and copy_stage reads a source but names its output the same way.
+    # create_stage invents a stage from inline data (no source_stage); both
+    # it and copy_stage name their output with the standard 'save_to_stage'
+    # since the 2026-08-13 standardization.
     # Declaring it here keeps the loader from having to carry a hardcoded list
     # of exceptions that drifts out of step with the processors themselves.
     requires_source_stage = True
@@ -239,6 +240,28 @@ class BaseStepProcessor(ABC):
     def __repr__(self) -> str:
         """Developer representation of the step processor."""
         return f"{self.__class__.__name__}(step_config={self.step_config})"
+
+
+    def get_capabilities(self) -> dict:
+        """Generic default; processors override with their own capabilities."""
+        return {
+            'description': f"{self.step_type} step processor",
+            'note': 'this processor has not published detailed capabilities',
+        }
+
+    def get_usage_examples(self) -> dict:
+        """
+        Default: load this processor's examples from its external YAML file.
+
+        Every processor keeps a _examples/<type>_examples.yaml; most modules
+        carried an identical three-line method doing exactly this load, and
+        nine never did - making usage examples error for them alone. The
+        base default closes that gap for every processor at once, and makes
+        the per-module boilerplate deletable. Overriding still works for
+        any processor that needs something dynamic.
+        """
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples(self.step_type)
 
 
 class StepProcessorRegistry:
@@ -548,164 +571,3 @@ class FileOpsBaseProcessor(BaseStepProcessor):
             String describing the operation type
         """
         return "file_operation"
-
-
-class FormatExcelProcessor(FileOpsBaseProcessor):
-    """Processor for formatting existing Excel files."""
-    
-    @classmethod
-    def get_minimal_config(cls) -> dict:
-        return {'target_file': 'output.xlsx'}
-    
-    def _validate_file_operation_config(self):
-        """Validate format_excel specific configuration."""
-        # Override base validation to check for target_file specifically
-        if not self.get_config_value('target_file'):
-            raise StepProcessorError(f"Format Excel step '{self.step_name}' requires 'target_file'")
-    
-    def perform_file_operation(self) -> str:
-        """Format the target Excel file."""
-        # Check openpyxl availability
-        try:
-            import openpyxl
-        except ImportError:
-            raise StepProcessorError("openpyxl is required for Excel formatting but not installed")
-        
-        target_file = self.get_config_value('target_file')
-        formatting = self.get_config_value('formatting', {})
-        
-        # Apply variable substitution to target filename
-        final_target_file = self._apply_variable_substitution(target_file)
-        
-        # Validate file exists and is Excel format
-        from pathlib import Path
-        file_path = Path(final_target_file)
-        
-        if not file_path.exists():
-            raise StepProcessorError(f"Target file not found: {final_target_file}")
-        
-        if file_path.suffix.lower() not in ['.xlsx', '.xls']:
-            raise StepProcessorError(f"Target file must be Excel format (.xlsx or .xls), got: {file_path.suffix}")
-        
-        # Load and format the workbook
-        formatted_sheets = self._format_excel_file(final_target_file, formatting)
-        
-        return f"formatted {final_target_file} ({formatted_sheets} sheets processed)"
-    
-    def _apply_variable_substitution(self, filename: str) -> str:
-        """Apply variable substitution to filename."""
-        # Get custom variables from processor config
-        custom_variables = self.get_config_value('variables', {})
-        
-        # Create variable substitution instance
-        from excel_recipe_processor.core.variable_substitution import VariableSubstitution
-        variable_sub = VariableSubstitution(
-            input_path=None,
-            recipe_path=None, 
-            custom_variables=custom_variables
-        )
-        
-        # Apply substitution
-        try:
-            substituted = variable_sub.substitute(filename)
-            if substituted != filename:
-                logger.debug(f"Variable substitution: {filename} → {substituted}")
-            return substituted
-        except Exception as e:
-            logger.warning(f"Variable substitution failed for '{filename}': {e}")
-            return filename
-    
-    def _format_excel_file(self, filename: str, formatting: dict) -> int:
-        """Apply formatting to Excel file and return number of sheets processed."""
-        # This would contain all the existing Excel formatting logic
-        # from the current FormatExcelProcessor.execute() method
-        
-        # For brevity, just showing the structure:
-        import openpyxl
-        
-        workbook = openpyxl.load_workbook(filename)
-        sheets_processed = 0
-        
-        for worksheet in workbook.worksheets:
-            if formatting.get('auto_fit_columns'):
-                self._auto_fit_columns(worksheet)
-            
-            if formatting.get('header_bold'):
-                self._make_headers_bold(worksheet)
-            
-            if formatting.get('header_background'):
-                self._add_header_background(worksheet, formatting.get('header_background_color', 'D3D3D3'))
-            
-            if formatting.get('freeze_top_row'):
-                worksheet.freeze_panes = 'A2'
-            
-            if formatting.get('auto_filter'):
-                self._add_auto_filter(worksheet)
-            
-            sheets_processed += 1
-        
-        workbook.save(filename)
-        workbook.close()
-        
-        return sheets_processed
-    
-    def _auto_fit_columns(self, worksheet):
-        """Auto-fit column widths."""
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            
-            adjusted_width = min(max_length + 2, 50)  # Cap at 50
-            worksheet.column_dimensions[column_letter].width = adjusted_width
-    
-    def _make_headers_bold(self, worksheet):
-        """Make first row bold."""
-        from openpyxl.styles import Font
-        
-        for cell in worksheet[1]:  # First row
-            cell.font = Font(bold=True)
-    
-    def _add_header_background(self, worksheet, color):
-        """Add background color to first row."""
-        from openpyxl.styles import PatternFill
-        
-        fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-        
-        for cell in worksheet[1]:  # First row
-            cell.fill = fill
-    
-    def _add_auto_filter(self, worksheet):
-        """Add auto-filter to data range."""
-        if worksheet.max_row > 1:
-            from openpyxl.utils import get_column_letter
-            data_range = f"A1:{get_column_letter(worksheet.max_column)}{worksheet.max_row}"
-            worksheet.auto_filter.ref = data_range
-    
-    def get_operation_type(self) -> str:
-        return "excel_formatting"
-    
-    def get_capabilities(self) -> dict:
-        """Get processor capabilities information."""
-        return {
-            'description': 'Format existing Excel files with professional presentation features',
-            'operation_type': 'file_formatting',
-            'formatting_features': [
-                'auto_fit_columns', 'column_widths', 'header_bold', 'header_background',
-                'freeze_panes', 'freeze_top_row', 'row_heights', 'auto_filter', 'active_sheet'
-            ],
-            'file_requirements': ['xlsx', 'xls'],
-            'dependencies': ['openpyxl'],
-            'stage_requirements': 'none',  # Key difference from data processors
-            'examples': {
-                'auto_fit': "Automatically size columns to fit content",
-                'header_styling': "Bold headers with background color",
-                'freeze_panes': "Freeze top row for easier navigation"
-            }
-        }

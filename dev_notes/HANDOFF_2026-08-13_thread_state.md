@@ -83,6 +83,14 @@ Shipped, awaiting first real-run eyes:
    verify_data possible growth (row_count rules, a not-formula-aware
    file-mode warning if a rule targets a column whose cells are formulas).
 
+## Stage-key families (post-standardization, 2026-08-13)
+
+Bare 'stage' is gone. source_stage/save_to_stage/lookup_stage for
+step-level flow (copy_stage and create_stage included, as of the
+thirteenth pass); 'stage_name' only for settings declarations and rule/
+sub-config references. copy_stage was latently pipeline-broken before the
+sweep - see the notes file's thirteenth pass before touching it.
+
 ## Sharp edges worth re-reading before touching related code
 
 - pandas 3 null detection in the CMA SHIP REF coalesce: positive

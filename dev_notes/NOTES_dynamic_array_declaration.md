@@ -379,4 +379,69 @@ save_to_stage (copy_stage's own comment acknowledges it). Deployed
 semantics, wider blast radius - a later harmonization decision, not a
 drive-by.
 
+## stage-key standardization sweep (2026-08-13, thirteenth pass)
+
+Bare 'stage' eliminated entirely, no aliasing - the user's call: stage_name
+exists precisely to disambiguate, backward compat carries no value in a
+one-user project. Final key families: the data-flow trio (source_stage /
+save_to_stage / lookup_stage) for step-level flow; 'stage_name' ONLY for
+declarations (settings stages) and references (filter rules, aggregate/
+group source_configs); nothing else.
+
+- verify_columns: the short-lived alias removed; bare 'stage' now errors
+  naming source_stage. Its test fixtures moved to canonical.
+- copy_stage: REWRITTEN, because the audit found it latently broken at
+  runtime - it never set requires_source_stage=False, so the pipeline ran
+  it through execute_stage_to_stage, whose unconditional save_output_data
+  raised on the missing save_to_stage right after the internal save.
+  (requires_save_to_stage only informs recipe-LOAD validation.) Now:
+  source_stage in, save_to_stage out, execute passes through, and an
+  overridden save_output_data honors description/overwrite. Its examples
+  file had a THIRD spelling ('target_stage') the processor never read -
+  examples were already broken against their own processor; fixed.
+- create_stage: destination renamed to save_to_stage (its
+  requires_source_stage=False branch never auto-saves, so the internal
+  save simply reads the new key). requires_save_to_stage=False flag
+  removed - no longer true.
+- Both processors give guided errors on step-level 'stage_name', naming
+  save_to_stage and the standardization date.
+- recipe_pipeline's --stop-after check reads save_to_stage only.
+- CMA recipe's create_stage step and both processors' examples updated
+  (settings declarations in those examples correctly KEEP stage_name).
+- Both dedicated test modules updated: create was a pure key rename; copy
+  tests now compose execute + save_output_data as the pipeline does. Both
+  pass, as do verify_columns/verify_data/comprehensive_variable_substitution.
+
+## Convention survey (2026-08-13, fourteenth pass)
+
+Programmatic drift audit across all 39 processors - full findings in
+SURVEY_2026-08-13_processor_conventions.md. Fixed: a ~185-line DEAD
+DUPLICATE FormatExcelProcessor living inside core/base_processor.py
+(no imports anywhere; removed); nine processors erroring on usage
+examples for lack of the method (BaseStepProcessor now provides the
+external-YAML default, making ~28 boilerplate copies deletable and
+probably making test_usage_examples repairable); seed_donor's examples
+YAML missing its required description key; and the base get_capabilities
+default that was a stale format_excel copy-paste. Surveyed for decisions:
+sheet-key drift ('sheet' vs 'sheet_name'), manage_named_objects' config
+keys colliding with processor names, and the ~18-module mechanical style
+debt (path lines, typing imports, end markers). Full battery green after
+the base surgery; format_excel suite still byte-identical to pristine.
+
+## Survey follow-ups (2026-08-13, fifteenth pass)
+
+manage_named_objects: 'import_file' and 'export_file' turned out to name
+the SAME thing - the YAML definitions file - from opposite directions,
+never both in one operation. Collapsed to one key, 'yaml_file', matching
+the processor's own content-type precedent (vba_file); direction follows
+the operation. Guided error on the retired keys cites the survey;
+examples and the passing-baseline test module updated (its fixtures used
+the old keys).
+
+Mechanical pass: docstring path lines and end-of-file markers scripted
+into all 17 lacking processor modules (path line after the summary line;
+deprecated module skipped); all modules compile, full battery green,
+both recipes validate. Survey's remaining open item: typing-module
+imports in 16 modules, deferred to its own pass.
+
 # End of file #

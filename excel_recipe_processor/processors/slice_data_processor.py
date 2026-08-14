@@ -347,3 +347,5 @@ class SliceDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the slice_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('slice_data')
+
+# End of file #

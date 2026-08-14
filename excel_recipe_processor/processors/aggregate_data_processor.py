@@ -1,6 +1,8 @@
 """
 Aggregate data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/aggregate_data_processor.py
+
 Handles grouping data and applying aggregation functions to create summary statistics
 with support for:
 - Stage-based aggregation configuration via StageManager integration
@@ -670,3 +672,5 @@ class AggregateDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the aggregate_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('aggregate_data')
+
+# End of file #

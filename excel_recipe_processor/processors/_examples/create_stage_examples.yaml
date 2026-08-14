@@ -28,7 +28,7 @@ basic_list_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage (must be declared in settings.stages)
-        stage_name: "approved_customers"
+        save_to_stage: "approved_customers"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Customer IDs approved for promotional pricing"
@@ -69,7 +69,7 @@ table_mapping_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        stage_name: "region_mapping"
+        save_to_stage: "region_mapping"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Maps US states to sales regions"
@@ -112,7 +112,7 @@ dictionary_lookup_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        stage_name: "customer_tiers"
+        save_to_stage: "customer_tiers"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Maps customer IDs to service tier levels"
@@ -164,7 +164,7 @@ advanced_filter_criteria_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        stage_name: "priority_products"
+        save_to_stage: "priority_products"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Product codes flagged as high priority for Q4"
@@ -192,7 +192,7 @@ advanced_filter_criteria_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        stage_name: "excluded_regions"
+        save_to_stage: "excluded_regions"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Regions excluded due to incomplete data"
@@ -222,10 +222,10 @@ advanced_filter_criteria_example:
         filters:
           - column: "Product_Code"
             condition: "in_stage"
-            stage_name: "priority_products"
+            save_to_stage: "priority_products"
           - column: "Region"
             condition: "not_in_stage"
-            stage_name: "excluded_regions"
+            save_to_stage: "excluded_regions"
           - column: "Revenue"
             condition: "greater_than"
             value: "{min_revenue}"
@@ -256,7 +256,7 @@ configuration_driven_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        stage_name: "validation_rules"
+        save_to_stage: "validation_rules"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Defines required columns and their validation rules"
@@ -280,7 +280,7 @@ configuration_driven_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        stage_name: "cleanup_mappings"
+        save_to_stage: "cleanup_mappings"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Maps common data entry errors to correct values"

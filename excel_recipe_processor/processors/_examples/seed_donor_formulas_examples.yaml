@@ -1,6 +1,8 @@
 # Usage examples for seed_donor_formulas processor
 # processors/_examples/seed_donor_formulas_examples.yaml
 
+description: "Transplant formulas from donor Excel files to recipient files for seeding calculation columns. Largely superseded by inject_formulas' recipe-authored formulas; kept for donor-workbook workflows."
+
 # Basic example - transplant formulas using Excel column references
 basic_column_references:
   description: "Transplant formulas from template to new file using column letters"

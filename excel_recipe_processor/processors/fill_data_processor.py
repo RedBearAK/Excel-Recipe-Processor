@@ -1,6 +1,8 @@
 """
 Fill data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/fill_data_processor.py
+
 Handles filling missing/null values with various strategies similar to Excel's fill capabilities.
 """
 
@@ -528,3 +530,5 @@ class FillDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the fill_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('fill_data')
+
+# End of file #

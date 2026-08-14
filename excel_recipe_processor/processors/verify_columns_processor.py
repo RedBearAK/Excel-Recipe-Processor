@@ -51,16 +51,14 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
         super().__init__(step_config)
 
         # Canonical key: source_stage, the data-flow family's name for "the
-        # stage this step reads". The original bare 'stage' spelling is
-        # accepted for deployed recipes, with a nudge toward the canonical.
+        # stage this step reads". Bare 'stage' was retired in the 2026-08-13
+        # standardization - no alias; the error names the right key.
         self.stage = self.get_config_value('source_stage', None)
-        legacy_stage = self.get_config_value('stage', None)
-        if legacy_stage and not self.stage:
-            logger.warning(
-                f"⚠️ Step '{self.step_name}': 'stage' accepted, but the "
-                f"canonical key is 'source_stage' - consider updating the recipe"
+        if self.get_config_value('stage', None):
+            raise StepProcessorError(
+                f"Step '{self.step_name}': use 'source_stage' (the stage this "
+                f"step reads), not 'stage'"
             )
-            self.stage = legacy_stage
         self.expected_columns = self.get_config_value('expected_columns', None)
 
         # The expectation can come from another stage's columns instead of a

@@ -1,6 +1,8 @@
 """
 Sort data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/sort_data_processor.py
+
 Handles sorting DataFrame rows by one or multiple columns with flexible options.
 """
 
@@ -416,3 +418,5 @@ class SortDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the sort_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('sort_data')
+
+# End of file #

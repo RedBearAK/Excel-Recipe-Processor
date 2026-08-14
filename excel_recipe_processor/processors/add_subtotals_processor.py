@@ -1,6 +1,8 @@
 """
 Add subtotals step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/add_subtotals_processor.py
+
 Handles inserting subtotal rows into grouped data with various aggregation functions.
 """
 
@@ -439,3 +441,5 @@ class SubtotalUtils:
             'position': 'after_group',
             'preserve_totals': True
         }
+
+# End of file #

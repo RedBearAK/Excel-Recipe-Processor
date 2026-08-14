@@ -1,6 +1,8 @@
 """
 Combine data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/combine_data_processor.py
+
 Handles combining multiple DataFrames from various sources (stages, current data)
 with enhanced column handling, header retention, and different combination methods.
 """
@@ -457,3 +459,5 @@ class CombineDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the combine_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('combine_data')
+
+# End of file #

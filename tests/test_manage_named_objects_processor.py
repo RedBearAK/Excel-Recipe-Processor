@@ -127,7 +127,7 @@ def test_object_extraction():
         'processor_type': 'manage_named_objects',
         'operation': 'export_all',
         'source_file': 'test.xlsx',
-        'export_file': 'test_export.yaml'
+        'yaml_file': 'test_export.yaml'
     }
     
     processor = ManageNamedObjectsProcessor(step_config)
@@ -510,7 +510,7 @@ def test_processor_capabilities():
             'processor_type': 'manage_named_objects',
             'operation': 'export_all',
             'source_file': 'test.xlsx',
-            'export_file': 'test.yaml'
+            'yaml_file': 'test.yaml'
         }
         
         processor = ManageNamedObjectsProcessor(step_config)

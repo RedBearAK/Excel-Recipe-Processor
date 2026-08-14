@@ -423,7 +423,7 @@ class RecipePipeline:
         if not self._stop_after_stage:
             return False
 
-        written = step_config.get('save_to_stage') or step_config.get('stage_name')
+        written = step_config.get('save_to_stage')
         return written == self._stop_after_stage
 
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:

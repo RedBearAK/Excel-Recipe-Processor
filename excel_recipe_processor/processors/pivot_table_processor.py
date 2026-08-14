@@ -1,6 +1,8 @@
 """
 Pivot table step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/pivot_table_processor.py
+
 Handles creating pivot tables with various configurations and aggregation functions.
 """
 
@@ -343,3 +345,5 @@ class PivotTableProcessor(BaseStepProcessor):
         """Get complete usage examples for the pivot_table processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('pivot_table')
+
+# End of file #

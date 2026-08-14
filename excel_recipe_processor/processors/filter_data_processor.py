@@ -1,6 +1,8 @@
 """
 Filter data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/filter_data_processor.py
+
 Handles filtering DataFrame rows based on various conditions including 
 stage-based comparisons using StageManager integration.
 """
@@ -816,3 +818,5 @@ class FilterDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the filter_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('filter_data')
+
+# End of file #

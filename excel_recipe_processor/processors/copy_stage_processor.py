@@ -1,6 +1,19 @@
+"""
+Copy a stage's data to another named stage.
 
-import pandas as pd
+excel_recipe_processor/processors/copy_stage_processor.py
+
+Standard data-flow keys: source_stage in, save_to_stage out - the
+2026-08-13 standardization retired this processor's old 'stage_name'
+destination key, which had a worse problem than inconsistent naming:
+without save_to_stage set, the pipeline's execute_stage_to_stage() still
+called save_output_data() after the internal save and crashed the step.
+The processor now rides the normal save path, overriding it only to honor
+its own 'description' and 'overwrite' options.
+"""
+
 import logging
+import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
@@ -10,69 +23,70 @@ logger = logging.getLogger(__name__)
 
 
 class CopyStageProcessor(BaseStepProcessor):
-    """Processor for saving current data as a named stage."""
+    """Copy source_stage to save_to_stage, with description/overwrite control."""
 
-    # Reads a source stage but names its destination with 'stage_name'.
-    requires_save_to_stage = False
-    
     @classmethod
     def get_minimal_config(cls) -> dict:
-        return {'stage_name': 'test_stage'}
-    
+        return {
+            'source_stage': 'stg_original',
+            'save_to_stage': 'stg_copy',
+        }
+
     def execute(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Save stage with proper error handling."""
-        self.log_step_start()
-        
-        # Validate inputs
+        """Pass the data through unchanged; the save path does the copy."""
+        if self.step_config.get('stage_name'):
+            raise StepProcessorError(
+                f"Copy stage step '{self.step_name}': the destination key is "
+                f"'save_to_stage' (2026-08-13 standardization; 'stage_name' is "
+                f"for declarations and rule references, never step-level flow)"
+            )
+
         if not isinstance(data, pd.DataFrame):
-            raise StepProcessorError(f"Save stage step '{self.step_name}' requires a pandas DataFrame")
-        
+            raise StepProcessorError(
+                f"Copy stage step '{self.step_name}' requires a pandas DataFrame"
+            )
         self.validate_data_not_empty(data)
-        self.validate_required_fields(['stage_name'])
-        
-        # Get configuration
-        stage_name = self.get_config_value('stage_name')
-        overwrite = self.get_config_value('overwrite', False)
+
+        return data
+
+    def save_output_data(self, data) -> None:
+        """The standard save, honoring this processor's description/overwrite."""
         description = self.get_config_value('description', '')
-        
+        overwrite = self.get_config_value('overwrite', False)
+
         try:
-            # ✅ Call module function with proper error handling
             StageManager.save_stage(
-                stage_name=stage_name,
+                stage_name=self.save_to_stage,
                 data=data,
                 overwrite=overwrite,
-                description=description,
-                step_name=self.step_name
+                description=description or f"Copy of '{self.source_stage}'",
+                step_name=self.step_name,
             )
-            
-            result_info = f"saved stage '{stage_name}' ({len(data)} rows, {len(data.columns)} columns)"
-            self.log_step_complete(result_info)
-            
-            return data  # Pass through unchanged
-            
-        except StageError as e:
-            # ✅ Convert StageError to StepProcessorError for consistency
-            raise StepProcessorError(f"Error saving stage in step '{self.step_name}': {e}")
-    
+        except StageError as error:
+            raise StepProcessorError(
+                f"Error saving stage in step '{self.step_name}': {error}"
+            )
+
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Save current DataFrame as a named stage for later use',
+            'description': 'Copy a stage to another named stage',
+            'keys': 'source_stage in, save_to_stage out - the standard data-flow '
+                    'pair; plus optional description and overwrite',
             'stage_features': [
                 'data_preservation', 'overwrite_protection', 'metadata_tracking',
                 'usage_monitoring', 'memory_tracking', 'stage_limits'
             ],
-            'safety_features': [
-                'overwrite_validation', 'stage_name_validation', 'data_copying'
-            ],
             'examples': {
-                'backup': "Save original data before processing",
-                'checkpoint': "Save intermediate results for later analysis",
-                'branching': "Save data before trying different processing paths"
+                'backup': "Copy original data before processing",
+                'checkpoint': "Copy intermediate results for later analysis",
+                'branching': "Copy data before trying different processing paths"
             }
         }
-    
+
     def get_usage_examples(self) -> dict:
         """Get complete usage examples for the copy_stage processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('copy_stage')
+
+# End of file #

@@ -1,6 +1,8 @@
 """
 Add calculated column step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/add_calculated_column_processor.py
+
 Handles creating new columns with calculated values based on existing data.
 """
 
@@ -795,3 +797,5 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
     def get_usage_examples(self) -> dict:
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('add_calculated_column')
+
+# End of file #

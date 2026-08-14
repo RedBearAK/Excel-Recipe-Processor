@@ -1,6 +1,8 @@
 """
 Debug breakpoint processor for Excel automation recipes.
 
+excel_recipe_processor/processors/debug_breakpoint_processor.py
+
 Provides a simple way to stop recipe execution for testing and troubleshooting.
 """
 
@@ -127,3 +129,5 @@ class DebugBreakpointProcessor(ExportBaseProcessor):  # ← CHANGE: inherit from
         """Get complete usage examples for the debug_breakpoint processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('debug_breakpoint')
+
+# End of file #

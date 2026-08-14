@@ -1,6 +1,8 @@
 """
 Group data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/group_data_processor.py
+
 Handles grouping individual values into categories with support for:
 - Stage-based group definitions via StageManager integration
 - File-based group definitions with variable substitution via FileReader
@@ -661,3 +663,5 @@ class GroupDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the group_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('group_data')
+
+# End of file #

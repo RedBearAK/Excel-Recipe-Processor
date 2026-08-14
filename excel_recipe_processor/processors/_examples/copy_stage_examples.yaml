@@ -30,8 +30,8 @@ basic_example:
         processor_type: "copy_stage"
         # REQ - Source stage to copy data from
         source_stage: "raw_import"
-        # REQ - Target stage name for the copy
-        target_stage: "raw_backup"
+        # REQ - Destination for the copy
+        save_to_stage: "raw_backup"
 
 workflow_branching_example:
   description: "Create copies for different processing branches"
@@ -66,7 +66,7 @@ workflow_branching_example:
         # REQ - Stage to copy from
         source_stage: "cleaned_data"
         # REQ - New stage name for the copy
-        target_stage: "branch_strict"
+        save_to_stage: "branch_strict"
         # OPT - Detailed description for the copied stage
         # Default value: "Copy of {source_stage}"
         description: "Working copy for testing strict business rules"
@@ -75,7 +75,7 @@ workflow_branching_example:
       - step_description: "Copy data for lenient filtering approach"
         processor_type: "copy_stage"
         source_stage: "cleaned_data"
-        target_stage: "branch_lenient"
+        save_to_stage: "branch_lenient"
         description: "Working copy for testing relaxed business rules"
       
       # Process each branch differently
@@ -138,7 +138,7 @@ checkpoint_recovery_example:
         # REQ - Source stage
         source_stage: "cleaned"
         # REQ - Target checkpoint stage
-        target_stage: "checkpoint_1"
+        save_to_stage: "checkpoint_1"
         # OPT - Allow overwriting during development
         # Default value: false
         overwrite: true
@@ -156,7 +156,7 @@ checkpoint_recovery_example:
       - step_description: "Checkpoint: Post-enrichment"
         processor_type: "copy_stage"
         source_stage: "enriched"
-        target_stage: "checkpoint_2"
+        save_to_stage: "checkpoint_2"
         overwrite: true
         description: "Recovery point after enrichment phase"
 
@@ -191,7 +191,7 @@ versioning_example:
         # REQ - Current report stage
         source_stage: "current_report"
         # REQ - Versioned target using variable
-        target_stage: "report_{version}"
+        save_to_stage: "report_{version}"
         # OPT - Prevent overwriting existing versions
         # Default value: false
         overwrite: false
@@ -202,7 +202,7 @@ versioning_example:
       - step_description: "Create date-stamped archive"
         processor_type: "copy_stage"
         source_stage: "current_report"
-        target_stage: "report_archive_{report_date}"
+        save_to_stage: "report_archive_{report_date}"
         description: "Permanent archive for {report_date}"
 
 iterative_development_example:
@@ -230,7 +230,7 @@ iterative_development_example:
         # REQ - Test data source
         source_stage: "test_input"
         # REQ - Working stage (overwritable)
-        target_stage: "working_copy"
+        save_to_stage: "working_copy"
         # OPT - Enable overwrite for iterative development
         # Default value: false
         # Set to true during development, false in production

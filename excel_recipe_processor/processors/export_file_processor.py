@@ -2,6 +2,8 @@
 """
 Export file step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/export_file_processor.py
+
 Pure stage-based file export - consumes stages, saves to files.
 """
 
@@ -259,3 +261,5 @@ class ExportFileProcessor(ExportBaseProcessor):
                 )
         
         return sheets_data
+
+# End of file #

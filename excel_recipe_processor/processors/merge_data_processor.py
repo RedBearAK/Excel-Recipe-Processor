@@ -1,6 +1,8 @@
 """
 Merge data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/merge_data_processor.py
+
 Handles merging DataFrames with external data sources using FileReader
 infrastructure and StageManager for comprehensive data integration.
 """
@@ -440,3 +442,5 @@ class MergeDataProcessor(BaseStepProcessor):
 
 # Note: Other processors should use FileReader directly for simple file reading
 # Example: data = FileReader.read_file(filename, variables, sheet, encoding)
+
+# End of file #

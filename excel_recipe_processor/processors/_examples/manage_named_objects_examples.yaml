@@ -36,7 +36,7 @@ export_example:
         operation: "export_all"
         source_file: "reference_workbook.xlsx"
         # OPT - YAML output path
-        export_file: "named_objects.yaml"
+        yaml_file: "named_objects.yaml"
         # OPT - Pipe-delimited output for VBA
         vba_file: "named_objects.txt"
         # OPT - Include sheet-scoped names as well as workbook-scoped
@@ -121,7 +121,7 @@ import_example:
         processor_type: "manage_named_objects"
         operation: "import_all"
         # REQ - YAML file produced by export_all
-        import_file: "named_objects.yaml"
+        yaml_file: "named_objects.yaml"
         # REQ - Workbook to write into, which must already exist
         target_file: "output/report.xlsx"
         # OPT - "error" (default), "replace", or "skip"
@@ -170,7 +170,7 @@ validate_example:
       - step_description: "Validate the YAML export"
         processor_type: "manage_named_objects"
         operation: "validate_yaml"
-        import_file: "named_objects.yaml"
+        yaml_file: "named_objects.yaml"
         name_validation: "house"
 
 
@@ -196,11 +196,11 @@ parameter_details:
     required: "for import_all, import_filtered, copy_direct, create_from_columns"
     description: "Workbook to write into. Must already exist - named objects are added to a workbook, not used to create one."
 
-  import_file:
+  yaml_file:
     required: "for import_all, import_filtered, validate_yaml"
     description: "YAML file previously produced by an export operation"
 
-  export_file:
+  yaml_file:
     required: false
     description: "YAML output path for export operations"
 

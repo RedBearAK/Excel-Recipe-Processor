@@ -282,7 +282,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
             'column_formats', 'hidden_columns', 'header_row', 'on_missing_column',
-            'row_heights',
+            'row_heights', 'tab_color',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -322,6 +322,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 self._normalize_color(sheet_config['general_text_color'])
             except ValueError as e:
                 raise StepProcessorError(f"Invalid general_text_color in {context}: {e}")
+
+        if 'tab_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['tab_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid tab_color in {context}: {e}")
         
         # Validate alignment values
         valid_h_alignments = ['left', 'center', 'right', 'justify', 'distributed']
@@ -823,6 +829,15 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             logger.info(f"🔍 [{sheet_name}] Adding auto-filter")
             self._add_auto_filter(worksheet)
             applied_operations.append("auto-filter")
+
+        # Tab color: same color vocabulary as every other color option
+        # (hex with or without #, CSS names, rgb()). openpyxl takes the
+        # bare 6-digit hex on sheet_properties.tabColor.
+        if formatting.get('tab_color'):
+            tab_hex = self._normalize_color(formatting['tab_color'])
+            worksheet.sheet_properties.tabColor = tab_hex
+            logger.info(f"🏷️  [{sheet_name}] Tab color set to #{tab_hex}")
+            applied_operations.append(f"tab color #{tab_hex}")
         
         # Log summary of applied operations
         if applied_operations:

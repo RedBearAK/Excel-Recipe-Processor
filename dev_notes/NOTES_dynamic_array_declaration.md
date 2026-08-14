@@ -499,4 +499,27 @@ Sweep-audit lesson recorded: sub-config vocabularies (range entries,
 formatting entries, rule dicts) each need explicit enumeration in a key
 sweep; grepping step-level get_config_value sites alone misses them.
 
+## Real-run fix 2: export entry-list key collateral (2026-08-14)
+
+Second production halt, same root sweep: the recipe rename of
+sheets -> sheet_names was aimed at inject's NAME LIST but blindly hit the
+EXPORT steps' structural 'sheets' ENTRY LIST (dicts with sheet_name +
+data_source) in both recipes - the key the sweep notes had explicitly
+decided to keep. export_file then found no 'sheets', SILENTLY degraded to
+single-sheet mode, and wrote one default-named 'Data' tab; step 58's
+named ranges met a one-tab workbook.
+
+Fixes: both recipes' export entry lists restored to 'sheets' (inject's
+plain name list stays sheet_names); and export_file now REFUSES a
+'sheet_names' key with a guided error explaining the two keys' different
+shapes and citing this incident - the silent degradation path is closed.
+The full step 56 -> 58 chain (the recipe's real export sheets list, then
+its real range definitions, via the session bridge) reproduced locally:
+11 tabs, 13 named ranges, rng_PID present.
+
+Lesson joining the earlier sweep-audit note: a key rename must be scoped
+by the KEY'S OWNER (which processor reads it), never by spelling alone -
+two processors sharing a spelling for structurally different values is
+exactly when a blanket recipe rename does damage.
+
 # End of file #

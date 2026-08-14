@@ -35,6 +35,7 @@ from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
 )
 from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
     FUTURE_FUNCTION_PREFIXES,
+    prefix_future_functions,
 )
 
 
@@ -453,16 +454,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Formula with future-function names prefixed for storage
         """
-        def substitute(match):
-            name = match.group(1)
-            prefix = FUTURE_FUNCTION_PREFIXES.get(name.upper())
-
-            if prefix is None:
-                return match.group(0)
-
-            return match.group(0).replace(name, f"{prefix}{name}", 1)
-
-        prefixed = function_call_rgx.sub(substitute, formula)
+        prefixed = prefix_future_functions(formula)
 
         if prefixed != formula:
             changed = sorted({

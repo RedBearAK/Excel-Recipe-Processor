@@ -261,4 +261,38 @@ generalizes the CMA unresolved-lookup horizon item), then
 conditional_format, then unpivot_data. Merge/split-per-group noted as
 back-burner (Simple-Excel-Merge exists as prior art).
 
+## conditional_format processor (2026-08-13, eighth pass)
+
+New processor writing native Excel conditional-formatting rules - live
+rules that re-evaluate as the user edits. Canonical ERP condition
+vocabulary (filter_data's names plus between/not_between/duplicates/unique
+in the same style); Excel-native spellings accepted as aliases with a
+warning naming the canonical form, once, at validation.
+
+Formula rules reuse the inject_formulas convention (row-2 authoring,
+{col:} placeholders) with two deliberate differences: placeholders resolve
+$-LOCKED (row-wise tests must not drift as Excel translates a rule across
+its range), and formulas get the _xlfn prefix pass because openpyxl stores
+rule formulas verbatim - an unprefixed modern function would make a rule
+silently never fire. That prefix claim awaits one Excel eyeball on a rule
+that actually uses a modern function; current recipe rules use only
+classic functions.
+
+Text/blank/duplicate/unique conditions emit one Excel rule per named
+column (their formulas anchor to a range's first cell, and duplicates are
+per-column domains by design); comparison conditions share one rule across
+a combined multi-range. List order = priority; stop_if_true supported;
+color_scale and data_bar included.
+
+Shared plumbing extracted on the way: _helpers/excel_color_support.py now
+owns color normalization (format_excel delegates; the never-firing
+try/except ImportError around webcolors was not carried forward), and
+prefix_future_functions moved into inject_formulas_functions for both
+processors. 5/5 focused tests; format_excel suite verified byte-identical
+to the pristine baseline after the extraction.
+
+vms_process.yaml gains the proving-ground rule: entire-row highlight where
+Contracts is non-empty and Price is empty - the live twin of the
+No_Price_Product_Summary tab, deliberately without that tab's exclusions.
+
 # End of file #

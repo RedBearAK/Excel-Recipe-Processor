@@ -24,6 +24,8 @@ left exactly as written, so older functions (SUM, COUNTIF, VLOOKUP) and any
 name this module has not heard of pass through untouched.
 """
 
+from excel_recipe_processor.processors._helpers.inject_formulas_rgx import function_call_rgx
+
 
 # Function name -> the prefix it must carry when stored in the file.
 FUTURE_FUNCTION_PREFIXES = {
@@ -71,5 +73,27 @@ FUTURE_FUNCTION_PREFIXES = {
     'VALUETOTEXT':  '_xlfn.',
     'ISOMITTED':    '_xlfn.',
 }
+
+def prefix_future_functions(formula: str) -> str:
+    """
+    Give post-2007 Excel functions the storage prefix they require.
+
+    Excel stores XLOOKUP as _xlfn.XLOOKUP and displays it as XLOOKUP; a
+    plain name is read as an unknown defined name (#NAME?). Only names in
+    the prefix map are touched, and already-prefixed names are left alone,
+    so re-running is safe. Shared by inject_formulas (cell formulas) and
+    conditional_format (rule formulas - openpyxl stores those verbatim, so
+    an unprefixed modern function there would make the rule silently
+    never fire).
+    """
+    def substitute(match):
+        name = match.group(1)
+        prefix = FUTURE_FUNCTION_PREFIXES.get(name.upper())
+        if prefix is None:
+            return match.group(0)
+        return match.group(0).replace(name, f"{prefix}{name}", 1)
+
+    return function_call_rgx.sub(substitute, formula)
+
 
 # End of file #

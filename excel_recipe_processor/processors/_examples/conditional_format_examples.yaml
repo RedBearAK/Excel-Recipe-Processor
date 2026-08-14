@@ -1,0 +1,133 @@
+# Revision date: 2026-08-13
+
+description: >
+  Write native Excel conditional-formatting rules - live rules that keep
+  re-evaluating as the human edits the file. Conditions use the canonical
+  ERP vocabulary (filter_data's equals, greater_than, is_empty, ... plus
+  between, duplicates, unique in the same style); Excel-native spellings
+  are accepted as aliases with a warning. A file operation on the session
+  workbook - run it after export, before flush.
+
+
+basic_example:
+  description: "Highlight problem rows and flag values with canonical conditions"
+  yaml: |
+    settings:
+      description: "Highlight contract rows missing a price"
+
+    recipe:
+      - # Rules are written in list order, which is Excel's priority order.
+        step_description: "Highlight pricing gaps on the output"
+        processor_type: "conditional_format"
+        # REQ - Workbook to modify (session-aware; run after the export step)
+        target_file: "reports/output.xlsx"
+        # REQ - One tab name
+        sheet: "Data"
+        rules:
+          - # Formula rules use the SAME convention as inject_formulas:
+            # write for data row 2 with {col:Header Name} placeholders.
+            # Here placeholders resolve $-LOCKED ($AX2) so the row-wise
+            # test cannot drift sideways as Excel translates the rule
+            # across the range. Modern function names get their _xlfn
+            # storage prefix automatically.
+            when_formula: '=AND({col:Contracts}2<>"", {col:Price}2="")'
+            # REQ (formula rules) - exactly one target: apply_to:
+            # "entire_row", columns: [names], or range: "F2:F500"
+            apply_to: "entire_row"
+            style:
+              fill: "FFC7CE"
+              font_color: "9C0006"
+            # OPT - Stop evaluating later rules where this one matched
+            # Default value: false
+            stop_if_true: true
+
+          - # Canonical condition names, same vocabulary as filter_data.
+            when_cell:
+              columns: ["Test Dest"]
+              condition: "greater_than"
+              value: 1
+            style:
+              fill: "FFEB9C"
+
+conditions_tour_example:
+  description: "One of each condition family, canonical names throughout"
+  yaml: |
+    settings:
+      description: "Tour of the when_cell condition families"
+
+    recipe:
+      - step_description: "Flag data quality signals"
+        processor_type: "conditional_format"
+        target_file: "reports/output.xlsx"
+        sheet: "Data"
+        rules:
+          - # Comparisons: equals, not_equals, greater_than, greater_equal,
+            # less_than, less_equal - plus between / not_between which take
+            # value: [low, high]
+            when_cell: { columns: ["Weight"], condition: "between", value: [500, 40000] }
+            style: { fill: "C6EFCE" }
+          - # Text: contains, not_contains, starts_with, ends_with.
+            # Excel's SEARCH semantics: case-insensitive.
+            when_cell: { columns: ["Product Name"], condition: "contains", value: "Canned" }
+            style: { font_color: "9C5700", bold: true }
+          - # Emptiness: is_empty / not_empty (whitespace-only counts empty)
+            when_cell: { columns: ["Price"], condition: "is_empty" }
+            style: { fill: "FFC7CE" }
+          - # Value sets: duplicates / unique. One rule PER COLUMN, so each
+            # column is its own duplicate domain; use range: for a joint one.
+            when_cell: { columns: ["Booking"], condition: "duplicates" }
+            style: { fill: "FFC7CE", font_color: "9C0006" }
+          - # Gradient kinds take colors instead of a style
+            color_scale: { columns: ["Weight"], min_color: "FFFFFF", max_color: "63BE7B" }
+          - data_bar: { columns: ["Van Count"], color: "638EC6" }
+
+alias_example:
+  description: "Excel-native spellings work, but warn toward the canonical names"
+  yaml: |
+    settings:
+      description: "Alias acceptance for rules transcribed from Excel's dialog"
+
+    recipe:
+      - # 'greaterThan' (Excel's spelling) is accepted and stored
+        # identically, but the log warns:
+        #   'greaterThan' accepted, but the canonical ERP condition name
+        #   is 'greater_than' - consider updating the recipe
+        # so recipes converge on one readable vocabulary.
+        step_description: "Rule transcribed straight from Manage Rules"
+        processor_type: "conditional_format"
+        target_file: "reports/output.xlsx"
+        sheet: "Data"
+        rules:
+          - when_cell: { columns: ["Test Dest"], condition: "greaterThan", value: 1 }
+            style: { fill: "FFEB9C" }
+
+parameter_details:
+  target_file:
+    type: string
+    required: true
+    description: "Workbook to modify; opened through the workbook session, so run after the export that creates it and before any flush"
+    supports_variables: true
+    examples:
+      - "{output_dir}/{output_basename}.xlsx"
+
+  sheet:
+    type: string
+    required: true
+    description: "Tab to write rules on (one per step)"
+
+  rules:
+    type: list of objects
+    required: true
+    description: "Rules in Excel priority order (list order). Each carries exactly one kind plus an optional style and stop_if_true."
+    rule_kinds:
+      when_formula: "Raw Excel formula written for data row 2; {col:Header Name} resolves to a $-locked column letter; needs exactly one of apply_to: \"entire_row\", columns: [...], or range:"
+      when_cell: "columns: [header names] + condition + value. Canonical conditions: equals, not_equals, greater_than, greater_equal, less_than, less_equal, between, not_between, contains, not_contains, starts_with, ends_with, is_empty, not_empty, duplicates, unique. Excel-native spellings accepted with a warning."
+      color_scale: "columns: [...] with min_color / max_color and optional mid_color"
+      data_bar: "columns: [...] with color"
+    style_keys:
+      fill: "Background color (hex, CSS name, or rgb())"
+      font_color: "Text color"
+      bold: "true/false"
+      italic: "true/false"
+
+# End of file #

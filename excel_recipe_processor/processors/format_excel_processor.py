@@ -13,6 +13,8 @@ import time
 import openpyxl
 import webcolors
 
+from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
+
 from pathlib import Path
 
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -451,126 +453,13 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
     def _normalize_color(self, color) -> str:
         """
-        Normalize color to 6-digit uppercase hex format with webcolors support.
-        
-        Supports multiple color formats:
-        - Hex with hash: #FF0000, #F00
-        - Hex without hash: FF0000, F00  
-        - CSS color names: red, blue, forestgreen (if webcolors available)
-        - RGB format: rgb(255, 0, 0) (if webcolors available)
-        
-        Args:
-            color: Color in various formats
-            
-        Returns:
-            6-digit uppercase hex color (without #)
-            
-        Raises:
-            ValueError: If color format is invalid
-        """
-        if color is None:
-            raise ValueError("Color cannot be None")
-        
-        # Convert to string and clean whitespace
-        color_str = str(color).strip()
-        
-        if not color_str:
-            raise ValueError("Color cannot be empty")
-        
-        # Try webcolors first if available
-        try:
-            import webcolors
-            return self._normalize_color_with_webcolors(color_str)
-        except ImportError:
-            # Fall back to basic hex color processing
-            return self._normalize_color_basic(color_str)
+        Normalize a color to 6-digit uppercase hex.
 
-    def _normalize_color_with_webcolors(self, color_str: str) -> str:
+        Thin wrapper over the shared helper so every internal caller keeps
+        working; the actual vocabulary (hex, CSS names, rgb()) lives in
+        _helpers/excel_color_support.py, shared with conditional_format.
         """
-        Normalize color using webcolors library for advanced color format support.
-        
-        Args:
-            color_str: Color string in various formats
-            
-        Returns:
-            6-digit uppercase hex color
-        """
-        # Handle RGB format: rgb(255, 0, 0)
-        if color_str.lower().startswith('rgb(') and color_str.endswith(')'):
-            try:
-                # Extract RGB values
-                rgb_content = color_str[4:-1]  # Remove 'rgb(' and ')'
-                rgb_parts = [int(x.strip()) for x in rgb_content.split(',')]
-                
-                if len(rgb_parts) != 3:
-                    raise ValueError("RGB format must have exactly 3 values")
-                
-                for val in rgb_parts:
-                    if not 0 <= val <= 255:
-                        raise ValueError("RGB values must be between 0 and 255")
-                
-                # Convert to hex
-                hex_color = '%02X%02X%02X' % tuple(rgb_parts)
-                return hex_color
-                
-            except (ValueError, TypeError) as e:
-                raise ValueError(f"Invalid RGB format '{color_str}': {e}")
-        
-        # Try CSS color name
-        try:
-            # webcolors.name_to_hex returns hex with #, so we remove it
-            hex_with_hash = webcolors.name_to_hex(color_str.lower())
-            return hex_with_hash[1:].upper()  # Remove # and convert to uppercase
-        except ValueError:
-            pass  # Not a CSS color name, try hex format
-        
-        # Handle hex format (with or without #)
-        if self._contains_non_hex_chars(color_str):
-            raise ValueError(f"Unrecognized color format: '{color_str}'. Supported formats: hex (#FF0000), CSS names (red, blue), RGB (rgb(255,0,0))")
-        
-        return self._normalize_color_basic(color_str)
-
-    def _contains_non_hex_chars(self, text: str) -> bool:
-        """
-        Check if text contains characters that aren't valid hex.
-        
-        Args:
-            text: Text to check
-            
-        Returns:
-            True if contains non-hex characters, False if only hex characters
-        """
-        hex_chars = set('0123456789ABCDEFabcdef')
-        return any(c not in hex_chars for c in text)
-
-    def _normalize_color_basic(self, color_clean: str) -> str:
-        """
-        Basic color normalization (fallback when webcolors unavailable).
-        
-        Args:
-            color_clean: Cleaned color string
-            
-        Returns:
-            6-digit uppercase hex color
-        """
-        # Remove # if present
-        if color_clean.startswith('#'):
-            color_clean = color_clean[1:]
-        
-        # Check for empty string after removing hash
-        if not color_clean:
-            raise ValueError("Color cannot be just a hash symbol")
-        
-        if not all(c in '0123456789ABCDEFabcdef' for c in color_clean):
-            raise ValueError("Must be a valid hex color (e.g., 'FF0000', '#FF0000')")
-        
-        if len(color_clean) == 3:
-            # Expand 3-digit to 6-digit hex
-            color_clean = ''.join([c*2 for c in color_clean])
-        elif len(color_clean) != 6:
-            raise ValueError("Hex color must be 3 or 6 digits")
-        
-        return color_clean.upper()
+        return normalize_color(color)
 
     def _format_excel_file(self, filename: str, sheet_configs: list, active_sheet=None, templates: list = None) -> int:
         """

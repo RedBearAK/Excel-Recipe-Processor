@@ -495,6 +495,7 @@ from excel_recipe_processor.processors.add_subtotals_processor          import A
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.combine_data_processor           import CombineDataProcessor
+from excel_recipe_processor.processors.conditional_format_processor     import ConditionalFormatProcessor
 from excel_recipe_processor.processors.copy_stage_processor             import CopyStageProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
@@ -536,6 +537,7 @@ def register_standard_processors():
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('combine_data',                   CombineDataProcessor                )
+    registry.register('conditional_format',             ConditionalFormatProcessor          )
     registry.register('deduplicate_data',               DeduplicateDataProcessor            )
     registry.register('file_metadata',                  FileMetadataProcessor               )
     registry.register('free_stages',                    FreeStagesProcessor                 )

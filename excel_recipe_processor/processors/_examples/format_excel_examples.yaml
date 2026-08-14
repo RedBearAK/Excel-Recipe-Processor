@@ -522,6 +522,30 @@ column_format_parameter_details:
     description: "Explicit column width. Applied after auto-fit, so a stated width wins."
 
 
+tab_color_example:
+  description: "Color sheet tabs so related sheets read as a family at a glance"
+  yaml: |
+    settings:
+      description: "Color the summary tabs as a stepped family of blues"
+
+    recipe:
+      - step_description: "Color the summary tabs"
+        processor_type: "format_excel"
+        # REQ - Existing Excel file to format
+        target_file: "reports/monthly_report.xlsx"
+        formatting:
+          - sheet: "Summary"
+            # OPT - Tab color. Same vocabulary as every other color option:
+            # hex with or without #, CSS names ("lightsteelblue"), rgb().
+            # Sheets without the option keep the default (uncolored) tab.
+            # Excel washes out INACTIVE tab colors, so shades meant to be
+            # told apart should be spaced widely.
+            tab_color: "CFE7F7"
+          - sheet: "Regional_Summary"
+            tab_color: "A6D2EF"
+          - sheet: "Exception_Summary"
+            tab_color: "79B8E4"
+
 ordering_notes:
   within_format_excel:
     description: "Column formats run before auto-fit, because formatted text measures wider - '1,234' is wider than '1234', and an accounting format wider still. Explicit widths run after auto-fit, or auto-fit would overwrite them. Hiding runs last, so auto-fit does not spend effort measuring a column nobody will see."

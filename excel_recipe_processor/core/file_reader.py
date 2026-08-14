@@ -1,13 +1,20 @@
 """
 Central file reading coordination for Excel Recipe Processor.
 
+excel_recipe_processor/core/file_reader.py
+
 Provides unified interface for reading files in various formats with automatic
 format detection, and consistent error handling.
 """
 
+import logging
 import pandas as pd
 
+from pathlib import Path
 from importlib.util import find_spec
+
+from excel_recipe_processor.readers.excel_reader import ExcelReader, ExcelReaderError
+
 
 # calamine is a fast Rust-based Excel READER with prebuilt PyPI wheels.
 # Optional: when the wheel is present, Excel imports use it (several times
@@ -15,11 +22,6 @@ from importlib.util import find_spec
 # when absent, the openpyxl path serves exactly as before. Detected once at
 # import, without importing the package itself.
 CALAMINE_AVAILABLE = find_spec('python_calamine') is not None
-import logging
-
-from pathlib import Path
-
-from excel_recipe_processor.readers.excel_reader import ExcelReader, ExcelReaderError
 
 
 logger = logging.getLogger(__name__)

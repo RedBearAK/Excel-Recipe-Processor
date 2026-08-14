@@ -1335,6 +1335,10 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'phase_1_enhancements': ['header_text_color', 'header_font_size'],
             'phase_2_enhancements': ['general_text_color', 'general_font_size', 'general_font_name', 'general_alignment_horizontal', 'general_alignment_vertical'],
             'phase_3_enhancements': ['cell_ranges', 'webcolors_integration', 'border_formatting', 'css_color_names', 'rgb_color_support'],
+            'worksheet_level_features': ['freeze_top_row', 'auto_filter', 'tab_color'],
+            'tab_color': 'per-sheet tab_color option colors the sheet tab; accepts '
+                         'the same vocabulary as every other color option (hex with '
+                         'or without #, CSS names, rgb())',
             'template_enhancements': ['reusable_templates', 'template_composition', 'template_override'],  # NEW
             'color_formats_supported': [
                 'hex_with_hash (#FF0000)', 'hex_without_hash (FF0000)', 'short_hex (#F00)', 

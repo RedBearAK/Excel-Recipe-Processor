@@ -165,4 +165,24 @@ prior semantics for on-disk files. No recipe change was needed: the
 existing `declare_dynamic_formulas: true` setting covers SALE TYPE1
 automatically through the registry.
 
+
+
+## Documentation currency pass (2026-08-13, third pass)
+
+- `declare_dynamic_formulas_examples.yaml` created (the new processor had
+  no examples file; the loader reported file_missing and the examples test
+  counted the gap).
+- `inject_formulas`: the stale INLINE `get_usage_examples` dict (predating
+  the external-YAML convention, silently shadowing the YAML file) replaced
+  with the standard loader call; `get_capabilities` rewritten for `{col:}`
+  placeholders, `fill_down`, `_xlfn` translation, provenance registration,
+  and the array_formula caveat; the examples YAML gained a
+  named_columns_fill_down_example and the new formula-object keys.
+- `format_excel`: `tab_color` added to capabilities and a
+  tab_color_example added to the YAML.
+- `seed_donor_formulas` capabilities now name `force_column_names`;
+  `import_file` capabilities note the automatic calamine fast path.
+- `core/file_reader.py`: the CALAMINE_AVAILABLE detection sat BETWEEN
+  import lines (executable code before `import logging`); imports
+  reordered per convention, module docstring gained its path line.
 # End of file #

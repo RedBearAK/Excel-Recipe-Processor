@@ -784,89 +784,42 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Inject formulas into existing Excel files with live/dead modes',
+            'description': 'Inject formulas into existing Excel files with live/dead '
+                           'modes, name-addressed cells, and Excel-style fill-down',
             'operation_type': 'formula_injection',
             'supported_modes': ['live', 'dead', 'awaken'],
             'targeting_options': ['single_cell', 'cell_range', 'auto_scan'],
+            'column_placeholders': '{col:Header Name} in cell refs and formulas '
+                                   'resolves to the column letter from the header '
+                                   'row at injection time, so upstream column '
+                                   'insertions cannot silently repoint a formula',
+            'fill_down': 'fill_down: true fills a formula from its origin cell to '
+                         'the last data row, translating relative references per '
+                         'row the way Excel\'s own fill handle does',
+            'function_name_translation': 'modern function names (XLOOKUP, IFS, '
+                                         'FILTER, ...) are stored with the _xlfn. '
+                                         'prefixes Excel requires internally, and '
+                                         'display without them',
+            'dynamic_array_declaration': 'live-mode cells register with the '
+                                         'workbook session as recipe-authored; with '
+                                         'settings declare_dynamic_formulas: true '
+                                         'they are declared dynamic-array-aware at '
+                                         'save and open without the implicit-'
+                                         'intersection @ (any function, by '
+                                         'provenance)',
+            'array_formula_caveat': 'array_formula: true stores a legacy CSE array '
+                                    'formula ({braces}); use it only for formulas '
+                                    'that genuinely are array formulas - it is NOT '
+                                    'the fix for the @ display',
             'sheet_support': ['single_sheet', 'multiple_sheets', 'all_sheets'],
             'file_requirements': ['xlsx', 'xlsm'],
             'dependencies': ['openpyxl'],
             'stage_requirements': 'none',
-            'examples': {
-                'live_formula': 'Creates dynamic formulas that recalculate automatically',
-                'dead_formula': 'Inserts formula text for documentation/templates',
-                'auto_awaken': 'Scans and awakens all dead formulas in file'
-            }
-        }
-    
-    def get_usage_examples(self) -> dict:
-        """Get usage examples for this processor."""
-        # For now, return inline examples - could be moved to YAML file later
-        return {
-            'description': 'Inject formulas into Excel files with flexible targeting and live/dead modes',
-            
-            'basic_example': {
-                'description': 'Inject live formulas into specific cells',
-                'yaml': '''
-  - step_description: "Add calculation formulas to report"
-    processor_type: "inject_formulas"
-    target_file: "sales_report.xlsx"
-    mode: "live"
-    formulas:
-      - cell: "D2"
-        formula: "=B2*C2"
-      - cell: "D3"
-        formula: "=B3*C3"
-      - cell: "E4"
-        formula: "=SUM(D2:D3)"
-'''
-            },
-            
-            'range_example': {
-                'description': 'Apply formulas to ranges and multiple sheets',
-                'yaml': '''
-  - step_description: "Add formulas to entire columns"
-    processor_type: "inject_formulas"
-    target_file: "financial_model.xlsx"
-    mode: "live"
-    sheets: ["Revenue", "Expenses"]
-    formulas:
-      - range: "D2:D50"
-        formula: "=B2*C2"
-      - range: "E2:E50"
-        formula: "=D2*0.1"
-      - cell: "D51"
-        formula: "=SUM(D2:D50)"
-'''
-            },
-            
-            'awaken_example': {
-                'description': 'Awaken dead formulas across entire workbook',
-                'yaml': '''
-  - step_description: "Convert template to live calculations"
-    processor_type: "inject_formulas"
-    target_file: "budget_template.xlsx"
-    mode: "awaken"
-    sheets: "all"
-    auto_scan: true
-'''
-            },
-            
-            'documentation_example': {
-                'description': 'Create dead formulas for documentation',
-                'yaml': '''
-  - step_description: "Add formula documentation"
-    processor_type: "inject_formulas"
-    target_file: "model_documentation.xlsx"
-    mode: "dead"
-    formulas:
-      - cell: "F1"
-        formula: "=VLOOKUP(E1,RefTable,2,FALSE)"
-      - cell: "F2"
-        formula: "This cell should contain: =E2*Rate"
-'''
-            }
         }
 
+    def get_usage_examples(self) -> dict:
+        """Get usage examples from the external YAML file."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('inject_formulas')
 
 # End of file #

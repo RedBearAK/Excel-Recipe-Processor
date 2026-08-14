@@ -485,6 +485,11 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 'mixed_column_types',       # Combination of refs and names
                 'auto_type_detection'       # Automatic ref vs name detection
             ],
+            'force_column_names': 'force_column_names: true treats every configured '
+                                  'column as a header NAME, resolved against each '
+                                  'file\'s own header row - donor and recipient may '
+                                  'have the column at different letters, and column '
+                                  'insertions cannot repoint the transplant',
             'formula_handling': [
                 'verbatim_copying',         # Exact formula preservation
                 'live_formula_creation',    # Creates working Excel formulas

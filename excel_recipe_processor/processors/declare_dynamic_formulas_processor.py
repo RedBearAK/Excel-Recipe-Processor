@@ -108,6 +108,11 @@ class DeclareDynamicFormulasProcessor(FileOpsBaseProcessor):
             return self.variable_substitution.substitute(filename)
         return filename
 
+    def get_usage_examples(self) -> dict:
+        """Get usage examples from the external YAML file."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('declare_dynamic_formulas')
+
     def get_capabilities(self) -> dict:
         """
         Get processor capabilities information.
@@ -125,6 +130,12 @@ class DeclareDynamicFormulasProcessor(FileOpsBaseProcessor):
                       'marked by default, so legacy implicit-intersection semantics '
                       'cannot be changed; extend with extra_functions only for files '
                       'whose formulas are known recipe-authored',
+            'relation_to_injection': 'cells written by inject_formulas need neither '
+                                     'this processor nor extra_functions: the session '
+                                     'registers them by provenance and the at-save '
+                                     'pass (settings declare_dynamic_formulas: true) '
+                                     'declares them automatically, whatever functions '
+                                     'they use',
         }
 
 # End of file #

@@ -1,4 +1,4 @@
-# Revision date: 2025-08-08
+# Revision date: 2026-08-13
 
 description: >
   Inject formulas into Excel files with support for live (dynamic) and 
@@ -237,6 +237,44 @@ comprehensive_dual_mode_example:
           - cell: "E101"
             formula: "=SUM(E2:E100)"
 
+named_columns_fill_down_example:
+  description: "Name-addressed cells with fill-down - survives column insertions upstream"
+  yaml: |
+    settings:
+      description: "Inject per-row formulas addressed by header name, filled to the last row"
+      stages:
+        - stage_name: "stg_report_data"
+          description: "Processed rows exported to the report"
+          protected: false
+
+    recipe:
+      - # The exported sheet carries headers; {col:Name} resolves each name
+        # to its column letter from the header row AT INJECTION TIME, so a
+        # column inserted upstream cannot silently repoint any reference.
+        step_description: "Inject the margin formulas by column name"
+        processor_type: "inject_formulas"
+        # REQ - Existing Excel file to modify
+        target_file: "reports/margin_report.xlsx"
+        # OPT - Sheets to process (default: active sheet)
+        sheets: ["Data"]
+        # OPT - live (default) stores recalculating formulas
+        mode: "live"
+        formulas:
+          - # {col:...} works in the cell address AND inside the formula.
+            cell: "{col:Margin}2"
+            # OPT - Fill from the origin row to the last data row,
+            # translating relative references per row like Excel's fill
+            # handle. Default value: false
+            fill_down: true
+            formula: '={col:Price}2-{col:Cost}2'
+          - # Modern function names are stored with the _xlfn. prefix Excel
+            # requires internally; they display without it. With settings
+            # declare_dynamic_formulas: true, injected cells open WITHOUT
+            # the implicit-intersection @ (declared by provenance).
+            cell: "{col:Supplier Region}2"
+            fill_down: true
+            formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
+
 parameter_details:
   target_file:
     type: string
@@ -265,9 +303,11 @@ parameter_details:
     default: []
     description: "List of formulas to inject with target locations"
     formula_object_structure:
-      cell: "Single cell reference (e.g., 'A1', 'D5')"
+      cell: "Single cell reference: 'A1', 'D5', or name-addressed '{col:Header Name}2'"
       range: "Cell range reference (e.g., 'A1:A10', 'D2:F20')"
-      formula: "Excel formula to inject (with or without leading =)"
+      formula: "Excel formula to inject (with or without leading =); {col:Header Name} placeholders resolve to column letters from the header row"
+      fill_down: "true fills the formula from its origin cell to the last data row, translating relative references per row (default false)"
+      array_formula: "true stores a legacy CSE array formula shown in {braces} - only for formulas that genuinely ARE array formulas; NOT the fix for the @ display (that is the recipe-wide declare_dynamic_formulas setting)"
     examples:
       - - cell: "D2"
           formula: "=B2*C2"

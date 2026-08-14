@@ -38,6 +38,10 @@ class ImportFileProcessor(ImportBaseProcessor):
         """
         return {
             'description': 'Import Excel, CSV, or TSV files into stages, with sheet selection and variable-substituted paths',
+            'fast_excel_reader': 'when the optional python-calamine wheel is installed, '
+                                 'Excel imports use it automatically (several times faster '
+                                 'on large files, values identical); without it the '
+                                 'openpyxl path serves unchanged - no configuration',
             'file_formats': ['xlsx', 'xls', 'xlsm', 'xlsb', 'csv', 'tsv', 'txt (as tsv)'],
             'excel_options': ['sheet selection by name or index'],
             'path_features': ['recipe variable substitution'],

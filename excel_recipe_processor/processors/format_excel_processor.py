@@ -14,6 +14,7 @@ import openpyxl
 import webcolors
 
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 
 from pathlib import Path
 
@@ -58,7 +59,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             # --list-capabilities, where every processor is instantiated
             # from its minimal config.
             'formatting': [
-                {'sheet': 'Data', 'auto_fit_columns': True},
+                {'sheet_name': 'Data', 'auto_fit_columns': True},
             ],
         }
 
@@ -66,7 +67,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         """Format the target Excel file with template support."""
         target_file = self.get_config_value('target_file')
         sheet_configs = self.get_config_value('formatting', [])
-        active_sheet = self.get_config_value('active_sheet')
+        active_sheet = self.get_config_value('active_sheet_name')
+        if 'active_sheet' in self.step_config:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'active_sheet' was replaced by "
+                f"'active_sheet_name' (2026-08-14 sheet-addressing doctrine)"
+            )
         templates = self.get_config_value('templates', [])
         
         # Validate configuration
@@ -95,7 +101,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Get and validate the formatting configuration
         sheet_configs = self.get_config_value('formatting', [])
-        active_sheet = self.get_config_value('active_sheet')
+        active_sheet = self.get_config_value('active_sheet_name')
+        if 'active_sheet' in self.step_config:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'active_sheet' was replaced by "
+                f"'active_sheet_name' (2026-08-14 sheet-addressing doctrine)"
+            )
         target_file = self.get_config_value('target_file')
         templates = self.get_config_value('templates', [])
         
@@ -136,16 +147,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(sheet_config, dict):
                 raise StepProcessorError(f"Formatting entry {i+1} must be a dictionary")
             
-            if 'sheet' not in sheet_config:
-                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet' key")
-            
-            sheet_spec = sheet_config['sheet']
-            if not isinstance(sheet_spec, (str, int)):
-                raise StepProcessorError(f"Sheet specification must be string (name) or integer (1-based index), got: {type(sheet_spec).__name__}")
-            
-            if isinstance(sheet_spec, int) and sheet_spec < 1:
-                raise StepProcessorError(f"Sheet index must be >= 1, got: {sheet_spec}")
-            
+            if 'sheet' in sheet_config:
+                raise StepProcessorError(
+                    f"Formatting entry {i+1}: 'sheet' was replaced by "
+                    f"'sheet_name' (2026-08-14 sheet-addressing doctrine). A "
+                    f"tab name, or '?sheet_001?' to address by position."
+                )
+            if 'sheet_name' not in sheet_config:
+                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet_name' key")
+
+            sheet_spec = sheet_config['sheet_name']
             if isinstance(sheet_spec, str) and not sheet_spec.strip():
                 raise StepProcessorError("Sheet name cannot be empty")
             
@@ -167,11 +178,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Validate active_sheet specification
         if active_sheet is not None:
-            if not isinstance(active_sheet, (str, int)):
-                raise StepProcessorError(f"active_sheet must be string (name) or integer (1-based index), got: {type(active_sheet).__name__}")
-            
-            if isinstance(active_sheet, int) and active_sheet < 1:
-                raise StepProcessorError(f"active_sheet index must be >= 1, got: {active_sheet}")
             
             if isinstance(active_sheet, str) and not active_sheet.strip():
                 raise StepProcessorError("active_sheet name cannot be empty")
@@ -284,7 +290,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # List of known formatting options (this helps catch typos)
         known_options = {
             # Sheet targeting
-            'sheet', 'apply_templates', 'template_name',
+            'sheet_name', 'apply_templates', 'template_name',
             
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
@@ -508,12 +514,19 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Process each sheet configuration
         for i, sheet_config in enumerate(sheet_configs):
-            if 'sheet' not in sheet_config:
-                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet' key")
-            
-            sheet_spec = sheet_config['sheet']
-            sheet_name = self._resolve_sheet_name(workbook, sheet_spec)
-            
+            sheet_spec = sheet_config['sheet_name']
+            # Shared recognizer: real names, ?sheet_NNN? tokens, numbers
+            # warned-as-names - and unresolvable sheets FAIL LOUD here. The
+            # old path returned None and silently skipped the entry at
+            # debug level, which hid typos and substitution accidents.
+            try:
+                sheet_name = resolve_sheet_ref(
+                    sheet_spec, workbook.sheetnames,
+                    f"Formatting entry {i+1} in step '{self.step_name}'"
+                )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
+
             if sheet_name:
                 worksheet = workbook[sheet_name]
                 logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {sheet_spec})")
@@ -569,7 +582,13 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
         # Set active sheet if specified (supports both names and numbers)
         if active_sheet is not None:
-            active_sheet_name = self._resolve_sheet_name(workbook, active_sheet)
+            try:
+                active_sheet_name = resolve_sheet_ref(
+                    active_sheet, workbook.sheetnames,
+                    f"active_sheet_name in step '{self.step_name}'"
+                )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
             if active_sheet_name:
                 workbook.active = workbook[active_sheet_name]
                 logger.info(f"📌 Set active sheet to '{active_sheet_name}' (specified as: {active_sheet})")
@@ -582,41 +601,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         logger.info(f"✅ Excel formatting completed: {sheets_processed}/{total_sheets} sheets processed")
         return sheets_processed
-
-    def _resolve_sheet_name(self, workbook, sheet_spec) -> str:
-        """
-        Resolve a sheet specification (name or number) to actual sheet name.
-        
-        Args:
-            workbook: openpyxl workbook object
-            sheet_spec: Sheet name (string) or 1-based index (integer)
-            
-        Returns:
-            Actual sheet name if found, None if not found
-        """
-        if isinstance(sheet_spec, str):
-            # Sheet specified by name
-            if sheet_spec in workbook.sheetnames:
-                return sheet_spec
-            else:
-                logger.debug(f"Sheet name '{sheet_spec}' not found in {workbook.sheetnames}")
-                return None
-                
-        elif isinstance(sheet_spec, int):
-            # Sheet specified by 1-based index
-            if 1 <= sheet_spec <= len(workbook.worksheets):
-                # Convert to 0-based index and get sheet name
-                resolved_name = workbook.worksheets[sheet_spec - 1].title
-                logger.debug(f"Sheet index {sheet_spec} resolved to '{resolved_name}'")
-                return resolved_name
-            else:
-                logger.debug(f"Sheet index {sheet_spec} out of range (1-{len(workbook.worksheets)})")
-                return None
-                
-        else:
-            # Invalid sheet specification type
-            logger.debug(f"Invalid sheet specification type: {type(sheet_spec)}")
-            return None
 
     def _apply_sheet_formatting(self, worksheet, formatting: dict) -> None:
         """

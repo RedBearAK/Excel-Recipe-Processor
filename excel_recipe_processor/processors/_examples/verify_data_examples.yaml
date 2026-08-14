@@ -83,7 +83,7 @@ file_mode_example:
         processor_type: "verify_data"
         target_file: "{output_dir}/{output_basename}.xlsx"
         # REQ (file mode) - Tab to read
-        sheet: "Detail"
+        sheet_name: "Detail"
         rules:
           - column: "Invoice No"
             condition: "not_empty"
@@ -98,7 +98,7 @@ parameter_details:
     required: false
     description: "Workbook to verify (with 'sheet'). Session-held files are read live, pre-save."
     supports_variables: true
-  sheet:
+  sheet_name:
     type: string
     required: false
     description: "Tab to read in file mode"

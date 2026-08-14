@@ -42,7 +42,7 @@ def run_rules(file_path, rules):
         'processor_type': 'conditional_format',
         'step_description': 'cf test',
         'target_file': file_path,
-        'sheet': 'Data',
+        'sheet_name': 'Data',
         'rules': rules,
     }).perform_file_operation()
     WorkbookSession.flush_all()
@@ -194,7 +194,7 @@ def test_validation_fails_loud():
         try:
             ConditionalFormatProcessor({
                 'processor_type': 'conditional_format', 'step_description': 'v',
-                'target_file': 'x.xlsx', 'sheet': 'Data', 'rules': rules,
+                'target_file': 'x.xlsx', 'sheet_name': 'Data', 'rules': rules,
             })
             print(f"  ✗ {label}: accepted silently")
             passed = False

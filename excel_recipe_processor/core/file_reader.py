@@ -96,12 +96,11 @@ class FileReader:
             # Determine logical format
             file_format = FileReader._determine_format(filename, explicit_format)
             
-            # A sheet index that traveled through variable substitution
-            # arrives as the STRING "1", which would otherwise be treated as
-            # a sheet NAME and fail. A purely-numeric string sheet is an
-            # index; a real sheet named "1" would need... a better name.
-            if isinstance(sheet, str) and sheet.isdigit():
-                sheet = int(sheet)
+            # (The numeric-string-to-index coercion that lived here shadowed
+            # tabs literally named "1". Gone as of the 2026-08-14 doctrine:
+            # import_file resolves names, numbers and ?sheet_NNN? tokens to a
+            # REAL NAME before this call; the int path below remains for
+            # internal callers only.)
 
             # Convert 1-based sheet index to 0-based for Excel files
             if file_format in FileReader.EXCEL_FORMATS and isinstance(sheet, int):

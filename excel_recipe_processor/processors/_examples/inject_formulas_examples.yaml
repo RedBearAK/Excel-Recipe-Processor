@@ -80,7 +80,7 @@ range_formulas_example:
         processor_type: "export_file"
         source_stage: "financial_data"
         output_file: "reports/financial_model.xlsx"
-        sheets:
+        sheet_names:
           Revenue: "financial_data"
           Expenses: "financial_data"
 
@@ -92,7 +92,7 @@ range_formulas_example:
         # OPT - Which sheets to process
         # Values: None (active sheet), "all" (all sheets), sheet name, or list of sheet names
         # Default value: None (active sheet only)
-        sheets: ["Revenue", "Expenses"]
+        sheet_names: ["Revenue", "Expenses"]
         formulas:
           # Apply formula to entire column range
           - range: "D2:D50"
@@ -136,7 +136,7 @@ awaken_dead_formulas_example:
         # Mode: "awaken" scans for dead formulas and makes them live
         mode: "awaken"
         # Process all sheets in the workbook
-        sheets: "all"
+        sheet_names: "all"
         # OPT - Enable automatic scanning for formula-like text
         # Default value: false (only processes explicit formulas list)
         auto_scan: true
@@ -256,7 +256,7 @@ named_columns_fill_down_example:
         # REQ - Existing Excel file to modify
         target_file: "reports/margin_report.xlsx"
         # OPT - Sheets to process (default: active sheet)
-        sheets: ["Data"]
+        sheet_names: ["Data"]
         # OPT - live (default) stores recalculating formulas
         mode: "live"
         formulas:
@@ -316,7 +316,7 @@ parameter_details:
         - cell: "E11"
           formula: "=SUM(E2:E10)"
 
-  sheets:
+  sheet_names:
     type: string or list
     required: false
     default: null

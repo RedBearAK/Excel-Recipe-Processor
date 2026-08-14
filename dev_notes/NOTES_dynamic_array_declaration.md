@@ -444,4 +444,39 @@ deprecated module skipped); all modules compile, full battery green,
 both recipes validate. Survey's remaining open item: typing-module
 imports in 16 modules, deferred to its own pass.
 
+## Sheet-addressing sweep executed (2026-08-14, sixteenth pass)
+
+Doctrine v2 implemented end to end. New shared recognizer:
+_helpers/sheet_addressing.py + sheet_addressing_rgx.py - ONE
+resolve_sheet_ref() for every processor (names; ?sheet_NNN? tokens,
+case-insensitive, 1-4 digits, bounds-checked live; numbers warned and
+treated as NAMES), plus reject_token_for_creation() for export.
+
+Adopted: import_file (sheet -> sheet_name, default '?sheet_001?', the
+file_reader isdigit hack DELETED - a tab literally named "1" is reachable
+again, proven in tests); format_excel (entry key sheet -> sheet_name,
+active_sheet -> active_sheet_name, local resolver retired, and the
+debug-level SILENT SKIP on unresolvable sheets is now a loud halt naming
+the tab and the available list - proven by e2e); conditional_format and
+verify_data (sheet -> sheet_name, token-capable in both session and disk
+paths); inject_formulas (sheets -> sheet_names, entries resolved through
+the recognizer; None/'all' semantics kept); export_file (creation sites
+reject tokens with the address-vs-create explanation; its structural
+'sheets' entry-list key deliberately kept - it lists entry DICTS, not
+names, so it was never part of the polymorphism problem).
+
+Recipes: 40 sheet keys renamed across both, active_sheet_name landed,
+inject lists renamed, and vms's download_sheet variable became
+"?sheet_001?" - the one production index use, now honest. Both validate;
+token e2e (import + format + CF + active sheet all by token) green;
+sweep caught one refactor slip (dropped sheet_spec assignment) and one
+follow-on (validator's known-keys list) - both fixed and covered.
+
+Deferred, recorded: pluralizing conditional_format / verify_data /
+format entries to sheet_names broadcast lists (a feature, not a rename -
+and the lookup-tab consolidation idea died anyway: those entries differ
+per-tab in tab_color); seed_donor/generate_column_config source_sheet/
+target_sheet keys left as-is (role-prefixed, name-only, never
+polymorphic).
+
 # End of file #

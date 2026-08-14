@@ -156,7 +156,7 @@ def test_file_mode_and_validation():
 
         message = run_rules(
             [{'column': 'K', 'condition': 'not_empty'}],
-            source={'target_file': file_path, 'sheet': 'Data'},
+            source={'target_file': file_path, 'sheet_name': 'Data'},
         )
         if '1 warned' in message:
             print("  ✓ File mode found the blank cell")
@@ -165,9 +165,9 @@ def test_file_mode_and_validation():
             passed = False
 
     cases = [
-        ('both sources', {'source_stage': 's', 'target_file': 'f.xlsx', 'sheet': 'D'}, 'exactly one source'),
+        ('both sources', {'source_stage': 's', 'target_file': 'f.xlsx', 'sheet_name': 'D'}, 'exactly one source'),
         ('neither source', {}, 'exactly one source'),
-        ('file without sheet', {'target_file': 'f.xlsx'}, "needs 'sheet'"),
+        ('file without sheet', {'target_file': 'f.xlsx'}, "needs 'sheet_name'"),
         ('bad severity', {'source_stage': 's'}, 'severity must be'),
         ('legacy bare stage key', {'stage': 's'}, "'source_stage'"),
         ('stage key inside a stage rule',

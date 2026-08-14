@@ -30,6 +30,7 @@ from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.verification_ledger import VerificationLedger
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.processors.filter_data_processor import FilterDataProcessor
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 
 
 logger = logging.getLogger(__name__)
@@ -70,9 +71,14 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
                 f"Verify data step '{self.step_name}' needs exactly one source: "
                 f"'source_stage' or 'target_file' (with 'sheet')"
             )
-        if target_file and not self.get_config_value('sheet', None):
+        if self.get_config_value('sheet', None):
             raise StepProcessorError(
-                f"Verify data step '{self.step_name}': file mode needs 'sheet'"
+                f"Verify data step '{self.step_name}': 'sheet' was replaced by "
+                f"'sheet_name' (2026-08-14 sheet-addressing doctrine)"
+            )
+        if target_file and not self.get_config_value('sheet_name', None):
+            raise StepProcessorError(
+                f"Verify data step '{self.step_name}': file mode needs 'sheet_name'"
             )
 
         rules = self.get_config_value('rules', [])
@@ -183,18 +189,20 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
                 )
 
         target_file = self._resolve_path(self.get_config_value('target_file'))
-        sheet_name = self.get_config_value('sheet')
+        sheet_name = self.get_config_value('sheet_name')
         label = f"file '{Path(target_file).name}' sheet '{sheet_name}'"
 
         if WorkbookSession.is_open(target_file):
             # The disk copy is stale while the session holds the workbook;
             # verify what WILL be written, straight from the live object.
             workbook = WorkbookSession.get_workbook(target_file)
-            if sheet_name not in workbook.sheetnames:
-                raise StepProcessorError(
-                    f"Verify data step '{self.step_name}': sheet '{sheet_name}' "
-                    f"not found. Available: {workbook.sheetnames}"
+            try:
+                sheet_name = resolve_sheet_ref(
+                    sheet_name, workbook.sheetnames,
+                    f"Verify data step '{self.step_name}'"
                 )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
             worksheet = workbook[sheet_name]
             row_iter = worksheet.iter_rows(values_only=True)
             try:
@@ -212,6 +220,11 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
                 f"Verify data step '{self.step_name}': file not found: {target_file}"
             )
         try:
+            with pd.ExcelFile(target_file) as workbook_file:
+                sheet_name = resolve_sheet_ref(
+                    sheet_name, workbook_file.sheet_names,
+                    f"Verify data step '{self.step_name}'"
+                )
             frame = pd.read_excel(target_file, sheet_name=sheet_name)
         except Exception as error:
             raise StepProcessorError(

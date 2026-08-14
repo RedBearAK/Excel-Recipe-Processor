@@ -33,6 +33,7 @@ from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
     column_placeholder_rgx,
     function_call_rgx,
 )
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
     FUTURE_FUNCTION_PREFIXES,
     prefix_future_functions,
@@ -210,7 +211,12 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         mode = self.get_config_value('mode', 'live')
         formulas = self.get_config_value('formulas', [])
         auto_scan = self.get_config_value('auto_scan', False)
-        sheets = self.get_config_value('sheets', None)  # None = active sheet, 'all' = all sheets
+        if 'sheets' in self.step_config:
+            raise StepProcessorError(
+                f"Inject step '{self.step_name}': 'sheets' was replaced by "
+                f"'sheet_names' (2026-08-14 sheet-addressing doctrine)"
+            )
+        sheets = self.get_config_value('sheet_names', None)  # None = active sheet, 'all' = all sheets
         
         # Apply variable substitution to target filename
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -368,18 +374,22 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             # All sheets
             return workbook.sheetnames
         elif isinstance(sheets, str):
-            # Single sheet by name
-            if sheets not in workbook.sheetnames:
-                raise StepProcessorError(f"Sheet '{sheets}' not found in workbook")
-            return [sheets]
+            # Single entry: a name or a ?sheet_NNN? token
+            try:
+                return [resolve_sheet_ref(sheets, workbook.sheetnames,
+                                          f"Inject step '{self.step_name}'")]
+            except ValueError as error:
+                raise StepProcessorError(str(error))
         elif isinstance(sheets, list):
-            # Multiple specific sheets
-            for sheet in sheets:
-                if sheet not in workbook.sheetnames:
-                    raise StepProcessorError(f"Sheet '{sheet}' not found in workbook")
-            return sheets
+            # A plain name/token list - resolved through the one recognizer
+            try:
+                return [resolve_sheet_ref(entry, workbook.sheetnames,
+                                          f"Inject step '{self.step_name}'")
+                        for entry in sheets]
+            except ValueError as error:
+                raise StepProcessorError(str(error))
         else:
-            raise StepProcessorError(f"Invalid 'sheets' specification: '{sheets}'")
+            raise StepProcessorError(f"Invalid 'sheet_names' specification: '{sheets}'")
     
     def _apply_formula_to_sheet(self, worksheet, formula_def: dict, mode: str) -> int:
         """

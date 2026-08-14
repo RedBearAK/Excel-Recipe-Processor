@@ -17,6 +17,7 @@ from pathlib import Path
 from excel_recipe_processor.writers.excel_writer import ExcelWriter, DEFAULT_DELETE_BACKUPS_BEYOND
 
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
+from excel_recipe_processor.processors._helpers.sheet_addressing import reject_token_for_creation
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
 
 logger = logging.getLogger(__name__)
@@ -163,6 +164,10 @@ class ExportFileProcessor(ExportBaseProcessor):
         """Save data to file (implements ExportBaseProcessor abstract method)."""
         output_file = self.get_config_value('output_file')
         sheet_name = self.get_config_value('sheet_name', 'Data')
+        try:
+            reject_token_for_creation(sheet_name, f"Export step '{self.step_name}'")
+        except ValueError as error:
+            raise StepProcessorError(str(error))
         explicit_format = self.get_config_value('format', None)
         sheets = self.get_config_value('sheets', None)
         # See if user wants to disable the creation of a backup file to avoid clobbering same name
@@ -245,6 +250,15 @@ class ExportFileProcessor(ExportBaseProcessor):
         
         for sheet_config in sheets:
             sheet_name = sheet_config['sheet_name']
+            # Export CREATES tabs; a ?sheet_NNN? pseudo-name addresses tabs
+            # that already exist, so it is meaningless here - and its
+            # characters are illegal in a real title anyway. Fail loud.
+            try:
+                reject_token_for_creation(
+                    sheet_name, f"Export step '{self.step_name}'"
+                )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
             data_source = sheet_config.get('data_source')
             
             if not data_source:

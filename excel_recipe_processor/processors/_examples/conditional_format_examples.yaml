@@ -22,7 +22,7 @@ basic_example:
         # REQ - Workbook to modify (session-aware; run after the export step)
         target_file: "reports/output.xlsx"
         # REQ - One tab name
-        sheet: "Data"
+        sheet_name: "Data"
         rules:
           - # Formula rules use the SAME convention as inject_formulas:
             # write for data row 2 with {col:Header Name} placeholders.
@@ -59,7 +59,7 @@ conditions_tour_example:
       - step_description: "Flag data quality signals"
         processor_type: "conditional_format"
         target_file: "reports/output.xlsx"
-        sheet: "Data"
+        sheet_name: "Data"
         rules:
           - # Comparisons: equals, not_equals, greater_than, greater_equal,
             # less_than, less_equal - plus between / not_between which take
@@ -96,7 +96,7 @@ alias_example:
         step_description: "Rule transcribed straight from Manage Rules"
         processor_type: "conditional_format"
         target_file: "reports/output.xlsx"
-        sheet: "Data"
+        sheet_name: "Data"
         rules:
           - when_cell: { columns: ["Test Dest"], condition: "greaterThan", value: 1 }
             style: { fill: "FFEB9C" }
@@ -110,7 +110,7 @@ parameter_details:
     examples:
       - "{output_dir}/{output_basename}.xlsx"
 
-  sheet:
+  sheet_name:
     type: string
     required: true
     description: "Tab to write rules on (one per step)"

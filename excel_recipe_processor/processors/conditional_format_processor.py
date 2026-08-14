@@ -36,6 +36,7 @@ from openpyxl.formatting.rule import Rule, CellIsRule, FormulaRule, DataBarRule,
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import column_placeholder_rgx
 from excel_recipe_processor.processors._helpers.inject_formulas_functions import prefix_future_functions
 
@@ -108,7 +109,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
         """Smallest configuration that constructs and validates."""
         return {
             'target_file': 'output.xlsx',
-            'sheet': 'Data',
+            'sheet_name': 'Data',
             'rules': [
                 {'when_cell': {'columns': ['Status'], 'condition': 'equals', 'value': 'Bad'},
                  'style': {'fill': 'FFC7CE'}},
@@ -121,9 +122,16 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             raise StepProcessorError(
                 f"Conditional format step '{self.step_name}' requires 'target_file'"
             )
-        if not self.get_config_value('sheet'):
+        if self.get_config_value('sheet', None):
             raise StepProcessorError(
-                f"Conditional format step '{self.step_name}' requires 'sheet' (one tab name)"
+                f"Conditional format step '{self.step_name}': 'sheet' was "
+                f"replaced by 'sheet_name' (2026-08-14 sheet-addressing "
+                f"doctrine)"
+            )
+        if not self.get_config_value('sheet_name'):
+            raise StepProcessorError(
+                f"Conditional format step '{self.step_name}' requires "
+                f"'sheet_name' (a tab name, or '?sheet_001?' by position)"
             )
 
         rules = self.get_config_value('rules', [])
@@ -227,17 +235,19 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
     def perform_file_operation(self):
         """Apply the rules to the target sheet via the workbook session."""
         target_file = self.get_config_value('target_file')
-        sheet_name = self.get_config_value('sheet')
+        sheet_name = self.get_config_value('sheet_name')
         rules = self.get_config_value('rules')
 
         resolved_file = self._resolve_path(target_file)
 
         workbook = WorkbookSession.get_workbook(resolved_file)
-        if sheet_name not in workbook.sheetnames:
-            raise StepProcessorError(
-                f"Conditional format step '{self.step_name}': sheet '{sheet_name}' "
-                f"not found. Available: {workbook.sheetnames}"
+        try:
+            sheet_name = resolve_sheet_ref(
+                sheet_name, workbook.sheetnames,
+                f"Conditional format step '{self.step_name}'"
             )
+        except ValueError as error:
+            raise StepProcessorError(str(error))
         worksheet = workbook[sheet_name]
 
         headers = self._build_header_map(worksheet)

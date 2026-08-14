@@ -25,8 +25,8 @@ basic_example:
         # run-end summary line tallies it.
         step_description: "Verify the enrichment held"
         processor_type: "verify_data"
-        # REQ (this or target_file) - Stage to verify
-        stage: "stg_enriched"
+        # REQ (this or target_file) - Stage this step reads
+        source_stage: "stg_enriched"
         rules:
           - column: "SHIP REF"
             condition: "not_empty"
@@ -59,7 +59,7 @@ referential_example:
         # use: after a lookup-based enrichment, prove nothing fell through.
         step_description: "Every carrier must exist in the lookup"
         processor_type: "verify_data"
-        stage: "stg_enriched"
+        source_stage: "stg_enriched"
         rules:
           - column: "Carrier"
             condition: "in_stage"
@@ -89,10 +89,10 @@ file_mode_example:
             condition: "not_empty"
 
 parameter_details:
-  stage:
+  source_stage:
     type: string
     required: false
-    description: "Stage to verify. Exactly one of stage / target_file."
+    description: "Stage this step reads. Exactly one of source_stage / target_file. (Rule-level stage references use filter_data's 'stage_name' - a different role, a different key.)"
   target_file:
     type: string
     required: false

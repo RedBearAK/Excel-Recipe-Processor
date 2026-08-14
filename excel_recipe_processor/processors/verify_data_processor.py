@@ -44,7 +44,7 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
     def get_minimal_config(cls) -> dict:
         """Smallest configuration that constructs and validates."""
         return {
-            'stage': 'stg_to_verify',
+            'source_stage': 'stg_to_verify',
             'rules': [
                 {'column': 'Key', 'condition': 'not_empty'},
             ],
@@ -52,13 +52,23 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
 
     def _validate_file_operation_config(self):
         """Exactly one source; a non-empty rules list; sane severities."""
-        stage = self.get_config_value('stage', None)
+        source_stage = self.get_config_value('source_stage', None)
         target_file = self.get_config_value('target_file', None)
 
-        if bool(stage) == bool(target_file):
+        if self.get_config_value('stage', None):
+            # The bare 'stage' key belongs to no family: data-flow steps say
+            # source_stage, rule-level references say stage_name. Refusing
+            # here (this processor is new, nothing deployed uses 'stage')
+            # keeps one step from speaking two dialects.
+            raise StepProcessorError(
+                f"Verify data step '{self.step_name}': use 'source_stage' "
+                f"(the stage this step reads), not 'stage'"
+            )
+
+        if bool(source_stage) == bool(target_file):
             raise StepProcessorError(
                 f"Verify data step '{self.step_name}' needs exactly one source: "
-                f"'stage' or 'target_file' (with 'sheet')"
+                f"'source_stage' or 'target_file' (with 'sheet')"
             )
         if target_file and not self.get_config_value('sheet', None):
             raise StepProcessorError(
@@ -80,6 +90,15 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
                 if not rule.get(required):
                     raise StepProcessorError(
                         f"Rule {rule_index} in step '{self.step_name}' needs '{required}'"
+                    )
+            if 'stage' in str(rule.get('condition', '')):
+                wrong_keys = [key for key in ('stage', 'source_stage') if key in rule]
+                if wrong_keys and 'stage_name' not in rule:
+                    raise StepProcessorError(
+                        f"Rule {rule_index} in step '{self.step_name}': stage "
+                        f"conditions reference their lookup stage with "
+                        f"'stage_name' (filter_data's rule grammar), not "
+                        f"{wrong_keys} - see the in_stage example"
                     )
             severity = rule.get('severity', 'warn')
             if severity not in VALID_SEVERITIES:
@@ -151,15 +170,16 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
 
     def _load_frame(self) -> tuple:
         """The frame to verify, plus a label naming where it came from."""
-        stage = self.get_config_value('stage', None)
+        source_stage = self.get_config_value('source_stage', None)
 
-        if stage:
+        if source_stage:
             try:
-                return StageManager.load_stage(stage), f"stage '{stage}'"
+                return (StageManager.load_stage(source_stage),
+                        f"stage '{source_stage}'")
             except StageError as error:
                 raise StepProcessorError(
                     f"Verify data step '{self.step_name}': error loading "
-                    f"stage '{stage}': {error}"
+                    f"stage '{source_stage}': {error}"
                 )
 
         target_file = self._resolve_path(self.get_config_value('target_file'))
@@ -250,7 +270,7 @@ class VerifyDataProcessor(FileOpsBaseProcessor):
                           'checks against a lookup stage), and the rest',
             'severity': 'per rule: warn (default) logs count + sample and '
                         'continues; halt raises naming the rule and sample',
-            'sources': 'a stage (mid-pipeline values) or a file sheet; a '
+            'sources': 'source_stage (mid-pipeline values) or a file sheet; a '
                        'session-held file is read live, pre-save',
             'formula_caveat': 'formula cells in files this framework wrote have '
                               'no cached values, so file-mode rules on injected '

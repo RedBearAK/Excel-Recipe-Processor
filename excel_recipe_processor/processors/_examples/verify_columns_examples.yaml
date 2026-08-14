@@ -35,7 +35,7 @@ basic_example:
       - step_description: "Verify the expected columns"
         processor_type: "verify_columns"
         # REQ - Stage to inspect (read-only; nothing is re-saved)
-        stage: "stg_import_raw"
+        source_stage: "stg_import_raw"
         # REQ - The expectation; keep it in a variable beside the recipe's
         # other lists so shape changes are a one-line maintenance edit
         expected_columns: "{list:var_expected_columns}"
@@ -83,7 +83,7 @@ compare_two_files_example:
 
       - step_description: "Compare columns, both directions"
         processor_type: "verify_columns"
-        stage: "stg_a"
+        source_stage: "stg_a"
         # OPT - Alternative to expected_columns: use this stage's columns
         # as the expectation (exactly one of the two must be given)
         expected_from_stage: "stg_b"
@@ -92,7 +92,7 @@ compare_two_files_example:
 
 
 parameter_details:
-  stage:
+  source_stage:
     required: true
     description: "Stage whose columns to verify; read without re-saving"
   expected_columns:

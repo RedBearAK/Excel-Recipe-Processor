@@ -353,4 +353,30 @@ sheet whose last cell is blank reads back one row short).
 HANDOFF_2026-08-13_thread_state.md added: orientation layer for the next
 session, incl. the test-debt triage and the CMA wiring as next step.
 
+## stage-key harmonization (2026-08-13, twelfth pass)
+
+Real confusion found (and personally demonstrated: a smoke test earlier
+this session wrote 'stage' inside an in_stage rule and got the
+stage_name error). Three naming families exist: the data-flow trio
+(source_stage/save_to_stage/lookup_stage), the stage_name family
+(settings declarations + rule/sub-config REFERENCES in filter_data,
+aggregate_data, group_data), and a bare 'stage' used only by the verify
+pair. Resolution: the verify processors now read 'source_stage' (they
+read a stage as their subject - data-flow family), while rule-level
+references stay filter_data's 'stage_name' (a different role, a
+different key, each consistent with its family).
+
+- verify_data: renamed outright (brand new, nothing deployed); bare
+  'stage' at step level errors with the correct key named, and 'stage'/
+  'source_stage' inside a *_stage RULE errors pointing at 'stage_name'.
+- verify_columns: 'source_stage' canonical; deployed 'stage' still works
+  with a warning naming the canonical (the conditional_format alias
+  pattern). VMS recipe and both examples files moved to canonical.
+
+Remaining inconsistency, deferred deliberately: copy_stage/create_stage
+name their DESTINATION 'stage_name' where the flow family says
+save_to_stage (copy_stage's own comment acknowledges it). Deployed
+semantics, wider blast radius - a later harmonization decision, not a
+drive-by.
+
 # End of file #

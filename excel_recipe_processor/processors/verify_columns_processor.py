@@ -43,14 +43,24 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
     def get_minimal_config(cls) -> dict:
         """Smallest configuration that constructs and validates."""
         return {
-            'stage': 'stg_to_verify',
+            'source_stage': 'stg_to_verify',
             'expected_columns': ['some_column']
         }
 
     def __init__(self, step_config: dict):
         super().__init__(step_config)
 
-        self.stage = self.get_config_value('stage', None)
+        # Canonical key: source_stage, the data-flow family's name for "the
+        # stage this step reads". The original bare 'stage' spelling is
+        # accepted for deployed recipes, with a nudge toward the canonical.
+        self.stage = self.get_config_value('source_stage', None)
+        legacy_stage = self.get_config_value('stage', None)
+        if legacy_stage and not self.stage:
+            logger.warning(
+                f"⚠️ Step '{self.step_name}': 'stage' accepted, but the "
+                f"canonical key is 'source_stage' - consider updating the recipe"
+            )
+            self.stage = legacy_stage
         self.expected_columns = self.get_config_value('expected_columns', None)
 
         # The expectation can come from another stage's columns instead of a
@@ -69,7 +79,7 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
 
         if not self.stage:
             raise StepProcessorError(
-                f"Step '{self.step_name}' requires 'stage': the stage to verify"
+                f"Step '{self.step_name}' requires 'source_stage': the stage to verify"
             )
 
         has_list = bool(self.expected_columns) and isinstance(self.expected_columns, list)

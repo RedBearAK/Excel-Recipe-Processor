@@ -1,4 +1,4 @@
-"""
+r"""
 One recognizer for sheet addressing, shared by every processor.
 
 excel_recipe_processor/processors/_helpers/sheet_addressing.py

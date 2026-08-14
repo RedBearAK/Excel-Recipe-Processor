@@ -479,4 +479,24 @@ per-tab in tab_color); seed_donor/generate_column_config source_sheet/
 target_sheet keys left as-is (role-prefixed, name-only, never
 polymorphic).
 
+## Real-run fix: named-objects range key + escape warning (2026-08-14)
+
+First production run after the sheet sweep halted at step 58: the
+recipe-wide sheet -> sheet_name rename correctly caught the
+manage_named_objects RANGE DEFINITIONS, but that processor's sub-config
+vocabulary was missed by the sweep. Fixed forward per doctrine: range
+entries take 'sheet_name' (guided error on 'sheet'), and the sheet is
+resolved through the shared recognizer, so ?sheet_NNN? tokens work in
+range definitions too. Examples renamed; named-objects test module still
+passing; step-58's exact shape (the recipe's real range list against a
+session workbook with the real tab names) verified clean.
+
+Also: the two sheet_addressing helper docstrings contained the forbidden
+character list with a backslash, drawing a SyntaxWarning on 3.12+ at
+import - both docstrings are now raw strings.
+
+Sweep-audit lesson recorded: sub-config vocabularies (range entries,
+formatting entries, rule dicts) each need explicit enumeration in a key
+sweep; grepping step-level get_config_value sites alone misses them.
+
 # End of file #

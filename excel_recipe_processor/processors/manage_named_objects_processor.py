@@ -19,6 +19,7 @@ from datetime import datetime
 from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
     resolve_range, ExcelRangeResolverError
@@ -1349,20 +1350,31 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     )
 
                 name = spec.get('name')
-                sheet = spec.get('sheet')
+                sheet = spec.get('sheet_name')
                 columns = spec.get('columns')
 
                 if not name:
                     raise StepProcessorError(f"Range entry {index + 1} missing 'name'")
 
+                if spec.get('sheet'):
+                    raise StepProcessorError(
+                        f"Range '{name}': 'sheet' was replaced by 'sheet_name' "
+                        f"(2026-08-14 sheet-addressing doctrine)"
+                    )
                 if not sheet:
-                    raise StepProcessorError(f"Range '{name}' missing 'sheet'")
+                    raise StepProcessorError(f"Range '{name}' missing 'sheet_name'")
 
                 if not isinstance(columns, list) or len(columns) == 0:
                     raise StepProcessorError(
                         f"Range '{name}' requires a non-empty 'columns' list"
                     )
 
+                try:
+                    sheet = resolve_sheet_ref(
+                        sheet, workbook.sheetnames, f"Range '{name}'"
+                    )
+                except ValueError as error:
+                    raise StepProcessorError(str(error))
                 if sheet not in workbook.sheetnames:
                     raise StepProcessorError(
                         f"Range '{name}' targets sheet '{sheet}', which was not found. "

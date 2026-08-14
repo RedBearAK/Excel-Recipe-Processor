@@ -80,7 +80,7 @@ create_from_columns_example:
             # before any digit so the name can never read as a cell reference
             name: "rng_PID"
             # REQ - Sheet holding the column
-            sheet: "Product_IDs"
+            sheet_name: "Product_IDs"
             # REQ - Column names, or Excel column letters
             columns: ["Product ID"]
             # OPT - "data" (default: data rows only), "data_with_header",
@@ -90,7 +90,7 @@ create_from_columns_example:
           - # Adjacent entries expand into a span covering everything between,
             # so this becomes $B$2:$E$854 rather than two separate columns
             name: "rng_payterms"
-            sheet: "Sales_Orders"
+            sheet_name: "Sales_Orders"
             columns: ["Payment Terms", "Deposit Application"]
             row_mode: "data"
             # OPT - Columns used to measure the extent. Defaults to the columns
@@ -101,7 +101,7 @@ create_from_columns_example:
           - # full_col_no_header has no extent to fall behind, which suits a
             # validation list someone extends by hand
             name: "rng_carrier"
-            sheet: "Carriers"
+            sheet_name: "Carriers"
             columns: ["Carrier"]
             row_mode: "full_col_no_header"
 

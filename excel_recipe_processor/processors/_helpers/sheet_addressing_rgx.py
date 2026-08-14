@@ -1,4 +1,4 @@
-"""
+r"""
 Regex for sheet-index pseudo-name tokens.
 
 excel_recipe_processor/processors/_helpers/sheet_addressing_rgx.py

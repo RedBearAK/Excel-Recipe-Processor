@@ -1,6 +1,6 @@
-# Revision date: 2025-07-30
+# Revision date: 2026-08-13
 
-description: "Extract portions of DataFrames using 1-based indexing. Perfect for separating metadata, headers, and data sections in complex Excel files."
+description: "Extract portions of DataFrames using 1-based indexing, or transpose a table headers-aware. Perfect for separating metadata, headers, and data sections in complex Excel files."
 
 basic_example:
   description: "Extract specific rows from a DataFrame"
@@ -240,6 +240,40 @@ advanced_example:
         end_row: 100
         slice_result_contains_headers: true
         save_to_stage: "validation_data"
+
+transpose_example:
+  description: "Turn a metrics-down/months-across table into months-down/metrics-across"
+  yaml: |
+    settings:
+      description: "Transpose the metrics table for month-per-row processing"
+      stages:
+        - stage_name: "stg_metrics_wide"
+          description: "Metric per row, one column per month"
+          protected: false
+        - stage_name: "stg_metrics_by_month"
+          description: "Month per row, one column per metric"
+          protected: false
+
+    recipe:
+      - # Headers-aware, like Excel's Paste Special > Transpose on a table
+        # with row labels: the label column's VALUES become the new header
+        # row, and the old headers become a new first column. Fails loud if
+        # the label column has duplicate or blank values - either would
+        # produce unaddressable or colliding column names downstream.
+        # Mixed-type rows come back as object columns; re-coerce with
+        # clean_data where dtypes matter.
+        step_description: "Transpose metrics table to month-per-row"
+        processor_type: "slice_data"
+        source_stage: "stg_metrics_wide"
+        slice_type: "transpose"
+        # OPT - Column whose values become the new headers
+        # Default value: the first column
+        header_column: "Metric"
+        # OPT - Name for the new first column holding the previous headers.
+        # The source has no name for what its own headers represent, so say
+        # what you mean. Default value: "Field"
+        old_headers_column_name: "Month"
+        save_to_stage: "stg_metrics_by_month"
 
 parameter_details:
   processor_type:

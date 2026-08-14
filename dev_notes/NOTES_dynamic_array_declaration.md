@@ -242,4 +242,23 @@ data sizes and therefore comparable between runs. The per-processor
 semantic count remains a future item (count_step_elements in
 core/recipe_pipeline.py would become its fallback).
 
+## slice_data transpose (2026-08-13, seventh pass)
+
+New slice_type: "transpose" - headers-aware, matching Excel's Paste
+Special > Transpose on a labelled table: the label column's values become
+the new header row, the old headers become a new first column
+(old_headers_column_name, default "Field" since the source has no name for
+what its own headers represent). Fails loud on duplicate labels, blank/NaN
+labels, and name collisions - each would silently corrupt column
+addressing downstream. Mixed-type rows come back object-dtype (inherent to
+any transpose); clean_data re-coerces where it matters. 4/4 focused tests
+incl. a double-transpose round trip. While in the module: import order
+fixed, module docstring path line added, and the typing-module Any
+annotation removed per convention.
+
+Queued next per discussion: verify_data (value-level fail-loud rules -
+generalizes the CMA unresolved-lookup horizon item), then
+conditional_format, then unpivot_data. Merge/split-per-group noted as
+back-burner (Simple-Excel-Merge exists as prior art).
+
 # End of file #

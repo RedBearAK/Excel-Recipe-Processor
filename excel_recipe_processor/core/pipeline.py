@@ -502,6 +502,7 @@ from excel_recipe_processor.processors.create_stage_processor           import C
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
 from excel_recipe_processor.processors.declare_dynamic_formulas_processor import DeclareDynamicFormulasProcessor
 from excel_recipe_processor.processors.diff_data_processor              import DiffDataProcessor
+from excel_recipe_processor.processors.excel_data_validation_processor  import ExcelDataValidationProcessor
 from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
 from excel_recipe_processor.processors.export_filter_step_processor     import ExportFilterStepProcessor
 from excel_recipe_processor.processors.fill_data_processor              import FillDataProcessor
@@ -553,6 +554,7 @@ def register_standard_processors():
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
     registry.register('declare_dynamic_formulas',       DeclareDynamicFormulasProcessor     )
     registry.register('diff_data',                      DiffDataProcessor                   )
+    registry.register('excel_data_validation',          ExcelDataValidationProcessor        )
     registry.register('export_file',                    ExportFileProcessor                 )
     registry.register('export_filter_step',             ExportFilterStepProcessor           )
     registry.register('fill_data',                      FillDataProcessor                   )

@@ -99,4 +99,19 @@ MINIMUM_NAME_LENGTH = 3
 CONVENTIONAL_NAME_PREFIX = 'rng_'
 
 
+# ============================================================================
+# Spill-range anchor references (dynamic arrays)
+# ============================================================================
+
+# Spilled-range anchor reference, with optional sheet prefix. The trailing
+# '#' addresses the whole spilled range of the anchor cell (Excel 365
+# dynamic arrays). Leading '=' is NOT part of the reference; callers strip
+# it before matching.
+# Matches: "$Z$2#", "Z2#", "Lookups!$Z$2#", "'Look Ups'!$Z$2#"
+# Rejects: "Z2", "Z:Z#", "=Z2#", "Z2# "
+spill_anchor_ref_rgx = re.compile(
+    r"^(?:(?:'[^']+'|[A-Za-z_][A-Za-z0-9_.]*)!)?\$?[A-Z]{1,3}\$?\d{1,7}#$"
+)
+
+
 # End of file #

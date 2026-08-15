@@ -71,3 +71,31 @@ clean (66 steps, 51 stages).
    renders accounting with the pinned $ and dash-for-zero, INCLUDING on
    every spill row (the whole point of whole_column).
 3. Grand-total row formats correctly too (same columns).
+
+## ADDENDUM (2026-08-14, same day): layout v2 + header_row fix
+
+User feedback on the first formatted output drove three changes:
+
+1. **The frame now delivers all the sheet's REAL TEXT.** The natural
+   question "why are the labels formula results?" had the right answer:
+   no reason - the zero-row frame was a leftover. create_stage rows put
+   plain text in row 2 ("<-- SELECT CUSTOMER" beside the invisible
+   dropdown cell) and row 4 (the grid labels); nulls land empty cells.
+   The inject step carries ONLY the GROUPBY now. Doctrine formed: text
+   belongs to the frame, formulas to the inject step.
+
+2. **header_row hardcoding fixed** in format_excel's
+   `_apply_header_formatting`: it painted row 1 unconditionally even
+   though `header_row` was a known option already steering
+   column_formats, widths and hidden_columns. It now honors the option
+   (default 1 - byte-identical when absent). Two formatting entries for
+   the same sheet apply in order, which gives the interactive tab a
+   bold row-1 label (entry 1, default header_row) AND the navy band on
+   the grid's own header row (entry 2, header_row: 4).
+
+3. **Width 40 -> 64** on the shared customer/product column, both tabs.
+
+Verified: A1 bold/no-fill; A4:D4 navy band, white bold text; space
+headers B1:D1 untouched; B2 prompt text; widths 64/15/18; col-level
+number formats intact. Tests 4/4 (new: header_row honored + default
+preserved).

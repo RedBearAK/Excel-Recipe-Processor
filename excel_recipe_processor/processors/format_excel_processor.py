@@ -851,14 +851,21 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
     def _apply_header_formatting(self, worksheet, formatting: dict) -> None:
         """
-        Apply enhanced header formatting to the first row.
-        
+        Apply enhanced header formatting to the header row.
+
+        The row is the sheet entry's header_row option (default 1) - the
+        same option column_formats, widths and hidden_columns already
+        honor. Until 2026-08-14 this method hardcoded row 1, so a sheet
+        declaring header_row: 4 had its band painted on the wrong row.
+
         Args:
             worksheet: openpyxl worksheet object
             formatting: Formatting configuration
         """
-        if worksheet.max_row < 1:
-            return  # No data to format
+        header_row = formatting.get('header_row', 1)
+
+        if worksheet.max_row < header_row:
+            return  # No such row to format
         
         # Build font formatting
         font_kwargs = {}
@@ -895,8 +902,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         if header_v_align:
             alignment_kwargs['vertical'] = header_v_align
         
-        # Apply to first row
-        for cell in worksheet[1]:  # First row
+        # Apply to the header row
+        for cell in worksheet[header_row]:
             # Apply font formatting
             if font_kwargs:
                 # Preserve existing font properties and merge with new ones

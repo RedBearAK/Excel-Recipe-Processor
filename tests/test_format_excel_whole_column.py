@@ -141,6 +141,49 @@ def test_guided_error():
     return True
 
 
+def test_header_row_honored():
+    """Sheet-level header band lands on header_row, not hardcoded row 1."""
+    print("\nTesting header_row honoring...")
+
+    from excel_recipe_processor.processors.format_excel_processor import (
+        FormatExcelProcessor,
+    )
+
+    config = FormatExcelProcessor.get_minimal_config()
+    config['processor_type'] = 'format_excel'
+    processor = FormatExcelProcessor(config)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet['A1'] = 'Label:'
+    sheet['A4'] = 'Product'
+    sheet['B4'] = 'Units'
+
+    processor._apply_header_formatting(sheet, {
+        'header_row': 4, 'header_bold': True,
+        'header_background': True, 'header_background_color': '1F4E79',
+    })
+
+    if not sheet['A4'].font.bold or sheet['A4'].fill.fill_type != 'solid':
+        print("✗ Row 4 did not receive the header band")
+        return False
+    if sheet['A1'].font.bold or sheet['A1'].fill.fill_type == 'solid':
+        print("✗ Row 1 was styled despite header_row: 4")
+        return False
+    print("✓ Band on row 4, row 1 untouched")
+
+    # Default stays row 1 (legacy behavior when the key is absent)
+    workbook_default = Workbook()
+    sheet_default = workbook_default.active
+    sheet_default['A1'] = 'Header'
+    processor._apply_header_formatting(sheet_default, {'header_bold': True})
+    if not sheet_default['A1'].font.bold:
+        print("✗ Default header_row no longer styles row 1")
+        return False
+    print("✓ Absent header_row still styles row 1")
+    return True
+
+
 def main():
     """Run all tests and report results."""
     print("whole_column formatting tests")
@@ -150,6 +193,7 @@ def main():
         test_whole_column_style_chain,
         test_empty_sheet_behavior,
         test_guided_error,
+        test_header_row_honored,
     ]
 
     passed = 0

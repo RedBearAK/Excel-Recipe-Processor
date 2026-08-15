@@ -97,6 +97,16 @@ def test_lambda_guard():
             return False
         print("✓ LAMBDA(...) refused, guidance names _xlpm storage")
 
+    try:
+        transform_storage_forms('=LET(v,FILTER(a,b),IF(v="","",v))')
+        print("✗ LET(...) should have been refused (same _xlpm storage)")
+        return False
+    except ValueError as error:
+        if 'LET' not in str(error):
+            print(f"✗ Guard message does not name LET: {error}")
+            return False
+        print("✓ LET(...) refused, message names it")
+
     benign = '=IF(A1="LAMBDA(x)","yes","no")'
     if transform_storage_forms(benign) != benign:
         print("✗ LAMBDA inside a string literal was not left alone")

@@ -60,3 +60,28 @@ Export_View criteria: Sale Type = "Export". The trimmed sample is
 appears on real data with Domestic rows. Tab wears FFF59D, a paler
 main-family yellow (a view OF the main tab). Recipe validates clean:
 68 steps, 52 declared stages.
+
+## ADDENDUM (2026-08-14): first-eyeball fixes
+
+1. **Empty-DataFrame export warnings are the pattern working**: the two
+   zero-row frame stages (Customer_List, Export_View) warn at export.
+   Benign and expected; one warning per zero-row frame.
+
+2. **The spill anchor cell needs its own explicit style.** OOXML
+   subtlety: column-dimension styles materialize only on cells Excel
+   CREATES (the spill results); a cell that EXISTS in the file with no
+   style index renders default. A2 exists (it holds the formula), so
+   the Process Year column's centering skipped it. Fixed with a
+   cell_formats rule on A2. RULE OF THUMB: whole_column formats the
+   spill, cell_formats the anchor.
+
+3. **Spilled blanks render as 0 - suppressed with the IF wrapper**:
+   IF(FILTER(...)="", "", FILTER(...)). Blanks become empty strings;
+   REAL zeros survive (0="" is FALSE). The FILTER is written twice
+   instead of named once via LET, because LET's variable names carry
+   the same _xlpm. storage prefix that bit LAMBDA - and LET was ALREADY
+   in the call-prefix map, so an author reaching for it would have
+   stored bare names and triggered repair. The injector's fail-loud
+   guard now covers LET as well as LAMBDA (tests 3/3). _xlpm support
+   remains queued, now with THREE motivating cases (GROUPBY lambdas,
+   LET wrappers, and any future named-formula work).

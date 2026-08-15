@@ -61,11 +61,13 @@ eta_reference_rgx = re.compile(
     r'(?![A-Za-z0-9_.]|\s*\()'
 )
 
-# A LAMBDA call. Its parameters must be STORED with an _xlpm. prefix
-# (declaration and every body occurrence), which this injector does not
-# yet implement - a stored bare parameter is grammatically invalid and
-# Excel's repair strips the whole formula. Live formulas containing this
-# fail loud instead.
-lambda_call_rgx = re.compile(r'(?<![A-Za-z0-9_.])LAMBDA\s*\(')
+# A LAMBDA or LET call. Both declare NAMES that must be STORED with an
+# _xlpm. prefix (declaration and every body occurrence), which this
+# injector does not yet implement - a stored bare name in a declaration
+# slot is grammatically invalid and Excel's repair strips the whole
+# formula. Live formulas containing either fail loud instead. (LAMBDA
+# bit first, 2026-08-14; LET nearly bit the same day via the
+# blank-suppression wrapper for FILTER views.)
+lambda_call_rgx = re.compile(r'(?<![A-Za-z0-9_.])(?:LAMBDA|LET)\s*\(')
 
 # End of file #

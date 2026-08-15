@@ -154,11 +154,12 @@ def transform_storage_forms(formula: str) -> str:
     """
     if lambda_call_rgx.search(string_literal_rgx.sub('""', formula)):
         raise ValueError(
-            "Formula contains LAMBDA(...), whose parameters need _xlpm. "
-            "storage prefixes this injector does not yet implement - "
-            "stored bare, Excel's repair strips the formula. Use an "
-            "eta-reduced aggregation name instead (e.g. GROUPBY(a, b, "
-            "SUM)), or request _xlpm support."
+            "Formula contains LAMBDA(...) or LET(...), whose declared "
+            "names need _xlpm. storage prefixes this injector does not "
+            "yet implement - stored bare, Excel's repair strips the "
+            "formula. For aggregations use an eta-reduced name (e.g. "
+            "GROUPBY(a, b, SUM)); instead of LET, repeat the expression; "
+            "or request _xlpm support."
         )
 
     def rewrite(segment: str) -> str:

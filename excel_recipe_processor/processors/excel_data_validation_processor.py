@@ -30,10 +30,10 @@ SHARP EDGES - do not simplify:
   bounds, custom) because Excel's own files omit it in <formula1>.
 - ISO date bounds ("2026-01-01") and clock-time bounds ("17:30") convert
   to DATE()/TIME() formulas; Excel does not evaluate raw ISO strings.
-- OPEN Excel-side question (same class as the CF _xlfn one): whether Excel
-  accepts a stored literal '#' spill reference in formula1 or wants
-  ANCHORARRAY - eyeball the first real output; if it fails, the fix lives
-  in the dynamic-array zip-rewrite layer.
+- RESOLVED (2026-08-14, harvested from real Excel output): a stored
+  literal '#' spill reference in formula1 is INVALID - Excel's repair
+  strips the validation. list_from_spill_ref therefore stores the
+  _xlfn.ANCHORARRAY(...) form while recipes keep writing "$Z$1#".
 """
 
 import logging
@@ -440,9 +440,13 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
             data_validation.formula1 = self._list_formula(entry)
             # INVERTED ATTRIBUTE (see module docstring): OOXML showDropDown
             # true means SUPPRESS the in-cell arrow. Config show_dropdown
-            # defaults true, mapping to attribute-absent.
+            # defaults true, mapping to attribute-ABSENT (None) - openpyxl's
+            # constructor default of False would serialize an explicit
+            # showDropDown="0", which Excel itself never writes.
             if not entry.get('show_dropdown', True):
                 data_validation.showDropDown = True
+            else:
+                data_validation.showDropDown = None
         elif validation_type in BOUNDED_TYPES:
             operator = entry['operator']
             data_validation.operator = OPERATORS[operator]
@@ -480,7 +484,12 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
             return '"' + ','.join(items) + '"'
         if 'list_from_named_range' in entry:
             return str(entry['list_from_named_range']).strip().lstrip('=')
-        return str(entry['list_from_spill_ref']).strip().lstrip('=')
+        # Recipes write the natural spill form ("$Z$1#"); Excel STORES the
+        # ANCHORARRAY form, and a stored literal '#' triggers the repair
+        # dialog, which strips the whole validation. Harvested verbatim
+        # 2026-08-14: <formula1>_xlfn.ANCHORARRAY($D$1)</formula1>.
+        spill_ref = str(entry['list_from_spill_ref']).strip().lstrip('=')
+        return f"_xlfn.ANCHORARRAY({spill_ref.rstrip('#')})"
 
     @staticmethod
     def _bound_as_formula(value, validation_type: str) -> str:

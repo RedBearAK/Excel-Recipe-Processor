@@ -24,7 +24,13 @@ left exactly as written, so older functions (SUM, COUNTIF, VLOOKUP) and any
 name this module has not heard of pass through untouched.
 """
 
-from excel_recipe_processor.processors._helpers.inject_formulas_rgx import function_call_rgx
+from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
+    function_call_rgx,
+    string_literal_rgx,
+    eta_reference_rgx,
+    lambda_call_rgx,
+    spill_reference_rgx,
+)
 
 
 # Function name -> the prefix it must carry when stored in the file.
@@ -73,12 +79,11 @@ FUTURE_FUNCTION_PREFIXES = {
     'VALUETOTEXT':  '_xlfn.',
     'ISOMITTED':    '_xlfn.',
 
-    # Grouping aggregators, Excel 365 (2024). NOTE: their aggregation
-    # argument is an eta-reduced lambda (bare SUM), which Excel STORES
-    # with an _xleta. prefix. This name-anywhere map cannot add that
-    # safely (it would corrupt every ordinary SUM), so recipes write the
-    # aggregation as a full LAMBDA(x,SUM(x)) instead - LAMBDA is mapped
-    # above, and the legacy function inside needs no prefix. (2026-08-14)
+    # Grouping aggregators, Excel 365 (2024). Their aggregation argument
+    # is an eta-reduced lambda (bare SUM) which Excel STORES with an
+    # _xleta. prefix - handled by transform_storage_forms below, NOT by
+    # this call-form map. (Harvested from real Excel output 2026-08-14;
+    # see dev_notes/NOTES_spill_storage_forms.md.)
     'GROUPBY':      '_xlfn.',
     'PIVOTBY':      '_xlfn.',
     'PERCENTOF':    '_xlfn.',
@@ -104,6 +109,64 @@ def prefix_future_functions(formula: str) -> str:
         return match.group(0).replace(name, f"{prefix}{name}", 1)
 
     return function_call_rgx.sub(substitute, formula)
+
+
+def apply_outside_strings(formula: str, transform) -> str:
+    """
+    Apply a text transform to the parts of a formula OUTSIDE string
+    literals, so "text like Z1# or SUM" can never be rewritten. The
+    split preserves the literals verbatim, "" escapes included.
+    """
+    pieces = []
+    last_end = 0
+    for match in string_literal_rgx.finditer(formula):
+        pieces.append(transform(formula[last_end:match.start()]))
+        pieces.append(match.group(0))
+        last_end = match.end()
+    pieces.append(transform(formula[last_end:]))
+    return ''.join(pieces)
+
+
+def transform_storage_forms(formula: str) -> str:
+    """
+    Rewrite display syntax into the forms Excel actually STORES, beyond
+    the simple call-name prefixes. Both harvested verbatim from real
+    Excel output (2026-08-14, data-validation-test.xlsx):
+
+    - Spilled-range references lose the '#' and gain ANCHORARRAY:
+        SUM(D1#)            -> SUM(_xlfn.ANCHORARRAY(D1))
+      A stored literal '#' is invalid and triggers Excel's repair.
+
+    - Eta-reduced lambda references (bare aggregation names in value
+      position) gain the _xleta. prefix:
+        GROUPBY(a, b, SUM)  -> _xlfn.GROUPBY(a, b, _xleta.SUM)
+      (the GROUPBY call itself is prefixed by prefix_future_functions).
+
+    A full LAMBDA(...) is REFUSED with guidance: its parameters must be
+    stored with _xlpm. prefixes on declaration and every body occurrence
+    (=LAMBDA(x,SUM(x)) stores as _xlfn.LAMBDA(_xlpm.x,SUM(_xlpm.x))),
+    which this injector does not implement - and a stored bare parameter
+    is not merely #NAME?, it is grammatically invalid, so Excel's repair
+    strips the whole formula. Failing loud here beats that silent loss.
+
+    String literals are never touched. Idempotent: already-transformed
+    text contains no bare '#' references or unprefixed eta names.
+    """
+    if lambda_call_rgx.search(string_literal_rgx.sub('""', formula)):
+        raise ValueError(
+            "Formula contains LAMBDA(...), whose parameters need _xlpm. "
+            "storage prefixes this injector does not yet implement - "
+            "stored bare, Excel's repair strips the formula. Use an "
+            "eta-reduced aggregation name instead (e.g. GROUPBY(a, b, "
+            "SUM)), or request _xlpm support."
+        )
+
+    def rewrite(segment: str) -> str:
+        segment = spill_reference_rgx.sub(r'_xlfn.ANCHORARRAY(\1)', segment)
+        segment = eta_reference_rgx.sub(r'_xleta.\1', segment)
+        return segment
+
+    return apply_outside_strings(formula, rewrite)
 
 
 # End of file #

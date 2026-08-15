@@ -58,9 +58,9 @@ dropdown_sources_example:
 
           - # Spill reference source - the dropdown tracks a dynamic
             # array (e.g. SORT(UNIQUE(...))) as it grows and shrinks.
-            # Eyeball the first real output in Excel: whether Excel
-            # accepts the stored literal '#' form is the one open
-            # question (same class as the conditional_format _xlfn one).
+            # Write the natural '#' form; the processor STORES Excel's
+            # _xlfn.ANCHORARRAY(...) form, because a stored literal '#'
+            # triggers Excel's repair (harvested 2026-08-14).
             sheet_name: "Interactive_Summary"
             apply_to_ranges: ["C2"]
             validation_type: "list"

@@ -37,6 +37,7 @@ from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_
 from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
     FUTURE_FUNCTION_PREFIXES,
     prefix_future_functions,
+    transform_storage_forms,
 )
 
 
@@ -421,6 +422,20 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         # Functions added after the 2007 format must be STORED with an
         # _xlfn. prefix or Excel shows #NAME?; see the prefix map for why.
         formula = self._prefix_future_functions(formula)
+
+        # Display syntax that Excel stores differently: spill '#' refs
+        # become ANCHORARRAY(...), bare eta aggregations gain _xleta.,
+        # and a LAMBDA(...) is refused (its _xlpm. parameter storage is
+        # not implemented; stored bare it gets stripped by Excel repair).
+        # Live storage only - dead formulas are documentation text and
+        # keep the display forms the reader would type.
+        if mode == 'live':
+            try:
+                formula = transform_storage_forms(formula)
+            except ValueError as error:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': {error}"
+                )
 
         # Column names resolve to letters against THIS sheet's header row -
         # in the formula AND in the target, since naming the column a formula

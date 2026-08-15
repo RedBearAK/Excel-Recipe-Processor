@@ -101,10 +101,25 @@ def test_list_sources_and_sqref():
             return False
         print("✓ Named range stored without leading '='")
 
-        if 'Lookups!$Z$2#' not in by_formula:
-            print(f"✗ Spill ref not stored verbatim: {sorted(by_formula)}")
+        # Harvested from real Excel output (2026-08-14): a stored literal
+        # '#' is invalid and repair strips the validation; Excel stores
+        # the ANCHORARRAY form.
+        if '_xlfn.ANCHORARRAY(Lookups!$Z$2)' not in by_formula:
+            print(f"✗ Spill ref not in ANCHORARRAY form: {sorted(by_formula)}")
             return False
-        print("✓ Spill ref stored with '#' intact")
+        print("✓ Spill ref stored as _xlfn.ANCHORARRAY(...)")
+
+        # openpyxl's loader refills the constructor default (False) even
+        # when the attribute is absent, so the reloaded object cannot
+        # answer this - only the stored XML can.
+        import zipfile
+        with zipfile.ZipFile(target_file) as archive:
+            sheet_xml = archive.read('xl/worksheets/sheet1.xml').decode()
+        if 'showDropDown' in sheet_xml:
+            print("✗ Default show_dropdown wrote a showDropDown attribute; "
+                  "Excel parity is attribute-absent")
+            return False
+        print("✓ Default show_dropdown stored attribute-absent (Excel parity)")
         return True
 
     finally:

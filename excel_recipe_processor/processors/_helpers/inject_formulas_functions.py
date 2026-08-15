@@ -72,6 +72,16 @@ FUTURE_FUNCTION_PREFIXES = {
     'ARRAYTOTEXT':  '_xlfn.',
     'VALUETOTEXT':  '_xlfn.',
     'ISOMITTED':    '_xlfn.',
+
+    # Grouping aggregators, Excel 365 (2024). NOTE: their aggregation
+    # argument is an eta-reduced lambda (bare SUM), which Excel STORES
+    # with an _xleta. prefix. This name-anywhere map cannot add that
+    # safely (it would corrupt every ordinary SUM), so recipes write the
+    # aggregation as a full LAMBDA(x,SUM(x)) instead - LAMBDA is mapped
+    # above, and the legacy function inside needs no prefix. (2026-08-14)
+    'GROUPBY':      '_xlfn.',
+    'PIVOTBY':      '_xlfn.',
+    'PERCENTOF':    '_xlfn.',
 }
 
 def prefix_future_functions(formula: str) -> str:

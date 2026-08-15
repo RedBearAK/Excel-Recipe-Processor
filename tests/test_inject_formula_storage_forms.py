@@ -83,35 +83,49 @@ def test_untouched_forms():
     return True
 
 
-def test_lambda_guard():
-    """LAMBDA is refused with _xlpm guidance; strings do not trip it."""
-    print("\nTesting the LAMBDA guard...")
+def test_xlpm_constructs_transform():
+    """LAMBDA/LET now TRANSFORM (guard retired); strings still safe."""
+    print("\nTesting _xlpm construct transformation via the live pipeline...")
 
-    try:
-        transform_storage_forms('=GROUPBY(a,b,LAMBDA(x,SUM(x)))')
-        print("✗ LAMBDA(...) should have been refused")
-        return False
-    except ValueError as error:
-        if '_xlpm' not in str(error):
-            print(f"✗ Guard message lacks _xlpm guidance: {error}")
-            return False
-        print("✓ LAMBDA(...) refused, guidance names _xlpm storage")
+    from excel_recipe_processor.processors._helpers.xlpm_name_storage import (
+        transform_xlpm_names,
+    )
 
-    try:
-        transform_storage_forms('=LET(v,FILTER(a,b),IF(v="","",v))')
-        print("✗ LET(...) should have been refused (same _xlpm storage)")
-        return False
-    except ValueError as error:
-        if 'LET' not in str(error):
-            print(f"✗ Guard message does not name LET: {error}")
+    def live(formula):
+        return transform_storage_forms(
+            prefix_future_functions(transform_xlpm_names(formula)))
+
+    cases = [
+        # The harvest workbook's H8, byte-exact
+        ('=GROUPBY(A1:A6,B1:B6,LAMBDA(x,SUM(x)))',
+         '=_xlfn.GROUPBY(A1:A6,B1:B6,_xlfn.LAMBDA(_xlpm.x,SUM(_xlpm.x)))'),
+        # The LET wrapper that was previously refused
+        ('=LET(v,FILTER(a,b),IF(v="","",v))',
+         '=_xlfn.LET(_xlpm.v,_xlfn._xlws.FILTER(a,b),IF(_xlpm.v="","",_xlpm.v))'),
+        # Sequential LET scoping: outer b in v1 stays bare
+        ('=LET(a,b+1,b,2,a+b)',
+         '=_xlfn.LET(_xlpm.a,b+1,_xlpm.b,2,_xlpm.a+_xlpm.b)'),
+    ]
+    for given, expected in cases:
+        result = live(given)
+        if result != expected:
+            print(f"✗ {given}\n  got      {result}\n  expected {expected}")
             return False
-        print("✓ LET(...) refused, message names it")
+        print(f"✓ {given}")
 
     benign = '=IF(A1="LAMBDA(x)","yes","no")'
-    if transform_storage_forms(benign) != benign:
-        print("✗ LAMBDA inside a string literal was not left alone")
+    if live(benign) != benign:
+        print("✗ LAMBDA text inside a string literal was rewritten")
         return False
-    print("✓ 'LAMBDA(' inside a string literal ignored")
+    print("✓ 'LAMBDA(' inside a string literal untouched")
+
+    # Optional parameters: harvested 2026-08-14, now a capability -
+    # declaration stores _xlop.y (brackets vanish), uses store _xlpm.y
+    result = transform_xlpm_names('=LAMBDA(x,[y],x+y)')
+    if result != '=LAMBDA(_xlpm.x,_xlop.y,_xlpm.x+_xlpm.y)':
+        print(f"✗ Optional-parameter storage wrong: {result}")
+        return False
+    print("✓ Optional [y] stores as _xlop declaration + _xlpm uses")
     return True
 
 
@@ -123,7 +137,7 @@ def main():
     tests = [
         test_harvested_forms,
         test_untouched_forms,
-        test_lambda_guard,
+        test_xlpm_constructs_transform,
     ]
 
     passed = 0

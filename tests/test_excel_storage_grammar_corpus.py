@@ -42,6 +42,8 @@ from excel_recipe_processor.processors._helpers.inject_formulas_functions import
 
 FIXTURE = os.path.join(os.path.dirname(__file__), 'fixtures',
                        'harvest_2026-08-14_lambda_eta_spill.xlsx')
+FIXTURE_NAMED = os.path.join(os.path.dirname(__file__), 'fixtures',
+                             'harvest_2026-08-14_named_optional_helpers.xlsx')
 
 
 def live_pipeline(formula: str) -> str:
@@ -162,6 +164,74 @@ def test_oracle_b_harvest_fixture():
     return True
 
 
+def test_oracle_c_named_optional_fixture():
+    """Named constructs, _xlop optionals, lambda helpers - all byte-pinned."""
+    print("\nOracle C: named/optional/helper harvest workbook...")
+
+    if not os.path.exists(FIXTURE_NAMED):
+        print(f"✗ Fixture missing: {FIXTURE_NAMED}")
+        return False
+
+    with zipfile.ZipFile(FIXTURE_NAMED) as archive:
+        workbook_xml = archive.read('xl/workbook.xml').decode()
+        sheet_name = sorted(n for n in archive.namelist()
+                            if re.match(r'xl/worksheets/sheet\d+\.xml$', n))[0]
+        sheet_xml = archive.read(sheet_name).decode()
+
+    stored_names = dict(re.findall(
+        r'<definedName name="([^"]+)"[^>]*>(.*?)</definedName>',
+        workbook_xml, re.S))
+    stored_cells = {match.group(1): match.group(2)
+                    for match in re.finditer(
+                        r'<c r="([A-Z]+\d+)"[^>]*><f[^>]*>(.*?)</f>',
+                        sheet_xml, re.S)}
+
+    named_cases = [
+        ('HarvestLam', 'LAMBDA(x,y,x*y)'),
+        ('HarvestLet', 'LET(a,2,b,3,a*b)'),
+        ('HarvestLamLet', 'LAMBDA(v,LET(t,v*2,t+v))'),
+    ]
+    for defined_name, human in named_cases:
+        oracle = stored_names.get(defined_name)
+        ours = live_pipeline(human)
+        if oracle is None or squeeze(ours) != squeeze(oracle):
+            print(f"✗ {defined_name} drift:\n  ours   {ours}\n  oracle {oracle}")
+            return False
+        if oracle.lstrip().startswith('='):
+            print(f"✗ {defined_name}: oracle carries '='?! re-examine")
+            return False
+        print(f"✓ definedName {defined_name}")
+
+    cell_cases = [
+        ('E1', 'LAMBDA(x,[y],IF(ISOMITTED(y),x,x+y))(5)'),
+        ('E2', 'LAMBDA(x,[y],IF(ISOMITTED(y),x,x+y))(5,7)'),
+        ('F1', 'PIVOTBY(A1:A6,A1:A6,B1:B6,SUM)'),
+        ('F6', 'PERCENTOF(B1:B2,B1:B6)'),
+        ('K1', 'MAP(A1:A3,LAMBDA(txt,LEN(txt)))'),
+        ('K6', 'REDUCE(0,B1:B3,LAMBDA(acc,val,acc+val))'),
+        ('L1', 'LET(seq,SEQUENCE(3),SUM(seq))'),
+        ('L6', 'LAMBDA(my_val,my_val*2)(10)'),
+    ]
+    for cell_ref, recipe_form in cell_cases:
+        oracle = stored_cells.get(cell_ref, '').replace('&quot;', '"')
+        ours = live_pipeline(recipe_form)
+        if not oracle or squeeze(ours) != squeeze(oracle):
+            print(f"✗ {cell_ref} drift:\n  ours   {ours}\n  oracle {oracle}")
+            return False
+        print(f"✓ {cell_ref}: {recipe_form}")
+
+    # Calling cells store the bare name - nothing may prefix them
+    for cell_ref, expected in (('D1', 'HarvestLam(3,4)'), ('D2', 'HarvestLet')):
+        if stored_cells.get(cell_ref) != expected:
+            print(f"✗ {cell_ref} calling-cell form: {stored_cells.get(cell_ref)!r}")
+            return False
+        if live_pipeline('=' + expected) != '=' + expected:
+            print(f"✗ pipeline altered a bare name call: {expected}")
+            return False
+    print("✓ D1/D2 calling cells stored bare; pipeline leaves them alone")
+    return True
+
+
 def main():
     """Run all tests and report results."""
     print("Excel storage-grammar oracle tests")
@@ -170,6 +240,7 @@ def main():
     tests = [
         test_oracle_a_xlsxwriter,
         test_oracle_b_harvest_fixture,
+        test_oracle_c_named_optional_fixture,
     ]
 
     passed = 0

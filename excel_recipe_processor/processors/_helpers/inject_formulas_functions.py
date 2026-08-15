@@ -87,6 +87,17 @@ FUTURE_FUNCTION_PREFIXES = {
     'PIVOTBY':      '_xlfn.',
     'PERCENTOF':    '_xlfn.',
 
+    # Lambda-helper family. MAP and REDUCE harvested from real Excel
+    # output (2026-08-14, test-named-lambdas-lets.xlsx: _xlfn.MAP,
+    # _xlfn.REDUCE); the siblings ride the xlsxwriter differential test,
+    # which verifies every map entry against an Excel-validated table.
+    'MAP':          '_xlfn.',
+    'REDUCE':       '_xlfn.',
+    'SCAN':         '_xlfn.',
+    'BYROW':        '_xlfn.',
+    'BYCOL':        '_xlfn.',
+    'MAKEARRAY':    '_xlfn.',
+
     # The stored name behind spilled-range references (A1# display form).
     # transform_storage_forms emits it when rewriting '#'; listed here so
     # a recipe writing ANCHORARRAY(...) explicitly is prefixed too, and

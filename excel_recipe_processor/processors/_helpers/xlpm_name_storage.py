@@ -31,9 +31,13 @@ Occurrence boundaries exclude neighbors that would mean the token is
 not a plain name: identifier characters, '.', '$' (absolute refs),
 '!' (sheet qualifiers).
 
+Optional LAMBDA parameters - LAMBDA(x,[y],...) - are supported per the
+2026-08-14 harvest (test-named-lambdas-lets.xlsx): the DECLARATION
+stores as `_xlop.y` (a third prefix; the brackets vanish), while every
+in-scope OCCURRENCE stores as `_xlpm.y` like any other name. Optional
+parameters must follow all required ones, as Excel itself enforces.
+
 REFUSED loudly, with guidance:
-- Optional parameters (LAMBDA(x,[y],...)): their stored form has not
-  been harvested; guessing is how repair dialogs happen.
 - Malformed constructs (LAMBDA with fewer than two arguments, LET with
   an even argument count or fewer than three).
 - Declared names that are not legal identifiers, collide with the
@@ -157,10 +161,18 @@ def _rewrite_construct(keyword: str, args: list, active_names: tuple) -> str:
             )
         declared = []
         declaration_parts = []
+        seen_optional = False
         for raw in args[:-1]:
-            name = _validated_declaration(raw, 'LAMBDA parameter')
+            name, is_optional = _validated_declaration(raw, 'LAMBDA parameter')
+            if is_optional:
+                seen_optional = True
+            elif seen_optional:
+                raise ValueError(
+                    f"LAMBDA parameter {name!r}: required parameters cannot "
+                    f"follow optional ones (Excel enforces this ordering)"
+                )
             declared.append(name)
-            declaration_parts.append(_prefix_declaration(raw, name))
+            declaration_parts.append(_prefix_declaration(raw, name, is_optional))
         body = _rewrite_span(args[-1], active_names + tuple(declared))
         return f"{keyword}({','.join(declaration_parts + [body])})"
 
@@ -174,35 +186,44 @@ def _rewrite_construct(keyword: str, args: list, active_names: tuple) -> str:
     in_scope = list(active_names)
     for pair_index in range(0, len(args) - 1, 2):
         raw_name = args[pair_index]
-        name = _validated_declaration(raw_name, 'LET name')
+        name, is_optional = _validated_declaration(raw_name, 'LET name')
+        if is_optional:
+            raise ValueError(
+                f"LET name {name!r}: bracketed optional syntax belongs to "
+                f"LAMBDA parameters only"
+            )
         # The value expression sees names declared BEFORE this pair only
-        parts.append(_prefix_declaration(raw_name, name))
+        parts.append(_prefix_declaration(raw_name, name, False))
         parts.append(_rewrite_span(args[pair_index + 1], tuple(in_scope)))
         in_scope.append(name)
     parts.append(_rewrite_span(args[-1], tuple(in_scope)))
     return f"{keyword}({','.join(parts)})"
 
 
-def _validated_declaration(raw: str, what: str) -> str:
-    """A declaration slot's BARE name, or a guided refusal.
+def _validated_declaration(raw: str, what: str) -> tuple:
+    """(bare name, is_optional) for a declaration slot, or a refusal.
 
-    An already-prefixed declaration (_xlpm.v) is prior output of this
-    transformer - the construct keyword itself carries no prefix until
-    the future-function pass, so a re-run re-enters here. Strip and
-    accept it; _prefix_declaration leaves such slots untouched. This is
-    what makes the transformer idempotent.
+    Already-prefixed declarations (_xlpm.v required, _xlop.v optional)
+    are prior output of this transformer - the construct keyword itself
+    carries no prefix until the future-function pass, so a re-run
+    re-enters here. Recognize and accept them; _prefix_declaration
+    leaves such slots untouched. This is what makes the transformer
+    idempotent.
+
+    Optional syntax: [name], harvested 2026-08-14 - the brackets never
+    reach storage; the declaration stores as _xlop.name while in-scope
+    occurrences store as _xlpm.name.
     """
     name = raw.strip()
+    is_optional = False
+    if name.startswith('[') and name.endswith(']'):
+        is_optional = True
+        name = name[1:-1].strip()
     if name.startswith('_xlpm.'):
         name = name[len('_xlpm.'):]
-    if name.startswith('['):
-        raise ValueError(
-            f"Optional {what} {name!r} is not supported: the stored form "
-            f"of bracketed optional parameters has not been harvested from "
-            f"real Excel output, and guessing storage grammar is how repair "
-            f"dialogs happen. Use a required parameter with an ISOMITTED-"
-            f"free design, or harvest the form first."
-        )
+    elif name.startswith('_xlop.'):
+        is_optional = True
+        name = name[len('_xlop.'):]
     if not xlpm_identifier_rgx.match(name):
         raise ValueError(
             f"{what} {name!r} is not a legal name (letters, digits, "
@@ -220,13 +241,22 @@ def _validated_declaration(raw: str, what: str) -> str:
         )
     if name.upper().startswith('_XL'):
         raise ValueError(f"{what} {name!r} claims Excel's _xl storage namespace")
-    return name
+    return name, is_optional
 
 
-def _prefix_declaration(raw: str, name: str) -> str:
-    """Prefix the declared name in place, preserving surrounding whitespace."""
-    if f'_xlpm.{name}' in raw:
+def _prefix_declaration(raw: str, name: str, is_optional: bool) -> str:
+    """The declaration slot in storage form, whitespace preserved.
+
+    Required: name -> _xlpm.name in place. Optional: the harvested form
+    is `_xlop.name` with the BRACKETS REMOVED - occurrences elsewhere
+    still use _xlpm. (Excel's own storage, not a convenience).
+    """
+    if f'_xlpm.{name}' in raw or f'_xlop.{name}' in raw:
         return raw  # Already this transformer's output (idempotent re-run)
+    if is_optional:
+        lead = raw[:len(raw) - len(raw.lstrip())]
+        trail = raw[len(raw.rstrip()):]
+        return f"{lead}_xlop.{name}{trail}"
     return raw.replace(name, f'_xlpm.{name}', 1)
 
 

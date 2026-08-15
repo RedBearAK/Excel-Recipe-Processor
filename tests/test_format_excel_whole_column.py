@@ -184,6 +184,60 @@ def test_header_row_honored():
     return True
 
 
+def test_cell_formats_spot_styling():
+    """cell_formats styles named cells/ranges; guided errors on misuse."""
+    print("\nTesting cell_formats spot styling...")
+
+    from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
+        apply_cell_formats,
+    )
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet['B2'] = 'prompt'
+    sheet['A4'] = 'Product'
+    sheet['D4'] = 'Total'
+
+    applied = apply_cell_formats(sheet, [
+        {'cells': ['B2'], 'font_color': 'FF0000', 'font_bold': True},
+        {'cells': ['A4:D4'], 'font_italic': True},
+    ])
+    if len(applied) != 2:
+        print(f"✗ Expected 2 applied notes, got {applied}")
+        return False
+
+    b2 = sheet['B2']
+    if not b2.font.bold or str(b2.font.color.rgb) != '00FF0000':
+        print(f"✗ B2 not red bold: bold={b2.font.bold} color={b2.font.color.rgb}")
+        return False
+    print("✓ Single cell styled red bold")
+
+    if not (sheet['A4'].font.italic and sheet['D4'].font.italic
+            and sheet['C4'].font.italic):
+        print("✗ Range A4:D4 not fully styled")
+        return False
+    if sheet['A1'].font.italic:
+        print("✗ Styling leaked outside the range")
+        return False
+    print("✓ Range styled, no leakage")
+
+    for label, bad_rules, fragment in [
+        ("bad ref", [{'cells': ['B2:B'], 'font_bold': True}], "A1-style"),
+        ("empty cells", [{'cells': [], 'font_bold': True}], "non-empty"),
+        ("no action", [{'cells': ['B2']}], "does nothing"),
+    ]:
+        try:
+            apply_cell_formats(sheet, bad_rules)
+            print(f"✗ {label}: should have raised")
+            return False
+        except Exception as error:
+            if fragment not in str(error):
+                print(f"✗ {label}: error lacks guidance: {error}")
+                return False
+            print(f"✓ {label}: refused with guidance")
+    return True
+
+
 def main():
     """Run all tests and report results."""
     print("whole_column formatting tests")
@@ -194,6 +248,7 @@ def main():
         test_empty_sheet_behavior,
         test_guided_error,
         test_header_row_honored,
+        test_cell_formats_spot_styling,
     ]
 
     passed = 0

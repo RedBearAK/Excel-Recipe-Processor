@@ -32,7 +32,7 @@ from excel_recipe_processor.processors._helpers.format_excel_theme_manager impor
     ThemeManagerError,
 )
 from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
-    apply_column_formats, apply_column_widths, apply_hidden_columns,
+    apply_cell_formats, apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
 )
 
@@ -296,7 +296,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
-            'column_formats', 'hidden_columns', 'header_row', 'on_missing_column',
+            'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
             'row_heights', 'tab_color',
             
             # Phase 1 Enhanced: Header text formatting
@@ -682,6 +682,22 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if width_notes:
                 applied_operations.append(f"explicit widths ({len(width_notes)})")
+
+        # STEP 3a-bis: Spot styling of specific cells/ranges, AFTER the
+        # column-level passes so an explicit cell rule wins where they
+        # overlap (an explicit cell style also overrides whole_column
+        # dimension styles by OOXML precedence).
+        if 'cell_formats' in formatting:
+            try:
+                cell_notes = apply_cell_formats(
+                    worksheet,
+                    formatting['cell_formats'],
+                    color_normalizer=self._normalize_color
+                )
+            except ColumnFormatError as error:
+                raise StepProcessorError(f"Cell formatting failed: {error}")
+            if cell_notes:
+                applied_operations.append(f"cell formats ({len(cell_notes)} rules)")
 
         # STEP 3b: Hide columns AFTER sizing, so auto-fit does not spend effort
         # measuring a column nobody will see

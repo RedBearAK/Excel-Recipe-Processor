@@ -99,3 +99,34 @@ Verified: A1 bold/no-fill; A4:D4 navy band, white bold text; space
 headers B1:D1 untouched; B2 prompt text; widths 64/15/18; col-level
 number formats intact. Tests 4/4 (new: header_row honored + default
 preserved).
+
+## ADDENDUM 2 (2026-08-14): cell_formats + conditional prompt
+
+1. **cell_formats** (new format_excel sheet key): the cell/range-
+   addressed counterpart of column_formats - rules name explicit
+   A1-style cells or ranges ('B2', 'A4:D4') and apply number_format,
+   font and alignment. Closes the row/cell-targeted vocabulary gap
+   noted twice this thread. Ref shapes validated against the shared
+   range_patterns module. Runs AFTER the column-level passes, so a spot
+   rule wins where they overlap (an explicit cell style also overrides
+   whole_column dimension styles by OOXML precedence). Header keys are
+   deliberately absent - cell rules ARE their own targeting.
+
+2. **Font-preservation fix in the new path**: preserving an existing
+   font color must pass the Color OBJECT through; '.rgb' on a
+   theme-based default returns openpyxl's RGB descriptor, which
+   Font(color=...) rejects. NOTE: apply_column_formats carries the same
+   '.rgb' pattern; production-proven on its inputs, left untouched per
+   equivalence - flagged for the next format_excel maintenance pass.
+
+3. **Conditional SELECT prompt**: '   <-- SELECT CUSTOMER' (three-space
+   inset, user spec) moved from frame text to an injected formula -
+   `=IF($A$2="","   <-- SELECT CUSTOMER","")` - shown only while no
+   customer is picked, styled red bold via cell_formats. The doctrine
+   split from Addendum 1 refines to: STATIC text belongs to the frame,
+   CONDITIONAL text is a formula and belongs to the inject step. The
+   storage transforms' string-literal safety left the arrow and spaces
+   inside the formula untouched, as designed.
+
+Tests 5/5 (new: spot styling on cell + range, leakage check, three
+guided-error cases). Recipe validates clean.

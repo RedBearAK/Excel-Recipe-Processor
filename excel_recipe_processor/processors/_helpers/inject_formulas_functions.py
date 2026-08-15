@@ -28,7 +28,6 @@ from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
     function_call_rgx,
     string_literal_rgx,
     eta_reference_rgx,
-    lambda_call_rgx,
     spill_reference_rgx,
 )
 
@@ -87,6 +86,12 @@ FUTURE_FUNCTION_PREFIXES = {
     'GROUPBY':      '_xlfn.',
     'PIVOTBY':      '_xlfn.',
     'PERCENTOF':    '_xlfn.',
+
+    # The stored name behind spilled-range references (A1# display form).
+    # transform_storage_forms emits it when rewriting '#'; listed here so
+    # a recipe writing ANCHORARRAY(...) explicitly is prefixed too, and
+    # so grammar audits know the name is legitimate.
+    'ANCHORARRAY':  '_xlfn.',
 }
 
 def prefix_future_functions(formula: str) -> str:
@@ -99,7 +104,9 @@ def prefix_future_functions(formula: str) -> str:
     so re-running is safe. Shared by inject_formulas (cell formulas) and
     conditional_format (rule formulas - openpyxl stores those verbatim, so
     an unprefixed modern function there would make the rule silently
-    never fire).
+    never fire). String literals are never touched (string-blindness
+    here was latent until 2026-08-14, masked by the LAMBDA guard that
+    refused such formulas before prefixing could reach them).
     """
     def substitute(match):
         name = match.group(1)
@@ -108,7 +115,10 @@ def prefix_future_functions(formula: str) -> str:
             return match.group(0)
         return match.group(0).replace(name, f"{prefix}{name}", 1)
 
-    return function_call_rgx.sub(substitute, formula)
+    return apply_outside_strings(
+        formula,
+        lambda segment: function_call_rgx.sub(substitute, segment)
+    )
 
 
 def apply_outside_strings(formula: str, transform) -> str:
@@ -142,26 +152,14 @@ def transform_storage_forms(formula: str) -> str:
         GROUPBY(a, b, SUM)  -> _xlfn.GROUPBY(a, b, _xleta.SUM)
       (the GROUPBY call itself is prefixed by prefix_future_functions).
 
-    A full LAMBDA(...) is REFUSED with guidance: its parameters must be
-    stored with _xlpm. prefixes on declaration and every body occurrence
-    (=LAMBDA(x,SUM(x)) stores as _xlfn.LAMBDA(_xlpm.x,SUM(_xlpm.x))),
-    which this injector does not implement - and a stored bare parameter
-    is not merely #NAME?, it is grammatically invalid, so Excel's repair
-    strips the whole formula. Failing loud here beats that silent loss.
+    LAMBDA/LET declared names are NOT this function's business: the
+    xlpm_name_storage transformer handles them, and it must run FIRST
+    (the 2026-08-14 fail-loud guard that lived here is retired - the
+    capability replaced the refusal).
 
     String literals are never touched. Idempotent: already-transformed
     text contains no bare '#' references or unprefixed eta names.
     """
-    if lambda_call_rgx.search(string_literal_rgx.sub('""', formula)):
-        raise ValueError(
-            "Formula contains LAMBDA(...) or LET(...), whose declared "
-            "names need _xlpm. storage prefixes this injector does not "
-            "yet implement - stored bare, Excel's repair strips the "
-            "formula. For aggregations use an eta-reduced name (e.g. "
-            "GROUPBY(a, b, SUM)); instead of LET, repeat the expression; "
-            "or request _xlpm support."
-        )
-
     def rewrite(segment: str) -> str:
         segment = spill_reference_rgx.sub(r'_xlfn.ANCHORARRAY(\1)', segment)
         segment = eta_reference_rgx.sub(r'_xleta.\1', segment)

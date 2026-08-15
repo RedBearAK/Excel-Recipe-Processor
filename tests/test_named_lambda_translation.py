@@ -72,6 +72,31 @@ def test_excel_to_human_round_trip():
     return True
 
 
+def test_house_prefix_underscore_convention():
+    """Group prefixes require the underscore; ordinary words do not trip."""
+    print("\nTesting the prefix-underscore house convention...")
+
+    from excel_recipe_processor.processors._helpers.defined_name_validator import (
+        check_defined_name,
+    )
+
+    for good in ('fn_blank_safe', 'rng_customers', 'tbl_orders',
+                 'fml_net_calc', 'fnord_thing', 'final_total'):
+        problems = check_defined_name(good)
+        if problems:
+            print(f"✗ {good} wrongly flagged: {problems}")
+            return False
+    print("✓ Underscored group names and ordinary words pass")
+
+    for bad in ('fn_BlankSafe'.replace('_', ''), 'rngCustomers', 'tblOrders'):
+        problems = check_defined_name(bad)
+        if not any('underscore' in p for p in problems):
+            print(f"✗ {bad} not flagged for the missing underscore")
+            return False
+    print("✓ camelCase-after-prefix names refused with guidance")
+    return True
+
+
 def main():
     """Run all tests and report results."""
     print("Named-lambda translation tests")
@@ -80,6 +105,7 @@ def main():
     tests = [
         test_human_to_excel,
         test_excel_to_human_round_trip,
+        test_house_prefix_underscore_convention,
     ]
 
     passed = 0

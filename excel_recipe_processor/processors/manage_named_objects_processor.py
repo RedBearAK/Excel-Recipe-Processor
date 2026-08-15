@@ -20,6 +20,10 @@ from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
+from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
+    prefix_future_functions,
+    apply_outside_strings,
+)
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
     resolve_range, ExcelRangeResolverError
@@ -396,40 +400,53 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         return clean_formula.strip()
     
     def _add_excel_prefixes(self, formula: str, parameters) -> str:
-        """Add Excel internal prefixes to formula for Excel compatibility."""
-        
-        # Guard clauses for input validation
+        """
+        Rewrite a human-syntax lambda BODY into Excel's stored form.
+
+        Two independent prefixing jobs, both via the SHARED machinery:
+
+        - Function calls go through the injector's prefix_future_functions
+          map. Only genuinely post-2007 functions get _xlfn.; legacy names
+          (SUM, IF, VLOOKUP...) are stored BARE - a prefixed legacy name
+          is an unknown identifier to Excel. (Until 2026-08-14 this method
+          blanket-prefixed a hand-rolled "common functions" list, which
+          corrupted every legacy call in a hand-authored definition; the
+          bug hid because round-trips prefer excel_definition and skip
+          translation. Harvest evidence for bare-legacy-in-lambda-bodies:
+          Excel stores =GROUPBY(...,LAMBDA(x,SUM(x))) with SUM unprefixed.)
+
+        - Declared parameters get _xlpm. at every occurrence OUTSIDE
+          string literals, with full token boundaries so re-running never
+          double-prefixes and partial matches never fire.
+        """
         if not isinstance(formula, str):
             formula = str(formula) if formula else ""
-        
+
         if not isinstance(parameters, list):
             if hasattr(parameters, '__iter__') and not isinstance(parameters, str):
                 parameters = list(parameters)
             else:
                 parameters = []
-        
-        # Add _xlpm prefix to parameter references
+
+        formula = prefix_future_functions(formula)
+
         for param in parameters:
-            if isinstance(param, str) and param:
-                formula = re.sub(rf'\b{param}\b', f'_xlpm.{param}', formula)
-        
-        # Add _xlfn prefix to functions and remove spaces in function calls
-        common_functions = [
-            'SUM', 'SUMIF', 'SUMIFS', 'AVERAGE', 'COUNT', 'COUNTA', 'VLOOKUP',
-            'XLOOKUP', 'INDEX', 'MATCH', 'IF', 'IFS', 'AND', 'OR', 'NOT',
-            'PV', 'FV', 'PMT', 'RATE', 'NPER', 'NPV', 'IRR', 'XIRR',
-            'MAX', 'MIN', 'ABS', 'ROUND', 'ROUNDUP', 'ROUNDDOWN',
-            'LEFT', 'RIGHT', 'MID', 'LEN', 'TRIM', 'UPPER', 'LOWER',
-            'CONCATENATE', 'TEXTJOIN', 'SUBSTITUTE', 'REPLACE'
-        ]
-        
-        for func in common_functions:
-            # First add _xlfn prefix
-            formula = re.sub(rf'\b{func}\s*\(', f'_xlfn.{func}(', formula, flags=re.IGNORECASE)
-        
-        # Remove spaces after commas in function calls (Excel format)
-        formula = re.sub(r',\s+', ',', formula)
-        
+            if not (isinstance(param, str) and param):
+                continue
+            param_rgx = re.compile(
+                rf'(?<![A-Za-z0-9_.]){re.escape(param)}(?![A-Za-z0-9_.])'
+            )
+            formula = apply_outside_strings(
+                formula,
+                lambda segment, rgx=param_rgx, name=param:
+                    rgx.sub(f'_xlpm.{name}', segment)
+            )
+
+        # Excel's stored form carries no spaces after commas
+        formula = apply_outside_strings(
+            formula, lambda segment: re.sub(r',\s+', ',', segment)
+        )
+
         return formula
     
     # =============================================================================

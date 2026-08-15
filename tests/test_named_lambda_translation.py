@@ -32,16 +32,16 @@ def test_human_to_excel():
 
     cases = [
         ('LAMBDA(v, IF(v="", "", v))', ['v'],
-         '=_xlfn.LAMBDA(_xlpm.v,IF(_xlpm.v="","",_xlpm.v))'),
+         '_xlfn.LAMBDA(_xlpm.v,IF(_xlpm.v="","",_xlpm.v))'),
         # Legacy stays bare, future gets the map prefix
         ('LAMBDA(x, SUM(x) + TEXTJOIN(",", TRUE, x))', ['x'],
-         '=_xlfn.LAMBDA(_xlpm.x,SUM(_xlpm.x) + _xlfn.TEXTJOIN(",",TRUE,_xlpm.x))'),
+         '_xlfn.LAMBDA(_xlpm.x,SUM(_xlpm.x) + _xlfn.TEXTJOIN(",",TRUE,_xlpm.x))'),
         # Parameter name inside a string literal must NOT be prefixed
         ('LAMBDA(v, IF(v="v", "literal v", v))', ['v'],
-         '=_xlfn.LAMBDA(_xlpm.v,IF(_xlpm.v="v","literal v",_xlpm.v))'),
+         '_xlfn.LAMBDA(_xlpm.v,IF(_xlpm.v="v","literal v",_xlpm.v))'),
         # Token boundaries: param must not fire inside longer names
         ('LAMBDA(v, IF(rng_values=v, v, rng_values))', ['v'],
-         '=_xlfn.LAMBDA(_xlpm.v,IF(rng_values=_xlpm.v,_xlpm.v,rng_values))'),
+         '_xlfn.LAMBDA(_xlpm.v,IF(rng_values=_xlpm.v,_xlpm.v,rng_values))'),
     ]
     for human, params, expected in cases:
         result = processor.translate_lambda_to_excel(human, params)
@@ -57,7 +57,7 @@ def test_excel_to_human_round_trip():
     print("\nTesting Excel -> human -> Excel round trip...")
     processor = make_processor()
 
-    stored = '=_xlfn.LAMBDA(_xlpm.v,IF(_xlpm.v="","",_xlpm.v))'
+    stored = '_xlfn.LAMBDA(_xlpm.v,IF(_xlpm.v="","",_xlpm.v))'
     human, params = processor.translate_lambda_to_human(stored)
     if params != ['v'] or 'IF(v=""' not in human.replace(' ', ''):
         print(f"✗ To-human wrong: {human!r} params {params}")

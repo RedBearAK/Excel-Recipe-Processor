@@ -20,6 +20,10 @@ from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
+from excel_recipe_processor.processors._helpers.xlpm_name_storage import (
+    transform_xlpm_names,
+    parse_lambda_parameters,
+)
 from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
     prefix_future_functions,
     apply_outside_strings,
@@ -361,36 +365,47 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         return human_formula, param_names
     
     def translate_lambda_to_excel(self, human_formula: str, parameters) -> str:
-        """Convert 'LAMBDA(param,...)' to '=_xlfn.LAMBDA(_xlpm.param,...)'."""
-        
-        # Guard clauses for input validation
+        """
+        Convert a human-syntax lambda to Excel's stored form.
+
+        The xlpm_name_storage transformer is the engine (it parses the
+        declarations from the TEXT, handles LET in bodies, nesting,
+        sequential scoping, and string safety); call-name prefixing goes
+        through the shared future-function map (legacy names stay BARE -
+        harvest-verified). The YAML 'parameters' list is a CROSS-CHECK
+        against the definition text, catching drift between the two.
+        """
         if not isinstance(human_formula, str):
             raise StepProcessorError(f"Human formula must be string, got {type(human_formula)}")
-        
-        if not isinstance(parameters, list):
-            if hasattr(parameters, '__iter__') and not isinstance(parameters, str):
-                parameters = list(parameters)
-            else:
-                raise StepProcessorError(f"Parameters must be list-like, got {type(parameters)}")
-        
-        # Extract the body from human format
-        body_match = human_lambda_body_rgx.search(human_formula)
-        if not body_match:
+
+        stripped = human_formula.strip().lstrip('=').strip()
+        declared = parse_lambda_parameters(stripped)
+        if not declared:
             raise StepProcessorError(f"Invalid lambda format: {human_formula}")
-        
-        lambda_body = body_match.group(2)
-        
-        # Add Excel prefixes to the body
-        excel_body = self._add_excel_prefixes(lambda_body, parameters)
-        
-        # Build parameter list with _xlpm prefixes (no spaces)
-        excel_params = ','.join(f"_xlpm.{param}" for param in parameters)
-        
-        # Build Excel format with = prefix and no spaces after commas
-        excel_formula = f"=_xlfn.LAMBDA({excel_params},{excel_body})"
-        
+
+        if parameters:
+            provided = [str(p) for p in parameters]
+            if [p.upper() for p in provided] != [d.upper() for d in declared]:
+                raise StepProcessorError(
+                    f"Lambda 'parameters' list {provided} does not match the "
+                    f"names declared in the definition {declared} - the "
+                    f"definition text is the source of truth; fix the YAML"
+                )
+
+        try:
+            excel_formula = transform_xlpm_names(stripped)
+        except ValueError as error:
+            raise StepProcessorError(f"Lambda definition invalid: {error}")
+
+        excel_formula = prefix_future_functions(excel_formula)
+        excel_formula = apply_outside_strings(
+            excel_formula, lambda segment: re.sub(r',\s+', ',', segment)
+        )
+        # Canonical storage carries NO leading '=' (definedName grammar);
+        # the write funnel strips defensively, but this path should not
+        # produce the wrong form in the first place.
         return excel_formula
-    
+
     def _clean_formula_for_display(self, formula: str) -> str:
         """Remove Excel internal prefixes for human-readable display."""
         
@@ -398,56 +413,6 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         clean_formula = excel_prefix_cleanup_rgx.sub('', formula)
         
         return clean_formula.strip()
-    
-    def _add_excel_prefixes(self, formula: str, parameters) -> str:
-        """
-        Rewrite a human-syntax lambda BODY into Excel's stored form.
-
-        Two independent prefixing jobs, both via the SHARED machinery:
-
-        - Function calls go through the injector's prefix_future_functions
-          map. Only genuinely post-2007 functions get _xlfn.; legacy names
-          (SUM, IF, VLOOKUP...) are stored BARE - a prefixed legacy name
-          is an unknown identifier to Excel. (Until 2026-08-14 this method
-          blanket-prefixed a hand-rolled "common functions" list, which
-          corrupted every legacy call in a hand-authored definition; the
-          bug hid because round-trips prefer excel_definition and skip
-          translation. Harvest evidence for bare-legacy-in-lambda-bodies:
-          Excel stores =GROUPBY(...,LAMBDA(x,SUM(x))) with SUM unprefixed.)
-
-        - Declared parameters get _xlpm. at every occurrence OUTSIDE
-          string literals, with full token boundaries so re-running never
-          double-prefixes and partial matches never fire.
-        """
-        if not isinstance(formula, str):
-            formula = str(formula) if formula else ""
-
-        if not isinstance(parameters, list):
-            if hasattr(parameters, '__iter__') and not isinstance(parameters, str):
-                parameters = list(parameters)
-            else:
-                parameters = []
-
-        formula = prefix_future_functions(formula)
-
-        for param in parameters:
-            if not (isinstance(param, str) and param):
-                continue
-            param_rgx = re.compile(
-                rf'(?<![A-Za-z0-9_.]){re.escape(param)}(?![A-Za-z0-9_.])'
-            )
-            formula = apply_outside_strings(
-                formula,
-                lambda segment, rgx=param_rgx, name=param:
-                    rgx.sub(f'_xlpm.{name}', segment)
-            )
-
-        # Excel's stored form carries no spaces after commas
-        formula = apply_outside_strings(
-            formula, lambda segment: re.sub(r',\s+', ',', segment)
-        )
-
-        return formula
     
     # =============================================================================
     # UTILITY METHODS
@@ -855,6 +820,18 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         Returns:
             'written', 'replaced', or 'skipped'
         """
+        # Excel STORES definedName content WITHOUT a leading '=' - same
+        # grammar lesson as <formula1>. A stored '=...' is invalid and
+        # Excel's repair deletes the whole name (2026-08-14 incident:
+        # fnBlankSafe vanished, orphaning its callers into #NAME?).
+        # Verified against xlsxwriter's Excel-validated serializer, which
+        # strips the API-convention '=' at exactly this point. This
+        # funnel is the ONE write path, so every producer is covered.
+        if isinstance(definition, str):
+            definition = definition.strip()
+            if definition.startswith('='):
+                definition = definition[1:]
+
         if not isinstance(name, str) or not name.strip():
             raise StepProcessorError("Defined name must be a non-empty string")
 
@@ -929,6 +906,21 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
         definition = obj.get('definition')
         if isinstance(definition, str) and definition.strip():
+            if object_type in ('formula', 'lambda'):
+                # Hand-authored (no excel_definition): translate display
+                # syntax to storage - _xlpm names, future-function
+                # prefixes. No-op for text containing neither, so a
+                # misclassified plain reference passes through untouched.
+                try:
+                    stored = transform_xlpm_names(definition.strip().lstrip('='))
+                except ValueError as error:
+                    raise StepProcessorError(
+                        f"Object '{obj.get('name', 'unknown')}': {error}"
+                    )
+                stored = prefix_future_functions(stored)
+                return apply_outside_strings(
+                    stored, lambda segment: re.sub(r',\s+', ',', segment)
+                )
             return definition
 
         raise StepProcessorError(

@@ -114,6 +114,19 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
     is what makes it possible to mark a subset of columns - the ten this recipe
     inserts, for instance - without touching the rest.
 
+    A rule may instead set whole_column: true, which applies number_format,
+    font and alignment at the COLUMN-DIMENSION level (a col-level style in
+    the file) rather than per cell. That is the correct mechanism for
+    columns whose values arrive at Excel calculation time - dynamic-array
+    spills - because those cells do not exist in the file when formats are
+    written, so per-cell formatting up to the current data extent cannot
+    reach them, while a column style is inherited by every cell Excel
+    creates. Header-cell styling stays per-cell either way (an explicit
+    cell style overrides the column style, keeping the header clean).
+    NOTE: openpyxl serializes a col-level style with a width attribute; a
+    whole_column rule without an explicit 'width' therefore leaves the
+    column at openpyxl's default 13 - pair whole_column with width.
+
     Args:
         worksheet:          openpyxl worksheet object
         rules:              List of rule dictionaries
@@ -141,7 +154,10 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
     except ExcelRangeResolverError as error:
         raise ColumnFormatError(f"Could not determine data extent: {error}")
 
-    if last_row <= header_row:
+    sheet_has_data = last_row > header_row
+    if not sheet_has_data and not any(
+            isinstance(rule, dict) and rule.get('whole_column')
+            for rule in rules):
         logger.warning(f"[{worksheet.title}] No data rows below header, skipping column formats")
         return applied
 
@@ -167,6 +183,21 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
         width = rule.get('width')
+        whole_column = rule.get('whole_column', False)
+
+        if not isinstance(whole_column, bool):
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'whole_column' must be "
+                f"true or false, got {whole_column!r}"
+            )
+
+        if not whole_column and not sheet_has_data:
+            logger.warning(
+                f"[{worksheet.title}] column_formats rule {index + 1} "
+                f"skipped: no data rows below the header (whole_column "
+                f"rules still apply on empty sheets)"
+            )
+            continue
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
                       font_bold, font_italic, header_font_color,
@@ -219,6 +250,27 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         for letter in letters:
             col_index = column_index_from_string(letter)
 
+            if whole_column:
+                dimension = worksheet.column_dimensions[letter]
+                if format_code:
+                    dimension.number_format = format_code
+                if touches_data_font:
+                    dimension.font = Font(
+                        bold=font_bold, italic=font_italic,
+                        color=data_color
+                    )
+                if touches_alignment:
+                    dimension.alignment = Alignment(
+                        horizontal=horizontal, vertical=vertical,
+                        wrap_text=wrap_text
+                    )
+                if width is None:
+                    logger.info(
+                        f"[{worksheet.title}] whole_column style on {letter} "
+                        f"carries openpyxl's default width 13; add 'width:' "
+                        f"to the rule to control it"
+                    )
+
             if touches_header:
                 header_cell = worksheet.cell(row=header_row, column=col_index)
                 existing_font = header_cell.font
@@ -234,6 +286,9 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     header_cell.fill = PatternFill(
                         start_color=head_fill, end_color=head_fill, fill_type='solid'
                     )
+
+            if whole_column:
+                continue
 
             for row_num in range(header_row + 1, last_row + 1):
                 cell = worksheet.cell(row=row_num, column=col_index)
@@ -279,7 +334,8 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         if width is not None:
             parts.append(f"width {width}")
 
-        description = f"{', '.join(parts)} on {len(letters)} column(s): {', '.join(columns[:4])}"
+        mechanism = ' (whole column)' if whole_column else ''
+        description = f"{', '.join(parts)}{mechanism} on {len(letters)} column(s): {', '.join(columns[:4])}"
         if len(columns) > 4:
             description += ' ...'
 

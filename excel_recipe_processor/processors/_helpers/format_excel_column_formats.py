@@ -180,6 +180,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         font_color = rule.get('font_color')
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
+        font_size = rule.get('font_size')
         header_font_color = rule.get('header_font_color')
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
@@ -201,7 +202,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             continue
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
-                      font_bold, font_italic, header_font_color,
+                      font_bold, font_italic, font_size, header_font_color,
                       header_background_color, header_bold, width)
 
         if all(value is None for value in actionable):
@@ -244,7 +245,15 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         head_fill = (color_normalizer(header_background_color)
                      if header_background_color is not None else None)
 
-        touches_data_font = data_color is not None or font_bold is not None or font_italic is not None
+        if font_size is not None and (
+                not isinstance(font_size, (int, float)) or font_size <= 0):
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'font_size' must be a "
+                f"positive number, got {font_size!r}"
+            )
+
+        touches_data_font = (data_color is not None or font_bold is not None
+                             or font_italic is not None or font_size is not None)
         touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
         touches_header = head_color is not None or head_fill is not None or header_bold is not None
 
@@ -258,7 +267,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                 if touches_data_font:
                     dimension.font = Font(
                         bold=font_bold, italic=font_italic,
-                        color=data_color
+                        size=font_size, color=data_color
                     )
                 if touches_alignment:
                     dimension.alignment = Alignment(
@@ -280,8 +289,9 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     size=existing_font.size,
                     bold=header_bold if header_bold is not None else existing_font.bold,
                     italic=existing_font.italic,
-                    color=head_color if head_color is not None else (
-                        existing_font.color.rgb if existing_font.color else None)
+                    # Color OBJECT passthrough: .rgb on a theme-based
+                    # default is an RGB descriptor Font() rejects
+                    color=head_color if head_color is not None else existing_font.color
                 )
                 if head_fill is not None:
                     header_cell.fill = PatternFill(
@@ -301,11 +311,10 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     existing = cell.font
                     cell.font = Font(
                         name=existing.name,
-                        size=existing.size,
+                        size=font_size if font_size is not None else existing.size,
                         bold=font_bold if font_bold is not None else existing.bold,
                         italic=font_italic if font_italic is not None else existing.italic,
-                        color=data_color if data_color is not None else (
-                            existing.color.rgb if existing.color else None)
+                        color=data_color if data_color is not None else existing.color
                     )
 
                 if touches_alignment:
@@ -330,6 +339,8 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"font {font_color}")
         if font_bold is not None:
             parts.append(f"bold {font_bold}")
+        if font_size is not None:
+            parts.append(f"size {font_size}")
         if header_font_color is not None or header_background_color is not None:
             parts.append("header styling")
         if width is not None:
@@ -493,14 +504,22 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
         font_color = rule.get('font_color')
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
+        font_size = rule.get('font_size')
+
+        if font_size is not None and (
+                not isinstance(font_size, (int, float)) or font_size <= 0):
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1}: 'font_size' must be a "
+                f"positive number, got {font_size!r}"
+            )
 
         actionable = (number_format, horizontal, vertical, wrap_text,
-                      font_color, font_bold, font_italic)
+                      font_color, font_bold, font_italic, font_size)
         if all(value is None for value in actionable):
             raise ColumnFormatError(
                 f"cell_formats rule {index + 1} does nothing: supply "
                 f"number_format, alignment_horizontal, alignment_vertical, "
-                f"wrap_text, font_color, font_bold, or font_italic"
+                f"wrap_text, font_color, font_bold, font_italic, or font_size"
             )
 
         if horizontal is not None and horizontal not in VALID_HORIZONTAL:
@@ -516,7 +535,8 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
 
         format_code = resolve_number_format(number_format) if number_format else None
         data_color = color_normalizer(font_color) if font_color is not None else None
-        touches_font = data_color is not None or font_bold is not None or font_italic is not None
+        touches_font = (data_color is not None or font_bold is not None
+                        or font_italic is not None or font_size is not None)
         touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
 
         cell_count = 0
@@ -533,7 +553,7 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
                         existing = cell.font
                         cell.font = Font(
                             name=existing.name,
-                            size=existing.size,
+                            size=font_size if font_size is not None else existing.size,
                             bold=font_bold if font_bold is not None else existing.bold,
                             italic=font_italic if font_italic is not None else existing.italic,
                             # Pass the Color OBJECT through when preserving:
@@ -566,6 +586,8 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
             parts.append(f"bold {font_bold}")
         if font_italic is not None:
             parts.append(f"italic {font_italic}")
+        if font_size is not None:
+            parts.append(f"size {font_size}")
 
         description = f"{', '.join(parts)} on {cell_count} cell(s): {', '.join(str(c) for c in cells[:4])}"
         applied.append(description)

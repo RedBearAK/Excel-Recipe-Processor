@@ -130,3 +130,53 @@ preserved).
 
 Tests 5/5 (new: spot styling on cell + range, leakage check, three
 guided-error cases). Recipe validates clean.
+
+## ADDENDUM 3 (2026-08-14): zoom_percent, font_size, .rgb fix promoted
+
+1. **zoom_percent** (new format_excel sheet key): sets the sheet view's
+   zoom, validated to Excel's 10-400 range. Writes both zoomScale (live)
+   and zoomScaleNormal (remembered normal-view zoom), matching what
+   Excel itself stores.
+
+2. **font_size** added to BOTH rule vocabularies: column_formats
+   (per-cell path AND the whole_column dimension path) and cell_formats.
+   Sheet-level header_font_size / general_font_size already existed;
+   this closes the per-column / per-cell granularity.
+
+3. **.rgb preserve-branch fix PROMOTED into apply_column_formats** (both
+   the header-cell and data-cell branches). Addendum 2 had left the
+   legacy '.rgb' pattern per equivalence; the new font_size test then
+   crashed it on theme-colored default fonts - "production-proven"
+   meant "proven on inputs whose fonts never carried theme colors", not
+   proven safe. Passing the Color OBJECT serializes identically for the
+   inputs that worked and fixes the class that crashed. Equivalence
+   re-gated: the full demo run reproduces every styling outcome
+   (B2 red bold, navy band, row-1 bold, widths).
+
+Tests 6/6 (new: cell/column/dimension font_size, zoom range guard).
+No recipe changes in this delivery - the capabilities await targets:
+    zoom_percent: 130            # sheet-level
+    font_size: 12                # in any column_formats / cell_formats rule
+
+## PARKED: row_formats (design sketched, no trigger yet - 2026-08-14)
+
+The symmetry question ("row_formats to go with column_formats?") was
+raised and deliberately deferred. What already covers row-shaped needs:
+cell_formats styles any BOUNDED row segment ("A4:D4"), the sheet-level
+header band handles the common whole-row case via header_row, and
+row_heights exists for sizing. The only inexpressible case is an
+UNBOUNDED row - "style row 4 across whatever width it ends up being" -
+the horizontal twin of the spill problem whole_column solved vertically.
+
+Design when triggered: mirror column_formats - a 'rows: [4]' addressed
+rule list with a 'whole_row: true' dimension path. openpyxl RowDimension
+carries styles the same way ColumnDimension does (stored as
+<row s="N" customFormat="1">), so the implementation is a transcription
+of the whole_column work, including the openpyxl serialization quirks to
+re-probe (uninvited attribute analog of the width-13 effect).
+
+TRIGGERS that end the deferral: a recipe wants a horizontally-spilling
+row styled (HSTACK/TOROW results, GROUPBY with varying value-column
+counts), or a cell_formats range starts getting widened defensively
+("A4:Z4 just in case"). Until then: unadopted scaffolding stays
+unbuilt, per house history.

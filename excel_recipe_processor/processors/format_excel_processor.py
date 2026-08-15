@@ -297,7 +297,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
-            'row_heights', 'tab_color',
+            'row_heights', 'tab_color', 'zoom_percent',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -373,6 +373,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(font_size, (int, float)) or font_size <= 0:
                 raise StepProcessorError(f"general_font_size must be a positive number in {context}, got: {font_size}")
         
+        if 'zoom_percent' in sheet_config:
+            zoom = sheet_config['zoom_percent']
+            if not isinstance(zoom, (int, float)) or not 10 <= zoom <= 400:
+                raise StepProcessorError(
+                    f"zoom_percent must be a number from 10 to 400 (Excel's "
+                    f"zoom range) in {context}, got: {zoom}"
+                )
+
         if 'max_column_width' in sheet_config:
             width = sheet_config['max_column_width']
             if not isinstance(width, (int, float)) or width <= 0:
@@ -725,6 +733,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             logger.info(f"🔍 [{sheet_name}] Adding auto-filter")
             self._add_auto_filter(worksheet)
             applied_operations.append("auto-filter")
+
+        if 'zoom_percent' in formatting:
+            zoom = int(formatting['zoom_percent'])
+            # zoomScale is the live zoom; zoomScaleNormal is the remembered
+            # normal-view zoom - Excel writes both, so both are set.
+            worksheet.sheet_view.zoomScale = zoom
+            worksheet.sheet_view.zoomScaleNormal = zoom
+            applied_operations.append(f"zoom {zoom}%")
 
         # Tab color: same color vocabulary as every other color option
         # (hex with or without #, CSS names, rgb()). openpyxl takes the

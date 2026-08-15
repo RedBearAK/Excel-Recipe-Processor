@@ -238,6 +238,60 @@ def test_cell_formats_spot_styling():
     return True
 
 
+def test_zoom_and_font_size():
+    """zoom_percent stored on the sheet view; font_size in both rule types."""
+    print("\nTesting zoom_percent and font_size...")
+
+    from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
+        apply_cell_formats,
+    )
+    from excel_recipe_processor.processors.format_excel_processor import (
+        FormatExcelProcessor,
+    )
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet['A1'] = 'H'
+    sheet['A2'] = 'data'
+    sheet['B2'] = 'prompt'
+
+    # cell_formats font_size
+    apply_cell_formats(sheet, [{'cells': ['B2'], 'font_size': 14}])
+    if sheet['B2'].font.size != 14 or sheet['A2'].font.size == 14:
+        print(f"✗ cell_formats font_size wrong: {sheet['B2'].font.size}")
+        return False
+    print("✓ cell_formats sizes the named cell only")
+
+    # column_formats font_size, per-cell and whole_column paths
+    apply_column_formats(sheet, [
+        {'columns': ['A'], 'font_size': 9},
+        {'columns': ['C'], 'font_size': 8, 'whole_column': True, 'width': 10},
+    ])
+    if sheet['A2'].font.size != 9:
+        print(f"✗ per-cell column font_size wrong: {sheet['A2'].font.size}")
+        return False
+    if sheet.column_dimensions['C'].font.size != 8:
+        print("✗ whole_column dimension font_size wrong")
+        return False
+    print("✓ column_formats sizes per-cell and at the dimension")
+
+    # zoom range guard + application
+    config = FormatExcelProcessor.get_minimal_config()
+    config['processor_type'] = 'format_excel'
+    processor = FormatExcelProcessor(config)
+    try:
+        processor._validate_sheet_formatting_options(
+            {'sheet_name': 'S', 'zoom_percent': 500}, "test sheet")
+        print("✗ zoom_percent 500 should have been refused")
+        return False
+    except Exception as error:
+        if '10 to 400' not in str(error):
+            print(f"✗ zoom guard lacks range guidance: {error}")
+            return False
+        print("✓ zoom_percent out of Excel's 10-400 range refused")
+    return True
+
+
 def main():
     """Run all tests and report results."""
     print("whole_column formatting tests")
@@ -249,6 +303,7 @@ def main():
         test_guided_error,
         test_header_row_honored,
         test_cell_formats_spot_styling,
+        test_zoom_and_font_size,
     ]
 
     passed = 0

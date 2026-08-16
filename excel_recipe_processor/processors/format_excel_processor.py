@@ -297,7 +297,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
-            'row_heights', 'tab_color', 'zoom_percent',
+            'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -373,6 +373,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(font_size, (int, float)) or font_size <= 0:
                 raise StepProcessorError(f"general_font_size must be a positive number in {context}, got: {font_size}")
         
+        if 'sheet_state' in sheet_config:
+            state = sheet_config['sheet_state']
+            if state not in ('visible', 'hidden', 'very_hidden'):
+                raise StepProcessorError(
+                    f"sheet_state must be 'visible', 'hidden', or "
+                    f"'very_hidden' in {context}, got: {state!r}. "
+                    f"(very_hidden tabs can only be re-shown via VBA or the "
+                    f"file format, not Excel's Unhide dialog.)"
+                )
+
         if 'zoom_percent' in sheet_config:
             zoom = sheet_config['zoom_percent']
             if not isinstance(zoom, (int, float)) or not 10 <= zoom <= 400:
@@ -733,6 +743,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             logger.info(f"🔍 [{sheet_name}] Adding auto-filter")
             self._add_auto_filter(worksheet)
             applied_operations.append("auto-filter")
+
+        if 'sheet_state' in formatting:
+            # openpyxl spells the third state in camelCase; recipes use
+            # the house snake_case and translate here
+            state_map = {'visible': 'visible', 'hidden': 'hidden',
+                         'very_hidden': 'veryHidden'}
+            worksheet.sheet_state = state_map[formatting['sheet_state']]
+            applied_operations.append(f"sheet {formatting['sheet_state']}")
 
         if 'zoom_percent' in formatting:
             zoom = int(formatting['zoom_percent'])

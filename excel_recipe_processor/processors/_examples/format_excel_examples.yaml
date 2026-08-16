@@ -483,6 +483,19 @@ number_format_aliases:
     text: "@"
 
 
+sheet_option_parameter_details:
+  zoom_percent:
+    type: "number"
+    required: false
+    description: "Sheet view zoom, 10-400 (Excel's range); sets the live and remembered normal-view zoom"
+  sheet_state:
+    type: "string"
+    required: false
+    description: >
+      visible / hidden / very_hidden. Hidden tabs re-show via Excel's
+      Unhide dialog; very_hidden only via VBA or the file format. The
+      workbook must keep at least one visible sheet - Excel enforces it.
+
 column_format_parameter_details:
   columns:
     required: true

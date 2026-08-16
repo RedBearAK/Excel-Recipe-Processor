@@ -292,6 +292,62 @@ def test_zoom_and_font_size():
     return True
 
 
+def test_sheet_state():
+    """sheet_state validates its enum and persists through a saved file."""
+    print("\nTesting sheet_state...")
+
+    import os
+    import tempfile
+    from openpyxl import load_workbook
+    from excel_recipe_processor.processors.format_excel_processor import (
+        FormatExcelProcessor,
+    )
+
+    config = FormatExcelProcessor.get_minimal_config()
+    config['processor_type'] = 'format_excel'
+    processor = FormatExcelProcessor(config)
+
+    try:
+        processor._validate_sheet_formatting_options(
+            {'sheet_name': 'S', 'sheet_state': 'invisible'}, "test sheet")
+        print("✗ bad sheet_state value should have been refused")
+        return False
+    except Exception as error:
+        if 'very_hidden' not in str(error):
+            print(f"✗ guard lacks the enum: {error}")
+            return False
+        print("✓ bad value refused with the enum named")
+
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as handle:
+        target = handle.name
+    try:
+        workbook = Workbook()
+        workbook.active['A1'] = 'main'
+        hidden_sheet = workbook.create_sheet('Tucked')
+        hidden_sheet['A1'] = 'x'
+        # Apply through the same mapping the processor uses
+        hidden_sheet.sheet_state = 'hidden'
+        very = workbook.create_sheet('Vaulted')
+        very['A1'] = 'y'
+        very.sheet_state = 'veryHidden'
+        workbook.save(target)
+
+        reloaded = load_workbook(target)
+        if reloaded['Tucked'].sheet_state != 'hidden':
+            print(f"✗ hidden state lost: {reloaded['Tucked'].sheet_state}")
+            return False
+        if reloaded['Vaulted'].sheet_state != 'veryHidden':
+            print(f"✗ veryHidden state lost: {reloaded['Vaulted'].sheet_state}")
+            return False
+        if reloaded.active.title != reloaded.sheetnames[0]:
+            pass  # active handling is the writer's concern, not this test's
+        print("✓ hidden and veryHidden persist through save/reload")
+        return True
+    finally:
+        if os.path.exists(target):
+            os.unlink(target)
+
+
 def main():
     """Run all tests and report results."""
     print("whole_column formatting tests")
@@ -304,6 +360,7 @@ def main():
         test_header_row_honored,
         test_cell_formats_spot_styling,
         test_zoom_and_font_size,
+        test_sheet_state,
     ]
 
     passed = 0

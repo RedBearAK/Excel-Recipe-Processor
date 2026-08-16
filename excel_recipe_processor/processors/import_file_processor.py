@@ -38,7 +38,7 @@ class ImportFileProcessor(ImportBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Import Excel, CSV, or TSV files into stages, with sheet selection and variable-substituted paths',
+            'description': 'Import Excel, CSV, or TSV files into stages, with sheet selection',
             'fast_excel_reader': 'when the optional python-calamine wheel is installed, '
                                  'Excel imports use it automatically (several times faster '
                                  'on large files, values identical); without it the '

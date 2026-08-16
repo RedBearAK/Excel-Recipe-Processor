@@ -1014,7 +1014,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
             Dictionary describing processor capabilities
         """
         return {
-            'description': 'Detect potential filter terms by comparing raw vs filtered datasets using n-gram analysis',
+            'description': 'Detect candidate filter terms by n-gram comparison of raw vs filtered data',
             'category': 'Data Analysis',
             'stage_to_stage': True,
             'analysis_features': [

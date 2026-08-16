@@ -76,7 +76,7 @@ class ProfileFilesProcessor(ImportBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'List file names, modification times, and sizes for provenance tabs',
+            'description': 'Per-file metadata discovery (e.g., modification times, sizes)',
             'file_columns': ['File', 'Modified', 'Size (KB)'],
             'missing_file_handling': ['error', 'note', 'skip'],
             'preserves_listed_order': True,

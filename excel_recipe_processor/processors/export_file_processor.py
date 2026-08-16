@@ -151,7 +151,7 @@ class ExportFileProcessor(ExportBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Export stages to Excel or CSV, including multi-sheet workbooks, backing up any file being replaced',
+            'description': 'Export stages to Excel or CSV multi-sheet workbooks, backing up replaced files',
             'file_formats': ['xlsx', 'csv', 'tsv'],
             'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
             'safety': [

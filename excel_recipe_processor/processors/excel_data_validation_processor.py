@@ -549,9 +549,7 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Write native Excel data-validation rules - live '
-                           'data-entry guardrails: in-cell dropdowns, bounds, '
-                           'custom formula gates, prompts and error alerts',
+            'description': 'Native Excel data-validation rules: dropdowns, bounds, formula gates, prompts',
             'validation_types': sorted(VALIDATION_TYPES),
             'list_sources': 'exactly one of values_list (inline), '
                             'list_from_named_range (pairs with lookup tabs '

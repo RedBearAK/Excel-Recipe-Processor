@@ -413,7 +413,7 @@ class CombineDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Combine multiple DataFrames from stages and current data with enhanced column handling',
+            'description': 'Combine multiple DataFrames from stages with enhanced column handling',
             'supported_combine_types': self.get_supported_combine_types(),
             'supported_column_policies': self.get_supported_column_policies(),
             'combination_operations': [

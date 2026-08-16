@@ -84,7 +84,7 @@ class ProfileSheetsProcessor(ImportBaseProcessor):
     def get_capabilities(self) -> dict:
         """Processor capabilities information."""
         return {
-            'description': 'Per-column sheet metadata (widths, dtypes, blanks, distincts) stored as an ordinary stage for other steps to consume',
+            'description': 'Per-column sheet metadata discovery (e.g., widths, dtypes, blanks, distincts)',
             'profile_columns': ['Source', 'Column', 'Position', 'Width',
                                 'Dtype', 'Blank_Count', 'Distinct_Count',
                                 'Row_Count'],

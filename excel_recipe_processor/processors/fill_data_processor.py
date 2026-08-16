@@ -501,7 +501,7 @@ class FillDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Fill missing/null values using various strategies similar to Excel fill operations',
+            'description': 'Fill missing values using Excel-like fill strategies',
             'fill_methods': self.get_supported_fill_methods(),
             'condition_types': self.get_supported_condition_types(),
             'supported_features': [

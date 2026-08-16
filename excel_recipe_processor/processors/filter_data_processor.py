@@ -779,7 +779,7 @@ class FilterDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Filter DataFrame rows based on specified conditions including stage-based comparisons',
+            'description': 'Filter rows by conditions, including stage-based comparisons',
             'supported_conditions': self.get_supported_conditions(),
             'stage_based_conditions': self.get_stage_based_conditions(),
             'filter_operations': [

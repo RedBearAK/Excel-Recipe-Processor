@@ -212,7 +212,7 @@ class DeduplicateDataProcessor(BaseStepProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Collapse rows to one per key, keeping all columns and reporting groups whose values conflicted',
+            'description': 'Collapse rows to one per key, keeping all columns, reporting value conflicts',
             'keep_options': ['first', 'last'],
             'conflict_outputs': [
                 'per-key warning log with disputed columns and values',

@@ -477,7 +477,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities and features."""
         return {
-            'description': 'Transplant formulas from donor Excel files to recipient files for seeding calculation columns',
+            'description': 'Transplant formulas from donor Excel files to seed calculation columns',
             'operation_type': 'file_operations',
             'column_matching': [
                 'excel_column_references',  # A, B, AA, etc.

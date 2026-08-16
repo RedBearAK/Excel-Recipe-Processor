@@ -173,7 +173,7 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Verify a stage\'s columns against an expected list, announcing new or missing columns',
+            'description': "Verify a stage's columns against an expected list, announcing drift",
             'directions': {
                 'missing expected column': 'on_missing_expected: error (default) / warn',
                 'new unexpected column': 'on_unexpected: warn (default) / error',

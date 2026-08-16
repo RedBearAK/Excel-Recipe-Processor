@@ -611,7 +611,7 @@ class GroupDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Group individual values into categories using various source types and advanced workflows',
+            'description': 'Group values into categories from various source types and workflows',
             'source_types': self.get_supported_source_types(),
             'unmatched_actions': self.get_supported_unmatched_actions(),
             'file_formats': self.get_supported_file_formats(),

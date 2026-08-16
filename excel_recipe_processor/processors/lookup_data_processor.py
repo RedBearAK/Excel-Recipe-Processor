@@ -358,7 +358,7 @@ class LookupDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Clean stage-to-stage lookup operations with smart key normalization and detailed logging',
+            'description': 'Stage-to-stage lookups with smart key normalization and detailed logging',
             'data_sources': ['stages'],
             'join_types': ['left', 'right', 'inner', 'outer'],
             'key_features': [

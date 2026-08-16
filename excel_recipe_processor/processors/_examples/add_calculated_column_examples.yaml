@@ -12,10 +12,10 @@ basic_formula_components_example:
     settings:
       description: "Calculate order totals from price and quantity using formula_components"
       stages:
-        - stage_name: "order_data"
+        - stage_name: "stg_order_data"
           description: "Raw order data"
           protected: false
-        - stage_name: "calculated_orders"
+        - stage_name: "stg_calculated_orders"
           description: "Orders with calculated totals"
           protected: false
     
@@ -25,9 +25,9 @@ basic_formula_components_example:
         # REQ - Must be "add_calculated_column" for this processor type
         processor_type: "add_calculated_column"
         # REQ - Stage to read data from
-        source_stage: "order_data"
+        source_stage: "stg_order_data"
         # REQ - Stage to save results with new column
-        save_to_stage: "calculated_orders"
+        save_to_stage: "stg_calculated_orders"
         # REQ - Name of the new column to create
         new_column: "Total_Value"
         # OPT - Type of calculation to perform
@@ -48,18 +48,18 @@ complex_formula_components_example:
     settings:
       description: "Calculate complex profit metrics using formula_components"
       stages:
-        - stage_name: "financial_data"
+        - stage_name: "stg_financial_data"
           description: "Revenue and cost data with spaces in column names"
           protected: false
-        - stage_name: "profit_analysis"
+        - stage_name: "stg_profit_analysis"
           description: "Financial data with calculated profit margins"
           protected: false
     
     recipe:
       - step_description: "Calculate profit margin percentage"
         processor_type: "add_calculated_column"
-        source_stage: "financial_data"
-        save_to_stage: "profit_analysis"
+        source_stage: "stg_financial_data"
+        save_to_stage: "stg_profit_analysis"
         new_column: "Profit_Margin_Percent"
         calculation_type: "expression"
         calculation:
@@ -77,18 +77,18 @@ conditional_formula_components_example:
     settings:
       description: "Dynamic pricing based on quantity tiers"
       stages:
-        - stage_name: "order_data"
+        - stage_name: "stg_order_data"
           description: "Order data with quantities"
           protected: false
-        - stage_name: "priced_orders"
+        - stage_name: "stg_priced_orders"
           description: "Orders with tier-based pricing"
           protected: false
     
     recipe:
       - step_description: "Apply quantity-based pricing tiers"
         processor_type: "add_calculated_column"
-        source_stage: "order_data"
-        save_to_stage: "priced_orders"
+        source_stage: "stg_order_data"
+        save_to_stage: "stg_priced_orders"
         new_column: "Final_Price"
         calculation_type: "expression"
         calculation:
@@ -113,18 +113,18 @@ mixed_conditional_example:
     settings:
       description: "Complex shipping calculation with multiple business rules"
       stages:
-        - stage_name: "shipping_data"
+        - stage_name: "stg_shipping_data"
           description: "Orders with customer and weight data"
           protected: false
-        - stage_name: "final_shipping"
+        - stage_name: "stg_final_shipping"
           description: "Orders with calculated shipping costs"
           protected: false
     
     recipe:
       - step_description: "Calculate shipping with tier discounts and weight factors"
         processor_type: "add_calculated_column"
-        source_stage: "shipping_data"
-        save_to_stage: "final_shipping"
+        source_stage: "stg_shipping_data"
+        save_to_stage: "stg_final_shipping"
         new_column: "Shipping_Cost"
         calculation_type: "expression"
         calculation:
@@ -160,18 +160,18 @@ string_conditions_example:
     settings:
       description: "Product categorization using string matching"
       stages:
-        - stage_name: "product_data"
+        - stage_name: "stg_product_data"
           description: "Product catalog data"
           protected: false
-        - stage_name: "categorized_products"
+        - stage_name: "stg_categorized_products"
           description: "Products with calculated categories"
           protected: false
     
     recipe:
       - step_description: "Assign product categories based on name and type"
         processor_type: "add_calculated_column"
-        source_stage: "product_data"
-        save_to_stage: "categorized_products"
+        source_stage: "stg_product_data"
+        save_to_stage: "stg_categorized_products"
         new_column: "Product_Category"
         calculation_type: "expression"
         calculation:
@@ -203,18 +203,18 @@ legacy_formula_example:
     settings:
       description: "Legacy formula approach for simple cases"
       stages:
-        - stage_name: "simple_data"
+        - stage_name: "stg_simple_data"
           description: "Data with simple column names"
           protected: false
-        - stage_name: "calculated_data"
+        - stage_name: "stg_calculated_data"
           description: "Data with calculations"
           protected: false
     
     recipe:
       - step_description: "Calculate using legacy formula syntax"
         processor_type: "add_calculated_column"
-        source_stage: "simple_data"
-        save_to_stage: "calculated_data"
+        source_stage: "stg_simple_data"
+        save_to_stage: "stg_calculated_data"
         new_column: "Total"
         calculation_type: "expression"
         calculation:

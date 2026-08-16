@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Import Excel file and extract metadata rows"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Complete imported Excel file"
           protected: false
-        - stage_name: "file_metadata"
+        - stage_name: "stg_profiled_files"
           description: "Header information from Excel file"
           protected: false
 
@@ -23,7 +23,7 @@ basic_example:
         # REQ - Path to input Excel file
         input_file: "data/monthly_report.xlsx"
         # REQ - Stage to save imported data (import_file only needs save_to_stage)
-        save_to_stage: "raw_data"
+        save_to_stage: "stg_raw_data"
 
       - # OPT - Human-readable step description
         # Default value: "Unnamed slice_data step"
@@ -31,7 +31,7 @@ basic_example:
         # REQ - Must be "slice_data" for this processor type
         processor_type: "slice_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "raw_data"
+        source_stage: "stg_raw_data"
         # REQ - Type of slice operation to perform
         # Valid values: "row_range", "column_range"
         slice_type: "row_range"
@@ -42,7 +42,7 @@ basic_example:
         # If omitted, extracts from start_row to end of data
         end_row: 3
         # REQ - Stage to save extracted rows
-        save_to_stage: "file_metadata"
+        save_to_stage: "stg_profiled_files"
 
 data_extraction_example:
   description: "Extract data section with automatic header promotion"
@@ -50,10 +50,10 @@ data_extraction_example:
     settings:
       description: "Import file and extract clean data with proper column headers"
       stages:
-        - stage_name: "imported_file"
+        - stage_name: "stg_imported_file"
           description: "Complete imported Excel file"
           protected: false
-        - stage_name: "clean_data"
+        - stage_name: "stg_clean_data"
           description: "Data section with promoted headers"
           protected: false
 
@@ -65,14 +65,14 @@ data_extraction_example:
         # REQ - Path to input Excel file
         input_file: "data/sales_report.xlsx"
         # REQ - Stage to save imported data (import_file only needs save_to_stage)
-        save_to_stage: "imported_file"
+        save_to_stage: "stg_imported_file"
 
       - # OPT - Human-readable step description
         step_description: "Extract data with header promotion"
         # REQ - Must be "slice_data" for this processor type
         processor_type: "slice_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "imported_file"
+        source_stage: "stg_imported_file"
         # REQ - Type of slice operation
         slice_type: "row_range"
         # REQ - Row where data section starts (1-based)
@@ -86,7 +86,7 @@ data_extraction_example:
         # When true, first row becomes DataFrame column names
         slice_result_contains_headers: true
         # REQ - Stage to save the clean data
-        save_to_stage: "clean_data"
+        save_to_stage: "stg_clean_data"
 
 column_slicing_example:
   description: "Extract specific columns using different reference methods"
@@ -94,13 +94,13 @@ column_slicing_example:
     settings:
       description: "Import wide dataset and extract key columns"
       stages:
-        - stage_name: "wide_dataset"
+        - stage_name: "stg_wide_dataset"
           description: "Complete imported dataset with many columns"
           protected: false
-        - stage_name: "key_columns"
+        - stage_name: "stg_key_columns"
           description: "Important columns only"
           protected: false
-        - stage_name: "first_three_columns"
+        - stage_name: "stg_first_three_columns"
           description: "First three columns by number"
           protected: false
 
@@ -112,14 +112,14 @@ column_slicing_example:
         # REQ - Path to input Excel file
         input_file: "data/wide_dataset.xlsx"
         # REQ - Stage to save imported data (import_file only needs save_to_stage)
-        save_to_stage: "wide_dataset"
+        save_to_stage: "stg_wide_dataset"
 
       - # OPT - Human-readable step description
         step_description: "Extract key columns using Excel references"
         # REQ - Must be "slice_data" for this processor type
         processor_type: "slice_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "wide_dataset"
+        source_stage: "stg_wide_dataset"
         # REQ - Type of slice operation
         slice_type: "column_range"
         # REQ - Starting column reference (Excel letter format)
@@ -129,13 +129,13 @@ column_slicing_example:
         # If omitted, extracts from start_col to last column
         end_col: "D"
         # REQ - Stage to save column subset
-        save_to_stage: "key_columns"
+        save_to_stage: "stg_key_columns"
 
       - # Alternative example using 1-based column numbers
         step_description: "Extract first 3 columns by number"
         processor_type: "slice_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "wide_dataset"
+        source_stage: "stg_wide_dataset"
         slice_type: "column_range"
         # REQ - Starting column number (1-based indexing)
         # Column 1 is the first column (Excel column A)
@@ -143,7 +143,7 @@ column_slicing_example:
         # OPT - Ending column number (1-based, inclusive)
         end_col: 3
         # REQ - Stage to save column subset
-        save_to_stage: "first_three_columns"
+        save_to_stage: "stg_first_three_columns"
 
 stage_workflow_example:
   description: "Process data from saved stage instead of pipeline input"
@@ -151,13 +151,13 @@ stage_workflow_example:
     settings:
       description: "Multi-step workflow using stage-based processing"
       stages:
-        - stage_name: "raw_excel_data"
+        - stage_name: "stg_raw_excel_data"
           description: "Complete imported Excel file"
           protected: false
-        - stage_name: "extracted_metadata"
+        - stage_name: "stg_extracted_metadata"
           description: "File metadata section"
           protected: false
-        - stage_name: "clean_dataset"
+        - stage_name: "stg_clean_dataset"
           description: "Data section with headers"
           protected: false
 
@@ -168,7 +168,7 @@ stage_workflow_example:
         # REQ - Path to input file
         input_file: "reports/monthly_data.xlsx"
         # REQ - Stage to save imported data
-        save_to_stage: "raw_excel_data"
+        save_to_stage: "stg_raw_excel_data"
 
       - # Step 2: Extract metadata from saved stage
         step_description: "Extract file metadata from saved data"
@@ -176,19 +176,19 @@ stage_workflow_example:
         slice_type: "row_range"
         # REQ - Load data from this stage instead of pipeline input
         # Stage must exist and contain data
-        source_stage: "raw_excel_data"
+        source_stage: "stg_raw_excel_data"
         start_row: 1
         end_row: 2
-        save_to_stage: "extracted_metadata"
+        save_to_stage: "stg_extracted_metadata"
 
       - # Step 3: Extract data section from same saved stage
         step_description: "Extract data with headers from saved data"
         processor_type: "slice_data"
         slice_type: "row_range"
-        source_stage: "raw_excel_data"
+        source_stage: "stg_raw_excel_data"
         start_row: 4
         slice_result_contains_headers: true
-        save_to_stage: "clean_dataset"
+        save_to_stage: "stg_clean_dataset"
 
 advanced_example:
   description: "Complex workflow with column name references and validation"
@@ -199,13 +199,13 @@ advanced_example:
         report_date: "2024-03"
         department: "sales"
       stages:
-        - stage_name: "imported_report"
+        - stage_name: "stg_imported_report"
           description: "Raw monthly sales report"
           protected: false
-        - stage_name: "core_data"
+        - stage_name: "stg_core_data"
           description: "Essential columns for analysis"
           protected: false
-        - stage_name: "validation_data"
+        - stage_name: "stg_validation_data"
           description: "Data subset for quality checks"
           protected: false
 
@@ -216,30 +216,30 @@ advanced_example:
         # REQ - Input file path with variable support
         # Variables: {report_date}, {department} defined in settings
         input_file: "reports/{department}_{report_date}.xlsx"
-        save_to_stage: "imported_report"
+        save_to_stage: "stg_imported_report"
 
       - # Extract core columns by name reference
         step_description: "Extract essential columns by name"
         processor_type: "slice_data"
         slice_type: "column_range"
-        source_stage: "imported_report"
+        source_stage: "stg_imported_report"
         # REQ - Starting column name (exact match required)
         # Must match existing column header exactly
         start_col: "Product ID"
         # OPT - Ending column name (exact match required)
         end_col: "Total Sales"
-        save_to_stage: "core_data"
+        save_to_stage: "stg_core_data"
 
       - # Extract validation subset
         step_description: "Extract data for quality validation"
         processor_type: "slice_data"
         slice_type: "row_range"
-        source_stage: "core_data"
+        source_stage: "stg_core_data"
         start_row: 1
         # OPT - Limit to first 100 rows for validation
         end_row: 100
         slice_result_contains_headers: true
-        save_to_stage: "validation_data"
+        save_to_stage: "stg_validation_data"
 
 transpose_example:
   description: "Turn a metrics-down/months-across table into months-down/metrics-across"

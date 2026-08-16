@@ -10,13 +10,13 @@ basic_list_example:
     settings:
       description: "Filter orders for approved customers only"
       stages:
-        - stage_name: "approved_customers"
+        - stage_name: "stg_approved_customers"
           description: "List of approved customer IDs"
           protected: true
-        - stage_name: "all_orders"
+        - stage_name: "stg_all_orders"
           description: "All order data"
           protected: false
-        - stage_name: "approved_orders"
+        - stage_name: "stg_approved_orders"
           description: "Orders from approved customers only"
           protected: false
     
@@ -28,7 +28,7 @@ basic_list_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage (must be declared in settings.stages)
-        save_to_stage: "approved_customers"
+        save_to_stage: "stg_approved_customers"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Customer IDs approved for promotional pricing"
@@ -54,10 +54,10 @@ table_mapping_example:
     settings:
       description: "Map customer locations to sales regions"
       stages:
-        - stage_name: "region_mapping"
+        - stage_name: "stg_region_mapping"
           description: "State to region lookup table"
           protected: true
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Customer data with state information"
           protected: false
     
@@ -69,7 +69,7 @@ table_mapping_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        save_to_stage: "region_mapping"
+        save_to_stage: "stg_region_mapping"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Maps US states to sales regions"
@@ -97,10 +97,10 @@ dictionary_lookup_example:
     settings:
       description: "Apply customer tier-based pricing"
       stages:
-        - stage_name: "customer_tiers"
+        - stage_name: "stg_customer_tiers"
           description: "Customer tier assignments"
           protected: true
-        - stage_name: "order_data"
+        - stage_name: "stg_order_data"
           description: "Order data to apply tier pricing"
           protected: false
     
@@ -112,7 +112,7 @@ dictionary_lookup_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        save_to_stage: "customer_tiers"
+        save_to_stage: "stg_customer_tiers"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Maps customer IDs to service tier levels"
@@ -143,16 +143,16 @@ advanced_filter_criteria_example:
       variables:
         min_revenue: "10000"
       stages:
-        - stage_name: "priority_products"
+        - stage_name: "stg_priority_products"
           description: "High-priority product codes"
           protected: true
-        - stage_name: "excluded_regions"
+        - stage_name: "stg_excluded_regions"
           description: "Regions to exclude from analysis"
           protected: true
-        - stage_name: "raw_sales"
+        - stage_name: "stg_raw_sales"
           description: "Raw sales data"
           protected: false
-        - stage_name: "filtered_sales"
+        - stage_name: "stg_filtered_sales"
           description: "Sales after filtering"
           protected: false
     
@@ -164,7 +164,7 @@ advanced_filter_criteria_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        save_to_stage: "priority_products"
+        save_to_stage: "stg_priority_products"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Product codes flagged as high priority for Q4"
@@ -192,7 +192,7 @@ advanced_filter_criteria_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        save_to_stage: "excluded_regions"
+        save_to_stage: "stg_excluded_regions"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Regions excluded due to incomplete data"
@@ -215,17 +215,17 @@ advanced_filter_criteria_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "raw_sales"
+        source_stage: "stg_raw_sales"
         # REQ - Stage to save filtered results
-        save_to_stage: "filtered_sales"
+        save_to_stage: "stg_filtered_sales"
         # REQ - List of filter conditions
         filters:
           - column: "Product_Code"
             condition: "in_stage"
-            save_to_stage: "priority_products"
+            save_to_stage: "stg_priority_products"
           - column: "Region"
             condition: "not_in_stage"
-            save_to_stage: "excluded_regions"
+            save_to_stage: "stg_excluded_regions"
           - column: "Revenue"
             condition: "greater_than"
             value: "{min_revenue}"
@@ -238,13 +238,13 @@ configuration_driven_example:
     settings:
       description: "Configuration-driven data validation and cleanup"
       stages:
-        - stage_name: "validation_rules"
+        - stage_name: "stg_validation_rules"
           description: "Column validation configuration"
           protected: true
-        - stage_name: "cleanup_mappings"
+        - stage_name: "stg_cleanup_mappings"
           description: "Value cleanup mappings"
           protected: true
-        - stage_name: "input_data"
+        - stage_name: "stg_input_data"
           description: "Data to process"
           protected: false
     
@@ -256,7 +256,7 @@ configuration_driven_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        save_to_stage: "validation_rules"
+        save_to_stage: "stg_validation_rules"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Defines required columns and their validation rules"
@@ -280,7 +280,7 @@ configuration_driven_example:
         # REQ - Must be "create_stage" for this processor type
         processor_type: "create_stage"
         # REQ - Name for the new stage
-        save_to_stage: "cleanup_mappings"
+        save_to_stage: "stg_cleanup_mappings"
         # OPT - Description of what this stage contains
         # Default value: "Stage created by create_stage processor"
         description: "Maps common data entry errors to correct values"

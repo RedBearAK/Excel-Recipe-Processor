@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Rename columns for business-friendly report output"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Data with technical column names"
           protected: false
-        - stage_name: "renamed_data"
+        - stage_name: "stg_renamed_data"
           description: "Data with business-friendly column names"
           protected: false
 
@@ -20,7 +20,7 @@ basic_example:
         step_description: "Import raw data file"
         processor_type: "import_file"
         input_file: "data/monthly_sales.xlsx"
-        save_to_stage: "raw_data"
+        save_to_stage: "stg_raw_data"
 
       - # Step 2: Rename columns for presentation
         # OPT - Human-readable step description
@@ -29,7 +29,7 @@ basic_example:
         # REQ - Must be "rename_columns" for this processor type
         processor_type: "rename_columns"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "raw_data"
+        source_stage: "stg_raw_data"
         # REQ - Type of renaming operation
         # Valid values: "mapping", "pattern", "transform"
         rename_type: "mapping"
@@ -42,7 +42,7 @@ basic_example:
           "amt_usd": "Amount (USD)"
           "ship_st": "Shipping Status"
         # REQ - Stage to save renamed data
-        save_to_stage: "renamed_data"
+        save_to_stage: "stg_renamed_data"
 
 pattern_rename_example:
   description: "Use regex patterns to systematically rename columns"
@@ -50,10 +50,10 @@ pattern_rename_example:
     settings:
       description: "Clean up column names with pattern-based renaming"
       stages:
-        - stage_name: "export_data"
+        - stage_name: "stg_export_data"
           description: "Data exported from legacy system"
           protected: false
-        - stage_name: "cleaned_columns"
+        - stage_name: "stg_cleaned_columns"
           description: "Data with cleaned column names"
           protected: false
 
@@ -62,12 +62,12 @@ pattern_rename_example:
         step_description: "Import data with prefixed column names"
         processor_type: "import_file"
         input_file: "exports/legacy_system_export.csv"
-        save_to_stage: "export_data"
+        save_to_stage: "stg_export_data"
 
       - # Step 2: Remove system prefixes using pattern
         step_description: "Remove 'EXPORT_' prefix from all columns"
         processor_type: "rename_columns"
-        source_stage: "export_data"
+        source_stage: "stg_export_data"
         # REQ - Use pattern-based renaming
         rename_type: "pattern"
         # REQ - Regex pattern to match (when rename_type is "pattern")
@@ -76,17 +76,17 @@ pattern_rename_example:
         # OPT - Replacement string (when rename_type is "pattern")
         # Default value: ""
         replacement: ""
-        save_to_stage: "cleaned_prefixes"
+        save_to_stage: "stg_cleaned_prefixes"
 
       - # Step 3: Clean date column suffixes
         step_description: "Remove date suffixes from column names"
         processor_type: "rename_columns"
-        source_stage: "cleaned_prefixes"
+        source_stage: "stg_cleaned_prefixes"
         rename_type: "pattern"
         # REQ - Pattern to match date suffixes like "_20240731"
         pattern: "_\\d{8}$"
         replacement: ""
-        save_to_stage: "cleaned_columns"
+        save_to_stage: "stg_cleaned_columns"
 
 transform_example:
   description: "Apply systematic transformations to all column names"
@@ -94,10 +94,10 @@ transform_example:
     settings:
       description: "Standardize messy column names from multiple sources"
       stages:
-        - stage_name: "merged_data"
+        - stage_name: "stg_merged_data"
           description: "Data merged from multiple sources with inconsistent naming"
           protected: false
-        - stage_name: "standardized_columns"
+        - stage_name: "stg_standardized_columns"
           description: "Data with standardized column names"
           protected: false
 
@@ -106,12 +106,12 @@ transform_example:
         step_description: "Import data with inconsistent column naming"
         processor_type: "import_file"
         input_file: "data/merged_sources.xlsx"
-        save_to_stage: "merged_data"
+        save_to_stage: "stg_merged_data"
 
       - # Step 2: Standardize all column names
         step_description: "Apply consistent naming convention to all columns"
         processor_type: "rename_columns"
-        source_stage: "merged_data"
+        source_stage: "stg_merged_data"
         # REQ - Use transformation-based renaming
         rename_type: "transform"
         # OPT - Case conversion to apply
@@ -124,7 +124,7 @@ transform_example:
         # OPT - Character to replace spaces with
         # Default value: null (no replacement)
         replace_spaces: "_"
-        save_to_stage: "standardized_columns"
+        save_to_stage: "stg_standardized_columns"
 
 multi_step_cleanup_example:
   description: "Complex column cleanup using multiple rename steps"
@@ -134,16 +134,16 @@ multi_step_cleanup_example:
       variables:
         report_date: "2024-07-31"
       stages:
-        - stage_name: "sql_export"
+        - stage_name: "stg_sql_export"
           description: "Raw SQL export with technical column names"
           protected: false
-        - stage_name: "technical_cleanup"
+        - stage_name: "stg_technical_cleanup"
           description: "Columns with technical artifacts removed"
           protected: false
-        - stage_name: "standardized"
+        - stage_name: "stg_standardized"
           description: "Columns in standard format"
           protected: false
-        - stage_name: "business_names"
+        - stage_name: "stg_business_names"
           description: "Final business-friendly column names"
           protected: false
 
@@ -152,31 +152,31 @@ multi_step_cleanup_example:
         step_description: "Import database export file"
         processor_type: "import_file"
         input_file: "exports/database_export_{report_date}.csv"
-        save_to_stage: "sql_export"
+        save_to_stage: "stg_sql_export"
 
       - # Step 2: Remove technical prefixes and suffixes
         step_description: "Remove table prefixes from column names"
         processor_type: "rename_columns"
-        source_stage: "sql_export"
+        source_stage: "stg_sql_export"
         rename_type: "pattern"
         # Remove patterns like "TBL_CUSTOMER_" or "VW_ORDER_"
         pattern: "^(TBL_|VW_|SP_)[A-Z]+_"
         replacement: ""
-        save_to_stage: "technical_cleanup"
+        save_to_stage: "stg_technical_cleanup"
 
       - # Step 3: Standardize format
         step_description: "Convert to consistent snake_case format"
         processor_type: "rename_columns"
-        source_stage: "technical_cleanup"
+        source_stage: "stg_technical_cleanup"
         rename_type: "transform"
         case_conversion: "snake_case"
         strip_characters: " -"
-        save_to_stage: "standardized"
+        save_to_stage: "stg_standardized"
 
       - # Step 4: Apply business names to key columns
         step_description: "Apply final business-friendly names"
         processor_type: "rename_columns"
-        source_stage: "standardized"
+        source_stage: "stg_standardized"
         rename_type: "mapping"
         mapping:
           "customer_identifier": "Customer ID"
@@ -184,7 +184,7 @@ multi_step_cleanup_example:
           "product_stock_keeping_unit": "Product SKU"
           "total_amount_usd": "Total Amount ($)"
           "shipping_status_code": "Shipping Status"
-        save_to_stage: "business_names"
+        save_to_stage: "stg_business_names"
 
 prefix_suffix_example:
   description: "Add prefixes or suffixes to column names for data source identification"
@@ -192,16 +192,16 @@ prefix_suffix_example:
     settings:
       description: "Tag columns with data source for multi-source analysis"
       stages:
-        - stage_name: "salesforce_data"
+        - stage_name: "stg_salesforce_data"
           description: "Customer data from Salesforce"
           protected: false
-        - stage_name: "erp_data"
+        - stage_name: "stg_erp_data"
           description: "Order data from ERP system"
           protected: false
-        - stage_name: "tagged_salesforce"
+        - stage_name: "stg_tagged_salesforce"
           description: "Salesforce data with source prefix"
           protected: false
-        - stage_name: "tagged_erp"
+        - stage_name: "stg_tagged_erp"
           description: "ERP data with source prefix"
           protected: false
 
@@ -210,37 +210,37 @@ prefix_suffix_example:
         step_description: "Import customer data from Salesforce"
         processor_type: "import_file"
         input_file: "integrations/salesforce_customers.csv"
-        save_to_stage: "salesforce_data"
+        save_to_stage: "stg_salesforce_data"
 
       - # Step 2: Import ERP data
         step_description: "Import order data from ERP"
         processor_type: "import_file"
         input_file: "integrations/erp_orders.csv"
-        save_to_stage: "erp_data"
+        save_to_stage: "stg_erp_data"
 
       - # Step 3: Tag Salesforce columns
         step_description: "Add SF_ prefix to Salesforce columns"
         processor_type: "rename_columns"
-        source_stage: "salesforce_data"
+        source_stage: "stg_salesforce_data"
         rename_type: "transform"
         # OPT - Prefix to add to all column names
         # Default value: null (no prefix)
         add_prefix: "SF_"
         # OPT - Also standardize the format
         case_conversion: "upper"
-        save_to_stage: "tagged_salesforce"
+        save_to_stage: "stg_tagged_salesforce"
 
       - # Step 4: Tag ERP columns
         step_description: "Add ERP_ prefix to ERP columns"
         processor_type: "rename_columns"
-        source_stage: "erp_data"
+        source_stage: "stg_erp_data"
         rename_type: "transform"
         add_prefix: "ERP_"
         case_conversion: "upper"
         # OPT - Suffix to add to all column names
         # Default value: null (no suffix)
         add_suffix: "_FIELD"
-        save_to_stage: "tagged_erp"
+        save_to_stage: "stg_tagged_erp"
 
 pivot_cleanup_example:
   description: "Clean up complex column names after pivot table operations"
@@ -248,13 +248,13 @@ pivot_cleanup_example:
     settings:
       description: "Clean hierarchical column names from pivot table"
       stages:
-        - stage_name: "pivot_result"
+        - stage_name: "stg_pivot_result"
           description: "Pivot table with complex column names"
           protected: false
-        - stage_name: "cleaned_pivot"
+        - stage_name: "stg_cleaned_pivot"
           description: "Pivot table with clean column names"
           protected: false
-        - stage_name: "final_report"
+        - stage_name: "stg_final_report"
           description: "Report-ready pivot table"
           protected: false
 
@@ -262,28 +262,28 @@ pivot_cleanup_example:
       - # Step 1: Create pivot table (creates complex column names)
         step_description: "Generate quarterly sales pivot"
         processor_type: "pivot_table"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         index: ["Region"]
         columns: ["Quarter", "Product_Category"]
         values: ["Sales_Amount"]
         aggfunc: "sum"
         margins: true
-        save_to_stage: "pivot_result"
+        save_to_stage: "stg_pivot_result"
 
       - # Step 2: Clean pivot column names
         step_description: "Clean up hierarchical pivot column names"
         processor_type: "rename_columns"
-        source_stage: "pivot_result"
+        source_stage: "stg_pivot_result"
         rename_type: "pattern"
         # Pattern to clean names like "('Q1', 'Electronics')" to "Q1_Electronics"
         pattern: "\\('([^']+)',\\s*'([^']+)'\\)"
         replacement: "\\1_\\2"
-        save_to_stage: "cleaned_pivot"
+        save_to_stage: "stg_cleaned_pivot"
 
       - # Step 3: Apply final presentation names
         step_description: "Apply business-friendly names for report"
         processor_type: "rename_columns"
-        source_stage: "cleaned_pivot"
+        source_stage: "stg_cleaned_pivot"
         rename_type: "mapping"
         mapping:
           "Q1_Electronics": "Q1 Electronics Sales"
@@ -295,7 +295,7 @@ pivot_cleanup_example:
           "Q4_Electronics": "Q4 Electronics Sales"
           "Q4_Clothing": "Q4 Clothing Sales"
           "All": "Grand Total"
-        save_to_stage: "final_report"
+        save_to_stage: "stg_final_report"
 
 case_conversion_example:
   description: "Demonstrate all available case conversion options"
@@ -303,16 +303,16 @@ case_conversion_example:
     settings:
       description: "Show different case conversion options for column names"
       stages:
-        - stage_name: "mixed_case_data"
+        - stage_name: "stg_mixed_case_data"
           description: "Data with mixed case column names"
           protected: false
-        - stage_name: "upper_case"
+        - stage_name: "stg_upper_case"
           description: "All uppercase columns"
           protected: false
-        - stage_name: "snake_case"
+        - stage_name: "stg_snake_case"
           description: "Snake case columns"
           protected: false
-        - stage_name: "camel_case"
+        - stage_name: "stg_camel_case"
           description: "Camel case columns"
           protected: false
 
@@ -321,34 +321,34 @@ case_conversion_example:
         step_description: "Import data with inconsistent column casing"
         processor_type: "import_file"
         input_file: "data/mixed_case_columns.xlsx"
-        save_to_stage: "mixed_case_data"
+        save_to_stage: "stg_mixed_case_data"
 
       - # Step 2: Convert to UPPERCASE (for database export)
         step_description: "Convert all columns to uppercase"
         processor_type: "rename_columns"
-        source_stage: "mixed_case_data"
+        source_stage: "stg_mixed_case_data"
         rename_type: "transform"
         # Convert to: "CUSTOMER_NAME", "ORDER_DATE", etc.
         case_conversion: "upper"
-        save_to_stage: "upper_case"
+        save_to_stage: "stg_upper_case"
 
       - # Step 3: Convert to snake_case (for programming)
         step_description: "Convert all columns to snake_case"
         processor_type: "rename_columns"
-        source_stage: "mixed_case_data"
+        source_stage: "stg_mixed_case_data"
         rename_type: "transform"
         # Convert to: "customer_name", "order_date", etc.
         case_conversion: "snake_case"
-        save_to_stage: "snake_case"
+        save_to_stage: "stg_snake_case"
 
       - # Step 4: Convert to camelCase (for JSON/API)
         step_description: "Convert all columns to camelCase"
         processor_type: "rename_columns"
-        source_stage: "mixed_case_data"
+        source_stage: "stg_mixed_case_data"
         rename_type: "transform"
         # Convert to: "customerName", "orderDate", etc.
         case_conversion: "camel_case"
-        save_to_stage: "camel_case"
+        save_to_stage: "stg_camel_case"
 
 parameter_details:
   processor_type:

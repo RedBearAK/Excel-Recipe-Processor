@@ -10,10 +10,10 @@ basic_example:
     settings:
       description: "Enrich order data with customer information"
       stages:
-        - stage_name: "order_data"
+        - stage_name: "stg_order_data"
           description: "Raw order data from import"
           protected: false
-        - stage_name: "enriched_orders"
+        - stage_name: "stg_enriched_orders"
           description: "Orders with customer details added"
           protected: false
     
@@ -23,9 +23,9 @@ basic_example:
         # REQ - Must be "merge_data" for this processor type
         processor_type: "merge_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "order_data"
+        source_stage: "stg_order_data"
         # REQ - Stage to save merged results
-        save_to_stage: "enriched_orders"
+        save_to_stage: "stg_enriched_orders"
         # REQ - External data source configuration
         merge_source:
           # REQ - Type of data source
@@ -55,16 +55,16 @@ multi_source_example:
         data_year: "2024"
         region: "west"
       stages:
-        - stage_name: "raw_orders"
+        - stage_name: "stg_raw_orders"
           description: "Raw order data"
           protected: false
-        - stage_name: "customer_enriched"
+        - stage_name: "stg_customer_enriched"
           description: "Orders with customer data"
           protected: false
-        - stage_name: "product_enriched"
+        - stage_name: "stg_product_enriched"
           description: "Orders with customer and product data"
           protected: false
-        - stage_name: "territory_enriched"
+        - stage_name: "stg_territory_enriched"
           description: "Fully enriched order data"
           protected: false
     
@@ -72,8 +72,8 @@ multi_source_example:
       # Step 1: Add customer information from Excel
       - step_description: "Enrich with customer master data"
         processor_type: "merge_data"
-        source_stage: "raw_orders"
-        save_to_stage: "customer_enriched"
+        source_stage: "stg_raw_orders"
+        save_to_stage: "stg_customer_enriched"
         merge_source:
           type: "excel"
           path: "reference_data/customers_{data_year}.xlsx"
@@ -91,8 +91,8 @@ multi_source_example:
       # Step 2: Add product information from CSV
       - step_description: "Add product catalog details"
         processor_type: "merge_data"
-        source_stage: "customer_enriched"
-        save_to_stage: "product_enriched"
+        source_stage: "stg_customer_enriched"
+        save_to_stage: "stg_product_enriched"
         merge_source:
           type: "csv"
           path: "product_catalog.csv"
@@ -107,8 +107,8 @@ multi_source_example:
       # Step 3: Add territory mapping from configuration
       - step_description: "Map regions to sales territories"
         processor_type: "merge_data"
-        source_stage: "product_enriched"
-        save_to_stage: "territory_enriched"
+        source_stage: "stg_product_enriched"
+        save_to_stage: "stg_territory_enriched"
         merge_source:
           # REQ - Dictionary-based lookup data
           type: "dictionary"
@@ -139,16 +139,16 @@ join_types_example:
     settings:
       description: "Compare join type behaviors for data validation"
       stages:
-        - stage_name: "main_data"
+        - stage_name: "stg_main_data"
           description: "Main dataset"
           protected: false
-        - stage_name: "left_joined"
+        - stage_name: "stg_left_joined"
           description: "Left join result - keeps all main data"
           protected: false
-        - stage_name: "inner_joined"
+        - stage_name: "stg_inner_joined"
           description: "Inner join result - only matching records"
           protected: false
-        - stage_name: "outer_joined"
+        - stage_name: "stg_outer_joined"
           description: "Outer join result - all records from both sources"
           protected: false
     
@@ -156,8 +156,8 @@ join_types_example:
       # Left join: Keep all main data, add external where available
       - step_description: "Left join - preserve all main data rows"
         processor_type: "merge_data"
-        source_stage: "main_data"
-        save_to_stage: "left_joined"
+        source_stage: "stg_main_data"
+        save_to_stage: "stg_left_joined"
         merge_source:
           type: "excel"
           path: "reference_data.xlsx"
@@ -169,8 +169,8 @@ join_types_example:
       # Inner join: Only keep rows that match in both datasets
       - step_description: "Inner join - only complete records"
         processor_type: "merge_data"
-        source_stage: "main_data"
-        save_to_stage: "inner_joined"
+        source_stage: "stg_main_data"
+        save_to_stage: "stg_inner_joined"
         merge_source:
           type: "excel"
           path: "reference_data.xlsx"
@@ -182,8 +182,8 @@ join_types_example:
       # Outer join: Keep all rows from both datasets
       - step_description: "Outer join - comprehensive data view"
         processor_type: "merge_data"
-        source_stage: "main_data"
-        save_to_stage: "outer_joined"
+        source_stage: "stg_main_data"
+        save_to_stage: "stg_outer_joined"
         merge_source:
           type: "excel"
           path: "reference_data.xlsx"
@@ -200,13 +200,13 @@ stage_merge_example:
     settings:
       description: "Merge with results from previous processing stages"
       stages:
-        - stage_name: "customer_orders"
+        - stage_name: "stg_customer_orders"
           description: "Customer order data"
           protected: false
-        - stage_name: "customer_segments"
+        - stage_name: "stg_customer_segments"
           description: "Customer segmentation results"
           protected: false
-        - stage_name: "segmented_orders"
+        - stage_name: "stg_segmented_orders"
           description: "Orders enriched with segmentation data"
           protected: false
     
@@ -214,13 +214,13 @@ stage_merge_example:
       # Previous steps would populate both customer_orders and customer_segments
       - step_description: "Add customer segmentation to orders"
         processor_type: "merge_data"
-        source_stage: "customer_orders"
-        save_to_stage: "segmented_orders"
+        source_stage: "stg_customer_orders"
+        save_to_stage: "stg_segmented_orders"
         merge_source:
           # REQ - Stage-based data source
           type: "stage"
           # REQ - Name of previously saved stage
-          stage_name: "customer_segments"
+          stage_name: "stg_customer_segments"
         left_key: "Customer_ID"
         right_key: "Customer_ID"
         # OPT - Inner join to only include customers that were segmented

@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Create a sales summary pivot table by region and product"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Raw sales transaction data"
           protected: false
-        - stage_name: "sales_pivot"
+        - stage_name: "stg_sales_pivot"
           description: "Sales pivot table summary"
           protected: false
 
@@ -20,7 +20,7 @@ basic_example:
         step_description: "Import sales transaction data"
         processor_type: "import_file"
         input_file: "data/sales_transactions.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Create basic pivot table
         # OPT - Human-readable step description
@@ -29,7 +29,7 @@ basic_example:
         # REQ - Must be "pivot_table" for this processor type
         processor_type: "pivot_table"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         # REQ - Field(s) to use as rows (accepts single string or list)
         index: ["Region"]
         # OPT - Field(s) to use as columns (accepts single string or list)
@@ -42,7 +42,7 @@ basic_example:
         # Valid values: "sum", "mean", "count", "min", "max", "std", "var", "first", "last", "nunique"
         aggfunc: "sum"
         # REQ - Stage to save pivot results
-        save_to_stage: "sales_pivot"
+        save_to_stage: "stg_sales_pivot"
 
 van_report_example:
   description: "Classic Van Report matrix: Origin vs Carrier with product counts"
@@ -50,10 +50,10 @@ van_report_example:
     settings:
       description: "Create Origin vs Carrier matrix similar to Van Report format"
       stages:
-        - stage_name: "filtered_salmon"
+        - stage_name: "stg_filtered_salmon"
           description: "Filtered salmon product data"
           protected: false
-        - stage_name: "origin_carrier_matrix"
+        - stage_name: "stg_origin_carrier_matrix"
           description: "Origin by Carrier pivot table"
           protected: false
 
@@ -62,12 +62,12 @@ van_report_example:
         step_description: "Import Van Report data"
         processor_type: "import_file"
         input_file: "data/van_report_export.xlsx"
-        save_to_stage: "raw_data"
+        save_to_stage: "stg_raw_data"
 
       - # Step 2: Filter for salmon products
         step_description: "Filter for salmon records, exclude cans"
         processor_type: "filter_data"
-        source_stage: "raw_data"
+        source_stage: "stg_raw_data"
         filters:
           - column: "Component"
             condition: "not_equals"
@@ -75,12 +75,12 @@ van_report_example:
           - column: "Major Species"
             condition: "contains"
             value: "SALMON"
-        save_to_stage: "filtered_salmon"
+        save_to_stage: "stg_filtered_salmon"
 
       - # Step 3: Create Origin vs Carrier matrix
         step_description: "Create product origin by carrier matrix"
         processor_type: "pivot_table"
-        source_stage: "filtered_salmon"
+        source_stage: "stg_filtered_salmon"
         # REQ - Product origin locations as rows
         index: ["Product_Origin"]
         # OPT - Carriers as columns
@@ -95,7 +95,7 @@ van_report_example:
         # OPT - Add row/column totals
         # Default value: false
         margins: true
-        save_to_stage: "origin_carrier_matrix"
+        save_to_stage: "stg_origin_carrier_matrix"
 
 multi_level_example:
   description: "Multi-level pivot with hierarchical grouping and multiple values"
@@ -103,10 +103,10 @@ multi_level_example:
     settings:
       description: "Create complex pivot table with multiple index levels and values"
       stages:
-        - stage_name: "order_data"
+        - stage_name: "stg_order_data"
           description: "Order transaction data"
           protected: false
-        - stage_name: "revenue_analysis"
+        - stage_name: "stg_revenue_analysis"
           description: "Multi-level revenue analysis pivot"
           protected: false
 
@@ -115,12 +115,12 @@ multi_level_example:
         step_description: "Import order transaction data"
         processor_type: "import_file"
         input_file: "data/orders_{year}.xlsx"
-        save_to_stage: "order_data"
+        save_to_stage: "stg_order_data"
 
       - # Step 2: Create multi-level pivot table
         step_description: "Analyze revenue by region, sales rep, and product"
         processor_type: "pivot_table"
-        source_stage: "order_data"
+        source_stage: "stg_order_data"
         # REQ - Multiple fields for hierarchical rows
         index: ["Region", "Sales_Rep"]
         # OPT - Product types as columns
@@ -137,7 +137,7 @@ multi_level_example:
         # OPT - Keep rows with any null values
         # Default value: true (drops rows with nulls in index/columns)
         dropna: false
-        save_to_stage: "revenue_analysis"
+        save_to_stage: "stg_revenue_analysis"
 
 cross_tabulation_example:
   description: "Create a frequency cross-tabulation (count matrix)"
@@ -145,10 +145,10 @@ cross_tabulation_example:
     settings:
       description: "Create cross-tabulation for category analysis"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Customer demographic data"
           protected: false
-        - stage_name: "customer_crosstab"
+        - stage_name: "stg_customer_crosstab"
           description: "Customer segment cross-tabulation"
           protected: false
 
@@ -157,12 +157,12 @@ cross_tabulation_example:
         step_description: "Import customer demographic data"
         processor_type: "import_file"
         input_file: "data/customer_demographics.xlsx"
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
 
       - # Step 2: Create cross-tabulation
         step_description: "Create customer segment by region crosstab"
         processor_type: "pivot_table"
-        source_stage: "customer_data"
+        source_stage: "stg_customer_data"
         # REQ - Customer segments as rows
         index: ["Customer_Segment"]
         # OPT - Regions as columns
@@ -176,7 +176,7 @@ cross_tabulation_example:
         fill_value: 0
         # OPT - Add row and column totals
         margins: true
-        save_to_stage: "customer_crosstab"
+        save_to_stage: "stg_customer_crosstab"
 
 advanced_aggregation_example:
   description: "Complex pivot with custom aggregations and post-processing"
@@ -186,13 +186,13 @@ advanced_aggregation_example:
       variables:
         analysis_year: "2024"
       stages:
-        - stage_name: "transaction_data"
+        - stage_name: "stg_transaction_data"
           description: "Financial transaction data"
           protected: false
-        - stage_name: "financial_summary"
+        - stage_name: "stg_financial_summary"
           description: "Financial summary pivot table"
           protected: false
-        - stage_name: "cleaned_summary"
+        - stage_name: "stg_cleaned_summary"
           description: "Cleaned and formatted summary"
           protected: false
 
@@ -201,12 +201,12 @@ advanced_aggregation_example:
         step_description: "Import financial transactions"
         processor_type: "import_file"
         input_file: "data/transactions_{analysis_year}.xlsx"
-        save_to_stage: "transaction_data"
+        save_to_stage: "stg_transaction_data"
 
       - # Step 2: Create financial summary pivot
         step_description: "Summarize financial metrics by department and quarter"
         processor_type: "pivot_table"
-        source_stage: "transaction_data"
+        source_stage: "stg_transaction_data"
         # REQ - Department as primary grouping
         index: ["Department"]
         # OPT - Quarters as columns
@@ -224,17 +224,17 @@ advanced_aggregation_example:
         # OPT - Fill blank cells in index columns
         # Default value: false
         fill_blanks: true
-        save_to_stage: "financial_summary"
+        save_to_stage: "stg_financial_summary"
 
       - # Step 3: Clean up column names
         step_description: "Clean pivot table column names"
         processor_type: "rename_columns"
-        source_stage: "financial_summary"
+        source_stage: "stg_financial_summary"
         rename_type: "transform"
         case_conversion: "title_case"
         replace_characters: "_"
         replacement: " "
-        save_to_stage: "cleaned_summary"
+        save_to_stage: "stg_cleaned_summary"
 
 time_series_pivot_example:
   description: "Time-based pivot table for trend analysis"
@@ -242,10 +242,10 @@ time_series_pivot_example:
     settings:
       description: "Create time series pivot for monthly trend analysis"
       stages:
-        - stage_name: "sales_history"
+        - stage_name: "stg_sales_history"
           description: "Historical sales data"
           protected: false
-        - stage_name: "monthly_trends"
+        - stage_name: "stg_monthly_trends"
           description: "Monthly sales trends by category"
           protected: false
 
@@ -254,23 +254,23 @@ time_series_pivot_example:
         step_description: "Import sales history"
         processor_type: "import_file"
         input_file: "data/sales_history.xlsx"
-        save_to_stage: "sales_history"
+        save_to_stage: "stg_sales_history"
 
       - # Step 2: Add month column for pivoting
         step_description: "Extract month from date"
         processor_type: "add_calculated_column"
-        source_stage: "sales_history"
+        source_stage: "stg_sales_history"
         new_column: "Month"
         calculation:
           type: "date_extract"
           date_column: "Sale_Date"
           extract: "month_name"
-        save_to_stage: "sales_with_month"
+        save_to_stage: "stg_sales_with_month"
 
       - # Step 3: Create monthly trend pivot
         step_description: "Create monthly sales trends by product category"
         processor_type: "pivot_table"
-        source_stage: "sales_with_month"
+        source_stage: "stg_sales_with_month"
         # REQ - Product categories as rows
         index: ["Product_Category"]
         # OPT - Months as columns
@@ -284,7 +284,7 @@ time_series_pivot_example:
         margins: false
         # OPT - Keep all months even if no sales
         dropna: false
-        save_to_stage: "monthly_trends"
+        save_to_stage: "stg_monthly_trends"
 
 parameter_details:
   processor_type:

@@ -11,10 +11,10 @@ basic_selection_example:
     settings:
       description: "Select key business columns from wide export data"
       stages:
-        - stage_name: "raw_export"
+        - stage_name: "stg_raw_export"
           description: "Wide export data with many columns"
           protected: false
-        - stage_name: "essential_data"
+        - stage_name: "stg_essential_data"
           description: "Key business columns only"
           protected: false
     
@@ -26,11 +26,11 @@ basic_selection_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "raw_export"
+        source_stage: "stg_raw_export"
         # REQ - List of columns to keep (in this exact order)
         columns_to_keep: ["Customer_ID", "Product_Name", "Price", "Quantity", "Status"]
         # REQ - Stage to save selected columns
-        save_to_stage: "essential_data"
+        save_to_stage: "stg_essential_data"
 
 reordering_example:
   description: "Reorder columns by specifying them in desired sequence"
@@ -40,10 +40,10 @@ reordering_example:
     settings:
       description: "Reorder columns for better readability and workflow"
       stages:
-        - stage_name: "messy_order"
+        - stage_name: "stg_messy_order"
           description: "Data with columns in poor order"
           protected: false
-        - stage_name: "ordered_data"
+        - stage_name: "stg_ordered_data"
           description: "Columns in logical business order"
           protected: false
     
@@ -53,14 +53,14 @@ reordering_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from
-        source_stage: "messy_order"
+        source_stage: "stg_messy_order"
         # REQ - Columns in desired order (Price first, then ID, then details)
         columns_to_keep: ["Price", "Customer_ID", "Product_Name", "Description", "Category"]
         # OPT - Allow duplicate columns if same column listed multiple times
         # Default value: true
         allow_duplicates: true
         # REQ - Stage to save reordered data
-        save_to_stage: "ordered_data"
+        save_to_stage: "stg_ordered_data"
 
 flexible_selection_example:
   description: "Flexible selection with error handling for missing columns" 
@@ -70,10 +70,10 @@ flexible_selection_example:
     settings:
       description: "Select columns that may or may not exist in import data"
       stages:
-        - stage_name: "variable_import"
+        - stage_name: "stg_variable_import"
           description: "Import data with varying column structure"
           protected: false
-        - stage_name: "standardized_output"
+        - stage_name: "stg_standardized_output"
           description: "Standardized output with available columns"
           protected: false
     
@@ -83,7 +83,7 @@ flexible_selection_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from
-        source_stage: "variable_import"
+        source_stage: "stg_variable_import"
         # REQ - Preferred columns (some may not exist in all imports)
         columns_to_keep: ["ID", "Name", "Email", "Phone", "Address", "Notes", "Created_Date"]
         # OPT - Don't fail if some columns are missing, just skip them
@@ -93,7 +93,7 @@ flexible_selection_example:
         # Default value: true
         allow_duplicates: false
         # REQ - Stage to save available columns
-        save_to_stage: "standardized_output"
+        save_to_stage: "stg_standardized_output"
 
 exclusion_example:
   description: "Drop unwanted columns while keeping everything else"
@@ -103,10 +103,10 @@ exclusion_example:
     settings:
       description: "Remove internal/temporary columns from final export"
       stages:
-        - stage_name: "working_data"
+        - stage_name: "stg_working_data"
           description: "Data with internal working columns"
           protected: false
-        - stage_name: "clean_export"
+        - stage_name: "stg_clean_export"
           description: "Clean data ready for external use"
           protected: false
     
@@ -116,14 +116,14 @@ exclusion_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from
-        source_stage: "working_data"
+        source_stage: "stg_working_data"
         # REQ - List of columns to remove (everything else is kept)
         columns_to_drop: ["_temp_calc", "_internal_id", "debug_info", "processing_notes"]
         # OPT - Fail if drop columns don't exist vs skip missing ones
         # Default value: true (fail on missing)
         strict_mode: false
         # REQ - Stage to save cleaned data
-        save_to_stage: "clean_export"
+        save_to_stage: "stg_clean_export"
 
 duplication_example:
   description: "Duplicate columns for comparison or special formatting"
@@ -133,10 +133,10 @@ duplication_example:
     settings:
       description: "Duplicate price column for comparison analysis"
       stages:
-        - stage_name: "pricing_data"
+        - stage_name: "stg_pricing_data"
           description: "Product pricing information"
           protected: false
-        - stage_name: "comparison_format"
+        - stage_name: "stg_comparison_format"
           description: "Data formatted for price comparison"
           protected: false
     
@@ -146,7 +146,7 @@ duplication_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from
-        source_stage: "pricing_data"
+        source_stage: "stg_pricing_data"
         # REQ - Include Price column multiple times for comparison
         # The same column can appear multiple times in the list
         columns_to_keep: ["Product_ID", "Product_Name", "Price", "Price", "Category"]
@@ -154,7 +154,7 @@ duplication_example:
         # Default value: true
         allow_duplicates: true
         # REQ - Stage to save duplicated format
-        save_to_stage: "comparison_format"
+        save_to_stage: "stg_comparison_format"
 
 numeric_references_example:
   description: "Select columns by position using 1-based indexing"
@@ -164,10 +164,10 @@ numeric_references_example:
     settings:
       description: "Select columns from headerless or poorly named data using positions"
       stages:
-        - stage_name: "headerless_import"
+        - stage_name: "stg_headerless_import"
           description: "Data imported without proper headers"
           protected: false
-        - stage_name: "positioned_data"
+        - stage_name: "stg_positioned_data"
           description: "Selected columns by position"
           protected: false
     
@@ -177,7 +177,7 @@ numeric_references_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from
-        source_stage: "headerless_import"
+        source_stage: "stg_headerless_import"
         # REQ - Mix of names and 1-based positions
         # Position 1 = first column (Excel column A)
         # Position 2 = second column (Excel column B), etc.
@@ -186,7 +186,7 @@ numeric_references_example:
         # Default value: true
         allow_duplicates: true
         # REQ - Stage to save positioned data
-        save_to_stage: "positioned_data"
+        save_to_stage: "stg_positioned_data"
 
 column_creation_example:
   description: "Create new empty columns alongside existing ones"
@@ -196,10 +196,10 @@ column_creation_example:
     settings:
       description: "Add template columns to existing data for future data entry"
       stages:
-        - stage_name: "basic_data"
+        - stage_name: "stg_basic_data"
           description: "Basic imported data"
           protected: false
-        - stage_name: "template_ready"
+        - stage_name: "stg_template_ready"
           description: "Data with additional empty columns for manual entry"
           protected: false
     
@@ -209,7 +209,7 @@ column_creation_example:
         # REQ - Must be "select_columns" for this processor type
         processor_type: "select_columns"
         # REQ - Stage to read data from
-        source_stage: "basic_data"
+        source_stage: "stg_basic_data"
         # REQ - Include existing columns plus new ones to be created
         columns_to_keep: ["Customer_ID", "Product_Name", "Price", "Notes", "Follow_Up_Date", "Status_Override"]
         # REQ - Explicitly declare which columns should be created (not missing/typos)
@@ -221,7 +221,7 @@ column_creation_example:
         # Default value: true
         strict_mode: true
         # REQ - Stage to save template-ready data
-        save_to_stage: "template_ready"
+        save_to_stage: "stg_template_ready"
 
 parameter_details:
   processor_type:

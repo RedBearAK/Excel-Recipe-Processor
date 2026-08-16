@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Sort customer data by name alphabetically"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Raw customer data"
           protected: false
-        - stage_name: "sorted_customers"
+        - stage_name: "stg_sorted_customers"
           description: "Customers sorted alphabetically"
           protected: false
 
@@ -20,7 +20,7 @@ basic_example:
         step_description: "Import customer database"
         processor_type: "import_file"
         input_file: "data/customers.xlsx"
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
 
       - # Step 2: Sort by customer name
         # OPT - Human-readable step description
@@ -29,14 +29,14 @@ basic_example:
         # REQ - Must be "sort_data" for this processor type
         processor_type: "sort_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "customer_data"
+        source_stage: "stg_customer_data"
         # REQ - Column(s) to sort by (accepts single string or list)
         columns: ["Customer_Name"]
         # REQ - Type of sorting to apply
         # Valid values: "ascending", "descending", "custom"
         sort_type: "ascending"
         # REQ - Stage to save sorted data
-        save_to_stage: "sorted_customers"
+        save_to_stage: "stg_sorted_customers"
 
 multi_column_example:
   description: "Multi-column sort with mixed directions using new API"
@@ -44,13 +44,13 @@ multi_column_example:
     settings:
       description: "Sort sales data by region ascending and amount descending"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Raw sales transaction data"
           protected: false
-        - stage_name: "region_sorted"
+        - stage_name: "stg_region_sorted"
           description: "Sales sorted by region ascending"
           protected: false
-        - stage_name: "final_sorted"
+        - stage_name: "stg_final_sorted"
           description: "Sales sorted by region and amount"
           protected: false
 
@@ -59,23 +59,23 @@ multi_column_example:
         step_description: "Import sales transactions"
         processor_type: "import_file"
         input_file: "data/sales_transactions.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Sort by region (A-Z)
         step_description: "Sort sales by region ascending"
         processor_type: "sort_data"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         columns: ["Sales_Region"]
         sort_type: "ascending"
-        save_to_stage: "region_sorted"
+        save_to_stage: "stg_region_sorted"
 
       - # Step 3: Sort by amount (highest first) within regions
         step_description: "Sort by amount descending within regions"
         processor_type: "sort_data"
-        source_stage: "region_sorted"
+        source_stage: "stg_region_sorted"
         columns: ["Sales_Region", "Sale_Amount"]
         sort_type: "descending"
-        save_to_stage: "final_sorted"
+        save_to_stage: "stg_final_sorted"
 
 custom_order_example:
   description: "Sort using custom business logic ordering for categorical data"
@@ -83,10 +83,10 @@ custom_order_example:
     settings:
       description: "Sort orders by priority and status using business logic"
       stages:
-        - stage_name: "order_data"
+        - stage_name: "stg_order_data"
           description: "Order processing queue"
           protected: false
-        - stage_name: "prioritized_orders"
+        - stage_name: "stg_prioritized_orders"
           description: "Orders sorted by business priority"
           protected: false
 
@@ -95,12 +95,12 @@ custom_order_example:
         step_description: "Import current order queue"
         processor_type: "import_file"
         input_file: "data/order_queue.xlsx"
-        save_to_stage: "order_data"
+        save_to_stage: "stg_order_data"
 
       - # Step 2: Sort by custom priority order
         step_description: "Prioritize orders by customer tier and order status"
         processor_type: "sort_data"
-        source_stage: "order_data"
+        source_stage: "stg_order_data"
         # REQ - Sort by multiple columns with custom orders
         columns: ["Customer_Tier", "Order_Status"]
         # REQ - Use custom ordering
@@ -112,7 +112,7 @@ custom_order_example:
           Customer_Tier: ["Platinum", "Gold", "Silver", "Bronze"]
           # Define processing priority for statuses
           Order_Status: ["Urgent", "Rush", "Standard", "Deferred"]
-        save_to_stage: "prioritized_orders"
+        save_to_stage: "stg_prioritized_orders"
 
 van_report_example:
   description: "Van Report style regional sorting with custom Alaska regional ordering"
@@ -120,10 +120,10 @@ van_report_example:
     settings:
       description: "Sort Van Report data by region and origin for matrix display"
       stages:
-        - stage_name: "van_data"
+        - stage_name: "stg_van_data"
           description: "Van shipment data"
           protected: false
-        - stage_name: "sorted_van_data"
+        - stage_name: "stg_sorted_van_data"
           description: "Van data sorted for report matrix"
           protected: false
 
@@ -132,12 +132,12 @@ van_report_example:
         step_description: "Import Van shipment data"
         processor_type: "import_file"
         input_file: "data/van_report_export.xlsx"
-        save_to_stage: "van_data"
+        save_to_stage: "stg_van_data"
 
       - # Step 2: Sort by Alaska regions in geographic order
         step_description: "Sort by regional groups and product origin"
         processor_type: "sort_data"
-        source_stage: "van_data"
+        source_stage: "stg_van_data"
         columns: ["Regional_Group", "Product_Origin", "Carrier"]
         sort_type: "custom"
         # OPT - Custom Alaska regional ordering
@@ -154,7 +154,7 @@ van_report_example:
         # Default value: "last"
         # Valid values: "first", "last"
         na_position: "last"
-        save_to_stage: "sorted_van_data"
+        save_to_stage: "stg_sorted_van_data"
 
 case_insensitive_example:
   description: "Case-insensitive text sorting for mixed-case data"
@@ -162,10 +162,10 @@ case_insensitive_example:
     settings:
       description: "Sort product catalog ignoring case variations"
       stages:
-        - stage_name: "product_catalog"
+        - stage_name: "stg_product_catalog"
           description: "Product catalog with mixed case names"
           protected: false
-        - stage_name: "sorted_catalog"
+        - stage_name: "stg_sorted_catalog"
           description: "Products sorted alphabetically ignoring case"
           protected: false
 
@@ -174,18 +174,18 @@ case_insensitive_example:
         step_description: "Import product catalog data"
         processor_type: "import_file"
         input_file: "data/product_catalog.xlsx"
-        save_to_stage: "product_catalog"
+        save_to_stage: "stg_product_catalog"
 
       - # Step 2: Sort products alphabetically ignoring case
         step_description: "Sort products A-Z treating 'widget' and 'Widget' as equal"
         processor_type: "sort_data"
-        source_stage: "product_catalog"
+        source_stage: "stg_product_catalog"
         columns: ["Product_Name", "Category"]
         sort_type: "ascending"
         # OPT - Ignore case differences when sorting text columns
         # Default value: false
         ignore_case: true
-        save_to_stage: "sorted_catalog"
+        save_to_stage: "stg_sorted_catalog"
 
 complex_business_sort_example:
   description: "Complex multi-step sort for business reporting"
@@ -193,13 +193,13 @@ complex_business_sort_example:
     settings:
       description: "Create executive dashboard with complex sorting logic"
       stages:
-        - stage_name: "performance_data"
+        - stage_name: "stg_performance_data"
           description: "Employee performance metrics"
           protected: false
-        - stage_name: "dept_sorted"
+        - stage_name: "stg_dept_sorted"
           description: "Sorted by department hierarchy"
           protected: false
-        - stage_name: "final_dashboard"
+        - stage_name: "stg_final_dashboard"
           description: "Final executive dashboard order"
           protected: false
 
@@ -208,12 +208,12 @@ complex_business_sort_example:
         step_description: "Import quarterly performance metrics"
         processor_type: "import_file"
         input_file: "data/q4_performance.xlsx"
-        save_to_stage: "performance_data"
+        save_to_stage: "stg_performance_data"
 
       - # Step 2: First sort by department hierarchy
         step_description: "Sort by executive org structure"
         processor_type: "sort_data"
-        source_stage: "performance_data"
+        source_stage: "stg_performance_data"
         columns: ["Division", "Department"]
         sort_type: "custom"
         custom_orders:
@@ -224,17 +224,17 @@ complex_business_sort_example:
             "Customer Success", "Technical Support",
             "HR", "Finance", "IT"
           ]
-        save_to_stage: "dept_sorted"
+        save_to_stage: "stg_dept_sorted"
 
       - # Step 3: Final sort with performance metrics descending
         step_description: "Sort by performance within organizational hierarchy"
         processor_type: "sort_data"
-        source_stage: "dept_sorted"
+        source_stage: "stg_dept_sorted"
         columns: ["Revenue_Impact"]
         sort_type: "descending"
         # OPT - Position of null/missing values
         na_position: "last"
-        save_to_stage: "final_dashboard"
+        save_to_stage: "stg_final_dashboard"
 
 date_time_sort_example:
   description: "Sort by date and time fields with null handling"
@@ -242,10 +242,10 @@ date_time_sort_example:
     settings:
       description: "Sort event log by timestamp for timeline analysis"
       stages:
-        - stage_name: "event_log"
+        - stage_name: "stg_event_log"
           description: "System event log data"
           protected: false
-        - stage_name: "timeline_sorted"
+        - stage_name: "stg_timeline_sorted"
           description: "Events in chronological order"
           protected: false
 
@@ -254,17 +254,17 @@ date_time_sort_example:
         step_description: "Import system event log"
         processor_type: "import_file"
         input_file: "logs/system_events.csv"
-        save_to_stage: "event_log"
+        save_to_stage: "stg_event_log"
 
       - # Step 2: Sort by timestamp (newest first) with nulls
         step_description: "Create timeline with newest events first"
         processor_type: "sort_data"
-        source_stage: "event_log"
+        source_stage: "stg_event_log"
         columns: ["Event_Date", "Event_Time"]
         sort_type: "descending"  # Newest dates/times first
         # OPT - Put records with missing timestamps at the beginning for investigation
         na_position: "first"
-        save_to_stage: "timeline_sorted"
+        save_to_stage: "stg_timeline_sorted"
 
 parameter_details:
   processor_type:

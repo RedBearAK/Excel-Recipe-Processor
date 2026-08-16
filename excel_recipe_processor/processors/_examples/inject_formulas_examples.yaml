@@ -12,7 +12,7 @@ basic_example:
     settings:
       description: "Export sales data and add live calculation formulas"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Processed sales data"
           protected: false
 
@@ -21,12 +21,12 @@ basic_example:
         step_description: "Import monthly sales report"
         processor_type: "import_file"
         input_file: "data/sales_march_2024.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Export data to Excel file
         step_description: "Export processed data to Excel"
         processor_type: "export_file"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         output_file: "reports/sales_report.xlsx"
 
       - # Step 3: Inject live formulas into the Excel file
@@ -64,7 +64,7 @@ range_formulas_example:
         tax_rate: "0.08"
         discount_rate: "0.05"
       stages:
-        - stage_name: "financial_data"
+        - stage_name: "stg_financial_data"
           description: "Financial model data"
           protected: false
 
@@ -73,12 +73,12 @@ range_formulas_example:
         step_description: "Import quarterly financial data"
         processor_type: "import_file"
         input_file: "data/q1_financials.xlsx"
-        save_to_stage: "financial_data"
+        save_to_stage: "stg_financial_data"
 
       - # Step 2: Export to multi-sheet Excel workbook
         step_description: "Export data to formatted workbook"
         processor_type: "export_file"
-        source_stage: "financial_data"
+        source_stage: "stg_financial_data"
         output_file: "reports/financial_model.xlsx"
         sheet_names:
           Revenue: "financial_data"
@@ -112,7 +112,7 @@ awaken_dead_formulas_example:
     settings:
       description: "Convert budget template with dead formulas to live calculations"
       stages:
-        - stage_name: "template_data"
+        - stage_name: "stg_template_data"
           description: "Budget template data with dead formulas"
           protected: false
 
@@ -121,12 +121,12 @@ awaken_dead_formulas_example:
         step_description: "Import budget template with formula documentation"
         processor_type: "import_file"
         input_file: "templates/budget_template.xlsx"
-        save_to_stage: "template_data"
+        save_to_stage: "stg_template_data"
 
       - # Step 2: Export template to working file
         step_description: "Create working copy of template"
         processor_type: "export_file"
-        source_stage: "template_data"
+        source_stage: "stg_template_data"
         output_file: "working/budget_working.xlsx"
 
       - # Step 3: Awaken all dead formulas in the workbook
@@ -147,7 +147,7 @@ dead_formula_documentation_example:
     settings:
       description: "Create model documentation with formula examples"
       stages:
-        - stage_name: "model_data"
+        - stage_name: "stg_model_data"
           description: "Financial model base data"
           protected: false
 
@@ -156,12 +156,12 @@ dead_formula_documentation_example:
         step_description: "Import financial model base data"
         processor_type: "import_file"
         input_file: "data/model_base.xlsx"
-        save_to_stage: "model_data"
+        save_to_stage: "stg_model_data"
 
       - # Step 2: Export to documentation file
         step_description: "Create model documentation file"
         processor_type: "export_file"
-        source_stage: "model_data"
+        source_stage: "stg_model_data"
         output_file: "docs/model_documentation.xlsx"
 
       - # Step 3: Add formula documentation as text
@@ -190,7 +190,7 @@ comprehensive_dual_mode_example:
         output_dir: "reports"
         date_suffix: "{date}"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Sales analysis data"
           protected: false
 
@@ -199,18 +199,18 @@ comprehensive_dual_mode_example:
         step_description: "Import sales data for analysis"
         processor_type: "import_file"
         input_file: "data/sales_data.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Export to documentation version
         step_description: "Create documentation version"
         processor_type: "export_file"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         output_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
 
       - # Step 3: Export to calculation version
         step_description: "Create calculation version"
         processor_type: "export_file"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         output_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
 
       - # Step 4: Add dead formulas to documentation version

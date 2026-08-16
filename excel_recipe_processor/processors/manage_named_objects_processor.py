@@ -20,6 +20,11 @@ from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
+from excel_recipe_processor.processors._helpers.named_objects_extraction import (
+    detect_object_type,
+    translate_lambda_to_human,
+    clean_formula_for_display,
+)
 from excel_recipe_processor.processors._helpers.xlpm_name_storage import (
     transform_xlpm_names,
     parse_lambda_parameters,
@@ -310,59 +315,16 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     # =============================================================================
     
     def detect_object_type(self, defined_name) -> str:
-        """Classify defined name as 'lambda', 'formula', 'range', or 'constant'."""
-        
-        attr_text = defined_name.attr_text or ""
-        
-        # Check for lambda function
-        if excel_lambda_detection_rgx.search(attr_text):
-            return 'lambda'
-        
-        # Check for formula (contains function calls)
-        if function_call_rgx.search(attr_text):
-            return 'formula'
-            
-        # Check for range reference (contains sheet references or cell ranges)
-        if '!' in attr_text or ':' in attr_text:
-            return 'range'
-            
-        # Everything else is a constant
-        return 'constant'
+        """Classify defined name (delegates to the shared extraction helper)."""
+        return detect_object_type(defined_name)
     
     # =============================================================================
     # LAMBDA TRANSLATION METHODS
     # =============================================================================
     
     def translate_lambda_to_human(self, excel_formula: str) -> tuple:
-        """Convert '_xlfn.LAMBDA(_xlpm.param,...)' to 'LAMBDA(param,...)'."""
-        
-        # Guard clause for input validation
-        if not isinstance(excel_formula, str):
-            excel_formula = str(excel_formula) if excel_formula else ""
-        
-        # Extract parameters
-        params_match = excel_lambda_params_rgx.search(excel_formula)
-        if not params_match:
-            return excel_formula, []
-        
-        # Get parameter names without _xlpm prefix
-        param_names = excel_param_name_rgx.findall(params_match.group(1))
-        
-        # Extract the lambda body
-        body_match = excel_lambda_body_rgx.search(excel_formula)
-        if not body_match:
-            return excel_formula, param_names
-        
-        lambda_body = body_match.group(2)
-        
-        # Clean up the body - remove Excel prefixes
-        clean_body = self._clean_formula_for_display(lambda_body)
-        
-        # Build human-readable format
-        param_list = ', '.join(param_names)
-        human_formula = f"LAMBDA({param_list}, {clean_body})"
-        
-        return human_formula, param_names
+        """Stored lambda -> human syntax (delegates to the shared helper)."""
+        return translate_lambda_to_human(excel_formula)
     
     def translate_lambda_to_excel(self, human_formula: str, parameters) -> str:
         """
@@ -407,12 +369,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         return excel_formula
 
     def _clean_formula_for_display(self, formula: str) -> str:
-        """Remove Excel internal prefixes for human-readable display."""
-        
-        # Remove _xlfn and _xlpm prefixes
-        clean_formula = excel_prefix_cleanup_rgx.sub('', formula)
-        
-        return clean_formula.strip()
+        """Remove storage prefixes (delegates to the shared helper)."""
+        return clean_formula_for_display(formula)
     
     # =============================================================================
     # UTILITY METHODS

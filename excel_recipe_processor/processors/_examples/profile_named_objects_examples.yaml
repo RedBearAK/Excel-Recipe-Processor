@@ -1,0 +1,63 @@
+# Usage examples and vocabulary for the profile_named_objects processor.
+#
+# excel_recipe_processor/processors/_examples/profile_named_objects_examples.yaml
+#
+# Fourth member of the profile_* family. Name-keyed catalog of defined
+# names and worksheet tables, as an ordinary stage. Split from
+# manage_named_objects by OUTPUT CURRENCY: manage owns workbook<->YAML
+# library round trips; this emits a stage for in-pipeline consumers.
+# Both share the same classification/translation helpers - one truth.
+
+description: "Per-name workbook object discovery (ranges, lambdas, formulas, tables)"
+
+basic_example:
+  step_description: "Catalog the output workbook's named objects"
+  processor_type: "profile_named_objects"
+  workbooks:
+    - "{output_dir}/{output_basename}.xlsx"
+  save_to_stage: "stg_named_object_profiles"
+
+name_drift_alarm_example:
+  note: >
+    The anchor consumer: the 2026-08-14 incident where Excel's repair
+    silently DELETED a named lambda (orphaning callers into #NAME?)
+    would surface here as a "name vanished" diff row instead of a user
+    report. Drop the Workbook column before diffing - paths differ
+    between runs.
+  steps:
+    - step_description: "Catalog the previous output's names"
+      processor_type: "profile_named_objects"
+      workbooks: ["{output_dir}/previous.xlsx"]
+      save_to_stage: "stg_names_previous"
+    - step_description: "Catalog the current output's names"
+      processor_type: "profile_named_objects"
+      workbooks: ["{output_dir}/{output_basename}.xlsx"]
+      save_to_stage: "stg_names_current"
+    - step_description: "Name drift alarm"
+      processor_type: "diff_data"
+      source_stage: "stg_names_current"
+      reference_stage: "stg_names_previous"
+      key_columns: "Name"
+      save_to_stage: "stg_name_drift"
+
+parameter_details:
+  workbooks:
+    required: true
+    description: "Non-empty list of workbook paths; reads from disk (variables substitute as usual)"
+  save_to_stage:
+    required: true
+    description: "Stage receiving the catalog frame"
+
+output_contract:
+  note: "Columns by NAME; future facts APPEND, never rename. One row per defined name (workbook- AND sheet-scoped) plus one per worksheet table."
+  columns:
+    Workbook: "path as configured"
+    Name: "object name"
+    Object_Type: "lambda / formula / range / constant / table"
+    Scope: "'global', or the owning sheet for sheet-scoped names and tables"
+    Hidden: "definedName hidden flag (tables: false)"
+    Definition: "STORED text verbatim - the byte truth, right for drift comparison"
+    Human_Definition: "display syntax: lambdas translated, storage prefixes stripped"
+    Parameters: "comma-joined lambda parameters, '' otherwise"
+
+# End of file #

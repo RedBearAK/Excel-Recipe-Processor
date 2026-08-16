@@ -513,6 +513,7 @@ from excel_recipe_processor.processors.generate_column_config_processor import G
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
 from excel_recipe_processor.processors.profile_files_processor          import ProfileFilesProcessor
+from excel_recipe_processor.processors.profile_named_objects_processor  import ProfileNamedObjectsProcessor
 from excel_recipe_processor.processors.profile_sheets_processor         import ProfileSheetsProcessor
 from excel_recipe_processor.processors.profile_workbooks_processor      import ProfileWorkbooksProcessor
 from excel_recipe_processor.processors.deduplicate_data_processor      import DeduplicateDataProcessor
@@ -547,6 +548,7 @@ def register_standard_processors():
     registry.register('conditional_format',             ConditionalFormatProcessor          )
     registry.register('deduplicate_data',               DeduplicateDataProcessor            )
     registry.register('profile_files',                  ProfileFilesProcessor               )
+    registry.register('profile_named_objects',          ProfileNamedObjectsProcessor        )
     registry.register('profile_sheets',                 ProfileSheetsProcessor              )
     registry.register('profile_workbooks',              ProfileWorkbooksProcessor           )
     registry.register('free_stages',                    FreeStagesProcessor                 )

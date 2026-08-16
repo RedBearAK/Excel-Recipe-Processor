@@ -183,12 +183,47 @@ class ProfileSheetsProcessor(ImportBaseProcessor):
             return stage_name, StageManager.load_stage(stage_name), None
         input_path = entry['input_file']
         sheet_name = entry.get('sheet_name', 0)
-        frame = pd.read_excel(input_path, sheet_name=sheet_name)
-        workbook = load_workbook(input_path)
-        styled = workbook[sheet_name] if isinstance(sheet_name, str) \
-            else workbook[workbook.sheetnames[sheet_name]]
+
+        # SESSION CACHE FIRST (2026-08-16): when the path is the run's own
+        # in-flight workbook, use the live object - every recipe-applied
+        # format is already on it, and the disk parse (13s on the real VMS
+        # file, plus the flush save and reload it forced) disappears. This
+        # is the memory-vs-disk seam staying hidden, as ruled when the
+        # family was designed: the pointer decides, the user never does.
+        # peek never loads: profiling a previous run's file still reads
+        # disk without dragging it into the session.
+        from excel_recipe_processor.core.workbook_session import WorkbookSession
+        cached = WorkbookSession.peek_workbook(input_path)
+        if cached is not None:
+            styled = cached[sheet_name] if isinstance(sheet_name, str) \
+                else cached[cached.sheetnames[sheet_name]]
+            frame = self._frame_from_worksheet(styled)
+        else:
+            frame = pd.read_excel(input_path, sheet_name=sheet_name)
+            workbook = load_workbook(input_path)
+            styled = workbook[sheet_name] if isinstance(sheet_name, str) \
+                else workbook[workbook.sheetnames[sheet_name]]
         label = sheet_name if isinstance(sheet_name, str) else 'first sheet'
         return f"{input_path}!{label}", frame, styled
+
+    def _frame_from_worksheet(self, worksheet) -> pd.DataFrame:
+        """DataFrame from a live sheet's values, formula cells as NA.
+
+        Formula cells (text starting '=' or ArrayFormula objects) become
+        None, matching what a disk read of the same fresh file yields -
+        openpyxl carries no calculated values until Excel has opened it.
+        """
+        rows_iter = worksheet.iter_rows(values_only=True)
+        headers = [str(h) if h is not None else '' for h in next(rows_iter)]
+        cleaned_rows = []
+        for row in rows_iter:
+            cleaned_rows.append([
+                None if (isinstance(value, str) and value.startswith('='))
+                or type(value).__name__ == 'ArrayFormula'
+                else value
+                for value in row
+            ])
+        return pd.DataFrame(cleaned_rows, columns=headers)
 
     def _survey_formats(self, worksheet, column_names) -> dict:
         """Per-column formatting census of a styled disk sheet.

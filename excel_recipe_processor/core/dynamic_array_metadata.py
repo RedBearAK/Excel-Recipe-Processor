@@ -50,6 +50,7 @@ import zipfile
 from pathlib import Path
 
 from excel_recipe_processor.core.dynamic_array_metadata_rgx import (
+    defined_lambda_name_rgx,
     DYNAMIC_ERA_FUNCTIONS,
     build_function_detection_rgx,
     formula_cell_rgx,
@@ -169,9 +170,21 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
                 )
             vocabulary.add(str(name).upper())
 
-    detection_rgx = build_function_detection_rgx(vocabulary)
-
     members = _read_all_members(source)
+
+    # The workbook's own LAMBDA-typed defined names join the vocabulary
+    # VERBATIM (calls are stored case-preserving, and the detection
+    # pattern is case-sensitive). A call to a named lambda is necessarily
+    # modern authorship - LAMBDA does not exist pre-365 - so marking such
+    # cells can never change legacy implicit-intersection semantics. This
+    # is what lets '=fn_vms_view(...)' declare dynamic even though the
+    # spilling FILTER is hidden inside the name's definition (2026-08-16;
+    # the Dom_View braces incident).
+    workbook_xml = members.get('xl/workbook.xml', b'').decode('utf-8', 'replace')
+    for name_match in defined_lambda_name_rgx.finditer(workbook_xml):
+        vocabulary.add(name_match.group(1))
+
+    detection_rgx = build_function_detection_rgx(vocabulary)
 
     ranges_by_part = _resolve_injected_ranges(members, injected_cells)
 

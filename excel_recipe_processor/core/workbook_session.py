@@ -151,15 +151,31 @@ class WorkbookSession:
         else:
             workbook.save(key)
 
-        # This save consumed the file's provenance entries; a later save of
-        # the same path re-registers whatever a later inject step writes.
-        # (Already-marked cells are recognized and skipped on re-saves.)
-        cls._injected_formula_ranges.pop(key, None)
+        # The provenance registry deliberately SURVIVES the save
+        # (2026-08-16): openpyxl does not preserve the cm attribute, so a
+        # flush -> reload -> save cycle re-serializes declared cells as
+        # bare t="array" - legacy CSE braces - and the re-declaration pass
+        # at the next save needs the provenance to rescue them. The old
+        # pop here assumed "already-marked cells are recognized on
+        # re-saves", which is true only within one set of bytes, not
+        # across an openpyxl round trip (the Dom_View braces incident).
+        # The registry clears with the session, not with a save.
 
         logger.info(
             f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
             f"({context}): {Path(key).name}"
         )
+
+    @classmethod
+    def peek_workbook(cls, file_path):
+        """The cached live workbook for this path, or None - NEVER loads.
+
+        For consumers like profile_sheets that prefer the in-memory
+        object when the session already holds one (all recipe-applied
+        formatting present, no disk parse) but must not drag arbitrary
+        disk files into the session cache.
+        """
+        return cls._open_workbooks.get(cls._key(file_path))
 
     @classmethod
     def register_injected_formulas(cls, file_path, sheet_name: str, ranges) -> None:

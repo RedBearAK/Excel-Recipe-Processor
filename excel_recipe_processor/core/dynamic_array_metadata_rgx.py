@@ -48,6 +48,13 @@ DYNAMIC_ERA_FUNCTIONS = frozenset({
 })
 
 
+# A definedName element whose stored content declares a LAMBDA. Group 1
+# is the name, captured verbatim for the case-sensitive call detection.
+defined_lambda_name_rgx = re.compile(
+    r'<definedName[^>]*\bname="([^"]+)"[^>]*>[^<]*_xlfn\.LAMBDA\('
+)
+
+
 def build_function_detection_rgx(function_names):
     """
     Compile a pattern matching a call to any named function in stored form.

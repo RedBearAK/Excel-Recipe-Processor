@@ -451,7 +451,21 @@ class RecipePipeline:
             
             # Final validation that all custom variables are fully resolved
             self._validate_all_variables_resolved()
-            
+
+            # Recipe-requested log file: attaches HERE because paths like
+            # {output_dir}/{output_basename}_log.txt need the external
+            # variables just resolved above. Lines before this point live
+            # only in the terminal; --log-file captures those too, and
+            # wins outright when both are given.
+            settings = self.recipe_data.get('settings', {}) \
+                if isinstance(self.recipe_data, dict) else {}
+            log_file_template = settings.get('log_file')
+            if log_file_template:
+                from excel_recipe_processor.core.main import attach_log_file
+                resolved_log_path = self.substitute_template(str(log_file_template)) \
+                    if self.variable_substitution else str(log_file_template)
+                attach_log_file(resolved_log_path, source='recipe')
+
             # Execute recipe
             print()     # blank line to separate from earlier meta-info (here we go!)
             logger.info("⚡ Starting recipe execution...")

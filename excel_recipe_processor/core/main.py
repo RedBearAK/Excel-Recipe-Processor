@@ -136,6 +136,13 @@ def run_main(args: Namespace) -> int:
             logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
         else:
             logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+        # CLI log file attaches from startup, so it captures everything
+        # including recipe loading. A recipe-settings log_file attaches
+        # later (it needs external variables resolved for paths like
+        # {output_dir}); the CLI flag wins when both are given.
+        if getattr(args, 'log_file', None):
+            attach_log_file(args.log_file, source='cli')
         
         # Main processing workflow
         if hasattr(args, 'recipe_file') and args.recipe_file:
@@ -154,6 +161,40 @@ def run_main(args: Namespace) -> int:
             import traceback
             traceback.print_exc()
         return 1
+
+
+_attached_log_files = {'cli': None, 'recipe': None}
+
+
+def attach_log_file(file_path, source='cli') -> bool:
+    """
+    Mirror the log stream to a file - same format, emoji and all.
+
+    The stream carries no ANSI codes (plain basicConfig), so the file is
+    byte-identical to the terminal's content. UTF-8 is explicit so the
+    Unicode symbols survive on every platform. Overwrites per run (each
+    run's log pairs with that run's output file). A recipe-settings
+    attachment is skipped when the CLI already attached one - the person
+    at the command line outranks the recipe.
+
+    Returns True if attached, False if skipped.
+    """
+    if source == 'recipe' and _attached_log_files['cli']:
+        logging.getLogger(__name__).info(
+            f"🪵 Recipe log_file skipped; --log-file already active: "
+            f"{_attached_log_files['cli']}")
+        return False
+    if _attached_log_files.get(source):
+        return False
+
+    resolved = Path(file_path).expanduser()
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(resolved, mode='w', encoding='utf-8')
+    handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    logging.getLogger().addHandler(handler)
+    _attached_log_files[source] = str(resolved)
+    logging.getLogger(__name__).info(f"🪵 Logging to file: {resolved}")
+    return True
 
 
 def process_recipe(args: Namespace) -> int:

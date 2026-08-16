@@ -200,6 +200,11 @@ For detailed documentation and more examples:
 
     # Verbose logging
     parser.add_argument(
+        '--log-file',
+        metavar='PATH',
+        help='Mirror the run log to this file (same content as the terminal, UTF-8)'
+    )
+    parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose output and debug logging'

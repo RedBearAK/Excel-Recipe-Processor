@@ -1,0 +1,67 @@
+# Usage examples and vocabulary for the profile_workbooks processor.
+#
+# excel_recipe_processor/processors/_examples/profile_workbooks_examples.yaml
+#
+# Third member of the profile_* family. Sheet-keyed workbook metadata
+# as an ordinary stage; named objects are COUNTED here, never cataloged
+# (the catalog is Name-keyed and belongs to the planned
+# profile_named_objects). No "apply" siblings - consumers read the
+# contract by column name.
+
+description: "Per-sheet workbook metadata discovery (state, color, extents, counts)"
+
+basic_example:
+  step_description: "Profile the previous run's output"
+  processor_type: "profile_workbooks"
+  workbooks:
+    - "{output_dir}/previous_output.xlsx"
+  save_to_stage: "stg_previous_profile"
+
+drift_alarm_example:
+  note: >
+    The anchor consumer shape: profile the previous run's file and the
+    freshly written one, then diff_data on Sheet. A vanished tab, an
+    unhidden sheet, a row-count jump, or a zoom drift becomes an
+    itemized diff row instead of a surprise. Drop the Workbook column
+    before diffing - paths legitimately differ between runs.
+  steps:
+    - step_description: "Profile the previous output"
+      processor_type: "profile_workbooks"
+      workbooks: ["{output_dir}/previous.xlsx"]
+      save_to_stage: "stg_profile_previous"
+    - step_description: "Profile the current output"
+      processor_type: "profile_workbooks"
+      workbooks: ["{output_dir}/{output_basename}.xlsx"]
+      save_to_stage: "stg_profile_current"
+    - step_description: "Drift alarm"
+      processor_type: "diff_data"
+      source_stage: "stg_profile_current"
+      reference_stage: "stg_profile_previous"
+      key_columns: "Sheet"
+      save_to_stage: "stg_workbook_drift"
+
+parameter_details:
+  workbooks:
+    required: true
+    description: "Non-empty list of workbook paths (variables substitute as usual). v1 reads from disk - the drift shape reads files that only exist on disk."
+  save_to_stage:
+    required: true
+    description: "Stage receiving the profile frame"
+
+output_contract:
+  note: "Columns by NAME; future facts APPEND, never rename. One row per sheet per workbook."
+  columns:
+    Workbook: "path as configured"
+    Sheet: "sheet name"
+    Position: "1-based tab position"
+    State: "visible / hidden / veryHidden"
+    Tab_Color: "RGB string, '' when uncolored"
+    Max_Row: "openpyxl-reported row extent"
+    Max_Col: "openpyxl-reported column extent"
+    Frozen_Panes: "e.g. 'A2', '' when unfrozen"
+    Zoom_Percent: "sheet view zoom (100 when unset)"
+    DV_Count: "dataValidation rules on the sheet"
+    Named_Object_Count: "workbook-level tripwire, repeated per row"
+    Has_VBA: "workbook-level tripwire, repeated per row"
+
+# End of file #

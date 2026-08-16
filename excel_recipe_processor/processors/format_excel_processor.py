@@ -298,6 +298,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'autofit_scan_rows',
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
             'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
+            'column_widths_from_stage', 'column_widths_source',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -373,6 +374,21 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(font_size, (int, float)) or font_size <= 0:
                 raise StepProcessorError(f"general_font_size must be a positive number in {context}, got: {font_size}")
         
+        if 'column_widths_from_stage' in sheet_config:
+            stage_ref = sheet_config['column_widths_from_stage']
+            if not isinstance(stage_ref, str) or not stage_ref.strip():
+                raise StepProcessorError(
+                    f"column_widths_from_stage must be a stage name string "
+                    f"in {context}, got: {stage_ref!r}"
+                )
+        if ('column_widths_source' in sheet_config
+                and 'column_widths_from_stage' not in sheet_config):
+            raise StepProcessorError(
+                f"column_widths_source without column_widths_from_stage "
+                f"in {context} - the selector only means something when a "
+                f"profile stage is being consumed"
+            )
+
         if 'sheet_state' in sheet_config:
             state = sheet_config['sheet_state']
             if state not in ('visible', 'hidden', 'very_hidden'):
@@ -684,6 +700,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         if formatting.get('auto_fit_columns'):
             logger.info(f"📐 [{sheet_name}] Auto-fitting column widths")
             self._auto_fit_columns(worksheet, formatting)
+
+        if 'column_widths_from_stage' in formatting:
+            inherited = self._apply_widths_from_profile_stage(
+                worksheet, formatting)
+            applied_operations.append(f"inherited widths ({inherited})")
             applied_operations.append("auto-fit columns")
         
         # STEP 3a: Explicit widths AFTER auto-fit, so a stated width wins over
@@ -1240,6 +1261,74 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             total_padding = BASE_PADDING + auto_filter_padding
             adjusted_width = max(min_width, min(max_length + total_padding, max_width))
             worksheet.column_dimensions[column_letter].width = adjusted_width
+
+    def _apply_widths_from_profile_stage(self, worksheet, formatting: dict) -> int:
+        """
+        Inherit column widths from a profile_sheets stage, by HEADER NAME.
+
+        Runs AFTER auto-fit and BEFORE explicit width rules: inherited
+        widths overwrite whatever auto-fit computed (a spill view's
+        auto-fit only ever sees headers), while a stated width rule still
+        wins over inheritance - the escape hatch stays.
+
+        The stage is the profile_* family contract: rows keyed by
+        Source + Column with a Width column. When the profile holds more
+        than one Source, column_widths_source selects; with exactly one,
+        no selector is needed. Headers absent from the profile are
+        skipped silently - a view projecting a subset is normal.
+        """
+        from excel_recipe_processor.core.stage_manager import StageManager
+
+        stage_name = formatting['column_widths_from_stage']
+        header_row = formatting.get('header_row', 1)
+
+        try:
+            profile = StageManager.load_stage(stage_name)
+        except Exception as error:
+            raise StepProcessorError(
+                f"column_widths_from_stage: could not load stage "
+                f"'{stage_name}': {error}"
+            )
+        for required in ('Column', 'Width'):
+            if required not in profile.columns:
+                raise StepProcessorError(
+                    f"column_widths_from_stage: stage '{stage_name}' lacks "
+                    f"the '{required}' column - it should be a "
+                    f"profile_sheets output (or match its contract)"
+                )
+
+        if 'Source' in profile.columns:
+            sources = list(profile['Source'].unique())
+            selector = formatting.get('column_widths_source')
+            if selector is not None:
+                if selector not in sources:
+                    raise StepProcessorError(
+                        f"column_widths_source '{selector}' not in stage "
+                        f"'{stage_name}'; it holds: {sources}"
+                    )
+                profile = profile[profile['Source'] == selector]
+            elif len(sources) > 1:
+                raise StepProcessorError(
+                    f"Stage '{stage_name}' profiles {len(sources)} sources "
+                    f"({sources}); add column_widths_source to pick one"
+                )
+
+        width_by_name = dict(zip(profile['Column'].astype(str),
+                                 profile['Width']))
+        inherited = 0
+        for cell in worksheet[header_row]:
+            header = cell.value
+            if header is None:
+                continue
+            width = width_by_name.get(str(header))
+            if width is None:
+                continue
+            worksheet.column_dimensions[cell.column_letter].width = float(width)
+            inherited += 1
+        logger.info(
+            f"📏 [{worksheet.title}] Inherited {inherited} column widths "
+            f"from stage '{stage_name}'")
+        return inherited
 
     def _add_auto_filter(self, worksheet) -> None:
         """

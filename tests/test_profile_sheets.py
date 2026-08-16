@@ -240,6 +240,91 @@ def test_consumer_directive():
     return True
 
 
+def test_format_survey_and_styles_consumer():
+    """The format census reads a styled sheet; the consumer replays it."""
+    print("\nTesting the format survey and column_styles_from_stage...")
+
+    from openpyxl import load_workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from excel_recipe_processor.processors.format_excel_processor import (
+        FormatExcelProcessor,
+    )
+
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as handle:
+        path = handle.name
+    try:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(['Amount', 'Flag', 'Plain'])
+        for value in (1200, 3400, 990):
+            sheet.append([value, 'x', 'p'])
+        for row in range(2, 5):
+            sheet.cell(row=row, column=1).number_format = '#,##0'
+            sheet.cell(row=row, column=2).font = Font(color='FF0000')
+            sheet.cell(row=row, column=2).alignment = Alignment(horizontal='center')
+        flag_header = sheet.cell(row=1, column=2)
+        flag_header.fill = PatternFill(start_color='FF0000',
+                                       end_color='FF0000', fill_type='solid')
+        flag_header.font = Font(color='FFFFFF', bold=True)
+        workbook.save(path)
+
+        profile = run_processor({
+            'sheets': [{'input_file': path, 'sheet_name': 'Sheet'}],
+            'save_to_stage': 'stg_t_fmt'})
+        by_col = profile.set_index('Column')
+        survey_checks = [
+            ('modal number format', by_col.loc['Amount', 'Number_Format'] == '#,##0'),
+            ('data font color', by_col.loc['Flag', 'Data_Font_Color'] == '00FF0000'),
+            ('alignment', by_col.loc['Flag', 'Alignment_Horizontal'] == 'center'),
+            ('header fill', by_col.loc['Flag', 'Header_Fill_Color'] == '00FF0000'),
+            ('header font + bold', by_col.loc['Flag', 'Header_Font_Color'] == '00FFFFFF'
+             and by_col.loc['Flag', 'Header_Bold'] == True),
+            ('unstyled column all-empty survey',
+             by_col.loc['Plain', 'Number_Format'] == ''
+             and by_col.loc['Plain', 'Header_Fill_Color'] == ''),
+        ]
+        for name, ok in survey_checks:
+            if not ok:
+                print(f"✗ survey: {name}")
+                print(by_col.to_string())
+                return False
+            print(f"✓ survey: {name}")
+
+        # Consumer: a bare sheet inherits the surveyed formatting
+        StageManager.initialize_stages(max_stages=30)
+        StageManager.save_stage('stg_t_fmt', profile, 'test')
+        bare = Workbook().active
+        bare.append(['Amount', 'Flag', 'Plain'])
+        bare.append(['=X', '=Y', '=Z'])
+        config = FormatExcelProcessor.get_minimal_config()
+        config['processor_type'] = 'format_excel'
+        processor = FormatExcelProcessor(config)
+        styled = processor._apply_styles_from_profile_stage(
+            bare, {'column_styles_from_stage': 'stg_t_fmt'})
+        consumer_checks = [
+            ('two columns styled', styled == 2),
+            ('dimension number format',
+             bare.column_dimensions['A'].number_format == '#,##0'),
+            ('dimension font color',
+             str(bare.column_dimensions['B'].font.color.rgb) == '00FF0000'),
+            ('dimension alignment',
+             bare.column_dimensions['B'].alignment.horizontal == 'center'),
+            ('header cell inherited',
+             str(bare['B1'].fill.start_color.rgb) == '00FF0000'
+             and bare['B1'].font.bold),
+            ('unstyled column untouched',
+             bare.column_dimensions['C'].number_format == 'General'),
+        ]
+        for name, ok in consumer_checks:
+            if not ok:
+                print(f"✗ consumer: {name}")
+                return False
+            print(f"✓ consumer: {name}")
+        return True
+    finally:
+        os.unlink(path)
+
+
 def main():
     """Run all tests and report results."""
     print("profile_sheets and width-inheritance tests")
@@ -250,6 +335,7 @@ def main():
         test_multi_input_and_refusals,
         test_autofit_parity,
         test_consumer_directive,
+        test_format_survey_and_styles_consumer,
     ]
 
     passed = 0

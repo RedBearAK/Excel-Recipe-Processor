@@ -37,15 +37,26 @@ OUTPUT CONTRACT (columns by name; future facts APPEND, never rename):
                     profiles of the SAME data disagree.
     Row_Count       Data rows profiled
 
-PLANNED (needs openpyxl-side reading, not yet implemented): a
-number-format census and header-style survey for disk sheets, for
-mirroring seed formatting onto view tabs the same way widths are
-inherited now.
+FORMAT SURVEY (file inputs only; '' / False for stage inputs, which
+have no formatting to survey - a stage is data, not a styled sheet):
+    Number_Format        Modal data-cell number format ('' for General)
+    Alignment_Horizontal Modal explicit data alignment ('' when unset)
+    Data_Font_Color      Modal explicit data font color RGB ('' unset)
+    Header_Fill_Color    Header cell solid-fill RGB ('' unfilled)
+    Header_Font_Color    Header cell font color RGB ('' default)
+    Header_Bold          Header cell bold flag
+
+The format survey (2026-08-15) is the previously PLANNED census,
+implemented for disk-sheet inputs: format_excel's
+column_styles_from_stage consumes it so view tabs mirror the seed
+sheet's formatting the same way widths inherit.
 """
 
 import logging
+from collections import Counter
 
 import pandas as pd
+from openpyxl import load_workbook
 
 from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
@@ -97,7 +108,9 @@ class ProfileSheetsProcessor(ImportBaseProcessor):
         """Build the profile frame from every configured input."""
         rows = []
         for entry in self.sheet_entries:
-            source_label, frame = self._resolve_entry(entry)
+            source_label, frame, styled_sheet = self._resolve_entry(entry)
+            format_survey = self._survey_formats(styled_sheet, frame.columns) \
+                if styled_sheet is not None else {}
             widths = scan_frame_column_widths(
                 frame, min_width=self.min_width, max_width=self.max_width,
                 padding=self.padding, scan_rows=self.scan_rows)
@@ -119,11 +132,18 @@ class ProfileSheetsProcessor(ImportBaseProcessor):
                     'Blank_Count': blank_count,
                     'Distinct_Count': int(non_blank.nunique()),
                     'Row_Count': len(frame),
+                    **format_survey.get(str(column_name), {
+                        'Number_Format': '', 'Alignment_Horizontal': '',
+                        'Data_Font_Color': '', 'Header_Fill_Color': '',
+                        'Header_Font_Color': '', 'Header_Bold': False,
+                    }),
                 })
 
         profile = pd.DataFrame(rows, columns=[
             'Source', 'Column', 'Position', 'Width', 'Dtype',
-            'Blank_Count', 'Distinct_Count', 'Row_Count'])
+            'Blank_Count', 'Distinct_Count', 'Row_Count',
+            'Number_Format', 'Alignment_Horizontal', 'Data_Font_Color',
+            'Header_Fill_Color', 'Header_Font_Color', 'Header_Bold'])
         logger.info(
             f"📊 Profiled {len(self.sheet_entries)} sheet(s): "
             f"{len(profile)} column rows")
@@ -160,11 +180,64 @@ class ProfileSheetsProcessor(ImportBaseProcessor):
         """
         if 'source_stage' in entry:
             stage_name = entry['source_stage']
-            return stage_name, StageManager.load_stage(stage_name)
+            return stage_name, StageManager.load_stage(stage_name), None
         input_path = entry['input_file']
         sheet_name = entry.get('sheet_name', 0)
         frame = pd.read_excel(input_path, sheet_name=sheet_name)
+        workbook = load_workbook(input_path)
+        styled = workbook[sheet_name] if isinstance(sheet_name, str) \
+            else workbook[workbook.sheetnames[sheet_name]]
         label = sheet_name if isinstance(sheet_name, str) else 'first sheet'
-        return f"{input_path}!{label}", frame
+        return f"{input_path}!{label}", frame, styled
+
+    def _survey_formats(self, worksheet, column_names) -> dict:
+        """Per-column formatting census of a styled disk sheet.
+
+        Modal values over the first 50 data cells: a column's format is
+        what MOST of its cells wear, so a stray hand-edit cannot hijack
+        the inheritance. 'General' surveys as '' (nothing to inherit).
+        """
+        survey = {}
+        header_cells = {str(cell.value): cell for cell in worksheet[1]
+                        if cell.value is not None}
+        for column_name in column_names:
+            header_cell = header_cells.get(str(column_name))
+            if header_cell is None:
+                continue
+            facts = {'Number_Format': '', 'Alignment_Horizontal': '',
+                     'Data_Font_Color': '', 'Header_Fill_Color': '',
+                     'Header_Font_Color': '', 'Header_Bold': False}
+
+            fill = header_cell.fill
+            if fill is not None and fill.fill_type == 'solid' \
+                    and getattr(fill.start_color, 'rgb', None):
+                facts['Header_Fill_Color'] = str(fill.start_color.rgb)
+            font = header_cell.font
+            if font is not None:
+                facts['Header_Bold'] = bool(font.bold)
+                if font.color is not None and isinstance(
+                        getattr(font.color, 'rgb', None), str):
+                    facts['Header_Font_Color'] = str(font.color.rgb)
+
+            formats, alignments, colors = Counter(), Counter(), Counter()
+            column_index = header_cell.column
+            last_row = min(worksheet.max_row, 51)
+            for row in range(2, last_row + 1):
+                cell = worksheet.cell(row=row, column=column_index)
+                if cell.number_format and cell.number_format != 'General':
+                    formats[cell.number_format] += 1
+                if cell.alignment is not None and cell.alignment.horizontal:
+                    alignments[cell.alignment.horizontal] += 1
+                if cell.font is not None and cell.font.color is not None \
+                        and isinstance(getattr(cell.font.color, 'rgb', None), str):
+                    colors[str(cell.font.color.rgb)] += 1
+            if formats:
+                facts['Number_Format'] = formats.most_common(1)[0][0]
+            if alignments:
+                facts['Alignment_Horizontal'] = alignments.most_common(1)[0][0]
+            if colors:
+                facts['Data_Font_Color'] = colors.most_common(1)[0][0]
+            survey[str(column_name)] = facts
+        return survey
 
 # End of file #

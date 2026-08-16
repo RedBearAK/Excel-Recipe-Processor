@@ -299,6 +299,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
             'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
             'column_widths_from_stage', 'column_widths_source',
+            'column_styles_from_stage', 'column_styles_source',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -374,6 +375,20 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(font_size, (int, float)) or font_size <= 0:
                 raise StepProcessorError(f"general_font_size must be a positive number in {context}, got: {font_size}")
         
+        if 'column_styles_from_stage' in sheet_config:
+            stage_ref = sheet_config['column_styles_from_stage']
+            if not isinstance(stage_ref, str) or not stage_ref.strip():
+                raise StepProcessorError(
+                    f"column_styles_from_stage must be a stage name string "
+                    f"in {context}, got: {stage_ref!r}"
+                )
+        if ('column_styles_source' in sheet_config
+                and 'column_styles_from_stage' not in sheet_config):
+            raise StepProcessorError(
+                f"column_styles_source without column_styles_from_stage "
+                f"in {context}"
+            )
+
         if 'column_widths_from_stage' in sheet_config:
             stage_ref = sheet_config['column_widths_from_stage']
             if not isinstance(stage_ref, str) or not stage_ref.strip():
@@ -676,6 +691,17 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             self._apply_row_heights(worksheet, row_heights)
             applied_operations.append(f"row heights ({len(row_heights)} rows)")
         
+        # STEP 2a-ter: Inherited column STYLES from a profile_sheets format
+        # survey - number formats, alignment, data font color at the
+        # dimension, header fill/font/bold per cell. Runs AFTER the header
+        # band (band is the default, inheritance the surveyed specifics)
+        # and BEFORE column_formats rules, so an explicit rule still wins:
+        # the escape hatch stays.
+        if 'column_styles_from_stage' in formatting:
+            styled = self._apply_styles_from_profile_stage(
+                worksheet, formatting)
+            applied_operations.append(f"inherited styles ({styled})")
+
         # STEP 2b: Column-addressed number formats and alignment. Runs before
         # auto-fit so widths are measured against the formatted text - "1,234"
         # is wider than "1234", and an accounting format wider still.
@@ -1329,6 +1355,91 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             f"📏 [{worksheet.title}] Inherited {inherited} column widths "
             f"from stage '{stage_name}'")
         return inherited
+
+    def _apply_styles_from_profile_stage(self, worksheet, formatting: dict) -> int:
+        """
+        Inherit surveyed column FORMATTING from a profile_sheets stage.
+
+        By header name, skipping absent headers and empty survey values:
+        Number_Format / Alignment_Horizontal / Data_Font_Color apply at
+        the COLUMN DIMENSION (spill-created cells inherit them);
+        Header_Fill_Color / Header_Font_Color / Header_Bold apply to the
+        header CELL. Runs before column_formats so explicit rules win.
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from excel_recipe_processor.core.stage_manager import StageManager
+
+        stage_name = formatting['column_styles_from_stage']
+        header_row = formatting.get('header_row', 1)
+
+        try:
+            profile = StageManager.load_stage(stage_name)
+        except Exception as error:
+            raise StepProcessorError(
+                f"column_styles_from_stage: could not load stage "
+                f"'{stage_name}': {error}"
+            )
+        required = ('Column', 'Number_Format', 'Header_Fill_Color')
+        for column in required:
+            if column not in profile.columns:
+                raise StepProcessorError(
+                    f"column_styles_from_stage: stage '{stage_name}' lacks "
+                    f"'{column}' - it should be a profile_sheets output "
+                    f"with the format survey (file-input profiling)"
+                )
+
+        if 'Source' in profile.columns:
+            sources = list(profile['Source'].unique())
+            selector = formatting.get('column_styles_source')
+            if selector is not None:
+                if selector not in sources:
+                    raise StepProcessorError(
+                        f"column_styles_source '{selector}' not in stage "
+                        f"'{stage_name}'; it holds: {sources}"
+                    )
+                profile = profile[profile['Source'] == selector]
+            elif len(sources) > 1:
+                raise StepProcessorError(
+                    f"Stage '{stage_name}' profiles {len(sources)} sources "
+                    f"({sources}); add column_styles_source to pick one"
+                )
+
+        by_name = {str(row['Column']): row
+                   for _, row in profile.iterrows()}
+        styled = 0
+        for header_cell in worksheet[header_row]:
+            header = header_cell.value
+            if header is None or str(header) not in by_name:
+                continue
+            facts = by_name[str(header)]
+            dimension = worksheet.column_dimensions[header_cell.column_letter]
+            touched = False
+            if facts.get('Number_Format'):
+                dimension.number_format = facts['Number_Format']
+                touched = True
+            if facts.get('Alignment_Horizontal'):
+                dimension.alignment = Alignment(
+                    horizontal=facts['Alignment_Horizontal'])
+                touched = True
+            if facts.get('Data_Font_Color'):
+                dimension.font = Font(color=facts['Data_Font_Color'])
+                touched = True
+            if facts.get('Header_Fill_Color'):
+                header_cell.fill = PatternFill(
+                    start_color=facts['Header_Fill_Color'],
+                    end_color=facts['Header_Fill_Color'], fill_type='solid')
+                touched = True
+            if facts.get('Header_Font_Color') or facts.get('Header_Bold'):
+                header_cell.font = Font(
+                    bold=bool(facts.get('Header_Bold')),
+                    color=facts.get('Header_Font_Color') or None)
+                touched = True
+            if touched:
+                styled += 1
+        logger.info(
+            f"🎨 [{worksheet.title}] Inherited formatting for {styled} "
+            f"columns from stage '{stage_name}'")
+        return styled
 
     def _add_auto_filter(self, worksheet) -> None:
         """

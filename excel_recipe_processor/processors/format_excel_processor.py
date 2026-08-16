@@ -590,7 +590,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 
                 _sheet_clock = time.perf_counter()
                 self._apply_sheet_formatting(worksheet, enhanced_config)
-                logger.info(f"⏱️  [{sheet_name}] formatted in {time.perf_counter() - _sheet_clock:.1f}s")
+                logger.info(f"⏱️  [{sheet_name}] formatted in {time.perf_counter() - _sheet_clock:.3f}s")
                 sheets_processed += 1
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")

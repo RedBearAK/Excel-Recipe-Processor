@@ -289,7 +289,7 @@ class RecipePipeline:
                     processor.execute_stage_to_stage()
                 
                 self.steps_executed += 1
-                logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.1f}s)")
+                logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.3f}s)")
 
                 self._dump_requested_stages()
 

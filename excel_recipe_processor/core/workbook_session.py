@@ -106,7 +106,7 @@ class WorkbookSession:
         if key not in cls._open_workbooks:
             started = time.perf_counter()
             cls._open_workbooks[key] = openpyxl.load_workbook(key, data_only=False)
-            logger.info(f"⏱️  Workbook loaded in {time.perf_counter() - started:.1f}s (session)")
+            logger.info(f"⏱️  Workbook loaded in {time.perf_counter() - started:.3f}s (session)")
 
         return cls._open_workbooks[key]
 
@@ -162,7 +162,7 @@ class WorkbookSession:
         # The registry clears with the session, not with a save.
 
         logger.info(
-            f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
+            f"💾 Workbook saved in {time.perf_counter() - started:.3f}s "
             f"({context}): {Path(key).name}"
         )
 

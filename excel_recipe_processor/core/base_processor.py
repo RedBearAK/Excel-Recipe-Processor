@@ -176,7 +176,7 @@ class BaseStepProcessor(ABC):
         # rather than hasattr-and-hope: a processor that never called
         # log_step_start simply gets no timing rather than a crash.
         started = getattr(self, '_step_started_at', None)
-        elapsed_text = f" ({time.perf_counter() - started:.1f}s)" if started else ""
+        elapsed_text = f" ({time.perf_counter() - started:.3f}s)" if started else ""
 
         if result_info:
             logger.info(f"Completed step: '{self.step_name}'{elapsed_text}")

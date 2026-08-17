@@ -140,6 +140,35 @@ def test_bracketed_syntax_caught_as_typo():
     return passed
 
 
+def test_pipeline_substitution_fails_loud():
+    """The pipeline halts on substitution failure with the real error.
+
+    The warn-and-continue swallow (found 2026-08-17 in production)
+    returned the UNSUBSTITUTED config, so the step died on a misleading
+    shape complaint while the guided retirement error scrolled past as
+    a warning. The pipeline layer must surface the substitution error
+    AS the halt.
+    """
+    print("\nTesting the pipeline-layer fail-loud...")
+
+    from excel_recipe_processor.core.base_processor import StepProcessorError
+    from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
+
+    pipeline = RecipePipeline.__new__(RecipePipeline)
+    pipeline.variable_substitution = make_substitution()
+    config = {'expected_columns': '{list:quoted_numbers}'}
+    try:
+        pipeline._substitute_variables_in_config(config)
+        print("  ✗ substitution failure was swallowed")
+        return False
+    except StepProcessorError as error:
+        if 'retired' in str(error) and '{list_str:quoted_numbers}' in str(error):
+            print("  ✓ pipeline halts with the guided error itself")
+            return True
+        print(f"  ✗ wrong error surfaced: {error}")
+        return False
+
+
 def main():
     """Run every test and report a final score."""
     print("=== typed list-reference family tests ===")
@@ -150,6 +179,7 @@ def main():
         test_bare_list_is_retired_with_guidance,
         test_container_check_still_guards_cli_strings,
         test_bracketed_syntax_caught_as_typo,
+        test_pipeline_substitution_fails_loud,
     ]
 
     passed = 0

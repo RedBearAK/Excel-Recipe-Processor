@@ -662,9 +662,15 @@ class RecipePipeline:
         try:
             return self.variable_substitution.substitute_structure(config)
         except Exception as e:
-            # If substitution fails, log warning and return original
-            logger.warning(f"Variable substitution failed for config: {e}")
-            return config
+            # Fail LOUD (2026-08-17). The old warn-and-continue returned
+            # the UNSUBSTITUTED config, so the step then failed on a
+            # misleading shape complaint (e.g. verify_columns seeing the
+            # literal '{list:...}' string instead of a list) while the
+            # real, guided error - a retired reference, an unconvertible
+            # member, a typo'd template - scrolled past as a warning.
+            raise StepProcessorError(
+                f"Variable substitution failed for step configuration: {e}"
+            ) from e
 
     def _generate_completion_report(self) -> dict:
         """Generate completion report with execution statistics."""

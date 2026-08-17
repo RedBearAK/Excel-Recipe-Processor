@@ -210,7 +210,8 @@ class AddSubtotalsProcessor(BaseStepProcessor):
         result_rows = []
         
         # Group by the specified columns
-        grouped = sorted_df.groupby(group_by, sort=False)
+        # dropna=False is doctrine (2026-08-17, see dev_notes/NOTES_2026-08-17_blank_key_group_loss.md): pandas' default silently DELETES NaN-keyed rows.
+        grouped = sorted_df.groupby(group_by, sort=False, dropna=False)
         
         for group_key, group_data in grouped:
             # Add subtotal before group if requested

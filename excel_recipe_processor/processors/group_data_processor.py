@@ -231,7 +231,8 @@ class GroupDataProcessor(BaseStepProcessor):
 
                 # Group by group name and collect values
                 groups = {}
-                for group_name, group_data in stage_data.groupby(group_name_column):
+                # dropna=False is doctrine (2026-08-17, see dev_notes/NOTES_2026-08-17_blank_key_group_loss.md): pandas' default silently DELETES NaN-keyed rows.
+                for group_name, group_data in stage_data.groupby(group_name_column, dropna=False):
 
                     values_series = group_data[values_column]
                     # Explicit check for expected Series type (var replaces group_data[values_column])
@@ -314,7 +315,7 @@ class GroupDataProcessor(BaseStepProcessor):
                     )
                 
                 groups = {}
-                for group_name, group_data in groups_data.groupby(group_name_column):
+                for group_name, group_data in groups_data.groupby(group_name_column, dropna=False):
                     values = group_data[values_column].dropna().astype(str).tolist()
                     if values:
                         groups[str(group_name)] = values
@@ -376,7 +377,7 @@ class GroupDataProcessor(BaseStepProcessor):
             
             # Create groups from lookup data
             groups = {}
-            for group_name, group_data in lookup_data.groupby(group_column):
+            for group_name, group_data in lookup_data.groupby(group_column, dropna=False):
                 values = group_data[values_column].dropna().astype(str).tolist()
                 if values:
                     groups[str(group_name)] = values

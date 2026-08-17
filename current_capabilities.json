@@ -1,7 +1,7 @@
 {
   "system_info": {
     "description": "Excel Recipe Processor - Automated Excel data processing system",
-    "total_processors": 44,
+    "total_processors": 45,
     "processor_types": [
       "add_calculated_column",
       "add_subtotals",
@@ -44,6 +44,7 @@
       "slice_data",
       "sort_data",
       "split_column",
+      "strip_formula_caches",
       "verify_columns",
       "verify_data",
       "verify_excel_storage"
@@ -410,6 +411,10 @@
         "halt (default)",
         "warn"
       ]
+    },
+    "strip_formula_caches": {
+      "description": "strip_formula_caches step processor",
+      "note": "this processor has not published detailed capabilities"
     },
     "free_stages": {
       "description": "Delete named stages mid-run to reclaim memory once their consumers have run",

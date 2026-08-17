@@ -383,6 +383,7 @@ formula_features:
   range_application: "Apply base formula to entire ranges (auto-adjusts for each cell)"
   multi_sheet_support: "Process single sheet, specific sheets, or entire workbook"
   grouped_injection: "sheets_to_receive_formulas entries pair each sheet with its own formulas - different formulas per sheet in one step"
+  let_lambda_naming: "NEVER coin LET/LAMBDA names that look like cell references (g0, x2, AB12, R1C1, RC, bare R/C) - Excel forbids the class and the parser REFUSES it at injection time. The rule is terminal-digit: a digit run at the END of a name directly after letters is the one shape that reads as a reference. Letters after digits are safe (a1b, q3total, col2name). Separate terminal digits (g_0, total_2) or use a word (raw, grp, first_pass)."
   formula_awakening: "Convert text that looks like formulas into live Excel formulas"
   mode_flexibility: "Choose live (dynamic), dead (documentation), or awaken (conversion) modes"
 

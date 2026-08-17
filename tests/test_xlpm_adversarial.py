@@ -293,12 +293,55 @@ def test_seeded_fuzz():
     return True
 
 
+def test_cell_lookalike_names_refused():
+    """The whole reference-lookalike class is refused with guidance.
+
+    Doctrine (2026-08-17): never coin LET/LAMBDA names that could EVER
+    be mistaken for a cell reference - Excel forbids the real class,
+    and short letter+digit temporaries (a documented LLM habit) are
+    exactly how they get written. The refusal is TERMINAL-digit only:
+    a digit run at the END directly after letters is the one position
+    that can complete a reference shape, so a1b / q3total / col2name
+    (letters after the digits) are legal. Defined OBJECT names keep
+    the stricter everywhere-separated house rule - a separate ruling.
+    """
+    print("\nTesting the reference-lookalike refusal class...")
+
+    refusals = ['g0', 'x2', 'AB12', 'total2', 'ABCD1', 'a1b2', 'x2y3',
+                'R1C1', 'RC', 'R2C', 'R', 'C']
+    # letters AFTER digits can never complete a reference (2026-08-17
+    # refinement): a1b, q3total, col2name are legal names
+    accepts = ['raw', 'grp', 'first_pass', 'total_2', 'g_0', 'g', 'keys',
+               'a1b', 'q3total', 'col2name', 'x2y']
+    passed = True
+    for name in refusals:
+        try:
+            transform_xlpm_names(f'LET({name}, 1, {name}+1)')
+            print(f"  ✗ {name!r} accepted")
+            passed = False
+        except ValueError as error:
+            if 'cell' in str(error) or 'reference' in str(error):
+                print(f"  ✓ {name!r} refused with reference guidance")
+            else:
+                print(f"  ✗ {name!r} refused without guidance: {error}")
+                passed = False
+    for name in accepts:
+        try:
+            transform_xlpm_names(f'LET({name}, 1, {name}+1)')
+            print(f"  ✓ {name!r} accepted")
+        except ValueError as error:
+            print(f"  ✗ {name!r} wrongly refused: {error}")
+            passed = False
+    return passed
+
+
 def main():
     """Run all tests and report results."""
     print("Adversarial storage-pipeline tests")
     print("=" * 50)
 
     tests = [
+        test_cell_lookalike_names_refused,
         test_invariants_on_known_corpus,
         test_hostile_inputs,
         test_seeded_fuzz,

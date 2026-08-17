@@ -47,9 +47,24 @@ Run BEFORE prefix_future_functions: a parameter unwisely named after a
 future function must become _xlpm.FILTER before the call-prefixer
 walks the text (its lookbehind then skips the '.'-preceded name).
 Idempotent for the same reason - already-prefixed names are skipped.
+
+NAMING DOCTRINE for LET/LAMBDA declared names (2026-08-17, ruling):
+never invent a name that could EVER be mistaken for a cell reference.
+Excel hard-forbids real lookalikes (g0, x2, AB12, R1C1, RC, R, C) as
+names, and this is a documented habit of LLMs writing formulas - short
+letter+digit temporaries feel natural and are exactly the forbidden
+class. The guard below applies the same house rule used for defined
+OBJECT names: a digit may never directly follow letters. Separate it
+(g_0, total_2) or use a word (raw, grp, first_pass, keys, tbl). The
+refusal happens at parse time, in every path that stores a formula
+(library import AND cell injection), with the fix named in the error.
 """
 
 import re
+
+from excel_recipe_processor.processors._helpers.range_patterns import (
+    terminal_unseparated_digit_rgx,
+)
 
 
 # A declared name: same character class as Excel defined names.
@@ -60,7 +75,7 @@ xlpm_identifier_rgx = re.compile(r'^[A-Za-z_\\][A-Za-z0-9_.\\]*$')
 # name like 'A1' would also hit real cell references in-scope, so these
 # must be refused, not transformed.
 xlpm_cell_lookalike_rgx = re.compile(
-    r'^(?:\$?[A-Za-z]{1,3}\$?\d{1,7}|[RC]|R\d+C\d+)$', re.IGNORECASE
+    r'^(?:\$?[A-Za-z]{1,3}\$?\d{1,7}|[RC]|R\d*C\d*)$', re.IGNORECASE
 )
 
 # Head of a construct at a scan position (boundary checked by caller).
@@ -235,9 +250,23 @@ def _validated_declaration(raw: str, what: str) -> tuple:
         raise ValueError(f"{what} {name!r} collides with the boolean literals")
     if xlpm_cell_lookalike_rgx.match(name):
         raise ValueError(
-            f"{what} {name!r} looks like a cell reference, which Excel "
-            f"forbids as a name - and prefixing its occurrences would hit "
-            f"real references in scope"
+            f"{what} {name!r} IS a cell reference form (A1-style, R1C1, "
+            f"or bare R/C), which Excel forbids as a name - and prefixing "
+            f"its occurrences would hit real references in scope. Use a "
+            f"word instead: raw, grp, first_pass, keys."
+        )
+    terminal = terminal_unseparated_digit_rgx.search(name)
+    if terminal:
+        digits = terminal.group(1)
+        separated_fix = name[:len(name) - len(digits)] + '_' + digits
+        raise ValueError(
+            f"{what} {name!r} ends in a digit run directly after letters "
+            f"('...{name[max(0, len(name) - len(digits) - 1):]}'), the one "
+            f"position where a name can complete a cell-reference shape. "
+            f"Never coin LET/LAMBDA names that could be mistaken for a "
+            f"reference: separate the digits ({separated_fix!r}), put "
+            f"letters after them ({name + '_val'!r} or q3total-style), or "
+            f"use a word: raw, grp, first_pass, keys, tbl."
         )
     if name.upper().startswith('_XL'):
         raise ValueError(f"{what} {name!r} claims Excel's _xl storage namespace")

@@ -90,6 +90,15 @@ r1c1_name_rgx = re.compile(r'^R\d*C\d*$', re.IGNORECASE)
 # Allows: "TAX_24", "Q_1", "rng_PID_2026", "rng_v1_2" (digits after "_")
 unseparated_digit_rgx = re.compile(r'(?<![_.\d])\d')
 
+# Terminal unseparated digits: letters directly followed by a digit run
+# at the very END of a name - the only position where unseparated
+# digits can complete a cell-reference shape (2026-08-17 ruling:
+# letters-digits-LETTERS like a1b or q3total can never be a reference
+# and is allowed for LET/LAMBDA names; defined OBJECT names keep the
+# stricter everywhere-separated house rule above).
+terminal_unseparated_digit_rgx = re.compile(r'[A-Za-z](\d+)$')
+
+
 # House rule: minimum length of three characters, so that a single letter
 # followed by a separated digit ("Q_1") is the shortest permitted form.
 MINIMUM_NAME_LENGTH = 3

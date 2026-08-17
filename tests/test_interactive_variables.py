@@ -135,6 +135,7 @@ def test_recipe_loader_external_vars():
         # Create test recipe with external variables
         test_recipe = """
 settings:
+  description: "External variable validation recipe"
   required_external_vars:
     batch_id:
       description: "Batch identifier"
@@ -146,10 +147,15 @@ settings:
   variables:
     static_var: "test_value"
   output_filename: "batch_{batch_id}_{region}.xlsx"
+  stages:
+    - stage_name: "stg_test_vars_probe_data"
+      description: "Probe stage for validation-only recipe"
+      protected: false
 
 recipe:
   - step_description: "Test step"
     processor_type: "debug_breakpoint"
+    source_stage: "stg_test_vars_probe_data"
     message: "Testing external variables"
 """
         
@@ -256,16 +262,26 @@ def test_end_to_end_integration():
             # Create test recipe with external variables
             recipe_content = f"""
 settings:
+  description: "External variable filter integration recipe"
   required_external_vars:
     region_filter:
       description: "Region to filter by"
       choices: ["west", "east", "central"]
       default_value: "west"
   output_filename: "filtered_{{region_filter}}_output.xlsx"
+  stages:
+    - stage_name: "stg_test_vars_region_raw"
+      description: "Raw data for region filter test"
+      protected: false
+    - stage_name: "stg_test_vars_region_filtered"
+      description: "Filtered region output"
+      protected: false
 
 recipe:
   - step_description: "Filter by region"
     processor_type: "filter_data"
+    source_stage: "stg_test_vars_region_raw"
+    save_to_stage: "stg_test_vars_region_filtered"
     filters:
       - column: "Region"
         condition: "equals"

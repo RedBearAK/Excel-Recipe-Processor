@@ -1,4 +1,4 @@
-# Revision date: 2026-08-11
+# Revision date: 2026-08-16
 
 description: "Write every session-held workbook to disk now, instead of at run end"
 
@@ -14,8 +14,14 @@ basic_example:
     # operation reloads from disk, which is correct because the disk copy
     # is now the truth.
 
+    settings:
+      description: "Checkpoint pending workbook writes before a risky step"
+
     recipe:
-      - step_description: "Write all pending workbook changes to disk"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed flush_workbooks step"
+        step_description: "Write all pending workbook changes to disk"
+        # REQ - Must be "flush_workbooks" for this processor type
         processor_type: "flush_workbooks"
 
 # End of file #

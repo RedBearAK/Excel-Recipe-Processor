@@ -129,7 +129,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Require sheet_configs to be a list
         if not isinstance(sheet_configs, list):
-            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet' key")
+            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet_name' key")
         
         if not sheet_configs:
             logger.warning("Empty formatting list - no sheets will be formatted")

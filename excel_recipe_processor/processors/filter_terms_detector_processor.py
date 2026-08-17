@@ -161,8 +161,10 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         column_lower = column_name.lower()
         has_text_indicator = any(indicator in column_lower for indicator in text_indicators)
         
-        # Analyze content
-        if column_data.dtype == 'object':
+        # Analyze content. pandas 3 note: string columns report dtype
+        # 'str' (not 'object'), so equality against 'object' silently
+        # rejected every string column and detection returned empty.
+        if pd.api.types.is_string_dtype(column_data):
             # Sample some values to check text characteristics
             sample_values = column_data.head(100).astype(str)
             
@@ -206,8 +208,9 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         unique_count = column_data.nunique()
         is_small_vocabulary = unique_count <= 50
         
-        # Must be object type or string-like to be meaningful for filtering
-        is_suitable_type = column_data.dtype == 'object'
+        # Must be string-like to be meaningful for filtering (pandas 3:
+        # covers both the new 'str' dtype and legacy object columns)
+        is_suitable_type = pd.api.types.is_string_dtype(column_data)
         
         # ENHANCED: Check for problematic mixed types
         if is_suitable_type:

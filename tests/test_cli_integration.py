@@ -105,7 +105,7 @@ def test_cli_list_capabilities_works():
             print("✗ List capabilities output doesn't contain expected header")
             return False
         
-        if 'Available Processors' not in result.stdout:
+        if 'Available Excel Recipe Processors' not in result.stdout:
             print("✗ List capabilities output doesn't contain processor list")
             return False
         
@@ -165,9 +165,17 @@ def test_cli_validate_recipe():
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("""
+settings:
+  description: "CLI validation probe recipe"
+  stages:
+    - stage_name: "stg_cli_validation_probe"
+      description: "Probe stage for validation-only recipe"
+      protected: false
+
 recipe:
   - step_description: "Test step"
     processor_type: "debug_breakpoint"
+    source_stage: "stg_cli_validation_probe"
     message: "Test message"
 """)
             recipe_file = f.name
@@ -235,17 +243,17 @@ def test_cli_with_var_arguments():
     
     try:
         result = subprocess.run(
-            [sys.executable, '-m', 'excel_recipe_processor', 
-             'nonexistent.xlsx', '--config', 'nonexistent.yaml',
+            [sys.executable, '-m', 'excel_recipe_processor',
+             'nonexistent.yaml',
              '--var', 'batch_id=A47', '--var', 'region=west'],
             capture_output=True,
             text=True,
             timeout=10
         )
         
-        # Should fail because files don't exist, but NOT because of argument parsing
+        # Should fail because the recipe file does not exist, but NOT because of argument parsing
         if result.returncode == 0:
-            print("✗ Should have failed with missing files")
+            print("✗ Should have failed with missing recipe file")
             return False
         
         # Check that it's not an argument conflict error
@@ -415,7 +423,7 @@ def test_cli_get_settings_examples_formats():
             
             # Format-specific checks
             if format_name == 'json':
-                if '"description":' not in output or '"examples":' not in output:
+                if '"description":' not in output or '"minimal_example":' not in output:
                     print(f"✗ JSON format missing expected structure")
                     return False
             elif format_name == 'yaml':
@@ -551,7 +559,7 @@ def test_cli_help_includes_new_options():
             '--get-settings-examples',
             '--get-usage-examples',
             '--format-examples',
-            'recipe settings examples'
+            'settings configuration examples'
         ]
         
         # Special check for the settings instruction (more flexible)

@@ -27,7 +27,9 @@ basic_example:
         # neither would be silently dropped by a raw pandas melt, and this
         # processor halts instead.
         step_description: "Stack the month columns"
+        # REQ - Must be "columns_to_rows" for this processor type
         processor_type: "columns_to_rows"
+        # REQ - Stage to read the wide grid from
         source_stage: "stg_amounts_wide"
         # OPT (this or value_columns) - Columns that stay put and repeat
         id_columns: ["Customer", "Region"]

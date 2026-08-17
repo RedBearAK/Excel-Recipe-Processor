@@ -52,7 +52,7 @@ def run_format(path, **extra):
         'processor_type': 'format_excel',
         'target_file': path,
         'formatting': [{
-            'sheet': 'Data',
+            'sheet_name': 'Data',
             'header_bold': True,
             'header_background': True,
             'header_background_color': '548235',

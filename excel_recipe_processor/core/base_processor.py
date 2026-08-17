@@ -67,6 +67,14 @@ class BaseStepProcessor(ABC):
         self.source_stage = step_config.get('source_stage')
         self.save_to_stage = step_config.get('save_to_stage')
         self.confirm_stage_replacement = step_config.get('confirm_stage_replacement', False)
+
+        # Retired vocabulary fails loud instead of being silently ignored
+        if 'stage_description' in step_config:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'stage_description' is retired. "
+                f"Stage descriptions live in the recipe's declared stages "
+                f"block under 'description'; steps generate their own."
+            )
         
         # Guard clause: step_name must be a string if provided
         if 'step_description' in step_config and not isinstance(self.step_name, str):

@@ -51,6 +51,12 @@ class ImportFileProcessor(ImportBaseProcessor):
     def load_data(self):
         """Load data from file (implements ImportBaseProcessor abstract method)."""
         input_file = self.get_config_value('input_file')
+        if not input_file:
+            # Without this guard a missing key reaches Path(None) and dies
+            # with a bare TypeError instead of a guided error.
+            raise StepProcessorError(
+                f"Import step '{self.step_name}' requires 'input_file'"
+            )
 
         if 'sheet' in self.step_config:
             raise StepProcessorError(

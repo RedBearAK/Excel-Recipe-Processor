@@ -110,7 +110,14 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         self.source_sheet = self.get_config_value('source_sheet', None)
         self.template_sheet = self.get_config_value('template_sheet', None)
         self.header_row = self.get_config_value('header_row', 1)  # 1-based for Excel
-        self.check_column_data = self.get_config_value('check_column_data', True)  # Check for empty columns
+        # Retired vocabulary fails loud instead of being silently ignored
+        if 'check_column_data' in self.step_config:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'check_column_data' is retired "
+                f"(2026-08-16): header analysis is always on - the pandas "
+                f"scan is fast enough that the toggle only created a dead "
+                f"code path."
+            )
         self.sample_rows = self.get_config_value('sample_rows', 5)  # Very small sample for speed
 
         # Sampling more than a few rows takes a LOOONG time. We should warn user about that.
@@ -394,8 +401,8 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             if analysis_rows > 25:
                 logger.warning(
                     f"Analyzing {analysis_rows} rows for data checking. "
-                    f"This may be slow for very wide files. Consider setting sample_rows <= 25 "
-                    f"or check_column_data=False for faster processing."
+                    f"This may be slow for very wide files. Consider setting "
+                    f"sample_rows <= 25 for faster processing."
                 )
             
             # Load data via pandas (skipping header row, not interpreting headers)

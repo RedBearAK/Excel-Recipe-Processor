@@ -182,7 +182,6 @@ def test_excel_processing_with_data_check():
             'source_file': source_file,
             'template_file': template_file,
             'output_file': output_file,
-            'check_column_data': True,
             'max_rows': 1000
         }
         
@@ -258,8 +257,7 @@ def test_headers_only_mode():
             'processor_type': 'generate_column_config',
             'source_file': source_file,
             'template_file': template_file,
-            'output_file': output_file,
-            'check_column_data': False  # Disable data checking
+            'output_file': output_file
         }
         
         processor = GenerateColumnConfigProcessor(step_config)

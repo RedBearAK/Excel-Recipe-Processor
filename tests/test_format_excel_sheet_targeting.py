@@ -65,17 +65,17 @@ def test_sheet_name_targeting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'active_sheet': 'Executive_Summary',
+            'active_sheet_name': 'Executive_Summary',
             'formatting': [
                 {
-                    'sheet': 'Executive_Summary',
+                    'sheet_name': 'Executive_Summary',
                     'header_background_color': 'navy',
                     'header_text_color': 'white',
                     'header_bold': True,
                     'auto_fit_columns': True
                 },
                 {
-                    'sheet': 'Detailed_Data',
+                    'sheet_name': 'Detailed_Data',
                     'header_background_color': 'darkgreen',
                     'header_text_color': 'white',
                     'auto_fit_columns': True,
@@ -128,23 +128,23 @@ def test_numeric_sheet_targeting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'active_sheet': 2,  # Set second sheet as active
+            'active_sheet_name': '?sheet_002?',  # Set second sheet as active
             'formatting': [
                 {
-                    'sheet': 1,  # First sheet (Executive_Summary)
+                    'sheet_name': '?sheet_001?',  # First sheet (Executive_Summary)
                     'header_background_color': 'purple',
                     'header_text_color': 'white',
                     'header_font_size': 16,
                     'row_heights': {1: 30}
                 },
                 {
-                    'sheet': 2,  # Second sheet (Detailed_Data)
+                    'sheet_name': '?sheet_002?',  # Second sheet (Detailed_Data)
                     'header_background_color': 'orange',
                     'header_text_color': 'black',
                     'auto_fit_columns': True
                 },
                 {
-                    'sheet': 3,  # Third sheet (Charts_Analysis)
+                    'sheet_name': '?sheet_003?',  # Third sheet (Charts_Analysis)
                     'header_background_color': 'lightblue',
                     'header_text_color': 'darkblue',
                     'freeze_top_row': True
@@ -192,17 +192,17 @@ def test_mixed_sheet_targeting():
             'target_file': test_file,
             'formatting': [
                 {
-                    'sheet': 'Executive_Summary',  # By name
+                    'sheet_name': 'Executive_Summary',  # By name
                     'header_background_color': 'red',
                     'header_text_color': 'white'
                 },
                 {
-                    'sheet': 2,  # By number
+                    'sheet_name': '?sheet_002?',  # By index token
                     'header_background_color': 'blue',
                     'header_text_color': 'white'
                 },
                 {
-                    'sheet': 'Charts_Analysis',  # By name again
+                    'sheet_name': 'Charts_Analysis',  # By name again
                     'header_background_color': 'green',
                     'header_text_color': 'white'
                 }
@@ -238,16 +238,16 @@ def test_validation_errors():
                 'target_file': test_file,
                 'formatting': [
                     {
-                        'header_bold': True  # Missing 'sheet' key
+                        'header_bold': True  # Missing 'sheet_name' key
                     }
                 ]
             }
             processor = FormatExcelProcessor(step_config)
             processor.execute()
-            print("  ✗ Should have failed for missing 'sheet' key")
+            print("  ✗ Should have failed for missing 'sheet_name' key")
             return False
         except Exception:
-            print("  ✓ Correctly rejected missing 'sheet' key")
+            print("  ✓ Correctly rejected missing 'sheet_name' key")
         
         # Test invalid sheet index
         try:
@@ -256,7 +256,7 @@ def test_validation_errors():
                 'target_file': test_file,
                 'formatting': [
                     {
-                        'sheet': 0,  # Invalid: must be >= 1
+                        'sheet_name': '?sheet_000?',  # Invalid: index tokens are 1-based
                         'header_bold': True
                     }
                 ]
@@ -275,7 +275,7 @@ def test_validation_errors():
                 'target_file': test_file,
                 'formatting': [
                     {
-                        'sheet': '',  # Invalid: empty string
+                        'sheet_name': '',  # Invalid: empty string
                         'header_bold': True
                     }
                 ]
@@ -293,7 +293,7 @@ def test_validation_errors():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': {  # Should be a list, not dict
-                    'sheet': 'Summary',
+                    'sheet_name': 'Summary',
                     'header_bold': True
                 }
             }
@@ -324,15 +324,15 @@ def test_nonexistent_sheets():
             'target_file': test_file,
             'formatting': [
                 {
-                    'sheet': 'Executive_Summary',  # Exists
+                    'sheet_name': 'Executive_Summary',  # Exists
                     'header_background_color': 'blue'
                 },
                 {
-                    'sheet': 'NonExistent_Sheet',  # Doesn't exist
+                    'sheet_name': 'NonExistent_Sheet',  # Doesn't exist
                     'header_background_color': 'red'
                 },
                 {
-                    'sheet': 10,  # Out of range
+                    'sheet_name': '?sheet_010?',  # Out of range
                     'header_background_color': 'green'
                 }
             ]
@@ -341,13 +341,14 @@ def test_nonexistent_sheets():
         processor = FormatExcelProcessor(step_config)
         result = processor.execute()
         
-        # Should process successfully, just skip nonexistent sheets
-        print("  ✓ Gracefully handled nonexistent sheets")
-        return True
+        # Doctrine (2026-08-14): unresolvable sheets FAIL LOUD - the old
+        # silent-skip path hid typos and substitution accidents.
+        print("  ✗ Should have failed loud on nonexistent sheet")
+        return False
         
     except Exception as e:
-        print(f"  ✗ Failed to handle nonexistent sheets: {e}")
-        return False
+        print(f"  ✓ Failed loud on nonexistent sheet as doctrine requires: {e}")
+        return True
         
     finally:
         if os.path.exists(test_file):
@@ -366,7 +367,7 @@ def test_row_heights():
             'target_file': test_file,
             'formatting': [
                 {
-                    'sheet': 1,
+                    'sheet_name': '?sheet_001?',
                     'header_font_size': 18,  # Large font
                     'row_heights': {
                         1: 35,  # Tall header for large font

@@ -122,10 +122,15 @@ class RecipeValidator:
                     # Get the required fields from processor capabilities or step config
                     required_fields = []
                     
-                    # Try to determine required fields based on processor type
+                    # Try to determine required fields based on processor type.
+                    # MAINTENANCE HAZARD: this table duplicates processor
+                    # vocabulary by hand; when a processor's keys change it
+                    # goes stale silently (the 2026-08-17 lookup_data row
+                    # did exactly that). Deriving from get_minimal_config()
+                    # would remove the duplication.
                     step_type = step.get('processor_type', '')
                     if step_type == 'lookup_data':
-                        required_fields = ['lookup_source', 'lookup_key', 'source_key', 'lookup_columns']
+                        required_fields = ['lookup_stage', 'match_col_in_lookup_data', 'match_col_in_main_data', 'lookup_columns']
                     elif step_type == 'filter_data':
                         required_fields = ['filters']
                     elif step_type == 'clean_data':
@@ -135,7 +140,7 @@ class RecipeValidator:
                     elif step_type == 'add_calculated_column':
                         required_fields = ['new_column', 'calculation']
                     elif step_type == 'sort_data':
-                        required_fields = ['columns']
+                        required_fields = ['columns', 'sort_type']
                     elif step_type == 'rename_columns':
                         # Check for at least one rename method
                         has_mapping = 'mapping' in step and step['mapping']

@@ -1,4 +1,5 @@
 # excel_recipe_processor/processors/_examples/lookup_data_examples.yaml
+# Revision date: 2026-08-16
 # Clean lookup processor examples - stage-to-stage workflow only
 
 description: "Clean stage-to-stage lookup operations with smart key normalization and simple configuration"

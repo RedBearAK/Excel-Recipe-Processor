@@ -24,6 +24,7 @@ basic_example:
         # the run continues, the log shows the count and a sample, and the
         # run-end summary line tallies it.
         step_description: "Verify the enrichment held"
+        # REQ - Must be "verify_data" for this processor type
         processor_type: "verify_data"
         # REQ (this or target_file) - Stage this step reads
         source_stage: "stg_enriched"

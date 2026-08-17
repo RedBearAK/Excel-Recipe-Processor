@@ -48,12 +48,13 @@ def test_general_text_color():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'general_text_color': '333333',     # Dark gray for data
                 'header_text_color': 'FFFFFF',      # White for headers
                 'header_background': True,
                 'header_background_color': '2F5597'  # Blue background
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -95,11 +96,12 @@ def test_general_font_settings():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'general_font_size': 12,           # Larger than default
                 'general_font_name': 'Arial',      # Different from default
                 'general_text_color': '222222'     # Near black
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -141,10 +143,11 @@ def test_general_alignment():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'general_alignment_horizontal': h_align,
                     'general_alignment_vertical': v_align
-                }
+                }]
             }
             
             try:
@@ -190,10 +193,11 @@ def test_invalid_alignment_values():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'general_alignment_horizontal': h_align,
                     'general_alignment_vertical': v_align
-                }
+                }]
             }
             
             try:
@@ -228,7 +232,8 @@ def test_comprehensive_formatting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 # Phase 1: Header formatting
                 'header_text_color': 'FFFFFF',
                 'header_font_size': 16,
@@ -247,7 +252,7 @@ def test_comprehensive_formatting():
                 'auto_fit_columns': True,
                 'freeze_top_row': True,
                 'auto_filter': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -289,7 +294,8 @@ def test_corporate_branding_scenario():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 # Corporate header style
                 'header_text_color': 'FFFFFF',        # White text
                 'header_font_size': 14,               # Prominent
@@ -309,7 +315,7 @@ def test_corporate_branding_scenario():
                 'freeze_top_row': True,
                 'auto_filter': True,
                 'max_column_width': 40
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)

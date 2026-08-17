@@ -176,10 +176,9 @@ def get_processor_test_recipes():
                     'source_stage': 'raw_data',
                     'save_to_stage': 'processed_data',
                     'new_column': 'Revenue',
+                    'calculation_type': 'expression',
                     'calculation': {
-                        'type': 'multiply',
-                        'column1': 'Sales',
-                        'value': 10
+                        'formula': 'Sales * 10'
                     }
                 },
                 {
@@ -211,9 +210,9 @@ def get_processor_test_recipes():
                     'processor_type': 'lookup_data',
                     'source_stage': 'raw_data',
                     'save_to_stage': 'processed_data',
-                    'lookup_source': {'stage': 'lookup_data'},
-                    'lookup_key': 'Region',
-                    'source_key': 'Region',
+                    'lookup_stage': 'lookup_data',
+                    'match_col_in_lookup_data': 'Region',
+                    'match_col_in_main_data': 'Region',
                     'lookup_columns': ['Manager', 'Target']
                 },
                 {
@@ -239,7 +238,8 @@ def get_processor_test_recipes():
                     'processor_type': 'sort_data',
                     'source_stage': 'raw_data',
                     'save_to_stage': 'processed_data',
-                    'columns': [{'column': 'Sales', 'ascending': False}]
+                    'columns': ['Sales'],
+                    'sort_type': 'descending'
                 },
                 {
                     'step_description': 'Export results',
@@ -266,9 +266,8 @@ def get_processor_test_recipes():
                     'save_to_stage': 'processed_data',
                     'rules': [
                         {
-                            'column': 'Product',
-                            'operation': 'standardize_text',
-                            'standardization': 'uppercase'
+                            'columns': ['Product'],
+                            'action': 'uppercase'
                         }
                     ]
                 },
@@ -346,7 +345,7 @@ def test_multi_processor_workflow():
                 'source_stage': 'raw_data',
                 'save_to_stage': 'filtered_data',
                 'filters': [
-                    {'column': 'Sales', 'condition': 'greater_than', 'value': '{min_sales}'}
+                    {'column': 'Sales', 'condition': 'greater_than', 'value': 100}
                 ]
             },
             {
@@ -355,10 +354,9 @@ def test_multi_processor_workflow():
                 'source_stage': 'filtered_data',
                 'save_to_stage': 'calculated_data',
                 'new_column': 'Revenue',
+                'calculation_type': 'expression',
                 'calculation': {
-                    'type': 'multiply',
-                    'column1': 'Sales',
-                    'value': 12.5
+                    'formula': 'Sales * 12.5'
                 }
             },
             {
@@ -366,7 +364,8 @@ def test_multi_processor_workflow():
                 'processor_type': 'sort_data',
                 'source_stage': 'calculated_data',
                 'save_to_stage': 'sorted_data',
-                'columns': [{'column': 'Revenue', 'ascending': False}]
+                'columns': ['Revenue'],
+                'sort_type': 'descending'
             },
             {
                 'step_description': 'Export final results',
@@ -435,5 +434,7 @@ def main():
 
 
 if __name__ == '__main__':
+    import sys
     success = main()
     print(f"\nResult: {'PASS' if success else 'FAIL'}")
+    sys.exit(0 if success else 1)

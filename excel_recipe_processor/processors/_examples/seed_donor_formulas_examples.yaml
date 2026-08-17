@@ -1,4 +1,5 @@
 # Usage examples for seed_donor_formulas processor
+# Revision date: 2026-08-16
 # processors/_examples/seed_donor_formulas_examples.yaml
 
 description: "Transplant formulas from donor Excel files to recipient files for seeding calculation columns. Largely superseded by inject_formulas' recipe-authored formulas; kept for donor-workbook workflows."
@@ -30,7 +31,9 @@ mixed_column_types:
 
     recipe:
       - step_description: "Transplant revenue calculation formulas"
+        # REQ - Must be "seed_donor_formulas" for this processor type
         processor_type: "seed_donor_formulas"
+        # REQ - Donor workbook holding the formulas to transplant
         source_file: "templates/financial_model.xlsx"
         source_sheet: "Calculations"
         target_file: "output/q4_projections.xlsx"

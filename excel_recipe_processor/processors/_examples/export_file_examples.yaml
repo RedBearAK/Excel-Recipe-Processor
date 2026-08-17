@@ -16,7 +16,9 @@ basic_example:
     
     recipe:
       # Previous steps would populate 'processed_data' stage
-      - step_description: "Export processed data to monthly report"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed export_file step"
+        step_description: "Export processed data to monthly report"
         # REQ - Must be "export_file" for this processor type
         processor_type: "export_file"
         # REQ - Stage to export data from (must be declared in settings.stages)

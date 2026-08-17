@@ -95,12 +95,13 @@ def test_basic_formatting():
             'processor_type': 'format_excel',
             'step_description': 'Test basic formatting',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'auto_fit_columns': True,
                 'header_bold': True,
                 'header_background': True,
                 'header_background_color': 'D3D3D3'
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -151,9 +152,10 @@ def test_freeze_panes():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'freeze_top_row': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -198,7 +200,8 @@ def test_multiple_sheets():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'auto_fit_columns': True,
                 'header_bold': True,
                 'sheet_specific': {
@@ -210,7 +213,7 @@ def test_multiple_sheets():
                         'freeze_top_row': True
                     }
                 }
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -249,7 +252,8 @@ def test_column_and_row_sizing():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'auto_fit_columns': True,
                 'max_column_width': 30,
                 'min_column_width': 10,
@@ -261,7 +265,7 @@ def test_column_and_row_sizing():
                     1: 20,  # Header row
                     2: 15   # First data row
                 }
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -298,10 +302,11 @@ def test_auto_filter():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'auto_filter': True,
                 'header_bold': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -375,9 +380,10 @@ def test_error_handling():
             bad_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'max_column_width': -5  # Invalid negative width
-                }
+                }]
             }
             processor = FormatExcelProcessor(bad_config)
             processor.execute(test_df)
@@ -409,9 +415,10 @@ def test_variable_substitution():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,  # In real usage this might be "{date}_report.xlsx"
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'auto_fit_columns': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -450,10 +457,11 @@ def test_variable_substitution_real():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': str(temp_path / "{date}_test_report.xlsx"),
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'auto_fit_columns': True,
                     'header_bold': True
-                }
+                }]
             }
             
             # Create processor
@@ -498,10 +506,11 @@ def test_data_passthrough():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'auto_fit_columns': True,
                     'header_bold': True
-                }
+                }]
             }
             
             processor = FormatExcelProcessor(step_config)

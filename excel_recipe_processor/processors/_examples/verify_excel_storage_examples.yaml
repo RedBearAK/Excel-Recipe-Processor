@@ -1,4 +1,5 @@
 # Usage examples and vocabulary for the verify_excel_storage processor.
+# Revision date: 2026-08-16
 #
 # excel_recipe_processor/processors/_examples/verify_excel_storage_examples.yaml
 #
@@ -9,41 +10,55 @@
 
 description: "Audit workbooks' stored formula grammar and dynamic-array declarations"
 
+
 basic_example:
-  step_description: "Audit the output workbook's stored grammar"
-  processor_type: "verify_excel_storage"
-  files:
-    - "{output_dir}/{output_basename}.xlsx"
+  description: "Audit the output workbook's stored grammar"
+  yaml: |
+    # Checks performed:
+    #   stored_grammar - forbidden leading '=' in definedNames/DV
+    #     formulas, literal '#' outside strings, chained storage
+    #     prefixes, _xlfn on names outside the validated future-function
+    #     map, LAMBDA/LET declaration slots lacking _xlpm.
+    #   legacy_cse - any t="array" cell missing its cm dynamic-array
+    #     declaration - the class where a spill shows {braces} and
+    #     collapses to one value.
+
+    settings:
+      description: "Audit the freshly written output before handing it off"
+
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed verify_excel_storage step"
+        step_description: "Audit the output workbook's stored grammar"
+        # REQ - Must be "verify_excel_storage" for this processor type
+        processor_type: "verify_excel_storage"
+        # REQ - Non-empty list of workbook paths. SESSION-AWARE: a file
+        # currently held by the run's workbook session audits its
+        # WILL-BE-WRITTEN bytes (serialized through the same declaration
+        # pipeline as the run-end save, in memory) - so a late-recipe
+        # audit step sees what Excel will see, not the stale disk copy.
+        # Files outside the session (previous outputs, foreign workbooks)
+        # audit from disk.
+        files:
+          - "{output_dir}/{output_basename}.xlsx"
+
 
 warn_example:
-  step_description: "Audit a previous output without failing the run"
-  processor_type: "verify_excel_storage"
-  files:
-    - "{output_dir}/some_older_output.xlsx"
-  on_violation: "warn"
+  description: "Audit a previous output without failing the run"
+  yaml: |
+    settings:
+      description: "Audit an older output for the record, warn-only"
 
-parameter_details:
-  files:
-    required: true
-    description: >
-      Non-empty list of workbook paths. SESSION-AWARE: a file currently
-      held by the run's workbook session audits its WILL-BE-WRITTEN
-      bytes (serialized through the same declaration pipeline as the
-      run-end save, in memory) - so a late-recipe audit step sees what
-      Excel will see, not the stale disk copy. Files outside the
-      session (previous outputs, foreign workbooks) audit from disk.
-  on_violation:
-    required: false
-    description: "'halt' (default) fails the run listing every violation; 'warn' logs and continues"
-
-checks:
-  stored_grammar: >
-    Forbidden leading '=' in definedNames/DV formulas, literal '#'
-    outside strings, chained storage prefixes, _xlfn on names outside
-    the validated future-function map, LAMBDA/LET declaration slots
-    lacking _xlpm.
-  legacy_cse: >
-    Any t="array" cell missing its cm dynamic-array declaration - the
-    class where a spill shows {braces} and collapses to one value.
+    recipe:
+      - step_description: "Audit a previous output without failing the run"
+        # REQ - Must be "verify_excel_storage" for this processor type
+        processor_type: "verify_excel_storage"
+        # REQ - Workbook paths to audit
+        files:
+          - "{output_dir}/some_older_output.xlsx"
+        # OPT - 'halt' fails the run listing every violation; 'warn' logs
+        # and continues
+        # Default value: "halt"
+        on_violation: "warn"
 
 # End of file #

@@ -655,7 +655,6 @@ class GroupDataProcessor(BaseStepProcessor):
                 'unmatched_value': 'Default value for unmatched items',
                 'case_sensitive': 'Whether matching is case sensitive',
                 'save_to_stage': 'Save grouping results to stage',
-                'stage_description': 'Description for saved stage'
             }
         }
     

@@ -44,11 +44,12 @@ def test_simple_css_colors():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'header_text_color': 'white',
                 'header_background_color': 'blue',
                 'general_text_color': 'black'
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -81,14 +82,15 @@ def test_simple_cell_range():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'cell_ranges': {
                     'A1': {
                         'text_color': 'red',
                         'bold': True
                     }
                 }
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)

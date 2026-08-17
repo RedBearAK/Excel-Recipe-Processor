@@ -169,9 +169,16 @@ class SortDataProcessor(BaseStepProcessor):
             temp_columns = []
             
             for col in columns:
-                if df[col].dtype == 'object':  # String-like column
+                # pandas 3: string columns report dtype 'str', not 'object';
+                # is_string_dtype covers both, so case-folding is not
+                # silently skipped on every string column.
+                if pd.api.types.is_string_dtype(df[col]):
                     temp_col = f"{col}_sort_temp"
-                    sort_data[temp_col] = df[col].astype(str).str.lower()
+                    # map() preserves NA and non-string values, so
+                    # na_position semantics survive the case fold
+                    # (astype(str) turned None into a sortable string)
+                    sort_data[temp_col] = df[col].map(
+                        lambda v: v.lower() if isinstance(v, str) else v)
                     temp_columns.append(temp_col)
                 else:
                     temp_columns.append(col)
@@ -334,9 +341,12 @@ class SortDataProcessor(BaseStepProcessor):
             # Apply transformations for this criterion
             if custom_order:
                 sort_data[col] = pd.Categorical(df[col], categories=custom_order, ordered=True)
-            elif ignore_case and df[col].dtype == 'object':
+            elif ignore_case and pd.api.types.is_string_dtype(df[col]):
+                # pandas 3: string dtype is 'str', not 'object'; and the
+                # fold must preserve NA (astype(str) made None sortable)
                 temp_col = f"{col}_case_insensitive"
-                sort_data[temp_col] = df[col].astype(str).str.lower()
+                sort_data[temp_col] = df[col].map(
+                    lambda v: v.lower() if isinstance(v, str) else v)
                 col = temp_col
             
             sort_columns.append(col)

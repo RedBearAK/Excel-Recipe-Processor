@@ -2,6 +2,8 @@
 Test the RenameColumnsProcessor functionality.
 """
 
+import sys
+
 import pandas as pd
 
 from excel_recipe_processor.core.base_processor import StepProcessorError
@@ -186,7 +188,7 @@ def test_prefix_suffix():
     print("\nTesting prefix and suffix...")
     
     test_df = pd.DataFrame({
-        'step_description': [1, 2],
+        'name': [1, 2],
         'price': [3, 4],
         'quantity': [5, 6]
     })
@@ -434,3 +436,5 @@ if __name__ == '__main__':
     processor = RenameColumnsProcessor({'processor_type': 'rename_columns', 'processor_type': 'mapping', 'mapping': {}})
     print(f"\nSupported rename types: {processor.get_supported_rename_types()}")
     print(f"Supported case conversions: {processor.get_supported_case_conversions()}")
+
+    sys.exit(0 if success else 1)

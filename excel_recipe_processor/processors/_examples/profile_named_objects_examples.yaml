@@ -1,4 +1,5 @@
 # Usage examples and vocabulary for the profile_named_objects processor.
+# Revision date: 2026-08-16
 #
 # excel_recipe_processor/processors/_examples/profile_named_objects_examples.yaml
 #
@@ -10,54 +11,87 @@
 
 description: "Per-name workbook object discovery (ranges, lambdas, formulas, tables)"
 
+
 basic_example:
-  step_description: "Catalog the output workbook's named objects"
-  processor_type: "profile_named_objects"
-  workbooks:
-    - "{output_dir}/{output_basename}.xlsx"
-  save_to_stage: "stg_named_object_profiles"
+  description: "Catalog the output workbook's named objects"
+  yaml: |
+    # Output contract (columns by NAME; future facts APPEND, never rename).
+    # One row per defined name (workbook- AND sheet-scoped) plus one per
+    # worksheet table:
+    #   Workbook          - path as configured
+    #   Name              - object name
+    #   Object_Type       - lambda / formula / range / constant / table
+    #   Scope             - 'global', or the owning sheet for sheet-scoped
+    #                       names and tables
+    #   Hidden            - definedName hidden flag (tables: false)
+    #   Definition        - STORED text verbatim - the byte truth, right
+    #                       for drift comparison
+    #   Human_Definition  - display syntax: lambdas translated, storage
+    #                       prefixes stripped
+    #   Parameters        - comma-joined lambda parameters, '' otherwise
+
+    settings:
+      description: "Catalog the output's named objects as a stage"
+      stages:
+        - stage_name: "stg_named_object_profiles"
+          description: "Name-keyed catalog of the output workbook"
+          protected: false
+
+    recipe:
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed profile_named_objects step"
+        step_description: "Catalog the output workbook's named objects"
+        # REQ - Must be "profile_named_objects" for this processor type
+        processor_type: "profile_named_objects"
+        # REQ - Non-empty list of workbook paths; reads from disk
+        # (variables substitute as usual)
+        workbooks:
+          - "{output_dir}/{output_basename}.xlsx"
+        # REQ - Stage receiving the catalog frame
+        save_to_stage: "stg_named_object_profiles"
+
 
 name_drift_alarm_example:
-  note: >
-    The anchor consumer: the 2026-08-14 incident where Excel's repair
-    silently DELETED a named lambda (orphaning callers into #NAME?)
-    would surface here as a "name vanished" diff row instead of a user
-    report. Drop the Workbook column before diffing - paths differ
-    between runs.
-  steps:
-    - step_description: "Catalog the previous output's names"
-      processor_type: "profile_named_objects"
-      workbooks: ["{output_dir}/previous.xlsx"]
-      save_to_stage: "stg_names_previous"
-    - step_description: "Catalog the current output's names"
-      processor_type: "profile_named_objects"
-      workbooks: ["{output_dir}/{output_basename}.xlsx"]
-      save_to_stage: "stg_names_current"
-    - step_description: "Name drift alarm"
-      processor_type: "diff_data"
-      source_stage: "stg_names_current"
-      reference_stage: "stg_names_previous"
-      key_columns: "Name"
-      save_to_stage: "stg_name_drift"
+  description: "Catalog previous and current outputs, then diff on Name"
+  yaml: |
+    # The anchor consumer: the 2026-08-14 incident where Excel's repair
+    # silently DELETED a named lambda (orphaning callers into #NAME?)
+    # would surface here as a "name vanished" diff row instead of a user
+    # report. Drop the Workbook column before diffing - paths differ
+    # between runs.
 
-parameter_details:
-  workbooks:
-    required: true
-    description: "Non-empty list of workbook paths; reads from disk (variables substitute as usual)"
-  save_to_stage:
-    required: true
-    description: "Stage receiving the catalog frame"
+    settings:
+      description: "Named-object drift alarm between the previous and current outputs"
+      stages:
+        - stage_name: "stg_names_previous"
+          description: "Name catalog of the previous output"
+          protected: false
+        - stage_name: "stg_names_current"
+          description: "Name catalog of the current output"
+          protected: false
+        - stage_name: "stg_name_drift"
+          description: "Itemized name-level differences"
+          protected: false
 
-output_contract:
-  note: "Columns by NAME; future facts APPEND, never rename. One row per defined name (workbook- AND sheet-scoped) plus one per worksheet table."
-  columns:
-    Workbook: "path as configured"
-    Name: "object name"
-    Object_Type: "lambda / formula / range / constant / table"
-    Scope: "'global', or the owning sheet for sheet-scoped names and tables"
-    Hidden: "definedName hidden flag (tables: false)"
-    Definition: "STORED text verbatim - the byte truth, right for drift comparison"
-    Human_Definition: "display syntax: lambdas translated, storage prefixes stripped"
-    Parameters: "comma-joined lambda parameters, '' otherwise"
+    recipe:
+      - step_description: "Catalog the previous output's names"
+        # REQ - Must be "profile_named_objects" for this processor type
+        processor_type: "profile_named_objects"
+        # REQ - Workbook paths to catalog
+        workbooks: ["{output_dir}/previous.xlsx"]
+        # REQ - Stage receiving the catalog frame
+        save_to_stage: "stg_names_previous"
+
+      - step_description: "Catalog the current output's names"
+        processor_type: "profile_named_objects"
+        workbooks: ["{output_dir}/{output_basename}.xlsx"]
+        save_to_stage: "stg_names_current"
+
+      - step_description: "Name drift alarm"
+        processor_type: "diff_data"
+        source_stage: "stg_names_current"
+        reference_stage: "stg_names_previous"
+        key_columns: "Name"
+        save_to_stage: "stg_name_drift"
 
 # End of file #

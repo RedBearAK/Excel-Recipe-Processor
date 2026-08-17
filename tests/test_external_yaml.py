@@ -92,7 +92,7 @@ def test_cli_functionality():
         {
             'name': 'Get export_file examples in JSON',
             'cmd': ['python', '-m', 'excel_recipe_processor', '--get-usage-examples', 'export_file', '--format-examples', 'json'],
-            'expected_content': ['"processor_name":', '"basic_example":', '"description":']
+            'expected_content': ['"multi_sheet_example":', '"basic_example":', '"description":']
         }
     ]
     

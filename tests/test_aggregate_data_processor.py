@@ -6,12 +6,14 @@ Tests both existing functionality (regression) and new enhanced capabilities.
 """
 
 import json
+import sys
+
 import pandas as pd
 import tempfile
 
 from pathlib import Path
 
-from excel_recipe_processor.core.stage_manager import StageManager
+from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.aggregate_data_processor import AggregateDataProcessor
 
@@ -299,12 +301,14 @@ def test_save_to_stage():
                 'new_column_name': 'Total_Sales'
             }
         ],
-        'save_to_stage': 'Sales Summary',
-        'stage_description': 'Regional sales totals'
+        'save_to_stage': 'Sales Summary'
     }
     
     processor = AggregateDataProcessor(step_config)
     result = processor.execute(test_df)
+    # The pipeline drives save_output_data via execute_stage_to_stage;
+    # a direct execute() never saves, so the test drives it explicitly.
+    processor.save_output_data(result)
     
     # Check that stage was created
     if StageManager.stage_exists('Sales Summary'):
@@ -663,10 +667,10 @@ def test_aggregation_error_handling():
         'group_by': 'Region',
         'aggregations': [{'column': 'Sales_Amount', 'function': 'sum'}],
         'save_to_stage': 'Test Overwrite Stage',
-        'stage_overwrite': True  # Allow initial creation
+        'confirm_stage_replacement': True  # Allow initial creation
     }
     processor_create = AggregateDataProcessor(step_config_create)
-    processor_create.execute(test_df)
+    processor_create.save_output_data(processor_create.execute(test_df))
     
     # Now try to overwrite without permission
     try:
@@ -674,14 +678,14 @@ def test_aggregation_error_handling():
             'processor_type': 'aggregate_data',
             'group_by': 'Region',
             'aggregations': [{'column': 'Sales_Amount', 'function': 'sum'}],
-            'save_to_stage': 'Test Overwrite Stage',  # This stage now exists
-            'stage_overwrite': False
+            'save_to_stage': 'Test Overwrite Stage'  # This stage now exists
+            # confirm_stage_replacement: false (default)
         }
         processor = AggregateDataProcessor(bad_config)
-        processor.execute(test_df)
-        print("✗ Should have failed without overwrite=true")
+        processor.save_output_data(processor.execute(test_df))
+        print("✗ Should have failed without confirm_stage_replacement")
         return False
-    except StepProcessorError as e:
+    except (StepProcessorError, StageError) as e:
         print(f"✓ Caught expected error for stage overwrite: {e}")
     
     print("✓ Error handling worked correctly")
@@ -720,12 +724,12 @@ def test_real_world_scenario():
             }
         ],
         'save_to_stage': 'Regional Quarterly Summary',
-        'stage_description': 'Quarterly performance by region',
-        'stage_overwrite': True
+        'confirm_stage_replacement': True
     }
     
     processor_1 = AggregateDataProcessor(step_config_1)
     result_1 = processor_1.execute(test_df)
+    processor_1.save_output_data(result_1)
     
     # Step 2: Department-level analysis
     step_config_2 = {
@@ -872,3 +876,5 @@ if __name__ == '__main__':
     print(f"Integration features: {processor.get_capabilities()['integration_features']}")
     
     print("\nTo run with pytest: pytest test_aggregate_data_processor_refactored.py -v")
+
+    sys.exit(0 if success else 1)

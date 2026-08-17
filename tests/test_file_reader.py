@@ -3,6 +3,7 @@ Test the FileReader functionality.
 """
 
 import os
+import sys
 import pandas as pd
 import tempfile
 
@@ -100,9 +101,9 @@ def test_multi_sheet_excel():
         employees_data = FileReader.read_file(temp_excel_path, sheet='Employees')
         print(f"✓ Read 'Employees' sheet: {employees_data.shape}")
         
-        # Test reading specific sheet by index
-        departments_data = FileReader.read_file(temp_excel_path, sheet=1)
-        print(f"✓ Read sheet index 1: {departments_data.shape}")
+        # Test reading specific sheet by index (1-based: 2 = second sheet)
+        departments_data = FileReader.read_file(temp_excel_path, sheet=2)
+        print(f"✓ Read sheet index 2: {departments_data.shape}")
         
         # Verify correct data was read
         if 'Name' in employees_data.columns and 'Manager' in departments_data.columns:
@@ -219,60 +220,30 @@ def test_tsv_file_reading():
 
 
 def test_variable_substitution():
-    """Test variable substitution in filenames."""
-    
-    print("\nTesting variable substitution...")
-    
-    # Create temporary file with today's date in name
-    sample_data = create_sample_data()
-    now = datetime.now()
-    
-    # Create file with actual date
-    actual_filename = f"test_data_{now.strftime('%Y%m%d')}.xlsx"
-    temp_dir = Path(tempfile.gettempdir())
-    actual_path = temp_dir / actual_filename
-    
-    sample_data.to_excel(actual_path, index=False)
-    
-    try:
-        # Test reading with variable substitution
-        template_filename = str(temp_dir / "test_data_{date}.xlsx")
-        
-        result = FileReader.read_file(template_filename)
-        print(f"✓ Read file with variable substitution: {result.shape}")
-        
-        # Test with custom variables
-        custom_variables = {
-            'data_type': 'employees',
-            'version': 'v1'
-        }
-        
-        # Create file matching custom variables
-        custom_filename = f"test_employees_v1.xlsx"
-        custom_path = temp_dir / custom_filename
-        sample_data.to_excel(custom_path, index=False, engine='openpyxl')
-        
-        try:
-            custom_template = str(temp_dir / "test_{data_type}_{version}.xlsx")
-            custom_result = FileReader.read_file(custom_template, variables=custom_variables)
-            print(f"✓ Read file with custom variables: {custom_result.shape}")
-            
-            if len(result) == len(sample_data) and len(custom_result) == len(sample_data):
-                print("✓ Variable substitution worked correctly")
-                return True
-            else:
-                print("✗ Variable substitution failed")
-                return False
-                
-        finally:
-            if custom_path.exists():
-                custom_path.unlink()
-            
-    finally:
-        # Clean up temp file
-        if actual_path.exists():
-            actual_path.unlink()
+    """
+    FileReader does NOT substitute variables (2026 doctrine): that moved
+    to the processor layer, which resolves {date}-style templates BEFORE
+    calling FileReader. A template path reaching this layer unresolved is
+    a bug upstream, so FileReader must fail loud with the literal braces
+    visible in the error. Substitution itself is covered in
+    test_import_file_processor and test_export_file_processor.
+    """
 
+    print("\nTesting variable substitution layer boundary...")
+
+    temp_dir = Path(tempfile.gettempdir())
+    template_filename = str(temp_dir / "test_data_{date}.xlsx")
+
+    try:
+        FileReader.read_file(template_filename)
+        print("✗ Unresolved template should have failed loud")
+        return False
+    except FileReaderError as error:
+        if '{date}' in str(error):
+            print("✓ Unresolved template failed loud with the literal braces visible")
+            return True
+        print(f"✗ Braces not visible in error: {error}")
+        return False
 
 def test_file_existence_checking():
     """Test file existence checking with variable substitution."""
@@ -296,30 +267,21 @@ def test_file_existence_checking():
         not_exists = FileReader.file_exists(fake_path)
         print(f"✓ Non-existent file check: {not_exists}")
         
-        # Test with variable substitution
-        now = datetime.now()
-        actual_filename = f"exists_test_{now.strftime('%Y%m%d')}.xlsx"
+        # Layer boundary: file_exists does NOT substitute variables (that
+        # moved to the processor layer), so an unresolved template path is
+        # simply a filename that does not exist.
         temp_dir = Path(tempfile.gettempdir())
-        actual_path = temp_dir / actual_filename
-        
-        sample_data.to_excel(actual_path, index=False, engine='openpyxl')
-        
-        try:
-            template_filename = str(temp_dir / "exists_test_{date}.xlsx")
-            exists_with_vars = FileReader.file_exists(template_filename)
-            print(f"✓ File exists with variables: {exists_with_vars}")
-            
-            if exists and not not_exists and exists_with_vars:
-                print("✓ File existence checking worked correctly")
-                return True
-            else:
-                print("✗ File existence checking failed")
-                return False
-                
-        finally:
-            if actual_path.exists():
-                actual_path.unlink()
-            
+        template_filename = str(temp_dir / "exists_test_{date}.xlsx")
+        template_exists = FileReader.file_exists(template_filename)
+        print(f"✓ Unresolved template treated as literal path: exists={template_exists}")
+
+        if exists and not not_exists and not template_exists:
+            print("✓ File existence checking worked correctly")
+            return True
+        else:
+            print("✗ File existence checking failed")
+            return False
+
     finally:
         # Clean up temp file
         os.unlink(temp_excel_path)
@@ -581,3 +543,5 @@ if __name__ == '__main__':
         print(f"Total formats supported: {len(formats['all_formats'])}")
     except Exception as e:
         print(f"\n⚠️  Could not get supported formats: {e}")
+
+    sys.exit(0 if success else 1)

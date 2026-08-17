@@ -498,9 +498,13 @@ def list_system_capabilities_detailed() -> int:
             if 'parameters' in info:
                 print("Parameters:")
                 for param_name, param_info in info['parameters'].items():
-                    required = "Required" if param_info.get('required', False) else "Optional"
-                    param_desc = param_info.get('description', 'No description')
-                    print(f"  {param_name} ({required}): {param_desc}")
+                    if isinstance(param_info, dict):
+                        required = "Required" if param_info.get('required', False) else "Optional"
+                        param_desc = param_info.get('description', 'No description')
+                        print(f"  {param_name} ({required}): {param_desc}")
+                    else:
+                        # Some processors supply a plain description string
+                        print(f"  {param_name}: {param_info}")
             
             # Show capabilities if available
             if 'supported_actions' in info:
@@ -862,6 +866,8 @@ def get_usage_examples(processor_name: str, format_type: str = 'yaml') -> int:
         # No examples available
         print(f"No usage examples available for processor: {processor_name}")
         print()
+        print('Tip: use "settings" as the name for recipe settings examples')
+        print()
         print("Available processors:")
         
         # Show available processors
@@ -1108,7 +1114,29 @@ def _display_all_examples_yaml(all_examples: dict) -> None:
     print(f"# Processors with examples: {system_info.get('processors_with_examples', 0)}")
     print(f"# Processors missing examples: {system_info.get('processors_missing_examples', 0)}")
     print()
-    
+
+    # Designed behavior: the complete reference opens with the RECIPE
+    # SETTINGS section, so a copy-paste starting point precedes the
+    # per-processor steps.
+    try:
+        from excel_recipe_processor.utils.processor_examples_loader import load_settings_examples
+        settings_examples = load_settings_examples()
+        if 'error' not in settings_examples:
+            print("# RECIPE SETTINGS")
+            print(f"# {'-' * 20}")
+            settings_keys = [key for key in settings_examples.keys()
+                             if key.endswith('_example')]
+            for settings_key in settings_keys:
+                settings_entry = settings_examples[settings_key]
+                if isinstance(settings_entry, dict) and 'yaml' in settings_entry:
+                    print(f"# {settings_entry.get('description', settings_key)}")
+                    print(settings_entry['yaml'])
+                    print()
+            print()
+    except Exception as settings_error:
+        print(f"# RECIPE SETTINGS - unavailable: {settings_error}")
+        print()
+
     processors = all_examples.get('processors', {})
     
     for processor_name in sorted(processors.keys()):

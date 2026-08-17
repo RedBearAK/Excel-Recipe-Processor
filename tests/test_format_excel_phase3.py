@@ -67,11 +67,12 @@ def test_webcolors_integration():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     **color_config,
                     'header_bold': True,
                     'header_background': True
-                }
+                }]
             }
             
             try:
@@ -110,7 +111,8 @@ def test_basic_cell_range_formatting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'cell_ranges': {
                     'A1:F1': {                        # Header row
                         'text_color': 'white',
@@ -128,7 +130,7 @@ def test_basic_cell_range_formatting():
                         'alignment_horizontal': 'center'
                     }
                 }
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -170,7 +172,8 @@ def test_border_formatting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'cell_ranges': {
                     'A1:F1': {                        # Header with thick border
                         'border': 'thick'
@@ -187,7 +190,7 @@ def test_border_formatting():
                         }
                     }
                 }
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -221,7 +224,8 @@ def test_single_cell_targeting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 'cell_ranges': {
                     'A1': {                           # Single cell
                         'text_color': 'red',
@@ -237,7 +241,7 @@ def test_single_cell_targeting():
                         'text_color': 'blue'
                     }
                 }
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -333,7 +337,8 @@ def test_comprehensive_integration():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 # Phase 1: Header formatting
                 'header_text_color': 'white',
                 'header_font_size': 16,
@@ -375,7 +380,7 @@ def test_comprehensive_integration():
                 'auto_fit_columns': True,
                 'freeze_top_row': True,
                 'auto_filter': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -418,7 +423,8 @@ def test_dashboard_scenario():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 # Dashboard-style header
                 'header_text_color': 'white',
                 'header_font_size': 18,
@@ -460,7 +466,7 @@ def test_dashboard_scenario():
                 },
                 
                 'auto_fit_columns': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)

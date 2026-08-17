@@ -163,6 +163,14 @@ class ExportFileProcessor(ExportBaseProcessor):
     def save_data(self, data):
         """Save data to file (implements ExportBaseProcessor abstract method)."""
         output_file = self.get_config_value('output_file')
+        if not output_file:
+            # Without this guard a missing key reaches Path(None) downstream
+            # and dies with a bare TypeError instead of a guided error.
+            raise StepProcessorError(
+                f"Export step '{self.step_name}' requires 'output_file'"
+            )
+        encoding = self.get_config_value('encoding', 'utf-8')
+        separator = self.get_config_value('separator', ',')
         sheet_name = self.get_config_value('sheet_name', 'Data')
         try:
             reject_token_for_creation(sheet_name, f"Export step '{self.step_name}'")
@@ -244,7 +252,9 @@ class ExportFileProcessor(ExportBaseProcessor):
                     resolved_file,  # No variables parameter needed
                     sheet_name=sheet_name,
                     explicit_format=explicit_format,
-                    create_backup=create_backup
+                    create_backup=create_backup,
+                    encoding=encoding,
+                    separator=separator
                 )
             
             logger.info(f"Exported {len(data)} rows to '{resolved_file}'")

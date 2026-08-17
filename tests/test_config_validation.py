@@ -2,6 +2,7 @@
 Quick test to verify the enhanced configuration validation works.
 """
 
+import sys
 import yaml
 
 from pathlib import Path
@@ -102,12 +103,30 @@ def test_valid_recipe():
     print("🔍 Testing Valid Recipe")
     print("=" * 50)
     
-    # Create a properly configured recipe
+    # A properly configured recipe under the current doctrine:
+    # settings with description, declared stages, stage keys per step,
+    # and lookup_data's lookup_stage vocabulary.
     valid_recipe = {
+        'settings': {
+            'description': 'Valid-recipe probe for the validator',
+            'stages': [
+                {'stage_name': 'stg_valid_probe_raw',
+                 'description': 'Raw input', 'protected': False},
+                {'stage_name': 'stg_valid_probe_filtered',
+                 'description': 'Filtered rows', 'protected': False},
+                {'stage_name': 'stg_valid_probe_lookup',
+                 'description': 'Lookup reference', 'protected': False},
+                {'stage_name': 'stg_valid_probe_enriched',
+                 'description': 'Filtered rows with lookup columns',
+                 'protected': False},
+            ],
+        },
         'recipe': [
             {
                 'step_description': 'Filter products',
                 'processor_type': 'filter_data',
+                'source_stage': 'stg_valid_probe_raw',
+                'save_to_stage': 'stg_valid_probe_filtered',
                 'filters': [
                     {
                         'column': 'Product_Name',
@@ -119,9 +138,11 @@ def test_valid_recipe():
             {
                 'step_description': 'Lookup details',
                 'processor_type': 'lookup_data',
-                'lookup_source': 'products.xlsx',
-                'lookup_key': 'Code',
-                'source_key': 'Product_Code',
+                'source_stage': 'stg_valid_probe_filtered',
+                'save_to_stage': 'stg_valid_probe_enriched',
+                'lookup_stage': 'stg_valid_probe_lookup',
+                'match_col_in_lookup_data': 'Code',
+                'match_col_in_main_data': 'Product_Code',
                 'lookup_columns': ['Category', 'Price']
             }
         ]
@@ -174,3 +195,5 @@ if __name__ == '__main__':
         print("⚠️  Some validation tests failed:")
         print(f"   Enhanced validation: {'✅' if test1_passed else '❌'}")
         print(f"   Valid recipe test: {'✅' if test2_passed else '❌'}")
+
+    sys.exit(0 if (test1_passed and test2_passed) else 1)

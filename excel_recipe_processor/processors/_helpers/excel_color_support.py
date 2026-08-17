@@ -33,12 +33,22 @@ def normalize_color(color) -> str:
         Six uppercase hex digits, e.g. 'FF0000'
 
     Raises:
-        ValueError: On None, empty, or unrecognized formats
+        ValueError: On None, non-string, empty, or unrecognized formats
     """
     if color is None:
         raise ValueError("Color cannot be None")
 
-    color_text = str(color).strip()
+    if not isinstance(color, str):
+        # Fail loud on ints and everything else. Unquoted hex in YAML is a
+        # corruption trap: header_text_color: 000123 parses as the int 123,
+        # the leading zeros vanish, and str() coercion would bless a
+        # plausible wrong color ('112233'). Quoted strings only.
+        raise ValueError(
+            f"Color must be a string, got {type(color).__name__}: {color!r}. "
+            f"Quote hex colors in YAML, e.g. '000123', so leading zeros survive."
+        )
+
+    color_text = color.strip()
     if not color_text:
         raise ValueError("Color cannot be empty")
 

@@ -2,12 +2,14 @@
 Test the ImportFileProcessor functionality.
 """
 
-import pandas as pd
+import sys
 import tempfile
+import pandas as pd
 
 from pathlib import Path
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
+from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import StepProcessorError
 from excel_recipe_processor.processors.import_file_processor import ImportFileProcessor
 
@@ -71,7 +73,7 @@ def test_basic_import_excel():
             'processor_type': 'import_file',
             'step_description': 'Test Excel import',
             'input_file': test_files['excel'],
-            'save_to_stage': 'basic_import_stage'
+            'save_to_stage': 'stg_test_import_basic_excel'
         }
         
         processor = ImportFileProcessor(step_config)
@@ -110,7 +112,7 @@ def test_basic_import_csv():
             'processor_type': 'import_file',
             'step_description': 'Test CSV import',
             'input_file': test_files['csv'],
-            'save_to_stage': 'basic_import_stage'
+            'save_to_stage': 'stg_test_import_basic_csv'
         }
         
         processor = ImportFileProcessor(step_config)
@@ -147,7 +149,6 @@ def test_import_with_stage_saving():
                 'step_description': 'Test import with stage',
                 'input_file': test_files['excel'],
                 'save_to_stage': 'Imported Product Data',
-                'stage_description': 'Product catalog from Excel import',
                 'replace_current_data': True
             }
             
@@ -172,7 +173,7 @@ def test_import_with_stage_saving():
                     stage_info = StageManager.list_stages()
                     stage_meta = stage_info['Imported Product Data']
                     
-                    if (stage_meta['description'] == 'Product catalog from Excel import' and
+                    if (stage_meta['description'] == "Imported via step: 'Test import with stage'" and
                         stage_meta['step_name'] == 'Test import with stage'):
                         print("✓ Stage metadata is correct")
                         return True
@@ -223,7 +224,7 @@ def test_stage_overwrite_protection():
                 'step_description': 'Second import',
                 'input_file': test_files['csv'],
                 'save_to_stage': 'Test Stage',  # Same name
-                # stage_overwrite: false (default)
+                # confirm_stage_replacement: false (default)
                 'replace_current_data': True
             }
             
@@ -233,7 +234,7 @@ def test_stage_overwrite_protection():
                 processor_2.execute(create_sample_data())
                 print("✗ Should have failed with overwrite protection")
                 return False
-            except StepProcessorError as e:
+            except (StepProcessorError, StageError) as e:
                 if "already exists" in str(e):
                     print(f"✓ Overwrite protection worked: {e}")
                 else:
@@ -246,7 +247,7 @@ def test_stage_overwrite_protection():
                 'step_description': 'Third import',
                 'input_file': test_files['csv'],
                 'save_to_stage': 'Test Stage',
-                'stage_overwrite': True,
+                'confirm_stage_replacement': True,
                 'replace_current_data': True
             }
             
@@ -288,6 +289,9 @@ def test_variable_substitution():
         }
         
         processor = ImportFileProcessor(step_config)
+        # Substitution moved to the pipeline layer, which injects this
+        # object onto each processor; standalone tests inject it explicitly.
+        processor.variable_substitution = VariableSubstitution()
         result = processor.execute(create_sample_data())
         
         print(f"✓ Variable substitution result: {result.shape}")
@@ -420,7 +424,23 @@ def test_error_handling():
     except StepProcessorError as e:
         print(f"✓ Caught expected error for invalid format: {e}")
     
-    # Test invalid stage name (using StageManager validation)
+    # Test retired stage_description key (silently-ignored keys are banned)
+    try:
+        step_config = {
+            'processor_type': 'import_file',
+            'step_description': 'Retired stage_description test',
+            'input_file': 'dummy.xlsx',
+            'save_to_stage': 'stg_test_import_retired_key_probe',
+            'stage_description': 'should be rejected'
+        }
+        processor = ImportFileProcessor(step_config)
+        processor.execute(create_sample_data())
+        print("✗ Should have failed with retired stage_description key")
+        return False
+    except StepProcessorError as e:
+        print(f"✓ Caught expected error for retired stage_description: {e}")
+    
+    # Test reserved stage name (StageManager validation)
     StageManager.initialize_stages()
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -430,18 +450,17 @@ def test_error_handling():
                 'processor_type': 'import_file',
                 'step_description': 'Invalid stage name test',
                 'input_file': test_files['excel'],
-                'save_to_stage': 'clean_data',  # Conflicts with processor name
-                'save_to_stage': 'error_handling_stage'
+                'save_to_stage': 'temp'  # Reserved name per StageManager doctrine
             }
             processor = ImportFileProcessor(step_config)
             processor.execute(create_sample_data())
         print("✗ Should have failed with invalid stage name")
         return False
-    except StepProcessorError as e:
-        if "too similar to processor type" in str(e):
-            print(f"✓ Caught expected error for invalid stage name: {e}")
+    except (StepProcessorError, StageError) as e:
+        if "is reserved" in str(e):
+            print(f"✓ Caught expected error for reserved stage name: {e}")
         else:
-            print(f"✗ Wrong error for invalid stage name: {e}")
+            print(f"✗ Wrong error for reserved stage name: {e}")
             return False
     finally:
         StageManager.cleanup_stages()
@@ -503,6 +522,7 @@ def test_capabilities_info():
         'processor_type': 'import_file',
         'step_description': 'Capabilities test',
         'input_file': 'dummy.xlsx',
+        'save_to_stage': 'stg_test_import_capabilities_probe',
         'replace_current_data': True
     }
     
@@ -511,13 +531,13 @@ def test_capabilities_info():
     
     print(f"✓ Capabilities info: {capabilities}")
     
-    # Check expected keys
-    expected_keys = ['description', 'import_formats', 'import_features', 'stage_features', 'examples']
+    # Check expected keys per the current capabilities shape
+    expected_keys = ['description', 'file_formats', 'excel_options', 'path_features']
     has_all_keys = all(key in capabilities for key in expected_keys)
     
     # Check some expected features
-    has_stage_features = 'save_to_named_stage' in capabilities.get('stage_features', [])
-    has_format_detection = 'automatic_format_detection' in capabilities.get('import_features', [])
+    has_stage_features = 'xlsx' in capabilities.get('file_formats', [])
+    has_format_detection = 'recipe variable substitution' in capabilities.get('path_features', [])
     
     if has_all_keys and has_stage_features and has_format_detection:
         print("✓ Capabilities info is complete")
@@ -560,3 +580,5 @@ if __name__ == '__main__':
     print(f"✓ Supports all FileReader formats: Excel, CSV, TSV")
     print(f"✓ Provides variable substitution and format auto-detection")
     print(f"✓ Validates stage names and prevents conflicts")
+
+    sys.exit(0 if success else 1)

@@ -816,6 +816,45 @@ def test_backward_compatibility():
         return False
 
 
+def test_blank_keyed_groups_retained():
+    """Rows with NaN in a group key form blank-keyed groups, never vanish.
+
+    Doctrine (2026-08-17): pandas' groupby default dropna=True does not
+    merge NaN keys - it silently DELETES those rows. Found in production
+    when the live GROUPBY view showed 11 more groups than the static
+    summary: booked vans without tracking numbers had been vanishing
+    (13 vans, ~679k lbs). aggregate_data passes dropna=False and logs
+    the blank-keyed row count with the affected key columns named.
+    """
+    print("\nTesting blank-keyed group retention...")
+
+    import pandas as pd
+    frame = pd.DataFrame({
+        'Booking': ['B1', 'B1', 'B2', 'B2', 'B3'],
+        'Tracking': ['T1', 'T1', None, None, 'T3'],
+        'Weight': [100.0, 50.0, 200.0, 25.0, 10.0],
+    })
+    processor = AggregateDataProcessor({
+        'processor_type': 'aggregate_data',
+        'source_stage': 'stg_blank_key_seed',
+        'save_to_stage': 'stg_blank_key_out',
+        'group_by': ['Booking', 'Tracking'],
+        'aggregations': [{'column': 'Weight', 'function': 'sum',
+                          'new_column_name': 'Total'}],
+    })
+    result = processor.execute(frame)
+    passed = True
+    for actual, expected, label in [
+            (len(result), 3, 'group count (blank-keyed group present)'),
+            (float(result['Total'].sum()), 385.0, 'total weight (no silent loss)')]:
+        if actual == expected:
+            print(f"  ✓ {label}: {actual}")
+        else:
+            print(f"  ✗ {label}: {actual} != {expected}")
+            passed = False
+    return passed
+
+
 if __name__ == '__main__':
     print("Testing AggregateDataProcessor refactoring...")
     success = True
@@ -848,6 +887,10 @@ if __name__ == '__main__':
     success &= test_analysis_method()
     success &= test_capabilities_method()
     
+    # Doctrine tests
+    print("\n=== Testing Blank-Key Retention Doctrine ===")
+    success &= test_blank_keyed_groups_retained()
+
     # Error handling and compatibility tests
     print("\n=== Testing Error Handling and Compatibility ===")
     setup_test_stages()  # Need stages for error testing

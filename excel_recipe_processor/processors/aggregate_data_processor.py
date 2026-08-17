@@ -480,8 +480,26 @@ class AggregateDataProcessor(BaseStepProcessor):
         if isinstance(aggregations, dict):
             aggregations = [aggregations]
         
-        # Create the groupby object
-        grouped = df.groupby(group_by, sort=sort_by_groups)
+        # Create the groupby object. dropna=False is DOCTRINE
+        # (2026-08-17): pandas' default dropna=True does not merge
+        # NaN-keyed rows - it silently DELETES them from the result.
+        # Found in production when the live GROUPBY summary view showed
+        # 11 more groups than the static tab: every booked van without
+        # a tracking number had been quietly vanishing from the summary
+        # (13 vans, ~679k lbs). Blank keys are real groups; Excel's
+        # GROUPBY keeps them as "" and so do we. Rows with blank keys
+        # are counted and named in the completion log below.
+        grouped = df.groupby(group_by, sort=sort_by_groups, dropna=False)
+
+        blank_key_rows = int(df[group_by].isna().any(axis=1).sum())
+        if blank_key_rows:
+            blank_columns = [column for column in group_by
+                             if df[column].isna().any()]
+            logger.info(
+                f"{blank_key_rows} row(s) have blank values in group "
+                f"key(s) {blank_columns} - kept as blank-keyed groups "
+                f"(dropna=False doctrine, 2026-08-17)"
+            )
         
         # Build aggregation dictionary for pandas
         agg_dict = {}

@@ -130,6 +130,26 @@ a "Reading file (N bytes)" line, and an unconditional per-sheet
 "scanning N cell(s)..." line - silence during legitimate work is its
 own defect.
 
+## Heartbeat (field ruling, same day)
+
+The second field run pegged one core for minutes after the scanning
+line with no further output - unreproducible in the sandbox, where
+the meanest Excel-realistic synthetic (44 MB, long escaped formulas,
+cm attrs, sparse styled cells) strips in under 3s. Leading suspect
+for the field gap: memory pressure (an 8 GB machine holding the
+decompressed workbook + working strings alongside Dropbox and Excel
+can swap, which presents exactly as one pegged thread crawling).
+
+Ruling: a long-running processor must issue running commentary every
+few seconds. The sheet rewrite is now ROW-CHUNKED - cells never span
+<row> elements, so splitting on row boundaries is surgery-neutral
+(byte-identical output asserted at scale) - with a time-gated
+heartbeat every 5s: cells done/total, rate, and an ETA. A completion
+line reports total elapsed when work exceeded one heartbeat. Bonus
+diagnostic: if any row range ever behaves pathologically, the
+heartbeat pinpoints WHERE it stalls, turning an opaque hang into a
+bisectable row number.
+
 ## Standing limits
 
 Reclaims space in STORED copies; the next user save re-caches (that

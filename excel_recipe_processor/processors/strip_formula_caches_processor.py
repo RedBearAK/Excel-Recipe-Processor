@@ -47,6 +47,7 @@ sheet, including every refused cell (capped per class).
 
 import os
 import re
+import time
 import shutil
 import zipfile
 import logging
@@ -81,6 +82,7 @@ from excel_recipe_processor.processors._helpers.strip_formula_caches_rgx import 
 logger = logging.getLogger(__name__)
 
 REPORT_NAME_CAP = 10
+HEARTBEAT_SECONDS = 5.0
 
 
 def column_letters_to_number(letters: str) -> int:
@@ -444,7 +446,38 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
             counts['spill_removed'] += 1
             return ''
 
-        return cell_element_rgx.sub(rewrite, xml), counts
+        # Row-chunked processing with a heartbeat (2026-08-17 field
+        # ruling): a long-running strip must issue running commentary
+        # every few seconds - and if any row range ever behaves
+        # pathologically, the heartbeat pinpoints WHERE. Cells never
+        # span <row> elements, so splitting on row boundaries is
+        # surgery-neutral; the preamble and tail segments carry no
+        # cells and pass through the same sub as a no-op.
+        segments = re.split(r'(?=<row[ >])', xml)
+        total_cells = xml.count('<c ')
+        done_cells = 0
+        started = time.monotonic()
+        last_beat = started
+        rebuilt = []
+        for segment in segments:
+            rebuilt.append(cell_element_rgx.sub(rewrite, segment))
+            done_cells += segment.count('<c ')
+            now = time.monotonic()
+            if now - last_beat >= HEARTBEAT_SECONDS:
+                last_beat = now
+                elapsed = now - started
+                rate = done_cells / elapsed if elapsed > 0 else 0
+                remaining = ((total_cells - done_cells) / rate
+                             if rate > 0 else 0)
+                logger.info(
+                    f"  [{sheet_name}] {done_cells:,}/{total_cells:,} "
+                    f"cell(s), {rate:,.0f}/s, ~{remaining:,.0f}s left...")
+        elapsed = time.monotonic() - started
+        if elapsed >= HEARTBEAT_SECONDS:
+            logger.info(
+                f"  [{sheet_name}] done: {total_cells:,} cell(s) in "
+                f"{elapsed:,.1f}s")
+        return ''.join(rebuilt), counts
 
     def _force_recalc_flags(self, workbook_xml: str) -> str:
         def rebuild(match):

@@ -963,8 +963,22 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Write one object and record the outcome in the results dictionary."""
         name = obj.get('name', 'unknown')
 
+        # Definition translation errors raise UNCONDITIONALLY
+        # (2026-08-17): a definition the storage transformer rejects is
+        # a recipe error, and on_existing is a name-COLLISION policy -
+        # it must not decide whether a broken definition is fatal. The
+        # old coupling swallowed a transformer rejection into a
+        # warning, the completion line reported only
+        # written/replaced/skipped, and a library formula silently
+        # never reached the workbook.
         try:
             definition = self._definition_for_write(obj)
+        except (StepProcessorError, ValueError) as error:
+            raise StepProcessorError(
+                f"Named object '{name}': definition cannot be stored: {error}"
+            ) from error
+
+        try:
             outcome = self.write_named_object(
                 workbook, name, definition, sheet_name, on_existing, name_validation
             )
@@ -1131,10 +1145,14 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         finally:
             pass  # the session owns the workbook's lifetime
 
+        failed_note = ""
+        if results.get('failed'):
+            failed_names = ', '.join(entry['name'] for entry in results['failed'])
+            failed_note = f", {len(results['failed'])} FAILED: {failed_names}"
         logger.info(
             f"Imported named objects into '{target_file}': "
             f"{len(results['written'])} written, {len(results['replaced'])} replaced, "
-            f"{len(results['skipped'])} skipped"
+            f"{len(results['skipped'])} skipped{failed_note}"
         )
 
         return {

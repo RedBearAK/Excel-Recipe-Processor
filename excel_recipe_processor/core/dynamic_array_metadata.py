@@ -230,7 +230,7 @@ def declare_dynamic_formulas_in_zip(source, destination_path, extra_functions=No
         f"{report['cells_completed']} completed, "
         f"{report['cells_already_declared']} already declared, "
         f"{report['cells_shared_skipped']} shared-formula cell(s) skipped "
-        f"({Path(destination_path).name})"
+        f"({Path(destination_path).name if not hasattr(destination_path, 'write') else '<buffer>'})"
     )
 
     return report
@@ -547,8 +547,16 @@ def _write_all_members(members: dict, destination_path) -> None:
     Write the package to disk via a sibling temp file, then move it over.
 
     The temp-then-replace keeps a crash mid-write from leaving a truncated
-    file at the destination path.
+    file at the destination path. A FILE-LIKE destination (e.g. BytesIO,
+    for the verify_excel_storage session audit) writes directly - crash
+    safety is meaningless for a buffer.
     """
+    if hasattr(destination_path, 'write'):
+        with zipfile.ZipFile(destination_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+            for member_name, member_bytes in members.items():
+                archive.writestr(member_name, member_bytes)
+        return
+
     destination = Path(destination_path)
     if not destination.parent.is_dir():
         raise DynamicArrayMetadataError(

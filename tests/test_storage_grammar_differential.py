@@ -49,62 +49,11 @@ FIXTURE = os.path.join(os.path.dirname(__file__), 'fixtures',
 DEMO_OUTPUT = '/tmp/demo/interactive_test.xlsx'
 
 
-def audit_stored_grammar(xlsx_path: str) -> list:
-    """Violation strings for every stored-formula surface in a workbook.
-
-    Empty list means the file carries none of the violation classes this
-    project has shipped, repaired, and pinned. Candidate for promotion
-    into a verify_excel_storage processor.
-    """
-    violations = []
-
-    with zipfile.ZipFile(xlsx_path) as archive:
-        surfaces = []
-
-        workbook_xml = archive.read('xl/workbook.xml').decode()
-        for match in re.finditer(
-                r'<definedName name="([^"]+)"[^>]*>(.*?)</definedName>',
-                workbook_xml, re.S):
-            surfaces.append((f"definedName {match.group(1)}",
-                             match.group(2), True))
-
-        for name in archive.namelist():
-            if not re.match(r'xl/worksheets/sheet\d+\.xml$', name):
-                continue
-            sheet_xml = archive.read(name).decode()
-            for match in re.finditer(r'<c r="([A-Z]+\d+)"[^>]*><f[^>]*>(.*?)</f>',
-                                     sheet_xml, re.S):
-                surfaces.append((f"{name}!{match.group(1)}",
-                                 match.group(2), False))
-            for match in re.finditer(r'<formula([12])>(.*?)</formula\1>',
-                                     sheet_xml, re.S):
-                surfaces.append((f"{name} DV formula{match.group(1)}",
-                                 match.group(2), True))
-
-    for where, raw, equals_forbidden in surfaces:
-        stored = raw.replace('&quot;', '"').replace('&lt;', '<') \
-                    .replace('&gt;', '>').replace('&amp;', '&')
-        bare = STRING_RGX.sub('""', stored)
-
-        if equals_forbidden and stored.lstrip().startswith('='):
-            violations.append(f"{where}: stored leading '='")
-        if '#' in bare:
-            violations.append(f"{where}: literal '#' outside strings")
-        if BAD_PREFIX_CHAIN_RGX.search(bare):
-            violations.append(f"{where}: chained storage prefixes")
-        for name_match in XLFN_NAME_RGX.finditer(bare):
-            if name_match.group(1).upper() not in FUTURE_FUNCTION_PREFIXES:
-                violations.append(
-                    f"{where}: _xlfn on unmapped {name_match.group(1)!r}")
-        for construct in CONSTRUCT_RGX.finditer(bare):
-            tail = bare[construct.end():construct.end() + 60]
-            first_slot = tail.split(',', 1)[0].strip()
-            if first_slot and not first_slot.startswith('_xlpm.'):
-                violations.append(
-                    f"{where}: {construct.group(1)} declaration "
-                    f"{first_slot[:20]!r} lacks _xlpm.")
-
-    return violations
+# audit_stored_grammar PROMOTED (2026-08-16) to
+# core/excel_storage_audit.py, one truth shared with the
+# verify_excel_storage processor; imported here so every existing
+# caller keeps working.
+from excel_recipe_processor.core.excel_storage_audit import audit_stored_grammar  # noqa
 
 
 def test_prefix_map_differential():

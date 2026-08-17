@@ -516,6 +516,7 @@ from excel_recipe_processor.processors.profile_files_processor          import P
 from excel_recipe_processor.processors.profile_named_objects_processor  import ProfileNamedObjectsProcessor
 from excel_recipe_processor.processors.profile_sheets_processor         import ProfileSheetsProcessor
 from excel_recipe_processor.processors.profile_workbooks_processor      import ProfileWorkbooksProcessor
+from excel_recipe_processor.processors.verify_excel_storage_processor   import VerifyExcelStorageProcessor
 from excel_recipe_processor.processors.deduplicate_data_processor      import DeduplicateDataProcessor
 from excel_recipe_processor.processors.free_stages_processor           import FreeStagesProcessor
 from excel_recipe_processor.processors.verify_columns_processor        import VerifyColumnsProcessor
@@ -551,6 +552,7 @@ def register_standard_processors():
     registry.register('profile_named_objects',          ProfileNamedObjectsProcessor        )
     registry.register('profile_sheets',                 ProfileSheetsProcessor              )
     registry.register('profile_workbooks',              ProfileWorkbooksProcessor           )
+    registry.register('verify_excel_storage',           VerifyExcelStorageProcessor         )
     registry.register('free_stages',                    FreeStagesProcessor                 )
     registry.register('verify_columns',                 VerifyColumnsProcessor              )
     registry.register('verify_data',                    VerifyDataProcessor                 )

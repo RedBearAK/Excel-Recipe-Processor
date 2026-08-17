@@ -32,24 +32,12 @@ STORED_LAMBDA = ('_xlfn.LAMBDA(_xlpm.criteria,fn_blank_safe('
                  '_xlfn._xlws.FILTER(rng_all,_xlpm.criteria,"none")))')
 
 
-def assert_no_legacy_cse(path):
-    """Every t="array" formula cell must carry cm - else legacy braces.
-
-    Returns a list of (sheet part, cell ref) violations; empty is clean.
-    """
-    violations = []
-    with zipfile.ZipFile(path) as archive:
-        for member in archive.namelist():
-            if not member.startswith('xl/worksheets/'):
-                continue
-            xml = archive.read(member).decode('utf-8')
-            for cell in re.finditer(r'<c [^>]*>.*?</c>', xml, re.S):
-                cell_text = cell.group(0)
-                if 't="array"' in cell_text and 'cm="' not in \
-                        cell_text.split('>', 1)[0]:
-                    ref = re.search(r'r="([A-Z]+\d+)"', cell_text)
-                    violations.append((member, ref.group(1) if ref else '?'))
-    return violations
+# The legacy-CSE sweep PROMOTED (2026-08-16) to
+# core/excel_storage_audit.py as audit_legacy_cse; the local name stays
+# for existing callers.
+from excel_recipe_processor.core.excel_storage_audit import (  # noqa
+    audit_legacy_cse as assert_no_legacy_cse,
+)
 
 
 def build_lambda_workbook(path):

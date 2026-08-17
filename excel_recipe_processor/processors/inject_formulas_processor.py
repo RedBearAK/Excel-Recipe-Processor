@@ -39,6 +39,9 @@ from excel_recipe_processor.processors._helpers.inject_formulas_functions import
     prefix_future_functions,
     transform_storage_forms,
 )
+from excel_recipe_processor.processors._helpers.xlpm_name_storage import (
+    transform_xlpm_names,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -419,14 +422,28 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         if mode == 'live' and not formula.startswith('='):
             formula = '=' + formula
         
+        # LET/LAMBDA declared names gain _xlpm. (optional parameters
+        # _xlop.) via the same transformer the library import path uses -
+        # and it must run FIRST, on the display form: once the prefix
+        # pass rewrites LET( to _xlfn.LET(, the name scanner no longer
+        # recognizes the construct. (Wired 2026-08-17 after the storage
+        # audit caught a cell-level LET stored bare; the 2026-08-14
+        # refusal guard was retired for the capability, but only
+        # manage_named_objects was calling it.) Live storage only.
+        if mode == 'live':
+            try:
+                formula = transform_xlpm_names(formula)
+            except ValueError as error:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': {error}"
+                )
+
         # Functions added after the 2007 format must be STORED with an
         # _xlfn. prefix or Excel shows #NAME?; see the prefix map for why.
         formula = self._prefix_future_functions(formula)
 
         # Display syntax that Excel stores differently: spill '#' refs
-        # become ANCHORARRAY(...), bare eta aggregations gain _xleta.,
-        # and a LAMBDA(...) is refused (its _xlpm. parameter storage is
-        # not implemented; stored bare it gets stripped by Excel repair).
+        # become ANCHORARRAY(...) and bare eta aggregations gain _xleta.
         # Live storage only - dead formulas are documentation text and
         # keep the display forms the reader would type.
         if mode == 'live':

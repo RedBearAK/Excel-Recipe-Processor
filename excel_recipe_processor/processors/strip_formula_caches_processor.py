@@ -248,6 +248,15 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
             )
         before_bytes = os.path.getsize(path)
 
+        # Backup FIRST, before any read or analysis (ruling,
+        # 2026-08-17): whatever happens after this line, the original
+        # bytes already exist twice.
+        if self.create_backup:
+            shutil.copy2(path, path + '.stripbak')
+            logger.info(f"Backup written: {path}.stripbak")
+
+        logger.info(f"Reading '{os.path.basename(path)}' "
+                    f"({before_bytes:,} bytes)...")
         with zipfile.ZipFile(path, 'r') as archive:
             names = archive.namelist()
             contents = {name: archive.read(name) for name in names}
@@ -262,8 +271,10 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
                 continue
             if not self.scope.sheet_in_scope(sheet_name):
                 continue
-            new_xml, counts = self._strip_sheet(
-                contents[part_name].decode('utf-8'), sheet_name)
+            sheet_xml = contents[part_name].decode('utf-8')
+            cell_count = sheet_xml.count('<c ')
+            logger.info(f"  [{sheet_name}] scanning {cell_count:,} cell(s)...")
+            new_xml, counts = self._strip_sheet(sheet_xml, sheet_name)
             contents[part_name] = new_xml.encode('utf-8')
             if any((counts['stripped'], counts['spill_removed'],
                     counts['spill_blanked'], counts['external_skipped'],
@@ -292,9 +303,6 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
                 rels = contents[rels_name].decode('utf-8')
                 contents[rels_name] = calc_chain_rel_rgx.sub(
                     '', rels).encode('utf-8')
-
-        if self.create_backup:
-            shutil.copy2(path, path + '.stripbak')
 
         directory = os.path.dirname(os.path.abspath(path))
         handle, temp_path = tempfile.mkstemp(dir=directory, suffix='.tmp')
@@ -341,29 +349,35 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
         counts = {'stripped': 0, 'spill_removed': 0, 'spill_blanked': 0,
                   'external_skipped': [], 'inline_skipped': []}
 
-        # Pass 1: collect in-scope array anchor extents.
+        # Pass 1: collect in-scope array anchor extents. Gated on a
+        # substring check first - most sheets have no array formulas,
+        # and scanning three-quarters of a million cells to learn that
+        # is the difference between milliseconds and seconds
+        # (production-scale lesson, 2026-08-17).
         spill_spans = []
-        for match in cell_element_rgx.finditer(xml):
-            body = match.group('body') or ''
-            ref_match = array_formula_ref_rgx.search(body)
-            if not ref_match:
-                continue
-            anchor_ref = cell_ref_attr_rgx.search(match.group('attrs'))
-            if not anchor_ref:
-                continue
-            anchor_col = column_letters_to_number(anchor_ref.group(1))
-            anchor_row = int(anchor_ref.group(2))
-            if not self.scope.cell_in_scope(sheet_name, anchor_col, anchor_row):
-                continue
-            first = ref_match.group(1)
-            last = ref_match.group(2) or first
-            fm = cell_ref_attr_rgx.match(f'r="{first}"')
-            lm = cell_ref_attr_rgx.match(f'r="{last}"')
-            spill_spans.append((
-                column_letters_to_number(fm.group(1)), int(fm.group(2)),
-                column_letters_to_number(lm.group(1)), int(lm.group(2)),
-                (anchor_col, anchor_row),
-            ))
+        if 't="array"' in xml:
+            for match in cell_element_rgx.finditer(xml):
+                body = match.group('body') or ''
+                ref_match = array_formula_ref_rgx.search(body)
+                if not ref_match:
+                    continue
+                anchor_ref = cell_ref_attr_rgx.search(match.group('attrs'))
+                if not anchor_ref:
+                    continue
+                anchor_col = column_letters_to_number(anchor_ref.group(1))
+                anchor_row = int(anchor_ref.group(2))
+                if not self.scope.cell_in_scope(sheet_name, anchor_col,
+                                                anchor_row):
+                    continue
+                first = ref_match.group(1)
+                last = ref_match.group(2) or first
+                fm = cell_ref_attr_rgx.match(f'r="{first}"')
+                lm = cell_ref_attr_rgx.match(f'r="{last}"')
+                spill_spans.append((
+                    column_letters_to_number(fm.group(1)), int(fm.group(2)),
+                    column_letters_to_number(lm.group(1)), int(lm.group(2)),
+                    (anchor_col, anchor_row),
+                ))
 
         def in_spill(column, row):
             for c1, r1, c2, r2, anchor in spill_spans:
@@ -371,30 +385,42 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
                     return anchor
             return None
 
-        def rewrite(match):
-            attrs = match.group('attrs')
-            body = match.group('body')
+        unrestricted = self.scope.match_all and not spill_spans
+
+        def cell_label_of(attrs):
             ref = cell_ref_attr_rgx.search(attrs)
-            if not ref:
+            return f'{ref.group(1)}{ref.group(2)}' if ref else '?'
+
+        def rewrite(match):
+            body = match.group('body')
+            # Fast bail for the overwhelming majority: a cell with no
+            # formula, on a sheet slice with no spill spans, cannot be
+            # touched - return it before any reference parsing. On a
+            # production-scale sheet (745k cells, 68k formulas) this
+            # single check removes ~90% of the callback cost.
+            if (not body or '<f' not in body) and not spill_spans:
                 return match.group(0)
-            column = column_letters_to_number(ref.group(1))
-            row = int(ref.group(2))
-            cell_label = f'{ref.group(1)}{ref.group(2)}'
+            attrs = match.group('attrs')
 
-            has_formula = bool(body and formula_element_rgx.search(body))
-            has_value = bool(body and value_element_rgx.search(body))
-
-            if has_formula:
-                if not self.scope.cell_in_scope(sheet_name, column, row):
-                    return match.group(0)
-                if external_workbook_ref_rgx.search(
-                        formula_element_rgx.search(body).group(0)):
-                    counts['external_skipped'].append(cell_label)
+            formula = body and formula_element_rgx.search(body)
+            if formula:
+                # Whole-workbook runs (the common case) need no cell
+                # address at all unless refusing - parse lazily.
+                if not unrestricted:
+                    ref = cell_ref_attr_rgx.search(attrs)
+                    if not ref:
+                        return match.group(0)
+                    column = column_letters_to_number(ref.group(1))
+                    row = int(ref.group(2))
+                    if not self.scope.cell_in_scope(sheet_name, column, row):
+                        return match.group(0)
+                if external_workbook_ref_rgx.search(formula.group(0)):
+                    counts['external_skipped'].append(cell_label_of(attrs))
                     return match.group(0)
                 if inline_string_rgx.search(body):
-                    counts['inline_skipped'].append(cell_label)
+                    counts['inline_skipped'].append(cell_label_of(attrs))
                     return match.group(0)
-                if not has_value:
+                if '<v' not in body:
                     return match.group(0)
                 new_body = value_element_rgx.sub('', body)
                 new_attrs = cell_type_attr_rgx.sub('', attrs)
@@ -402,6 +428,11 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
                 return f'<c{new_attrs}>{new_body}</c>'
 
             # Value-only cell: touch ONLY inside an in-scope spill.
+            ref = cell_ref_attr_rgx.search(attrs)
+            if not ref:
+                return match.group(0)
+            column = column_letters_to_number(ref.group(1))
+            row = int(ref.group(2))
             anchor = in_spill(column, row)
             if anchor is None or (column, row) == anchor:
                 return match.group(0)

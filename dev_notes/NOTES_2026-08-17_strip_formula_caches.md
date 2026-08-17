@@ -98,6 +98,38 @@ unattended surgery). strip_excel_caches.yaml (generic one-step
 recipe): takes target_file as a required external variable; stub and
 recipe live side by side in the tech bin.
 
+## Production-scale performance (added after the first real run)
+
+The first field run sat silent for 30+ seconds: the rewriter visited
+all ~745,000 VMS cells with a Python callback each, paying
+reference-parsing regex costs on literal cells that could never be
+touched. Three fixes, same correctness (byte-identical results
+asserted at scale): (1) a fast bail - a cell with no '<f' on a sheet
+with no spill spans returns before ANY parsing, removing ~90% of
+callback cost; (2) pass 1 (array-anchor collection) gated on a
+'t="array"' substring check, so spill-free sheets skip the full scan
+entirely; (3) cell addresses parsed LAZILY - whole-workbook runs need
+no address unless refusing. Benchmark on a synthetic
+9,675x77 / 67,725-formula sheet: 4.5s -> 1.74s sandbox CPU. Sheets
+over 100k cells now log a "scanning N cells..." line so long runs
+show life. Lesson recorded: drills must include a production-SCALE
+fixture, not just a production-SHAPED one.
+
+## Field-run refinements (same day)
+
+Backup order: the first field run showed no .stripbak while the
+analysis ground on - the backup had been sequenced after analysis,
+right before the write. Ruling: the backup is the FIRST action, before
+any read; whatever happens after that line, the original bytes exist
+twice. The write itself remains atomic (in-memory copy + temp file +
+os.replace), so interrupting at ANY point leaves the original file
+untouched - a stray .tmp beside it at worst.
+
+Visibility: the run also sat silent at full CPU. Now: a backup line,
+a "Reading file (N bytes)" line, and an unconditional per-sheet
+"scanning N cell(s)..." line - silence during legitimate work is its
+own defect.
+
 ## Standing limits
 
 Reclaims space in STORED copies; the next user save re-caches (that

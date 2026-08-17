@@ -137,6 +137,12 @@ def run_main(args: Namespace) -> int:
         else:
             logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
+        # Startup records buffer until the log-file decision: a recipe
+        # log_file attaches too late to see them live, so they are held
+        # and flushed as the file's opening lines - or discarded at the
+        # seam when nobody wants a file.
+        install_early_log_buffer()
+
         # CLI log file attaches from startup, so it captures everything
         # including recipe loading. A recipe-settings log_file attaches
         # later (it needs external variables resolved for paths like
@@ -164,6 +170,69 @@ def run_main(args: Namespace) -> int:
 
 
 _attached_log_files = {'cli': None, 'recipe': None}
+_attached_log_streams = []
+
+
+def mirror_print(text='') -> None:
+    """print() that also lands in any attached log file, verbatim.
+
+    The run summary and the blank separator lines are deliberately
+    UNPREFIXED terminal output (no 'INFO:'), so they live outside the
+    logging system and no FileHandler ever sees them - the tail of the
+    log file was silently missing the summary block until 2026-08-16.
+    This writes the same bytes to both places: the terminal via print,
+    and each attached log stream raw (no formatter, so the file matches
+    the terminal exactly). Before any attachment it is just print.
+    """
+    print(text)
+    for stream in _attached_log_streams:
+        try:
+            stream.write(str(text) + '\n')
+            stream.flush()
+        except Exception:
+            pass  # a dead stream must not kill the run for a log line
+
+
+class _EarlyLogBuffer(logging.Handler):
+    """Holds startup log records until the log-file decision is made.
+
+    A recipe's log_file directive cannot attach until external variables
+    resolve, but the loading lines are worth keeping - so this buffer
+    captures everything from startup, attach_log_file() flushes it as
+    the FILE'S OPENING LINES, and the pipeline discards it at the seam
+    when the recipe declines and no --log-file was given. Capped so a
+    pathological pre-seam flood cannot grow memory unbounded.
+    """
+
+    MAX_RECORDS = 1000
+
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        if len(self.records) < self.MAX_RECORDS:
+            self.records.append(record)
+
+
+_early_buffer = None
+
+
+def install_early_log_buffer() -> None:
+    """Start capturing startup records (called right after basicConfig)."""
+    global _early_buffer
+    if _early_buffer is None:
+        _early_buffer = _EarlyLogBuffer()
+        logging.getLogger().addHandler(_early_buffer)
+
+
+def discard_early_log_buffer() -> None:
+    """The decision point passed with no log file wanted: drop the buffer."""
+    global _early_buffer
+    if _early_buffer is not None:
+        logging.getLogger().removeHandler(_early_buffer)
+        _early_buffer.records.clear()
+        _early_buffer = None
 
 
 def attach_log_file(file_path, source='cli') -> bool:
@@ -201,8 +270,19 @@ def attach_log_file(file_path, source='cli') -> bool:
     resolved.parent.mkdir(parents=True, exist_ok=True)
     handler = logging.FileHandler(resolved, mode='w', encoding='utf-8')
     handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+
+    # The buffered startup lines become the FILE'S OPENING LINES - they
+    # already reached the terminal, so they flush to the file handler
+    # only, before it joins the root logger for live records.
+    global _early_buffer
+    if _early_buffer is not None:
+        for record in _early_buffer.records:
+            handler.handle(record)
+        discard_early_log_buffer()
+
     logging.getLogger().addHandler(handler)
     _attached_log_files[source] = str(resolved)
+    _attached_log_streams.append(handler.stream)
     logging.getLogger(__name__).info(f"🪵 Logging to file: {resolved}")
     return True
 
@@ -297,14 +377,15 @@ def process_recipe(args: Namespace) -> int:
             minutes, seconds = divmod(elapsed, 60)
             elapsed_text = f" in {int(minutes)}m {seconds:.1f}s" if minutes else f" in {seconds:.1f}s"
 
-        print(f"✓ Recipe completed successfully{elapsed_text}")
-        print(f"  Steps executed: {steps_executed}")
+        mirror_print()
+        mirror_print(f"✓ Recipe completed successfully{elapsed_text}")
+        mirror_print(f"  Steps executed: {steps_executed}")
         stages_freed = completion_report.get('stages_freed', [])
         if stages_freed:
-            print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")
+            mirror_print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")
         else:
-            print(f"  Data stages created: {len(stages_created)}")
-        print(f"  Data stages declared: {len(stages_declared)}")
+            mirror_print(f"  Data stages created: {len(stages_created)}")
+        mirror_print(f"  Data stages declared: {len(stages_declared)}")
         print()     # blank line to separate from next command prompt
         
         # Verbose stage details (preserving current behavior)

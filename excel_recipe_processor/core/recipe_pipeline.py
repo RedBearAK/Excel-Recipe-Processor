@@ -310,7 +310,8 @@ class RecipePipeline:
                     skipped_steps = len(recipe_steps) - (step_index + 1)
                     break
         
-        print()     # blank line to separate from last step logging in recipe
+        from excel_recipe_processor.core.main import mirror_print
+        mirror_print()  # separator; mirrored so the file keeps the spacing
         
         # Generate completion report
         self._completion_report = self._generate_completion_report()
@@ -465,9 +466,15 @@ class RecipePipeline:
                 resolved_log_path = self.substitute_template(str(log_file_template)) \
                     if self.variable_substitution else str(log_file_template)
                 attach_log_file(resolved_log_path, source='recipe')
+            else:
+                # The decision point: no recipe directive, and any CLI
+                # attach already consumed the buffer - drop what remains
+                from excel_recipe_processor.core.main import discard_early_log_buffer
+                discard_early_log_buffer()
 
             # Execute recipe
-            print()     # blank line to separate from earlier meta-info (here we go!)
+            from excel_recipe_processor.core.main import mirror_print
+            mirror_print()  # separator; mirrored so the file keeps the spacing
             logger.info("⚡ Starting recipe execution...")
             return self.execute_recipe()
             

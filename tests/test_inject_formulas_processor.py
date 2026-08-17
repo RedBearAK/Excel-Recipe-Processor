@@ -101,20 +101,23 @@ def test_basic_live_formula_injection():
             'processor_type': 'inject_formulas',
             'target_file': excel_file,
             'mode': 'live',
-            'formulas': [
-                {
-                    'cell': 'D2',
-                    'formula': '=B2*C2'
-                },
-                {
-                    'cell': 'D3',
-                    'formula': '=B3*C3'
-                },
-                {
-                    'cell': 'D5',
-                    'formula': '=SUM(D2:D4)'
-                }
-            ]
+            'sheets_to_receive_formulas': [{
+                'sheet_names': ['TestData'],
+                'formulas': [
+                    {
+                        'cell': 'D2',
+                        'formula': '=B2*C2'
+                    },
+                    {
+                        'cell': 'D3',
+                        'formula': '=B3*C3'
+                    },
+                    {
+                        'cell': 'D5',
+                        'formula': '=SUM(D2:D4)'
+                    }
+                ]
+            }]
         }
         
         # Execute processor
@@ -234,12 +237,15 @@ def test_range_formula_injection():
             'processor_type': 'inject_formulas',
             'target_file': excel_file,
             'mode': 'live',
-            'formulas': [
-                {
-                    'range': 'D2:D6',
-                    'formula': '=B2*C2'
-                }
-            ]
+            'sheets_to_receive_formulas': [{
+                'sheet_names': ['TestData'],
+                'formulas': [
+                    {
+                        'range': 'D2:D6',
+                        'formula': '=B2*C2'
+                    }
+                ]
+            }]
         }
         
         # Execute processor

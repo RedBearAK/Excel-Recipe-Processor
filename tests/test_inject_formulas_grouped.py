@@ -3,12 +3,14 @@ Grouped injection shape: sheets_to_receive_formulas entries, exclusivity, naming
 
 tests/test_inject_formulas_grouped.py
 
-sheets_to_receive_formulas (2026-08-17) is the grouped sibling of the broadcast
-sheet_names + formulas pair, parallel to export_file's
-sheets_to_create: a list of entries, each pairing ONE sheet_name with
-its OWN formulas list, so one step injects different formulas into
-different sheets. A step uses exactly one of the two shapes; entry
-validation and per-sheet failures name the entry and the sheet.
+sheets_to_receive_formulas (2026-08-17) is the SOLE live injection
+shape: a list of entries, each pairing a sheet_names LIST with its own
+formulas. One entry with many sheets is the old broadcast; many
+entries give per-sheet formulas; both compose in one step. The
+top-level sheet_names + formulas broadcast pair is retired for live
+mode with a guided error, the singular per-entry sheet_name key is
+guided to the plural list, and per-sheet failures name the entry and
+the sheet.
 
 Runnable standalone or under pytest; the exit code carries the verdict.
 """
@@ -62,9 +64,9 @@ def test_grouped_injects_per_sheet():
     target = run_step({
         'mode': 'live',
         'sheets_to_receive_formulas': [
-            {'sheet_name': 'View_A',
+            {'sheet_names': ['View_A'],
              'formulas': [{'cell': 'A2', 'formula': '=1+1'}]},
-            {'sheet_name': 'View_B',
+            {'sheet_names': ['View_B'],
              'formulas': [{'cell': 'A2', 'formula': '=2+2'},
                           {'cell': 'B2', 'formula': '=3+3'}]},
         ],
@@ -82,25 +84,82 @@ def test_grouped_injects_per_sheet():
     return passed
 
 
-def test_both_shapes_rejected():
-    """Broadcast keys beside sheets_to_receive_formulas fail with guidance."""
-    print("\nTesting shape exclusivity...")
+def test_broadcast_pair_retired():
+    """Top-level sheet_names/formulas in live mode fail with guidance."""
+    print("\nTesting the broadcast retirement...")
 
     try:
         run_step({
             'mode': 'live',
             'sheet_names': ['View_A'],
             'formulas': [{'cell': 'A2', 'formula': '=1'}],
-            'sheets_to_receive_formulas': [
-                {'sheet_name': 'View_B',
-                 'formulas': [{'cell': 'A2', 'formula': '=2'}]}],
         })
-        print("  ✗ both shapes accepted")
+        print("  ✗ retired broadcast pair accepted")
         return False
     except StepProcessorError as error:
-        ok = 'EITHER' in str(error) and 'sheets_to_receive_formulas' in str(error)
-        print(f"  {'✓' if ok else '✗'} guided: {str(error)[:90]}")
+        message = str(error)
+        ok = ('retired' in message
+              and 'sheets_to_receive_formulas' in message
+              and 'one entry' in message)
+        print(f"  {'✓' if ok else '✗'} guided: {message[:90]}")
         return ok
+
+
+def test_singular_entry_key_guided():
+    """Per-entry sheet_name (singular) is guided to the plural list."""
+    print("\nTesting the singular-key guidance...")
+
+    try:
+        run_step({
+            'mode': 'live',
+            'sheets_to_receive_formulas': [
+                {'sheet_name': 'View_A',
+                 'formulas': [{'cell': 'A2', 'formula': '=1'}]}],
+        })
+        print("  ✗ singular sheet_name accepted")
+        return False
+    except StepProcessorError as error:
+        message = str(error)
+        ok = "singular 'sheet_name'" in message and 'LIST' in message
+        print(f"  {'✓' if ok else '✗'} guided: {message[:90]}")
+        return ok
+
+
+def test_scalar_sheet_names_guided():
+    """A bare-string sheet_names is guided to the list form."""
+    print("\nTesting the scalar-value guidance...")
+
+    try:
+        run_step({
+            'mode': 'live',
+            'sheets_to_receive_formulas': [
+                {'sheet_names': 'View_A',
+                 'formulas': [{'cell': 'A2', 'formula': '=1'}]}],
+        })
+        print("  ✗ bare-string sheet_names accepted")
+        return False
+    except StepProcessorError as error:
+        message = str(error)
+        ok = 'bare' in message and "['View_A']" in message
+        print(f"  {'✓' if ok else '✗'} guided: {message[:90]}")
+        return ok
+
+
+def test_one_entry_many_sheets():
+    """One entry's sheet_names list lands the same formulas on each."""
+    print("\nTesting the subsumed broadcast (one entry, many sheets)...")
+
+    target = run_step({
+        'mode': 'live',
+        'sheets_to_receive_formulas': [
+            {'sheet_names': ['View_A', 'View_B'],
+             'formulas': [{'cell': 'C2', 'formula': '=9'}]}],
+    })
+    workbook = openpyxl.load_workbook(target)
+    ok = (workbook['View_A']['C2'].value == '=9'
+          and workbook['View_B']['C2'].value == '=9')
+    print(f"  {'✓' if ok else '✗'} same formula on both listed sheets")
+    return ok
 
 
 def test_entry_validation_names_position():
@@ -111,9 +170,9 @@ def test_entry_validation_names_position():
         run_step({
             'mode': 'live',
             'sheets_to_receive_formulas': [
-                {'sheet_name': 'View_A',
+                {'sheet_names': ['View_A'],
                  'formulas': [{'cell': 'A2', 'formula': '=1'}]},
-                {'sheet_name': 'View_B'},
+                {'sheet_names': ['View_B']},
             ],
         })
         print("  ✗ entry without formulas accepted")
@@ -132,7 +191,7 @@ def test_unknown_entry_key_fails_loud():
         run_step({
             'mode': 'live',
             'sheets_to_receive_formulas': [
-                {'sheet_name': 'View_A', 'mode': 'dead',
+                {'sheet_names': ['View_A'], 'mode': 'dead',
                  'formulas': [{'cell': 'A2', 'formula': '=1'}]}],
         })
         print("  ✗ stray per-entry key accepted")
@@ -151,9 +210,9 @@ def test_per_sheet_failure_names_sheet():
         run_step({
             'mode': 'live',
             'sheets_to_receive_formulas': [
-                {'sheet_name': 'View_A',
+                {'sheet_names': ['View_A'],
                  'formulas': [{'cell': 'A2', 'formula': '=1'}]},
-                {'sheet_name': 'View_B',
+                {'sheet_names': ['View_B'],
                  'formulas': [{'cell': 'NOT_A_CELL', 'formula': '=2'}]},
             ],
         })
@@ -166,33 +225,19 @@ def test_per_sheet_failure_names_sheet():
         return ok
 
 
-def test_broadcast_shape_unchanged():
-    """The original sheet_names + formulas pair still works."""
-    print("\nTesting broadcast regression...")
-
-    target = run_step({
-        'mode': 'live',
-        'sheet_names': ['View_A', 'View_B'],
-        'formulas': [{'cell': 'C2', 'formula': '=9'}],
-    })
-    workbook = openpyxl.load_workbook(target)
-    ok = (workbook['View_A']['C2'].value == '=9'
-          and workbook['View_B']['C2'].value == '=9')
-    print(f"  {'✓' if ok else '✗'} same formula broadcast to both sheets")
-    return ok
-
-
 def main():
     """Run every test and report a final score."""
     print("=== grouped injection shape tests ===")
 
     tests = [
         test_grouped_injects_per_sheet,
-        test_both_shapes_rejected,
+        test_one_entry_many_sheets,
+        test_broadcast_pair_retired,
+        test_singular_entry_key_guided,
+        test_scalar_sheet_names_guided,
         test_entry_validation_names_position,
         test_unknown_entry_key_fails_loud,
         test_per_sheet_failure_names_sheet,
-        test_broadcast_shape_unchanged,
     ]
 
     passed = 0

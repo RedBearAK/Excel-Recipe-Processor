@@ -42,18 +42,20 @@ basic_example:
         # Values: "live" (dynamic formulas), "dead" (text formulas), "awaken" (convert dead to live)
         # Default value: "live"
         mode: "live"
-        # OPT - List of formulas to inject with cell locations
-        # Default value: [] (no formulas injected)
-        formulas:
-          # Individual cell formula
-          - cell: "D2"
-            formula: "=B2*C2"
-          # Another cell with percentage calculation
-          - cell: "E2"
-            formula: "=D2*0.1"
-          # Sum formula in total row
-          - cell: "D6"
-            formula: "=SUM(D2:D5)"
+        # REQ (live) - Entries pairing a sheet_names LIST with formulas
+        sheets_to_receive_formulas:
+          - # The export above writes the single sheet as "Data"
+            sheet_names: ["Data"]
+            formulas:
+              # Individual cell formula
+              - cell: "D2"
+                formula: "=B2*C2"
+              # Another cell with percentage calculation
+              - cell: "E2"
+                formula: "=D2*0.1"
+              # Sum formula in total row
+              - cell: "D6"
+                formula: "=SUM(D2:D5)"
 
 range_formulas_example:
   description: "Apply formulas to ranges and multiple sheets"
@@ -89,22 +91,22 @@ range_formulas_example:
         processor_type: "inject_formulas"
         target_file: "reports/financial_model.xlsx"
         mode: "live"
-        # OPT - Which sheets to process
-        # Values: None (active sheet), "all" (all sheets), sheet name, or list of sheet names
-        # Default value: None (active sheet only)
-        sheet_names: ["Revenue", "Expenses"]
-        formulas:
-          # Apply formula to entire column range
-          - range: "D2:D50"
-            formula: "=B2*C2"
-          # Tax calculation column
-          - range: "E2:E50"
-            formula: "=D2*{tax_rate}"
-          # Total formulas
-          - cell: "D51"
-            formula: "=SUM(D2:D50)"
-          - cell: "E51"
-            formula: "=SUM(E2:E50)"
+        # REQ (live) - one entry, both sheets: the same formulas land
+        # on each (the shape that subsumed the old broadcast pair)
+        sheets_to_receive_formulas:
+          - sheet_names: ["Revenue", "Expenses"]
+            formulas:
+              # Apply formula to entire column range
+              - range: "D2:D50"
+                formula: "=B2*C2"
+              # Tax calculation column
+              - range: "E2:E50"
+                formula: "=D2*{tax_rate}"
+              # Total formulas
+              - cell: "D51"
+                formula: "=SUM(D2:D50)"
+              - cell: "E51"
+                formula: "=SUM(E2:E50)"
 
 awaken_dead_formulas_example:
   description: "Convert dead formula text to live calculations"
@@ -229,13 +231,15 @@ comprehensive_dual_mode_example:
         processor_type: "inject_formulas"
         target_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
         mode: "live"
-        formulas:
-          - range: "E2:E100"
-            formula: "=D2*0.05"
-          - range: "F2:F100"
-            formula: "=IF(D2>C2,'Exceeds','Below')"
-          - cell: "E101"
-            formula: "=SUM(E2:E100)"
+        sheets_to_receive_formulas:
+          - sheet_names: ["Data"]
+            formulas:
+              - range: "E2:E100"
+                formula: "=D2*0.05"
+              - range: "F2:F100"
+                formula: "=IF(D2>C2,'Exceeds','Below')"
+              - cell: "E101"
+                formula: "=SUM(E2:E100)"
 
 named_columns_fill_down_example:
   description: "Name-addressed cells with fill-down - survives column insertions upstream"
@@ -255,25 +259,25 @@ named_columns_fill_down_example:
         processor_type: "inject_formulas"
         # REQ - Existing Excel file to modify
         target_file: "reports/margin_report.xlsx"
-        # OPT - Sheets to process (default: active sheet)
-        sheet_names: ["Data"]
         # OPT - live (default) stores recalculating formulas
         mode: "live"
-        formulas:
-          - # {col:...} works in the cell address AND inside the formula.
-            cell: "{col:Margin}2"
-            # OPT - Fill from the origin row to the last data row,
-            # translating relative references per row like Excel's fill
-            # handle. Default value: false
-            fill_down: true
-            formula: '={col:Price}2-{col:Cost}2'
-          - # Modern function names are stored with the _xlfn. prefix Excel
-            # requires internally; they display without it. With settings
-            # declare_dynamic_formulas: true, injected cells open WITHOUT
-            # the implicit-intersection @ (declared by provenance).
-            cell: "{col:Supplier Region}2"
-            fill_down: true
-            formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
+        sheets_to_receive_formulas:
+          - sheet_names: ["Data"]
+            formulas:
+              - # {col:...} works in the cell address AND inside the formula.
+                cell: "{col:Margin}2"
+                # OPT - Fill from the origin row to the last data row,
+                # translating relative references per row like Excel's fill
+                # handle. Default value: false
+                fill_down: true
+                formula: '={col:Price}2-{col:Cost}2'
+              - # Modern function names are stored with the _xlfn. prefix Excel
+                # requires internally; they display without it. With settings
+                # declare_dynamic_formulas: true, injected cells open WITHOUT
+                # the implicit-intersection @ (declared by provenance).
+                cell: "{col:Supplier Region}2"
+                fill_down: true
+                formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
 
 parameter_details:
   target_file:
@@ -352,7 +356,7 @@ workflow_patterns:
   dynamic_models: "Export data with inject_formula for self-updating Excel dashboards"
 
 grouped_sheets_example:
-  description: "One step, different formulas per sheet: the sheets_to_receive_formulas grouped shape (2026-08-17), parallel to export_file's sheets_to_create. Use it when several sheets each get their OWN formulas; the broadcast sheet_names + formulas pair remains for sending the SAME formulas to many sheets. A step uses exactly one of the two shapes."
+  description: "sheets_to_receive_formulas is THE live injection shape (2026-08-17): a list of entries, each pairing a sheet_names LIST with its own formulas. Many entries give per-sheet formulas; ONE entry naming several sheets sends the same formulas to each (this subsumed and retired the old top-level sheet_names + formulas broadcast pair). The plural list is required even for one sheet; there is no implicit active-sheet default."
   yaml: |
     recipe:
       - step_description: "Inject the live view spills"
@@ -360,18 +364,19 @@ grouped_sheets_example:
         target_file: "output/workbook.xlsx"
         mode: "live"
         sheets_to_receive_formulas:
-          - sheet_name: "Export_View"
+          - sheet_names: ["Export_View"]
             formulas:
               - cell: "A2"
                 formula: '=fn_vms_view(rng_saletype="Export")'
-          - sheet_name: "Domestic_View"
+          - sheet_names: ["Domestic_View"]
             formulas:
               - cell: "A2"
                 formula: '=fn_vms_view(rng_saletype="Domestic")'
-          - sheet_name: "Pick_List"
+          - # One entry, two sheets: the same stamp lands on both
+            sheet_names: ["Notes_A", "Notes_B"]
             formulas:
-              - cell: "A2"
-                formula: '=SORT(UNIQUE(rng_customers))'
+              - cell: "A1"
+                formula: '=TEXT(TODAY(),"yyyy-mm-dd")&" refresh"'
 
 formula_features:
   cell_targeting: "Target individual cells with specific formulas"

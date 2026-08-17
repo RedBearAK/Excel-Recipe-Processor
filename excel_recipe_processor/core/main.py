@@ -177,6 +177,16 @@ def attach_log_file(file_path, source='cli') -> bool:
     attachment is skipped when the CLI already attached one - the person
     at the command line outranks the recipe.
 
+    EXTENSION POLICY (2026-08-16, decided): the path is taken VERBATIM -
+    no extension appended, corrected, or warned about. Rewriting an
+    extensionless path would be the framework overriding stated intent,
+    and the 🪵 announcement (terminal + first line of the file itself)
+    already makes any path mistake immediately visible. House default is
+    '_log.txt': the NAME carries the semantics, the txt EXTENSION the
+    ergonomics (double-click opens a text editor everywhere; macOS
+    routes .log to Console.app, which reads worse for this content).
+    Anyone preferring .log simply writes it.
+
     Returns True if attached, False if skipped.
     """
     if source == 'recipe' and _attached_log_files['cli']:

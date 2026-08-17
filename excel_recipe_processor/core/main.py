@@ -185,12 +185,17 @@ def mirror_print(text='') -> None:
     the terminal exactly). Before any attachment it is just print.
     """
     print(text)
-    for stream in _attached_log_streams:
-        try:
-            stream.write(str(text) + '\n')
-            stream.flush()
-        except Exception:
-            pass  # a dead stream must not kill the run for a log line
+    if _attached_log_streams:
+        for stream in _attached_log_streams:
+            try:
+                stream.write(str(text) + '\n')
+                stream.flush()
+            except Exception:
+                pass  # a dead stream must not kill the run for a log line
+    elif _early_buffer is not None:
+        # No file yet: hold the line in emission order beside the log
+        # records, so a later attach replays the head exactly
+        _early_buffer.add_text(str(text))
 
 
 class _EarlyLogBuffer(logging.Handler):
@@ -208,11 +213,18 @@ class _EarlyLogBuffer(logging.Handler):
 
     def __init__(self):
         super().__init__()
-        self.records = []
+        # Ordered mixed items: ('record', LogRecord) from the logging
+        # system, ('text', str) from mirror_print - so the head of the
+        # file replays in TRUE emission order, blanks included.
+        self.items = []
 
     def emit(self, record):
-        if len(self.records) < self.MAX_RECORDS:
-            self.records.append(record)
+        if len(self.items) < self.MAX_RECORDS:
+            self.items.append(('record', record))
+
+    def add_text(self, text: str) -> None:
+        if len(self.items) < self.MAX_RECORDS:
+            self.items.append(('text', text))
 
 
 _early_buffer = None
@@ -231,7 +243,7 @@ def discard_early_log_buffer() -> None:
     global _early_buffer
     if _early_buffer is not None:
         logging.getLogger().removeHandler(_early_buffer)
-        _early_buffer.records.clear()
+        _early_buffer.items.clear()
         _early_buffer = None
 
 
@@ -276,8 +288,12 @@ def attach_log_file(file_path, source='cli') -> bool:
     # only, before it joins the root logger for live records.
     global _early_buffer
     if _early_buffer is not None:
-        for record in _early_buffer.records:
-            handler.handle(record)
+        for kind, payload in _early_buffer.items:
+            if kind == 'record':
+                handler.handle(payload)
+            else:
+                handler.stream.write(payload + '\n')
+        handler.stream.flush()
         discard_early_log_buffer()
 
     logging.getLogger().addHandler(handler)
@@ -312,14 +328,14 @@ def process_recipe(args: Namespace) -> int:
         if getattr(args, 'variable_pairs', None):
             for name, value in args.variable_pairs:
                 cli_variables[name] = value
-            print()     # blank line to separate from command line
+            mirror_print()  # separator; buffered for the file's head
             logger.info(f"Parsed {len(cli_variables)} variable overrides from --set")
 
         if hasattr(args, 'variable_overrides') and args.variable_overrides:
             try:
                 cli_variables.update(parse_cli_variables(args.variable_overrides))
                 if cli_variables:
-                    print()     # blank line to separate from command line
+                    mirror_print()  # separator; buffered for the file's head
                     logger.info(f"Parsed {len(cli_variables)} variable overrides from CLI")
             except InteractiveVariableError as e:
                 print(f"Error parsing variable overrides: {e}")
@@ -370,14 +386,13 @@ def process_recipe(args: Namespace) -> int:
         stages_created = completion_report.get('stages_created', [])
         stages_declared = completion_report.get('stages_declared', [])
         
-        print()     # blank line to separate from last logging line
+        mirror_print()  # blank line to separate from last logging line
         elapsed = completion_report.get('elapsed_seconds')
         elapsed_text = ""
         if elapsed is not None:
             minutes, seconds = divmod(elapsed, 60)
             elapsed_text = f" in {int(minutes)}m {seconds:.1f}s" if minutes else f" in {seconds:.1f}s"
 
-        mirror_print()
         mirror_print(f"✓ Recipe completed successfully{elapsed_text}")
         mirror_print(f"  Steps executed: {steps_executed}")
         stages_freed = completion_report.get('stages_freed', [])
@@ -386,7 +401,7 @@ def process_recipe(args: Namespace) -> int:
         else:
             mirror_print(f"  Data stages created: {len(stages_created)}")
         mirror_print(f"  Data stages declared: {len(stages_declared)}")
-        print()     # blank line to separate from next command prompt
+        mirror_print()  # blank line to separate from next command prompt
         
         # Verbose stage details (preserving current behavior)
         if verbose and stages_created:

@@ -95,6 +95,7 @@ def test_early_buffer_leads_the_file():
     try:
         erp_main.install_early_log_buffer()
         logging.getLogger('test').info("📖 Loading recipe: early line one")
+        erp_main.mirror_print()  # a buffered blank between the records
         logging.getLogger('test').info("✓ Resolved variables: early line two")
         erp_main.attach_log_file(path, source='recipe')
         logging.getLogger('test').info("⚡ live line after attach")
@@ -103,6 +104,9 @@ def test_early_buffer_leads_the_file():
         lines = open(path, encoding='utf-8').read().splitlines()
         expected_order = ('early line one', 'early line two',
                           '🪵 Logging to file', 'live line after attach')
+        if lines[1].strip() != '':
+            print(f"✗ buffered blank not replayed in order: {lines[:3]}")
+            return False
         positions = []
         for fragment in expected_order:
             hits = [i for i, line in enumerate(lines) if fragment in line]

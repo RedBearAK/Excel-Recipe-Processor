@@ -162,8 +162,8 @@ class RecipePipeline:
         """Log a clean separator before each step for better readability."""
         # Add blank line before step (except for first step)
         if step_index >= 0:
-            # logger.info("")  # Blank line
-            print() # real blank line!
+            from excel_recipe_processor.core.main import mirror_print
+            mirror_print()  # per-step separator; mirrored to the log file
         
         # # Add START STEP marker
         # separator = f" -- START STEP '{step_desc}' -- "
@@ -430,13 +430,14 @@ class RecipePipeline:
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
-            print()     # blank line to separate from parsing log line (if present) or command line
+            from excel_recipe_processor.core.main import mirror_print
+            mirror_print()  # separator; buffered for the file's head
             # Load recipe
             logger.info(f"📖 Loading recipe: '{recipe_path}'")
             self.load_recipe(recipe_path)
             
             # Collect external variables
-            print()     # blank line to separate from recipe loading logging
+            mirror_print()  # separator; buffered for the file's head
             logger.info("🔧 Processing external variables...")
             external_variables = self.collect_external_variables(cli_variables)
             

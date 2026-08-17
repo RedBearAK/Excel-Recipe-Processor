@@ -49,7 +49,7 @@ def count_step_elements(value) -> int:
     format_excel step counts its sheet entries plus each entry's nested
     column_formats rules.
 
-    Known ballpark limits, accepted on purpose: a "{list:variable}" string
+    Known ballpark limits, accepted on purpose: a "{list_str:variable}" string
     counts as 1 though it may expand to many items, and a step with no
     list content at all reports 0 here (the caller floors it to 1). The
     number is a property of what the author WROTE - stable across data

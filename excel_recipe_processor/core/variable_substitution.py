@@ -15,6 +15,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
+from excel_recipe_processor.core.variable_substitution_rgx import (
+    BRACKETED_TYPE_COMPLETE_RGX,
+    BRACKETED_TYPE_DANGLING_RGX,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +39,28 @@ class VariableSubstitution:
     - Typed substitution: {type:variable} for lists, dicts, etc.
     """
     
-    # Supported types for structured variables
+    # Supported types for structured variables. Bare 'list' is RETIRED
+    # (2026-08-17): every list reference declares its member typing,
+    # even when that declaration is "any" - see LIST_MEMBER_TYPES.
     SUPPORTED_TYPES = {
         'str': str,
-        'list': list, 
         'dict': dict,
         'int': int,
         'float': float,
-        'bool': bool
+        'bool': bool,
+        'list_int': list,
+        'list_float': list,
+        'list_str': list,
+        'list_any': list,
+    }
+
+    # Member conversion per list type. None means pass-through: the
+    # author has acknowledged the members are intentionally untyped.
+    LIST_MEMBER_TYPES = {
+        'list_int': int,
+        'list_float': float,
+        'list_str': str,
+        'list_any': None,
     }
 
     # Master format definitions - single source of truth
@@ -172,7 +191,7 @@ class VariableSubstitution:
         """
         Substitute variables in a string, returning either string or structure.
         
-        If the entire string is a single typed variable like "{list:columns}",
+        If the entire string is a single typed variable like "{list_str:columns}",
         return the actual structure. Otherwise, do string substitution.
         """
         if not isinstance(template, str):
@@ -314,6 +333,18 @@ class VariableSubstitution:
         Returns:
             Variable value, optionally converted to expected type
         """
+        # Retired vocabulary fails loud with the replacement family:
+        # every list reference declares its member typing, even 'any'.
+        if type_name == 'list':
+            raise VariableSubstitutionError(
+                f"Bare {{list:{var_name}}} is retired (2026-08-17): "
+                f"declare the member typing - {{list_int:{var_name}}}, "
+                f"{{list_float:{var_name}}}, {{list_str:{var_name}}} "
+                f"(members converted, loudly on failure), or "
+                f"{{list_any:{var_name}}} for intentionally mixed or "
+                f"untyped members."
+            )
+
         # Validate type is supported
         if type_name not in self.SUPPORTED_TYPES:
             supported_types = list(self.SUPPORTED_TYPES.keys())
@@ -337,8 +368,31 @@ class VariableSubstitution:
         if type_name == 'str':
             # String: convert anything to string
             return str(value)
-        elif type_name in ['list', 'dict']:
-            # Structured types: must match exactly
+        elif type_name in self.LIST_MEMBER_TYPES:
+            # Container must already be a list (CLI strings stay loud)
+            if not isinstance(value, list):
+                raise VariableSubstitutionError(
+                    f"Variable '{var_name}' is {type(value).__name__} "
+                    f"but {{{type_name}:{var_name}}} expects a list"
+                )
+            member_type = self.LIST_MEMBER_TYPES[type_name]
+            if member_type is None:
+                # list_any: the author acknowledged untyped members
+                return value
+            converted_members = []
+            for index, member in enumerate(value):
+                try:
+                    converted_members.append(member_type(member))
+                except (ValueError, TypeError):
+                    raise VariableSubstitutionError(
+                        f"Cannot convert member {index} of variable "
+                        f"'{var_name}' (value: {member!r}) to "
+                        f"{member_type.__name__} for "
+                        f"{{{type_name}:{var_name}}}"
+                    )
+            return converted_members
+        elif type_name == 'dict':
+            # Structured type: must match exactly
             if not isinstance(value, expected_type):
                 raise VariableSubstitutionError(
                     f"Variable '{var_name}' is {type(value).__name__} "
@@ -376,6 +430,22 @@ class VariableSubstitution:
         Raises:
             VariableSubstitutionError: If likely typos are detected
         """
+        # Bracketed member typing like {list[int]:name} was considered
+        # and rejected in favor of the underscore family; the syntax is
+        # intuitive enough to reach for accidentally, and unimplemented
+        # it would pass through as LITERAL TEXT - so it fails loud here
+        # with the real vocabulary. The dangling pattern also catches
+        # half-typed forms like {list[int:name}.
+        if (BRACKETED_TYPE_COMPLETE_RGX.search(template)
+                or BRACKETED_TYPE_DANGLING_RGX.search(template)):
+            raise VariableSubstitutionError(
+                f"Bracketed type syntax in {template!r} is not ERP "
+                f"vocabulary. Use the underscore family instead: "
+                f"{{list_int:name}}, {{list_float:name}}, "
+                f"{{list_str:name}}, or {{list_any:name}} for "
+                f"intentionally untyped members."
+            )
+
         # Simple check 1: If we see "word:word}" check if there's a "{" to the left
         if ':' in template and '}' in template:
             for i in range(len(template)):
@@ -416,7 +486,7 @@ class VariableSubstitution:
         # Simple check 3: Look for obviously empty patterns
         if '{:' in template:
             raise VariableSubstitutionError(
-                f"Empty type name: found '{{:' - specify type like '{{list:variable}}'"
+                f"Empty type name: found '{{:' - specify type like '{{list_str:variable}}'"
             )
         
         if ':}' in template:
@@ -718,7 +788,8 @@ def get_variable_documentation() -> dict:
             'description': 'Backwards compatible string substitution'
         },
         'structured_variables': {
-            'list_syntax': '{list:variable}',
+            'list_syntax': '{list_int:variable} / {list_float:variable} / '
+                           '{list_str:variable} / {list_any:variable}',
             'dict_syntax': '{dict:variable}',
             'description': 'Direct structure replacement (lists, dicts)'
         },
@@ -755,7 +826,7 @@ def get_variable_documentation() -> dict:
                 'typed': 'output_file: "{str:filename_template}"'
             },
             'structure_usage': {
-                'list': 'columns_to_keep: "{list:customer_columns}"',
+                'list': 'columns_to_keep: "{list_str:customer_columns}"',
                 'dict': 'lookup_mapping: "{dict:status_codes}"'
             },
             'mixed_recipe': '''
@@ -767,7 +838,7 @@ settings:
 
 recipe:
   - processor_type: "select_columns"
-    columns_to_keep: "{list:customer_cols}"
+    columns_to_keep: "{list_str:customer_cols}"
     output_file: "{str:report_name}_{date}.xlsx"
             '''
         }

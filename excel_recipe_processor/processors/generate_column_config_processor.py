@@ -951,8 +951,8 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             output_lines.append('  - step_description: "Select and create final column structure"')
             output_lines.append('    processor_type: "select_columns"')
             output_lines.append(f'    source_stage: "{next_stage}"')
-            output_lines.append('    columns_to_keep: "{list:var_columns_to_keep}"')
-            output_lines.append('    columns_to_create: "{list:var_columns_to_create}"')
+            output_lines.append('    columns_to_keep: "{list_str:var_columns_to_keep}"')
+            output_lines.append('    columns_to_create: "{list_str:var_columns_to_create}"')
             output_lines.append('    save_to_stage: "stg_final_structure"')
             output_lines.append('')
             

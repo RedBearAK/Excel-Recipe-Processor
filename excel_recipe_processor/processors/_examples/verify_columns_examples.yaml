@@ -38,7 +38,7 @@ basic_example:
         source_stage: "stg_import_raw"
         # REQ - The expectation; keep it in a variable beside the recipe's
         # other lists so shape changes are a one-line maintenance edit
-        expected_columns: "{list:var_expected_columns}"
+        expected_columns: "{list_str:var_expected_columns}"
         # OPT - "error" (default) or "warn"
         on_missing_expected: "error"
         # OPT - "warn" (default) or "error"

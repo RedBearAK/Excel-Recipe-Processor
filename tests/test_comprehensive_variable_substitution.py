@@ -45,7 +45,7 @@ def test_edge_cases():
     
     # Test empty structures
     tests += 1
-    result = substitution.substitute_structure('{list:empty_list}')
+    result = substitution.substitute_structure('{list_str:empty_list}')
     if result == []:
         print("  ✓ Empty list substitution works")
         success += 1
@@ -74,7 +74,7 @@ def test_edge_cases():
     
     # Test large structures
     tests += 1
-    result = substitution.substitute_structure('{list:large_list}')
+    result = substitution.substitute_structure('{list_int:large_list}')
     if len(result) == 100 and result[99] == 99:
         print("  ✓ Large list substitution works")
         success += 1
@@ -114,7 +114,7 @@ def test_error_conditions():
     # Test missing variable
     tests += 1
     try:
-        substitution.substitute_structure('{list:nonexistent}')
+        substitution.substitute_structure('{list_any:nonexistent}')
         print("  ✗ Should have failed for missing variable")
     except VariableSubstitutionError as e:
         if 'nonexistent' in str(e):
@@ -156,7 +156,7 @@ def test_error_conditions():
     # Test malformed syntax
     tests += 1
     try:
-        substitution.substitute_structure('{list:}')
+        substitution.substitute_structure('{list_any:}')
         print("  ✗ Should have failed for empty variable name")
     except Exception as e:
         print("  ✓ Correctly caught malformed syntax")
@@ -165,7 +165,7 @@ def test_error_conditions():
     # Test structure in string context
     tests += 1
     try:
-        substitution.substitute('filename_{list:list_var}.xlsx')
+        substitution.substitute('filename_{list_any:list_var}.xlsx')
         print("  ✗ Should have failed for list in string context")
     except VariableSubstitutionError as e:
         if 'string context' in str(e):
@@ -200,7 +200,7 @@ recipe:
     processor_type: "select_columns"
     source_stage: "raw_data"
     save_to_stage: "selected_data"
-    columns_to_keep: "{list:customer_cols}"
+    columns_to_keep: "{list_str:customer_cols}"
     
   - step_description: "Create lookup"
     processor_type: "create_stage"
@@ -286,11 +286,11 @@ def test_variable_resolution_order():
     tests += 1
     complex_config = {
         'primary_processing': {
-            'columns': '{list:base_cols}',
+            'columns': '{list_str:base_cols}',
             'region_filter': '{region}'
         },
         'secondary_processing': {
-            'columns': '{list:all_cols}',
+            'columns': '{list_str:all_cols}',
             'output': '{full_filename}'
         }
     }
@@ -422,13 +422,13 @@ recipe:
     processor_type: "select_columns"
     source_stage: "raw_customers"
     save_to_stage: "base_customers"
-    columns_to_keep: "{list:base_customer_cols}"
+    columns_to_keep: "{list_str:base_customer_cols}"
     
   - step_description: "Select full customer profile"
     processor_type: "select_columns"
     source_stage: "raw_customers"
     save_to_stage: "full_customers"
-    columns_to_keep: "{list:all_customer_cols}"
+    columns_to_keep: "{list_str:all_customer_cols}"
     
   - step_description: "Create status lookup"
     processor_type: "create_stage"
@@ -593,12 +593,12 @@ def test_mixed_syntax_scenarios():
     try:
         mixed_config = {
             'old_style_filename': 'report_{region}_{date}.xlsx',
-            'new_style_columns': '{list:cols}',
+            'new_style_columns': '{list_str:cols}',
             'explicit_string': '{str:region}',
             'lookup_data': '{dict:mapping}',
             'nested_mixing': {
                 'file': 'data_{region}.csv',
-                'columns': '{list:cols}',
+                'columns': '{list_str:cols}',
                 'threshold': '{int:count}'
             }
         }
@@ -636,9 +636,9 @@ def test_malformed_syntax():
     
     # Test only the critical syntax errors that should be caught
     critical_patterns = [
-        '{list:}',           # Empty variable name
+        '{list_any:}',       # Empty variable name
         '{:test}',           # Empty type name  
-        '{list:test',        # Missing closing brace
+        '{list_str:test',        # Missing closing brace
         'list:test}',        # Missing opening brace
     ]
     
@@ -680,7 +680,7 @@ def test_performance_stress():
     # Test large list substitution
     tests += 1
     try:
-        config = {'columns': '{list:large_columns}'}
+        config = {'columns': '{list_str:large_columns}'}
         result = substitution.substitute_structure(config)
         
         if len(result['columns']) == 500 and result['columns'][499] == 'column_499':
@@ -712,7 +712,7 @@ def test_performance_stress():
             'processing_configs': [
                 {
                     'name': f'config_{i}',
-                    'columns': '{list:large_columns}',
+                    'columns': '{list_str:large_columns}',
                     'region': '{region}'
                 }
                 for i in range(10)
@@ -760,7 +760,7 @@ def test_integration_with_pipeline():
             'step_description': 'Select {region} customer columns',
             'source_stage': 'raw_data',
             'save_to_stage': 'customer_data', 
-            'columns_to_keep': '{list:customer_columns}',
+            'columns_to_keep': '{list_str:customer_columns}',
             'settings': {
                 'region_filter': '{region}',
                 'debug': '{bool:debug_mode}',
@@ -880,16 +880,16 @@ def test_variable_interdependencies():
             'data_pipeline': {
                 'input': {
                     'file': '{input_file}',
-                    'columns': '{list:base_columns}'
+                    'columns': '{list_str:base_columns}'
                 },
                 'processing': {
-                    'select_columns': '{list:full_columns}',
+                    'select_columns': '{list_str:full_columns}',
                     'region_filter': '{region}',
-                    'intermediate_columns': '{list:location_columns}'
+                    'intermediate_columns': '{list_str:location_columns}'
                 },
                 'output': {
                     'file': '{output_file}',
-                    'final_columns': '{list:full_columns}'
+                    'final_columns': '{list_str:full_columns}'
                 }
             }
         }

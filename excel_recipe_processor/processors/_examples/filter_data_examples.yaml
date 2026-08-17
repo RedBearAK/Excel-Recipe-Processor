@@ -644,7 +644,7 @@ typed_variable_thresholds_example:
     # Recipe variables substitute as STRINGS unless typed at the
     # reference site. An untyped "{min_sales}" delivers the TEXT
     # "120", and ordering comparisons fail loud rather than guess.
-    # Typed references - {int:name}, {float:name}, {list:name} -
+    # Typed references - {int:name}, {float:name}, {list_int:name} -
     # substitute the actual typed value, preventing the error when
     # the value is not meant to be a string. This also works when
     # the variable arrives as a string from --variable on the CLI
@@ -682,8 +682,10 @@ typed_variable_thresholds_example:
             column: "Tier"
             # REQ - Membership condition
             condition: "in_list"
-            # REQ - Typed list reference: members keep their YAML types
-            value: "{list:allowed_tiers}"
+            # REQ - Typed list reference: every member converted to
+            # int, loudly on failure ({list_any:...} passes mixed
+            # members through as declared)
+            value: "{list_int:allowed_tiers}"
 
 integration_notes:
   stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"

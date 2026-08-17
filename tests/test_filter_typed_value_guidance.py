@@ -11,7 +11,7 @@ tests pin the two halves of the remedy:
 
 1. The GUARD: a string value on an ordering condition fails first, in
    ERP vocabulary, naming the filter/column/value and teaching the
-   typed reference syntax ({int:name}, {float:name}, {list:name}).
+   typed reference syntax ({int:name}, {float:name}, {list_int:name}).
 2. The FEATURE: typed references substitute the actual typed value, so
    the same recipe works by changing '{min_sales}' to '{int:min_sales}'
    - even when the variable itself arrives as a CLI string.
@@ -82,8 +82,8 @@ def test_string_list_members_get_guided_error():
         return False
     except StepProcessorError as error:
         message = str(error)
-        if '{list:' in message and 'lexically' in message:
-            print("  ✓ guided error teaches {list:...} and names the lexical trap")
+        if '{list_int:' in message and 'lexically' in message:
+            print("  ✓ guided error teaches {list_int:...} and names the lexical trap")
             return True
         print(f"  ✗ error lacks guidance: {message[:120]}")
         return False

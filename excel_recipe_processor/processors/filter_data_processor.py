@@ -178,8 +178,9 @@ class FilterDataProcessor(BaseStepProcessor):
         referenced untyped, or authored with quoted numbers, delivers
         strings that min()/max() would order LEXICALLY ('9' > '100')
         before the comparison even fails. Typed references -
-        {list:thresholds} with the list declared in settings variables -
-        substitute the real list with its YAML member types.
+        {list_int:thresholds} or {list_float:thresholds} - convert every
+        member loudly; {list_any:name} passes members through as
+        declared for intentionally mixed lists.
         """
         string_members = [member for member in value if isinstance(member, str)]
         if not string_members:
@@ -190,7 +191,8 @@ class FilterDataProcessor(BaseStepProcessor):
             f"{string_members!r}, and min/max ordering needs numbers "
             f"(strings would order lexically: '9' > '100'). If the list "
             f"comes from a recipe variable, reference it typed - "
-            f"{{list:variable_name}} - so members keep their YAML types."
+            f"{{list_int:variable_name}} or {{list_float:variable_name}} "
+            f"- so every member is converted, loudly on failure."
         )
 
     def _apply_filter(self, df: pd.DataFrame, filter_rule: dict, filter_index: int) -> pd.DataFrame:

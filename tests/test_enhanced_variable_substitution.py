@@ -110,8 +110,8 @@ def test_structure_substitution():
     
     # Test list substitution
     config = {
-        'columns_to_keep': '{list:customer_columns}',
-        'secondary_columns': '{list:sales_columns}'
+        'columns_to_keep': '{list_str:customer_columns}',
+        'secondary_columns': '{list_str:sales_columns}'
     }
     
     result = substitution.substitute_structure(config)
@@ -181,18 +181,18 @@ def test_nested_structure_substitution():
     complex_config = {
         'data_sources': {
             'primary': {
-                'columns': '{list:primary_cols}',
+                'columns': '{list_str:primary_cols}',
                 'region': '{region}'
             },
             'backup': {
-                'columns': '{list:backup_cols}',
+                'columns': '{list_str:backup_cols}',
                 'active_filter': '{bool:active_only}'
             }
         },
         'processing_steps': [
             {
                 'type': 'filter',
-                'columns': '{list:primary_cols}',
+                'columns': '{list_str:primary_cols}',
                 'region': '{region}'
             }
         ]
@@ -269,7 +269,7 @@ def test_type_validation():
     tests += 1
     try:
         # Try to use a string as a list
-        substitution.substitute_structure('{list:string_var}')
+        substitution.substitute_structure('{list_any:string_var}')
         print(f"  ✗ Type validation: should have failed for list:string_var")
     except VariableSubstitutionError as e:
         print(f"  ✓ Type validation: correctly caught type mismatch")
@@ -291,7 +291,7 @@ def test_type_validation():
     # Test string context restrictions
     tests += 1
     try:
-        substitution.substitute('output_{list:list_var}.xlsx')
+        substitution.substitute('output_{list_any:list_var}.xlsx')
         print(f"  ✗ String context: should have failed for list in string")
     except VariableSubstitutionError as e:
         print(f"  ✓ String context: correctly prevented list in string context")
@@ -326,7 +326,7 @@ def test_convenience_functions():
     
     # Test substitute_structure function  
     tests += 1
-    config = {'cols': '{list:columns}', 'name': '{filename}'}
+    config = {'cols': '{list_str:columns}', 'name': '{filename}'}
     result = substitute_structure(config, custom_variables=custom_vars)
     if result['cols'] == ['A', 'B', 'C'] and result['name'] == 'report':
         print(f"  ✓ substitute_structure: works correctly")

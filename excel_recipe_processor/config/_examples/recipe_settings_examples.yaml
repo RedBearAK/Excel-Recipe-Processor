@@ -21,7 +21,10 @@ recommended_example:
       # Custom variables for reuse throughout recipe. Declare real
       # types: numbers unquoted, strings quoted. In steps, "{name}"
       # substitutes TEXT; typed references - {int:name}, {float:name},
-      # {list:name}, {bool:name} - substitute the actual typed value,
+      # {bool:name}, and the list family {list_int:name},
+      # {list_float:name}, {list_str:name} (members converted, loudly
+      # on failure) or {list_any:name} (intentionally untyped members)
+      # - substitute the actual typed value,
       # preventing type errors where the value is not meant to be a
       # string (numeric filter thresholds, row counts, and so on).
       variables:

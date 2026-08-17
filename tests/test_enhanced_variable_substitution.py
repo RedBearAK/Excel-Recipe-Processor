@@ -139,7 +139,7 @@ def test_structure_substitution():
     
     # Test dict substitution
     dict_config = {
-        'lookup_mapping': '{dict:status_codes}',
+        'lookup_mapping': '{dict_str:status_codes}',
         'filter_region': '{region}'  # Mixed with string
     }
     

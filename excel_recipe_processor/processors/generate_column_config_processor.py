@@ -939,7 +939,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
                 output_lines.append('    processor_type: "rename_columns"')
                 output_lines.append('    source_stage: "stg_source_data"')
                 output_lines.append('    rename_type: "mapping"')
-                output_lines.append('    column_mapping: "{dict:var_columns_to_rename}"')
+                output_lines.append('    column_mapping: "{dict_str:var_columns_to_rename}"')
                 output_lines.append('    save_to_stage: "stg_renamed_columns"')
                 output_lines.append('')
                 

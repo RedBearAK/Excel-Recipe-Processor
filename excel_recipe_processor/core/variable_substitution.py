@@ -39,12 +39,12 @@ class VariableSubstitution:
     - Typed substitution: {type:variable} for lists, dicts, etc.
     """
     
-    # Supported types for structured variables. Bare 'list' is RETIRED
-    # (2026-08-17): every list reference declares its member typing,
-    # even when that declaration is "any" - see LIST_MEMBER_TYPES.
+    # Supported types for structured variables. Bare 'list' and bare
+    # 'dict' are RETIRED (2026-08-17): every structural reference
+    # declares its member/value typing, even when that declaration is
+    # "any" - see LIST_MEMBER_TYPES and DICT_VALUE_TYPES.
     SUPPORTED_TYPES = {
         'str': str,
-        'dict': dict,
         'int': int,
         'float': float,
         'bool': bool,
@@ -52,6 +52,10 @@ class VariableSubstitution:
         'list_float': list,
         'list_str': list,
         'list_any': list,
+        'dict_int': dict,
+        'dict_float': dict,
+        'dict_str': dict,
+        'dict_any': dict,
     }
 
     # Member conversion per list type. None means pass-through: the
@@ -61,6 +65,18 @@ class VariableSubstitution:
         'list_float': float,
         'list_str': str,
         'list_any': None,
+    }
+
+    # Value conversion per dict type. Keys are ALWAYS normalized to
+    # str - recipe dict variables are string-keyed mappings (column
+    # names, labels, status codes) by doctrine, which is what collapses
+    # the key-x-value combination space to the value axis alone. None
+    # means values pass through: intentionally untyped/mixed/nested.
+    DICT_VALUE_TYPES = {
+        'dict_int': int,
+        'dict_float': float,
+        'dict_str': str,
+        'dict_any': None,
     }
 
     # Master format definitions - single source of truth
@@ -334,7 +350,7 @@ class VariableSubstitution:
             Variable value, optionally converted to expected type
         """
         # Retired vocabulary fails loud with the replacement family:
-        # every list reference declares its member typing, even 'any'.
+        # every structural reference declares its typing, even 'any'.
         if type_name == 'list':
             raise VariableSubstitutionError(
                 f"Bare {{list:{var_name}}} is retired (2026-08-17): "
@@ -343,6 +359,15 @@ class VariableSubstitution:
                 f"(members converted, loudly on failure), or "
                 f"{{list_any:{var_name}}} for intentionally mixed or "
                 f"untyped members."
+            )
+        if type_name == 'dict':
+            raise VariableSubstitutionError(
+                f"Bare {{dict:{var_name}}} is retired (2026-08-17): "
+                f"declare the value typing - {{dict_int:{var_name}}}, "
+                f"{{dict_float:{var_name}}}, {{dict_str:{var_name}}} "
+                f"(values converted, loudly on failure; keys always "
+                f"normalized to str), or {{dict_any:{var_name}}} for "
+                f"intentionally mixed, untyped, or nested values."
             )
 
         # Validate type is supported
@@ -391,14 +416,30 @@ class VariableSubstitution:
                         f"{{{type_name}:{var_name}}}"
                     )
             return converted_members
-        elif type_name == 'dict':
-            # Structured type: must match exactly
-            if not isinstance(value, expected_type):
+        elif type_name in self.DICT_VALUE_TYPES:
+            # Container must already be a dict (CLI strings stay loud)
+            if not isinstance(value, dict):
                 raise VariableSubstitutionError(
                     f"Variable '{var_name}' is {type(value).__name__} "
-                    f"but {{{type_name}:{var_name}}} expects {type_name}"
+                    f"but {{{type_name}:{var_name}}} expects a dict"
                 )
-            return value
+            value_type = self.DICT_VALUE_TYPES[type_name]
+            if value_type is None:
+                # dict_any: values pass through as declared; keys are
+                # still normalized to str per doctrine
+                return {str(key): val for key, val in value.items()}
+            converted_mapping = {}
+            for key, member in value.items():
+                try:
+                    converted_mapping[str(key)] = value_type(member)
+                except (ValueError, TypeError):
+                    raise VariableSubstitutionError(
+                        f"Cannot convert value for key {str(key)!r} of "
+                        f"variable '{var_name}' (value: {member!r}) to "
+                        f"{value_type.__name__} for "
+                        f"{{{type_name}:{var_name}}}"
+                    )
+            return converted_mapping
         elif type_name in ['int', 'float', 'bool']:
             # Convertible types: try conversion
             try:
@@ -440,10 +481,12 @@ class VariableSubstitution:
                 or BRACKETED_TYPE_DANGLING_RGX.search(template)):
             raise VariableSubstitutionError(
                 f"Bracketed type syntax in {template!r} is not ERP "
-                f"vocabulary. Use the underscore family instead: "
+                f"vocabulary. Use the underscore families instead: "
                 f"{{list_int:name}}, {{list_float:name}}, "
-                f"{{list_str:name}}, or {{list_any:name}} for "
-                f"intentionally untyped members."
+                f"{{list_str:name}}, {{list_any:name}} for lists; "
+                f"{{dict_int:name}}, {{dict_float:name}}, "
+                f"{{dict_str:name}}, {{dict_any:name}} for dicts "
+                f"(values typed; keys always normalized to str)."
             )
 
         # Simple check 1: If we see "word:word}" check if there's a "{" to the left
@@ -790,7 +833,8 @@ def get_variable_documentation() -> dict:
         'structured_variables': {
             'list_syntax': '{list_int:variable} / {list_float:variable} / '
                            '{list_str:variable} / {list_any:variable}',
-            'dict_syntax': '{dict:variable}',
+            'dict_syntax': '{dict_int:variable} / {dict_float:variable} / '
+                           '{dict_str:variable} / {dict_any:variable}',
             'description': 'Direct structure replacement (lists, dicts)'
         },
         'convertible_variables': {
@@ -827,7 +871,7 @@ def get_variable_documentation() -> dict:
             },
             'structure_usage': {
                 'list': 'columns_to_keep: "{list_str:customer_columns}"',
-                'dict': 'lookup_mapping: "{dict:status_codes}"'
+                'dict': 'lookup_mapping: "{dict_str:status_codes}"'
             },
             'mixed_recipe': '''
 settings:

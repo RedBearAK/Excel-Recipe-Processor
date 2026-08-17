@@ -53,7 +53,7 @@ def test_edge_cases():
         print(f"  ✗ Empty list failed: {result}")
     
     tests += 1
-    result = substitution.substitute_structure('{dict:empty_dict}')
+    result = substitution.substitute_structure('{dict_any:empty_dict}')
     if result == {}:
         print("  ✓ Empty dict substitution works")
         success += 1
@@ -83,7 +83,7 @@ def test_edge_cases():
     
     # Test deeply nested structures
     tests += 1
-    config = {'nested_config': '{dict:deeply_nested}'}
+    config = {'nested_config': '{dict_any:deeply_nested}'}
     result = substitution.substitute_structure(config)
     expected_deep_list = ['deep', 'nesting']
     if result['nested_config']['level1']['level2']['level3'] == expected_deep_list:
@@ -142,7 +142,7 @@ def test_error_conditions():
     # Test type mismatch
     tests += 1
     try:
-        substitution.substitute_structure('{dict:list_var}')
+        substitution.substitute_structure('{dict_any:list_var}')
         print("  ✗ Should have failed for type mismatch")
     except VariableSubstitutionError as e:
         if 'list_var' in str(e) and 'dict' in str(e):
@@ -209,7 +209,7 @@ recipe:
       format: "dictionary"
       key_column: "Region_Code"
       value_column: "Region_Name"
-      data: "{dict:region_mapping}"
+      data: "{dict_str:region_mapping}"
 '''
     
     success = 0
@@ -437,7 +437,7 @@ recipe:
       format: "dictionary"
       key_column: "Status_Code"
       value_column: "Status_Name"
-      data: "{dict:status_mapping}"
+      data: "{dict_str:status_mapping}"
       
   - step_description: "Filter by amount"
     processor_type: "filter_data"
@@ -595,7 +595,7 @@ def test_mixed_syntax_scenarios():
             'old_style_filename': 'report_{region}_{date}.xlsx',
             'new_style_columns': '{list_str:cols}',
             'explicit_string': '{str:region}',
-            'lookup_data': '{dict:mapping}',
+            'lookup_data': '{dict_str:mapping}',
             'nested_mixing': {
                 'file': 'data_{region}.csv',
                 'columns': '{list_str:cols}',
@@ -694,7 +694,7 @@ def test_performance_stress():
     # Test large dict substitution
     tests += 1
     try:
-        config = {'mapping': '{dict:large_mapping}'}
+        config = {'mapping': '{dict_str:large_mapping}'}
         result = substitution.substitute_structure(config)
         
         if len(result['mapping']) == 500 and result['mapping']['key_499'] == 'value_499':
@@ -796,7 +796,7 @@ def test_integration_with_pipeline():
                 'format': 'dictionary',
                 'key_column': 'Status_Code',
                 'value_column': 'Status_Name',
-                'data': '{dict:status_mapping}'
+                'data': '{dict_str:status_mapping}'
             }
         }
         

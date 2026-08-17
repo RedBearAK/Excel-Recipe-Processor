@@ -12,6 +12,40 @@ from excel_recipe_processor.core.base_processor import registry
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 
 
+# Universal step keys never counted as processor-specific requirements:
+# identity/labeling keys, plus the stage keys the recipe-structure
+# validator already enforces.
+UNIVERSAL_STEP_KEYS = frozenset({
+    'processor_type', 'step_description', 'source_stage', 'save_to_stage',
+})
+
+# Keys present in a processor's minimal config for ILLUSTRATION but
+# actually optional (defaulted or conditional) in its execute path. Only
+# OPTIONALITY lives here - key names still come from the processor - so
+# an entry errs toward under-flagging, never toward a wrong name. Each
+# entry cites the default that makes it optional.
+OPTIONAL_IN_MINIMAL = {
+    'slice_data': frozenset({'start_row', 'end_row'}),   # default 1 / None
+    'fill_data': frozenset({'fill_value'}),              # default None (method-conditional)
+    'debug_breakpoint': frozenset({'message'}),          # default text supplied
+    'filter_terms_detector': frozenset({'text_columns'}),  # auto-detection covers it
+    'rename_columns': frozenset({'mapping', 'rename_type'}),  # any-of shape, checked separately
+}
+
+
+def derive_required_fields(processor_cls, step_type):
+    """Required fields per the processor's own get_minimal_config()."""
+    minimal_config_fn = getattr(processor_cls, 'get_minimal_config', None)
+    if minimal_config_fn is None:
+        return []
+    try:
+        minimal_keys = set(minimal_config_fn().keys())
+    except Exception:
+        return []
+    optional_keys = OPTIONAL_IN_MINIMAL.get(step_type, frozenset())
+    return sorted(minimal_keys - UNIVERSAL_STEP_KEYS - optional_keys)
+
+
 class RecipeValidator:
     """Validates recipes against system capabilities."""
     
@@ -119,30 +153,19 @@ class RecipeValidator:
                 
                 # Additional validation - try to check required fields
                 if hasattr(processor, 'validate_required_fields'):
-                    # Get the required fields from processor capabilities or step config
-                    required_fields = []
-                    
-                    # Try to determine required fields based on processor type.
-                    # MAINTENANCE HAZARD: this table duplicates processor
-                    # vocabulary by hand; when a processor's keys change it
-                    # goes stale silently (the 2026-08-17 lookup_data row
-                    # did exactly that). Deriving from get_minimal_config()
-                    # would remove the duplication.
+                    # Required fields are DERIVED from the processor's own
+                    # get_minimal_config() (2026-08-17 redesign): key NAMES
+                    # come from the framework's single source of truth, so
+                    # a vocabulary change surfaces here automatically
+                    # instead of rotting in a hand-maintained table (the
+                    # lookup_data row did exactly that).
                     step_type = step.get('processor_type', '')
-                    if step_type == 'lookup_data':
-                        required_fields = ['lookup_stage', 'match_col_in_lookup_data', 'match_col_in_main_data', 'lookup_columns']
-                    elif step_type == 'filter_data':
-                        required_fields = ['filters']
-                    elif step_type == 'clean_data':
-                        required_fields = ['rules']
-                    elif step_type == 'group_data':
-                        required_fields = ['source_column', 'groups']
-                    elif step_type == 'add_calculated_column':
-                        required_fields = ['new_column', 'calculation']
-                    elif step_type == 'sort_data':
-                        required_fields = ['columns', 'sort_type']
-                    elif step_type == 'rename_columns':
-                        # Check for at least one rename method
+                    required_fields = derive_required_fields(
+                        type(processor), step_type)
+
+                    if step_type == 'rename_columns':
+                        # Semantic, not vocabulary: rename accepts mapping
+                        # OR pattern OR transform options; require any one.
                         has_mapping = 'mapping' in step and step['mapping']
                         has_pattern = 'pattern' in step
                         has_transform = any(k in step for k in ['case_conversion', 'add_prefix', 'add_suffix'])

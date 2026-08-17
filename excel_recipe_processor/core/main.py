@@ -401,6 +401,15 @@ def process_recipe(args: Namespace) -> int:
         else:
             mirror_print(f"  Data stages created: {len(stages_created)}")
         mirror_print(f"  Data stages declared: {len(stages_declared)}")
+        stage_memory = completion_report.get('stage_memory')
+        if stage_memory and stage_memory.get('total_allocated_mb'):
+            def _mb(value):
+                # Tiny runs deserve a decimal; big numbers stay round
+                return f"{value:.1f}" if value < 10 else f"{value:.0f}"
+            mirror_print(
+                f"  Stage memory: ~{_mb(stage_memory['peak_concurrent_mb'])} MB peak concurrent, "
+                f"~{_mb(stage_memory['total_allocated_mb'])} MB allocated, "
+                f"~{_mb(stage_memory['total_freed_mb'])} MB freed during the run")
         mirror_print()  # blank line to separate from next command prompt
         
         # Verbose stage details (preserving current behavior)

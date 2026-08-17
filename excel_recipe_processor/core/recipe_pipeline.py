@@ -315,6 +315,7 @@ class RecipePipeline:
         
         # Generate completion report
         self._completion_report = self._generate_completion_report()
+        self._completion_report['stage_memory'] = StageManager.get_memory_stats()
         
         # All steps succeeded: write every session workbook exactly once
         WorkbookSession.flush_all()

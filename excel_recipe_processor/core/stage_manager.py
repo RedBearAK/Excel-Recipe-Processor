@@ -31,6 +31,17 @@ class StageManager:
     
     # Shared state across all usage
     _current_stages: dict   = {}                # dict[str, pd.DataFrame]
+
+    # Run-level memory accounting (estimation-level, from pandas
+    # memory_usage(deep=True) at each save). All stage traffic funnels
+    # through save_stage/delete_stage, so a running concurrent total
+    # with a high-water mark gives the EXACT peak at that estimation
+    # level - which is not the same number as "sum of everything ever
+    # created", because stages are freed mid-run by design.
+    _mem_current_mb: float  = 0.0
+    _mem_peak_mb: float     = 0.0
+    _mem_saved_total_mb: float = 0.0
+    _mem_freed_total_mb: float = 0.0
     # How many times each stage has been saved this run. Lets --dump-stage
     # dump a stage on EVERY save, not just its first: a re-used stage that
     # only dumped once would be untroubleshootable from the outside.
@@ -223,6 +234,18 @@ class StageManager:
         # Save the stage
         cls._current_stages[stage_name] = data.copy()
         cls._save_counts[stage_name] = cls._save_counts.get(stage_name, 0) + 1
+
+        # Memory accounting: an overwrite releases the old frame first
+        previous = cls._stage_metadata.get(stage_name, {}).get('memory_usage_mb', 0.0)
+        if previous:
+            cls._mem_current_mb -= previous
+            cls._mem_freed_total_mb += previous
+        new_mb = round(data.memory_usage(deep=True).sum() / (1024 * 1024), 2)
+        cls._mem_current_mb += new_mb
+        cls._mem_saved_total_mb += new_mb
+        if cls._mem_current_mb > cls._mem_peak_mb:
+            cls._mem_peak_mb = cls._mem_current_mb
+
         cls._stage_metadata[stage_name] = {
             'rows': len(data),
             'columns': len(data.columns),
@@ -230,7 +253,7 @@ class StageManager:
             'description': description,
             'step_name': step_name,
             'created_at': datetime.now(),
-            'memory_usage_mb': round(data.memory_usage(deep=True).sum() / (1024 * 1024), 2),
+            'memory_usage_mb': new_mb,
             'declared': stage_name in cls._declared_stages,
             'protected': stage_name in cls._protected_stages
         }
@@ -273,6 +296,10 @@ class StageManager:
             raise StageError(
                 f"Cannot delete stage '{stage_name}': declared protected"
             )
+
+        freed_mb = cls._stage_metadata.get(stage_name, {}).get('memory_usage_mb', 0.0)
+        cls._mem_current_mb -= freed_mb
+        cls._mem_freed_total_mb += freed_mb
 
         del cls._current_stages[stage_name]
 
@@ -422,10 +449,31 @@ class StageManager:
     # =============================================================================
 
     @classmethod
+    def get_memory_stats(cls) -> dict:
+        """Run-level stage-memory accounting for the completion summary.
+
+        Estimation-level numbers (pandas deep memory_usage at save time),
+        so they describe DataFrame footprint, not process RSS - the OS
+        may compress or swap independently. Peak is the true concurrent
+        high-water mark, which mid-run freeing keeps well below the
+        total-allocated figure by design.
+        """
+        return {
+            'peak_concurrent_mb': round(cls._mem_peak_mb, 1),
+            'total_allocated_mb': round(cls._mem_saved_total_mb, 1),
+            'total_freed_mb': round(cls._mem_freed_total_mb, 1),
+            'still_held_mb': round(max(cls._mem_current_mb, 0.0), 1),
+        }
+
+    @classmethod
     def initialize_stages(cls, max_stages: int = 10) -> None:
         """Initialize stage storage (called by pipeline at start)."""
         cls._max_stages = max_stages
         cls.cleanup_stages()  # Start fresh
+        cls._mem_current_mb = 0.0
+        cls._mem_peak_mb = 0.0
+        cls._mem_saved_total_mb = 0.0
+        cls._mem_freed_total_mb = 0.0
         logger.debug(f"Initialized stage storage with max_stages={max_stages}")
     
     @classmethod

@@ -14,7 +14,7 @@ with support for:
 import pandas as pd
 import logging
 
-from typing import Any, Union
+from typing import Any
 
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
@@ -369,7 +369,7 @@ class AggregateDataProcessor(BaseStepProcessor):
         except:
             raise StepProcessorError(f"Could not parse aggregations string: {aggregations_str}")
     
-    def _apply_variable_substitution(self, group_by: Union[str, list], aggregations: list, variables: dict) -> tuple:
+    def _apply_variable_substitution(self, group_by: str | list, aggregations: list, variables: dict) -> tuple:
         """Apply variable substitution to aggregation configuration."""
         
         if not variables:
@@ -397,7 +397,7 @@ class AggregateDataProcessor(BaseStepProcessor):
         
         return group_by, substituted_aggregations
     
-    def _validate_aggregation_config(self, df: pd.DataFrame, group_by: Union[str, list], aggregations: list) -> None:
+    def _validate_aggregation_config(self, df: pd.DataFrame, group_by: str | list, aggregations: list) -> None:
         """
         Validate aggregation configuration parameters.
         
@@ -455,7 +455,7 @@ class AggregateDataProcessor(BaseStepProcessor):
                     f"Supported functions: {supported}"
                 )
     
-    def _perform_aggregation(self, df: pd.DataFrame, group_by: Union[str, list], 
+    def _perform_aggregation(self, df: pd.DataFrame, group_by: str | list, 
                            aggregations: list, keep_group_columns: bool,
                            sort_by_groups: bool, reset_index: bool) -> pd.DataFrame:
         """
@@ -578,7 +578,7 @@ class AggregateDataProcessor(BaseStepProcessor):
             ]
         }
     
-    def create_summary_aggregation(self, df: pd.DataFrame, group_columns: Union[str, list], 
+    def create_summary_aggregation(self, df: pd.DataFrame, group_columns: str | list, 
                                  numeric_columns: list = None) -> pd.DataFrame:
         """
         Create a standard summary aggregation with common statistics.
@@ -606,8 +606,8 @@ class AggregateDataProcessor(BaseStepProcessor):
         
         return self._perform_aggregation(df, group_columns, aggregations, True, True, True)
     
-    def create_crosstab_aggregation(self, df: pd.DataFrame, row_columns: Union[str, list], 
-                                  col_columns: Union[str, list], value_column: str,
+    def create_crosstab_aggregation(self, df: pd.DataFrame, row_columns: str | list, 
+                                  col_columns: str | list, value_column: str,
                                   agg_function: str = 'sum') -> pd.DataFrame:
         """
         Create a crosstab-style aggregation.

@@ -10,7 +10,7 @@ Enhanced with prompt_toolkit for better UX when available.
 
 import re
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 
@@ -64,7 +64,7 @@ class InteractiveVariablePrompt:
     for better UX when available.
     """
     
-    def __init__(self, variable_substitution: Optional[VariableSubstitution] = None):
+    def __init__(self, variable_substitution: VariableSubstitution | None = None):
         """
         Initialize interactive variable prompting.
         

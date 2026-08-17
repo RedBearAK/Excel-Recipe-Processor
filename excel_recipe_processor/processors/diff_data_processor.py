@@ -11,7 +11,7 @@ import json
 import pandas as pd
 import logging
 
-from typing import Any, Union
+from typing import Any
 
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -64,7 +64,7 @@ class DiffDataProcessor(BaseStepProcessor):
         # Validate configuration
         self._validate_config()
     
-    def _normalize_key_columns(self, key_columns: Union[str, list]) -> list:
+    def _normalize_key_columns(self, key_columns: str | list) -> list:
         """
         Normalize key_columns to always be a list.
         

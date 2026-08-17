@@ -10,7 +10,6 @@ filter terms using n-gram analysis and statistical comparison techniques.
 import pandas as pd
 import logging
 
-from typing import Any, Optional
 
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -283,7 +282,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         if not isinstance(self.score_threshold, (int, float)) or self.score_threshold < 0:
             raise StepProcessorError("score_threshold must be a non-negative number")
 
-    def execute(self, source_stage_data: Optional[pd.DataFrame]) -> pd.DataFrame:
+    def execute(self, source_stage_data: pd.DataFrame | None) -> pd.DataFrame:
         """Execute filter terms detection analysis."""
         try:
             self.log_step_start()

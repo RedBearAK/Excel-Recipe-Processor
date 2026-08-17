@@ -13,7 +13,7 @@ import logging
 
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
 
 
 logger = logging.getLogger(__name__)

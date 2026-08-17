@@ -10,7 +10,7 @@ import re
 import pandas as pd
 import logging
 
-from typing import Any, Optional
+from typing import Any
 
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -181,7 +181,7 @@ class SplitColumnProcessor(BaseStepProcessor):
     
     def _split_by_delimiter(self, df: pd.DataFrame, source_column: str, 
                           new_column_names: list[str], remove_original: bool,
-                          max_splits: Optional[int], fill_missing: str) -> pd.DataFrame:
+                          max_splits: int | None, fill_missing: str) -> pd.DataFrame:
         """
         Split column by delimiter.
         
@@ -310,7 +310,7 @@ class SplitColumnProcessor(BaseStepProcessor):
     
     def _split_by_regex(self, df: pd.DataFrame, source_column: str,
                        new_column_names: list[str], remove_original: bool,
-                       max_splits: Optional[int], fill_missing: str) -> pd.DataFrame:
+                       max_splits: int | None, fill_missing: str) -> pd.DataFrame:
         """
         Split column using regex pattern.
         

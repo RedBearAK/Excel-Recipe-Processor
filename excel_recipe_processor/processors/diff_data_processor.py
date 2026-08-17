@@ -121,7 +121,23 @@ class DiffDataProcessor(BaseStepProcessor):
         if self.create_filtered_stages:
             self._create_filtered_stages(diff_result)
         
-        self.log_step_complete(f"analyzed {len(diff_result)} rows, identified changes")
+        # Name what moved (2026-08-17): a drift report is only useful if
+        # the log says WHICH keys appeared/vanished, not just a count.
+        # Capped so a wholesale replacement cannot flood the log.
+        status_counts = diff_result['Row_Status'].value_counts().to_dict()
+        summary_parts = [f"analyzed {len(diff_result)} rows"]
+        for status in ('NEW', 'DELETED', 'CHANGED'):
+            count = status_counts.get(status, 0)
+            if count:
+                keys = diff_result.loc[
+                    diff_result['Row_Status'] == status, self.key_columns
+                ].astype(str).agg(' / '.join, axis=1).tolist()
+                shown = ', '.join(keys[:10])
+                more = f" (+{len(keys) - 10} more)" if len(keys) > 10 else ""
+                summary_parts.append(f"{count} {status}: {shown}{more}")
+        if len(summary_parts) == 1:
+            summary_parts.append("no differences")
+        self.log_step_complete('; '.join(summary_parts))
         
         # Return result - let base class save it to save_to_stage
         return diff_result

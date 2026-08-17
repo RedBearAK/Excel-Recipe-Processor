@@ -66,7 +66,7 @@ class ExcelWriter:
             raise ExcelWriterError("Data must be a pandas DataFrame")
         
         if df.empty:
-            logger.warning("Writing empty DataFrame to Excel file")
+            logger.info(f"Writing empty DataFrame to Excel file '{output_path}'")
         
         if not output_path:
             raise ExcelWriterError("Output path cannot be empty")

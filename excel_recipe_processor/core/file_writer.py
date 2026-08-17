@@ -77,7 +77,7 @@ class FileWriter:
         """
         try:
             # Validate input data
-            FileWriter._validate_dataframe(data)
+            FileWriter._validate_dataframe(data, context=f"'{filename}'")
             
             # Ensure output directory exists
             FileWriter._ensure_directory_exists(filename)
@@ -133,7 +133,7 @@ class FileWriter:
             for sheet_name, df in sheets_data.items():
                 if not isinstance(sheet_name, str) or not sheet_name.strip():
                     raise FileWriterError(f"Sheet name must be a non-empty string, got: {type(sheet_name)}")
-                FileWriter._validate_dataframe(df)
+                FileWriter._validate_dataframe(df, context=f"sheet '{sheet_name}'")
             
             # Force Excel format
             file_path = Path(filename)
@@ -291,14 +291,27 @@ class FileWriter:
     # =============================================================================
     
     @staticmethod
-    def _validate_dataframe(data):
-        """Validate that data is a proper DataFrame."""
+    def _validate_dataframe(data, context=None):
+        """Validate that data is a proper DataFrame.
+
+        Args:
+            data: Candidate DataFrame
+            context: What is being written (sheet or file name) so the
+                line names its cause instead of being anonymous
+        """
         if not isinstance(data, pd.DataFrame):
             raise FileWriterError(f"Data must be a pandas DataFrame, got: {type(data)}")
-        
-        # Empty DataFrames are allowed - just warn
+
+        # Empty DataFrames are allowed, and writing one is a DESIGNED
+        # pattern here (formula-spill view tabs are exported empty and
+        # seeded after). So this is information, not a warning
+        # (2026-08-17): a warning that fires on intended behavior
+        # trains readers to ignore warnings, and the anonymous form
+        # was unactionable anyway. INFO keeps the fact in the log for
+        # every sheet with no opt-in ceremony and no lost information.
         if data.empty:
-            logger.warning("Writing empty DataFrame")
+            where = f" for {context}" if context else ""
+            logger.info(f"Writing empty DataFrame{where}")
     
     @staticmethod
     def _ensure_directory_exists(filename):

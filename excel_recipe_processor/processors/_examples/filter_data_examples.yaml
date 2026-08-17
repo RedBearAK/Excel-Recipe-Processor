@@ -1,4 +1,4 @@
-# Revision date: 2025-08-04
+# Revision date: 2026-08-17
 
 description: "Filter DataFrame rows using enhanced conditions with stage-based data flow and case sensitivity control"
 
@@ -336,13 +336,17 @@ multiple_filters_example:
             condition: "contains_any_in_list"
             # REQ - List of category patterns
             value: ["Premium", "VIP", "Platinum"]
-          # Filter 3: Recent orders only
+          # Filter 3: High-priority tier levels only
+          # (For DATE comparisons use a pandas_expression filter - see
+          # the pandas_expression examples below. The ordering
+          # conditions coerce the column numerically and cannot
+          # compare dates.)
           - # REQ - Column name to filter on
-            column: "Order_Date"
-            # REQ - Date comparison condition
-            condition: "greater_than"
-            # REQ - Date value in YYYY-MM-DD format
-            value: "2024-01-01"
+            column: "Priority_Tier"
+            # REQ - Numeric comparison condition
+            condition: "greater_equal"
+            # REQ - Numeric value for comparison
+            value: 2
           # Filter 4: Exclude cancelled orders
           - # REQ - Column name to filter on
             column: "Status"
@@ -585,14 +589,6 @@ parameter_details:
         options: ["equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal"]
         examples: ["less_than", "greater_equal", "equals"]
 
-integration_notes:
-  stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"
-  variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings"
-  data_preservation: "Original source stage data remains unchanged - filter creates new stage"
-  pipeline_flow: "Pure stage-based architecture - filters transform data between named stages"
-  performance: "Filtering early in workflow reduces memory usage and processing time for subsequent steps"
-  case_sensitivity: "Default case-insensitive behavior is user-friendly while case-sensitive option provides precision"
-
 new_features_summary:
   case_sensitivity: "Control case sensitivity with case_sensitive parameter (default: false for user-friendly behavior)"
   pattern_matching: "Enhanced text pattern matching with starts_with, ends_with, and negation variants"
@@ -642,7 +638,60 @@ parameter_details_update:
       - "Boolean operators: & (and), | (or), ~ (not) - NOT Python 'and/or/not'"
       - "String comparisons are case-sensitive unless using .str methods with case=False"
 
+typed_variable_thresholds_example:
+  description: "Numeric thresholds from recipe variables via typed references"
+  yaml: |
+    # Recipe variables substitute as STRINGS unless typed at the
+    # reference site. An untyped "{min_sales}" delivers the TEXT
+    # "120", and ordering comparisons fail loud rather than guess.
+    # Typed references - {int:name}, {float:name}, {list:name} -
+    # substitute the actual typed value, preventing the error when
+    # the value is not meant to be a string. This also works when
+    # the variable arrives as a string from --variable on the CLI
+    # or from an interactive prompt: conversion happens at the
+    # reference, loudly if it cannot.
+
+    settings:
+      description: "Filter sales rows above a configurable threshold"
+      variables:
+        # Declared as a number; quoted "120" would also work because
+        # the typed reference converts - but declare the real type.
+        min_sales: 120
+        allowed_tiers: [2, 3]
+      stages:
+        - stage_name: "stg_sales_raw"
+          description: "Imported sales rows"
+          protected: false
+        - stage_name: "stg_sales_qualified"
+          description: "Rows at or above the threshold"
+          protected: false
+
+    recipe:
+      - step_description: "Keep rows meeting the configured threshold"
+        processor_type: "filter_data"
+        source_stage: "stg_sales_raw"
+        save_to_stage: "stg_sales_qualified"
+        filters:
+          - # REQ - Column name to filter on
+            column: "Sales"
+            # REQ - Numeric comparison condition
+            condition: "greater_equal"
+            # REQ - Typed reference: substitutes the int 120, not "120"
+            value: "{int:min_sales}"
+          - # REQ - Column name to filter on
+            column: "Tier"
+            # REQ - Membership condition
+            condition: "in_list"
+            # REQ - Typed list reference: members keep their YAML types
+            value: "{list:allowed_tiers}"
+
 integration_notes:
+  stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"
+  variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings; typed references like {int:name} substitute actual typed values for numeric thresholds"
+  data_preservation: "Original source stage data remains unchanged - filter creates new stage"
+  pipeline_flow: "Pure stage-based architecture - filters transform data between named stages"
+  performance: "Filtering early in workflow reduces memory usage and processing time for subsequent steps"
+  case_sensitivity: "Default case-insensitive behavior is user-friendly while case-sensitive option provides precision"
   precedence: "If both pandas_expression and filters are provided, pandas_expression takes precedence"
   error_handling: "Provides specific error messages for syntax, missing columns, and type mismatches"
   performance: "Generally faster than multiple filter steps for complex logic"

@@ -345,7 +345,11 @@ def test_multi_processor_workflow():
                 'source_stage': 'raw_data',
                 'save_to_stage': 'filtered_data',
                 'filters': [
-                    {'column': 'Sales', 'condition': 'greater_than', 'value': 100}
+                    # Typed reference: substitutes the actual int from
+                    # settings variables. An untyped '{min_sales}'
+                    # would deliver the STRING '120' and draw the
+                    # guided ordering-comparison error.
+                    {'column': 'Sales', 'condition': 'greater_than', 'value': '{int:min_sales}'}
                 ]
             },
             {

@@ -1,4 +1,4 @@
-# Revision date: 2025-08-03
+# Revision date: 2026-08-17
 
 description: "Recipe settings section configuration options for stage-based architecture with variables, stage management, and error handling"
 
@@ -18,10 +18,15 @@ recommended_example:
     settings:
       description: "Process customer orders with data validation and regional analysis"
       
-      # Custom variables for reuse throughout recipe
+      # Custom variables for reuse throughout recipe. Declare real
+      # types: numbers unquoted, strings quoted. In steps, "{name}"
+      # substitutes TEXT; typed references - {int:name}, {float:name},
+      # {list:name}, {bool:name} - substitute the actual typed value,
+      # preventing type errors where the value is not meant to be a
+      # string (numeric filter thresholds, row counts, and so on).
       variables:
         region: "west"
-        min_order_amount: "500"
+        min_order_amount: 500     # reference as {int:min_order_amount}
         output_prefix: "processed"
       
       # Stage declarations for auto-completion and protection

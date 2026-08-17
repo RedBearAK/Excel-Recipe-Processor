@@ -221,6 +221,31 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                 f"'sheet_names' (2026-08-14 sheet-addressing doctrine)"
             )
         sheets = self.get_config_value('sheet_names', None)  # None = active sheet, 'all' = all sheets
+
+        # Grouped sibling shape (2026-08-17): a list of ENTRIES, each
+        # pairing a sheet_name with its OWN formulas list, so one step
+        # injects different formulas into different sheets. Same entry
+        # anatomy as export_file's sheets_to_create, but named for what
+        # the entries DO - the sheets already exist and RECEIVE
+        # formulas (naming ruling, same day: the verb must attach to
+        # the right noun). The broadcast shape above
+        # (sheet_names + formulas) remains for the same-formulas-to-
+        # many-sheets case; a step uses exactly ONE of the two.
+        sheets_to_receive_formulas = self.get_config_value('sheets_to_receive_formulas', None)
+        broadcast_given = bool(formulas) or sheets is not None
+        if sheets_to_receive_formulas is not None and broadcast_given:
+            raise StepProcessorError(
+                f"Inject step '{self.step_name}': use EITHER the grouped "
+                f"'sheets_to_receive_formulas' shape OR the broadcast "
+                f"'sheet_names'/'formulas' pair, not both - the grouped "
+                f"entries each carry their own formulas."
+            )
+        if sheets_to_receive_formulas is not None and mode == 'awaken':
+            raise StepProcessorError(
+                f"Inject step '{self.step_name}': 'sheets_to_receive_formulas' "
+                f"applies to live/dead injection; awaken mode addresses "
+                f"sheets with 'sheet_names'."
+            )
         
         # Apply variable substitution to target filename
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -237,11 +262,84 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         # Process the file based on mode
         if mode == 'awaken':
             result = self._awaken_formulas(resolved_file, sheets, auto_scan)
+        elif sheets_to_receive_formulas is not None:
+            result = self._inject_grouped(resolved_file, mode, sheets_to_receive_formulas)
         else:
             result = self._inject_formulas(resolved_file, mode, formulas, sheets)
         
         return result
     
+    def _inject_grouped(self, filename: str, mode: str, entries: list) -> str:
+        """
+        Inject per-sheet formula groups: each entry pairs one sheet_name
+        with its own formulas list (the sheets_to_receive_formulas shape). Entry
+        validation fails loud naming the entry index; per-sheet counts
+        land in the completion log so a consolidated step still tells
+        the story tab by tab.
+        """
+        if not isinstance(entries, list) or not entries:
+            raise StepProcessorError(
+                f"Inject step '{self.step_name}': 'sheets_to_receive_formulas' must "
+                f"be a non-empty list of entries, each with sheet_name "
+                f"and formulas"
+            )
+
+        workbook = WorkbookSession.get_workbook(filename)
+        self._written_live_cells = {}
+        per_sheet_counts = []
+
+        for position, entry in enumerate(entries, start=1):
+            if not isinstance(entry, dict):
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} must be a mapping with sheet_name "
+                    f"and formulas, got: {type(entry).__name__}"
+                )
+            sheet_name = entry.get('sheet_name')
+            entry_formulas = entry.get('formulas')
+            if not sheet_name or not entry_formulas:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} needs BOTH sheet_name and a "
+                    f"non-empty formulas list (got sheet_name: "
+                    f"{sheet_name!r})"
+                )
+            unknown_keys = set(entry) - {'sheet_name', 'formulas'}
+            if unknown_keys:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} ('{sheet_name}') has unknown "
+                    f"key(s): {sorted(unknown_keys)}. Each entry takes "
+                    f"sheet_name and formulas; mode and target_file are "
+                    f"step-level."
+                )
+
+            target_sheets = self._get_target_sheets(workbook, sheet_name)
+            for resolved_name in target_sheets:
+                worksheet = workbook[resolved_name]
+                sheet_count = 0
+                for formula_def in entry_formulas:
+                    try:
+                        sheet_count += self._apply_formula_to_sheet(
+                            worksheet, formula_def, mode)
+                    except StepProcessorError as error:
+                        raise StepProcessorError(
+                            f"sheets_to_receive_formulas entry {position} "
+                            f"(sheet '{resolved_name}'): {error}"
+                        )
+                per_sheet_counts.append(f"{resolved_name}: {sheet_count}")
+
+        for sheet_name, written_cells in self._written_live_cells.items():
+            ranges = self._compress_cells_to_ranges(written_cells)
+            WorkbookSession.register_injected_formulas(filename, sheet_name, ranges)
+
+        WorkbookSession.mark_dirty(filename)
+
+        mode_desc = 'live' if mode == 'live' else 'dead'
+        detail = '; '.join(per_sheet_counts)
+        return (f"injected {mode_desc} formulas across "
+                f"{len(per_sheet_counts)} sheet(s) - {detail} ({filename})")
+
     def _inject_formulas(self, filename: str, mode: str, formulas: list, sheets) -> str:
         """
         Inject specific formulas into the Excel file.

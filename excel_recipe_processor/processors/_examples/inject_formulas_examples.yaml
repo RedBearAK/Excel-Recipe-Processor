@@ -351,10 +351,33 @@ workflow_patterns:
   progressive_enhancement: "Export basic data → Format with format_excel → Add formulas with inject_formula"
   dynamic_models: "Export data with inject_formula for self-updating Excel dashboards"
 
+grouped_sheets_example:
+  description: "One step, different formulas per sheet: the sheets_to_receive_formulas grouped shape (2026-08-17), parallel to export_file's sheets_to_create. Use it when several sheets each get their OWN formulas; the broadcast sheet_names + formulas pair remains for sending the SAME formulas to many sheets. A step uses exactly one of the two shapes."
+  yaml: |
+    recipe:
+      - step_description: "Inject the live view spills"
+        processor_type: "inject_formulas"
+        target_file: "output/workbook.xlsx"
+        mode: "live"
+        sheets_to_receive_formulas:
+          - sheet_name: "Export_View"
+            formulas:
+              - cell: "A2"
+                formula: '=fn_vms_view(rng_saletype="Export")'
+          - sheet_name: "Domestic_View"
+            formulas:
+              - cell: "A2"
+                formula: '=fn_vms_view(rng_saletype="Domestic")'
+          - sheet_name: "Pick_List"
+            formulas:
+              - cell: "A2"
+                formula: '=SORT(UNIQUE(rng_customers))'
+
 formula_features:
   cell_targeting: "Target individual cells with specific formulas"
   range_application: "Apply base formula to entire ranges (auto-adjusts for each cell)"
   multi_sheet_support: "Process single sheet, specific sheets, or entire workbook"
+  grouped_injection: "sheets_to_receive_formulas entries pair each sheet with its own formulas - different formulas per sheet in one step"
   formula_awakening: "Convert text that looks like formulas into live Excel formulas"
   mode_flexibility: "Choose live (dynamic), dead (documentation), or awaken (conversion) modes"
 

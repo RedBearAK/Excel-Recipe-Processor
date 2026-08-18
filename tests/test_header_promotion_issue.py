@@ -248,7 +248,7 @@ def demonstrate_workaround_with_slice():
                 'processor_type': 'slice_data',
                 'source_stage': 'raw_import',
                 'slice_type': 'row_range',
-                'start_row': 2,  # Start from row where headers are
+                'start_row': 1,  # 1-based: the header row is data row 1
                 'slice_result_contains_headers': True,
                 'save_to_stage': 'clean_data'
             }
@@ -342,7 +342,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    sys.exit(0 if main() else 1)
 
 
 # End of file #

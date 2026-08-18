@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Group customer cities into sales regions"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Raw customer data with city information"
           protected: false
-        - stage_name: "regional_customers"
+        - stage_name: "stg_regional_customers"
           description: "Customers grouped by sales region"
           protected: false
 
@@ -23,7 +23,7 @@ basic_example:
         # REQ - Path to input Excel file
         input_file: "data/customer_database.xlsx"
         # REQ - Stage to save imported data (import_file only needs save_to_stage)
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
 
       - # Step 2: Group cities into regions
         # OPT - Human-readable step description
@@ -32,7 +32,7 @@ basic_example:
         # REQ - Must be "group_data" for this processor type
         processor_type: "group_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "customer_data"
+        source_stage: "stg_customer_data"
         # REQ - Column containing values to group
         source_column: "City"
         # REQ - New column name for grouped values
@@ -51,7 +51,7 @@ basic_example:
         # Default value: "Ungrouped"
         unmatched_value: "Other Region"
         # REQ - Stage to save grouped data
-        save_to_stage: "regional_customers"
+        save_to_stage: "stg_regional_customers"
 
 stage_based_grouping_example:
   description: "Load group definitions from another stage for dynamic grouping"
@@ -59,13 +59,13 @@ stage_based_grouping_example:
     settings:
       description: "Use stage-based group definitions for flexible product categorization"
       stages:
-        - stage_name: "product_data"
+        - stage_name: "stg_product_data"
           description: "Raw product data"
           protected: false
-        - stage_name: "category_definitions"
+        - stage_name: "stg_category_definitions"
           description: "Product category group definitions"
           protected: false
-        - stage_name: "categorized_products"
+        - stage_name: "stg_categorized_products"
           description: "Products with category assignments"
           protected: false
 
@@ -74,18 +74,18 @@ stage_based_grouping_example:
         step_description: "Import product catalog"
         processor_type: "import_file"
         input_file: "data/product_catalog.xlsx"
-        save_to_stage: "product_data"
+        save_to_stage: "stg_product_data"
 
       - # Step 2: Import category definitions
         step_description: "Import category mapping definitions"
         processor_type: "import_file"
         input_file: "config/product_categories.xlsx"
-        save_to_stage: "category_definitions"
+        save_to_stage: "stg_category_definitions"
 
       - # Step 3: Group products using stage-based definitions
         step_description: "Categorize products using imported definitions"
         processor_type: "group_data"
-        source_stage: "product_data"
+        source_stage: "stg_product_data"
         # REQ - Column to group
         source_column: "Product_Name"
         # REQ - New column for groups
@@ -96,7 +96,7 @@ stage_based_grouping_example:
           # Valid values: "inline", "stage", "file", "lookup", "predefined"
           type: "stage"
           # REQ - Stage containing group definitions (when type is "stage")
-          stage_name: "category_definitions"
+          stage_name: "stg_category_definitions"
           # OPT - Format of group definitions in source
           # Default value: "wide"
           # Valid values: "wide", "long"
@@ -112,7 +112,7 @@ stage_based_grouping_example:
         # OPT - Handle unmatched products
         unmatched_action: "set_default"
         unmatched_value: "Miscellaneous"
-        save_to_stage: "categorized_products"
+        save_to_stage: "stg_categorized_products"
 
 file_based_grouping_example:
   description: "Load group definitions from external files with variable substitution"
@@ -123,10 +123,10 @@ file_based_grouping_example:
         region_type: "sales"
         year: "2024"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Customer data for regional analysis"
           protected: false
-        - stage_name: "regionally_grouped"
+        - stage_name: "stg_regionally_grouped"
           description: "Customers grouped by dynamic regional definitions"
           protected: false
 
@@ -135,12 +135,12 @@ file_based_grouping_example:
         step_description: "Import customer database"
         processor_type: "import_file"
         input_file: "data/customers_{year}.xlsx"
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
 
       - # Step 2: Group using external file definitions
         step_description: "Group customers using external regional definitions"
         processor_type: "group_data"
-        source_stage: "customer_data"
+        source_stage: "stg_customer_data"
         source_column: "State"
         target_column: "Sales_Territory"
         # REQ - File-based group source configuration
@@ -165,7 +165,7 @@ file_based_grouping_example:
         # Default value: false
         case_sensitive: false
         unmatched_action: "keep_original"
-        save_to_stage: "regionally_grouped"
+        save_to_stage: "stg_regionally_grouped"
 
 hierarchical_grouping_example:
   description: "Multi-level hierarchical grouping for complex categorization"
@@ -173,16 +173,16 @@ hierarchical_grouping_example:
     settings:
       description: "Create hierarchical grouping structure for sales analysis"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Raw sales transaction data"
           protected: false
-        - stage_name: "city_grouped"
+        - stage_name: "stg_city_grouped"
           description: "Sales data grouped by city"
           protected: false
-        - stage_name: "region_grouped"
+        - stage_name: "stg_region_grouped"
           description: "Sales data with city and region grouping"
           protected: false
-        - stage_name: "territory_grouped"
+        - stage_name: "stg_territory_grouped"
           description: "Complete hierarchical grouping structure"
           protected: false
 
@@ -191,12 +191,12 @@ hierarchical_grouping_example:
         step_description: "Import sales transaction data"
         processor_type: "import_file"
         input_file: "data/sales_transactions.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: First level - group by city (cleanup/standardization)
         step_description: "Standardize city names and group variations"
         processor_type: "group_data"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         source_column: "Customer_City"
         target_column: "Standardized_City"
         groups:
@@ -208,12 +208,12 @@ hierarchical_grouping_example:
         # Default value: false
         replace_source: false
         unmatched_action: "keep_original"
-        save_to_stage: "city_grouped"
+        save_to_stage: "stg_city_grouped"
 
       - # Step 3: Second level - group cities into regions
         step_description: "Group standardized cities into sales regions"
         processor_type: "group_data"
-        source_stage: "city_grouped"
+        source_stage: "stg_city_grouped"
         source_column: "Standardized_City"
         target_column: "Sales_Region"
         groups:
@@ -223,19 +223,19 @@ hierarchical_grouping_example:
           "South": ["Atlanta", "Miami", "Dallas", "Houston"]
         unmatched_action: "set_default"
         unmatched_value: "Other"
-        save_to_stage: "region_grouped"
+        save_to_stage: "stg_region_grouped"
 
       - # Step 4: Third level - group regions into territories
         step_description: "Group regions into sales territories"
         processor_type: "group_data"
-        source_stage: "region_grouped"
+        source_stage: "stg_region_grouped"
         source_column: "Sales_Region"
         target_column: "Sales_Territory"
         groups:
           "Eastern Territory": ["Northeast", "South"]
           "Western Territory": ["West", "Midwest"]
         unmatched_action: "keep_original"
-        save_to_stage: "territory_grouped"
+        save_to_stage: "stg_territory_grouped"
 
 predefined_grouping_example:
   description: "Use built-in predefined group definitions for common categorizations"
@@ -243,10 +243,10 @@ predefined_grouping_example:
     settings:
       description: "Apply predefined regional groupings for consistent categorization"
       stages:
-        - stage_name: "location_data"
+        - stage_name: "stg_location_data"
           description: "Data with location information"
           protected: false
-        - stage_name: "standardized_regions"
+        - stage_name: "stg_standardized_regions"
           description: "Data with predefined regional groupings"
           protected: false
 
@@ -255,12 +255,12 @@ predefined_grouping_example:
         step_description: "Import data with state information"
         processor_type: "import_file"
         input_file: "data/customer_locations.xlsx"
-        save_to_stage: "location_data"
+        save_to_stage: "stg_location_data"
 
       - # Step 2: Apply predefined US regional grouping
         step_description: "Group states using predefined US regional definitions"
         processor_type: "group_data"
-        source_stage: "location_data"
+        source_stage: "stg_location_data"
         source_column: "State"
         target_column: "US_Region"
         # REQ - Use predefined group definitions
@@ -273,7 +273,7 @@ predefined_grouping_example:
         # OPT - Handle unmatched values (states not in predefined groups)
         unmatched_action: "set_default"
         unmatched_value: "Other"
-        save_to_stage: "standardized_regions"
+        save_to_stage: "stg_standardized_regions"
 
 advanced_workflow_example:
   description: "Complex workflow with lookup-based grouping and validation"
@@ -284,16 +284,16 @@ advanced_workflow_example:
         validation_date: "2024-03-15"
         department: "sales"
       stages:
-        - stage_name: "transaction_data"
+        - stage_name: "stg_transaction_data"
           description: "Raw transaction data"
           protected: false
-        - stage_name: "validation_data"
+        - stage_name: "stg_validation_data"
           description: "Validation lookup data"
           protected: false
-        - stage_name: "grouped_transactions"
+        - stage_name: "stg_grouped_transactions"
           description: "Transactions with validated grouping"
           protected: false
-        - stage_name: "final_categorized"
+        - stage_name: "stg_final_categorized"
           description: "Final categorized transaction data"
           protected: false
 
@@ -302,18 +302,18 @@ advanced_workflow_example:
         step_description: "Import sales transaction data"
         processor_type: "import_file"
         input_file: "data/{department}_transactions.xlsx"
-        save_to_stage: "transaction_data"
+        save_to_stage: "stg_transaction_data"
 
       - # Step 2: Import validation lookup data
         step_description: "Import customer validation data"
         processor_type: "import_file"
         input_file: "validation/customer_lookup_{validation_date}.xlsx"
-        save_to_stage: "validation_data"
+        save_to_stage: "stg_validation_data"
 
       - # Step 3: Group customers with validation lookup
         step_description: "Group customers with cross-reference validation"
         processor_type: "group_data"
-        source_stage: "transaction_data"
+        source_stage: "stg_transaction_data"
         source_column: "Customer_ID"
         target_column: "Customer_Tier"
         # REQ - Lookup-based grouping configuration
@@ -321,7 +321,7 @@ advanced_workflow_example:
           # REQ - Use lookup/cross-reference grouping
           type: "lookup"
           # REQ - Stage containing lookup data
-          lookup_stage: "validation_data"
+          lookup_stage: "stg_validation_data"
           # REQ - Column in lookup data to match against
           lookup_key: "Customer_ID"
           # REQ - Column in lookup data containing group values
@@ -332,12 +332,12 @@ advanced_workflow_example:
           join_type: "left"
         # OPT - Handle customers not found in lookup
         unmatched_action: "error"  # Strict validation - fail if customer not found
-        save_to_stage: "grouped_transactions"
+        save_to_stage: "stg_grouped_transactions"
 
       - # Step 4: Secondary grouping for analysis categories
         step_description: "Create analysis categories from customer tiers"
         processor_type: "group_data"
-        source_stage: "grouped_transactions"
+        source_stage: "stg_grouped_transactions"
         source_column: "Customer_Tier"
         target_column: "Analysis_Category"
         groups:
@@ -348,7 +348,7 @@ advanced_workflow_example:
         replace_source: true
         unmatched_action: "set_default"
         unmatched_value: "Unclassified"
-        save_to_stage: "final_categorized"
+        save_to_stage: "stg_final_categorized"
 
 parameter_details:
   processor_type:

@@ -29,6 +29,19 @@ webcolors>=1.12                 # CSS colour names in format_excel
 # Imported unguarded at module scope in format_excel_processor. Previously
 # undeclared, so a fresh environment failed on any recipe touching formatting.
 
+# --- Fast Excel import ------------------------------------------------------
+
+python-calamine>=0.2.0          # imports as 'python_calamine'
+
+# The one deliberate exception to this file's "imported by the package" rule:
+# the codebase never imports it by name. core/file_reader.py detects the
+# wheel with find_spec and, when present, passes engine="calamine" to
+# pandas.read_excel - a Rust reader several times faster on large files,
+# value-for-value identical to the openpyxl path (tests/test_calamine_reader).
+# Declared so real installs get the fast path by default; the runtime
+# detection stays, so an environment without the wheel still works unchanged
+# rather than failing.
+
 # --- Term frequency analysis ------------------------------------------------
 
 scikit-learn>=1.0.0             # imports as 'sklearn'

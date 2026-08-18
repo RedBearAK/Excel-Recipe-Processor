@@ -41,6 +41,16 @@ class DefinedNameError(Exception):
     pass
 
 
+# House grouping prefixes for named objects, ALWAYS followed by an
+# underscore so the functional part of the name reads cleanly after the
+# group tag (user convention, 2026-08-14): rng_ ranges, fn_ lambdas,
+# tbl_ tables, fml_ named formulas. A name that starts with a known
+# group prefix WITHOUT the underscore (rngCustomers, fnBlankSafe)
+# violates house style; names outside these groups are not forced into
+# one.
+HOUSE_GROUP_PREFIXES = ('rng', 'fn', 'tbl', 'fml')
+
+
 def check_defined_name(name, enforce_house_style: bool = True) -> list:
     """
     Check a defined name and return every problem found.
@@ -102,6 +112,24 @@ def check_defined_name(name, enforce_house_style: bool = True) -> list:
                 f"letter. Use an underscore, as in "
                 f"'{name[:match.start()]}_{name[match.start():]}'."
             )
+
+        for prefix in HOUSE_GROUP_PREFIXES:
+            lowered = name.lower()
+            if lowered.startswith(prefix) and not lowered.startswith(prefix + '_'):
+                remainder = name[len(prefix):]
+                # Only the real mistake pattern fires: the group prefix
+                # continued in camelCase (fnBlankSafe, rngCustomers). A
+                # lowercase continuation is an ordinary word that merely
+                # begins with the same letters (fnord_thing) - not a
+                # group name at all.
+                if remainder and remainder[0].isupper():
+                    problems.append(
+                        f"House style: the group prefix '{prefix}' must be "
+                        f"followed by an underscore - use "
+                        f"'{prefix}_{remainder}' so the functional part of "
+                        f"the name reads cleanly after the group tag"
+                    )
+                break
 
     return problems
 

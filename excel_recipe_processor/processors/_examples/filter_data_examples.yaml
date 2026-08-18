@@ -1,4 +1,4 @@
-# Revision date: 2025-08-04
+# Revision date: 2026-08-17
 
 description: "Filter DataFrame rows using enhanced conditions with stage-based data flow and case sensitivity control"
 
@@ -10,10 +10,10 @@ basic_example:
     settings:
       description: "Filter for active customers using case-insensitive equality condition"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Raw imported customer data"
           protected: false
-        - stage_name: "active_customers"
+        - stage_name: "stg_active_customers"
           description: "Filtered active customers only"
           protected: false
     
@@ -25,9 +25,9 @@ basic_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "raw_data"
+        source_stage: "stg_raw_data"
         # REQ - Stage to save filtered results (must be declared in settings.stages)
-        save_to_stage: "active_customers"
+        save_to_stage: "stg_active_customers"
         # REQ - List of filter conditions (AND logic applied)
         filters:
           - # REQ - Column name to filter on
@@ -48,10 +48,10 @@ case_sensitivity_example:
     settings:
       description: "Filter products with precise case-sensitive and case-insensitive matching"
       stages:
-        - stage_name: "all_products"
+        - stage_name: "stg_all_products"
           description: "Complete product catalog"
           protected: false
-        - stage_name: "exact_products"
+        - stage_name: "stg_exact_products"
           description: "Products with exact case matching"
           protected: false
     
@@ -62,9 +62,9 @@ case_sensitivity_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "all_products"
+        source_stage: "stg_all_products"
         # REQ - Stage to save filtered results
-        save_to_stage: "exact_products"
+        save_to_stage: "stg_exact_products"
         # REQ - List of filter conditions
         filters:
           # Case-insensitive by default (matches Active, ACTIVE, active)
@@ -93,10 +93,10 @@ pattern_matching_example:
     settings:
       description: "Filter data using advanced text pattern matching and exclusions"
       stages:
-        - stage_name: "raw_inventory"
+        - stage_name: "stg_raw_inventory"
           description: "Raw inventory data"
           protected: false
-        - stage_name: "filtered_inventory"
+        - stage_name: "stg_filtered_inventory"
           description: "Inventory matching specific patterns"
           protected: false
     
@@ -107,9 +107,9 @@ pattern_matching_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "raw_inventory"
+        source_stage: "stg_raw_inventory"
         # REQ - Stage to save filtered results
-        save_to_stage: "filtered_inventory"
+        save_to_stage: "stg_filtered_inventory"
         # REQ - List of filter conditions
         filters:
           # Include products starting with "PROD-"
@@ -142,10 +142,10 @@ enhanced_list_conditions_example:
     settings:
       description: "Filter products using advanced list conditions and pattern containment"
       stages:
-        - stage_name: "product_catalog"
+        - stage_name: "stg_product_catalog"
           description: "Complete product catalog"
           protected: false
-        - stage_name: "targeted_products"
+        - stage_name: "stg_targeted_products"
           description: "Products matching complex criteria"
           protected: false
     
@@ -156,9 +156,9 @@ enhanced_list_conditions_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "product_catalog"
+        source_stage: "stg_product_catalog"
         # REQ - Stage to save filtered results
-        save_to_stage: "targeted_products"
+        save_to_stage: "stg_targeted_products"
         # REQ - List of filter conditions
         filters:
           # Include if description contains ANY of these terms
@@ -191,10 +191,10 @@ numeric_list_conditions_example:
     settings:
       description: "Filter orders using numeric list conditions for flexible range checking"
       stages:
-        - stage_name: "all_orders"
+        - stage_name: "stg_all_orders"
           description: "Complete order history"
           protected: false
-        - stage_name: "qualifying_orders"
+        - stage_name: "stg_qualifying_orders"
           description: "Orders meeting numeric criteria"
           protected: false
     
@@ -205,9 +205,9 @@ numeric_list_conditions_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "all_orders"
+        source_stage: "stg_all_orders"
         # REQ - Stage to save filtered results
-        save_to_stage: "qualifying_orders"
+        save_to_stage: "stg_qualifying_orders"
         # REQ - List of filter conditions
         filters:
           # Orders above the minimum threshold in any region
@@ -240,16 +240,16 @@ stage_based_filtering_example:
     settings:
       description: "Filter orders using stage-based validation and cross-stage comparisons"
       stages:
-        - stage_name: "all_orders"
+        - stage_name: "stg_all_orders"
           description: "Complete order dataset"
           protected: false
-        - stage_name: "approved_customers"
+        - stage_name: "stg_approved_customers"
           description: "Pre-approved customer list"
           protected: false
-        - stage_name: "price_history"
+        - stage_name: "stg_price_history"
           description: "Historical pricing data"
           protected: false
-        - stage_name: "validated_orders"
+        - stage_name: "stg_validated_orders"
           description: "Orders from approved customers with price validation"
           protected: false
     
@@ -261,9 +261,9 @@ stage_based_filtering_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "all_orders"
+        source_stage: "stg_all_orders"
         # REQ - Stage to save filtered results
-        save_to_stage: "validated_orders"
+        save_to_stage: "stg_validated_orders"
         # REQ - List of filter conditions
         filters:
           # Include only orders from approved customers
@@ -272,7 +272,7 @@ stage_based_filtering_example:
             # REQ - Stage-based inclusion condition
             condition: "in_stage"
             # REQ - Stage name containing valid values
-            stage_name: "approved_customers"
+            stage_name: "stg_approved_customers"
             # REQ - Column name in referenced stage
             stage_column: "Customer_ID"
             # OPT - Case sensitivity for stage comparison
@@ -284,7 +284,7 @@ stage_based_filtering_example:
             # REQ - Stage comparison condition
             condition: "stage_comparison"
             # REQ - Stage containing comparison data
-            stage_name: "price_history"
+            stage_name: "stg_price_history"
             # REQ - Key column in current data
             key_column: "Product_ID"
             # REQ - Key column in stage data
@@ -302,10 +302,10 @@ multiple_filters_example:
     settings:
       description: "Apply multiple filter conditions to extract premium recent orders"
       stages:
-        - stage_name: "all_orders"
+        - stage_name: "stg_all_orders"
           description: "All order data"
           protected: false
-        - stage_name: "premium_orders"
+        - stage_name: "stg_premium_orders"
           description: "High-value recent orders"
           protected: false
     
@@ -317,9 +317,9 @@ multiple_filters_example:
         # REQ - Must be "filter_data" for this processor type
         processor_type: "filter_data"
         # REQ - Stage to read data from
-        source_stage: "all_orders"
+        source_stage: "stg_all_orders"
         # REQ - Stage to save filtered results
-        save_to_stage: "premium_orders"
+        save_to_stage: "stg_premium_orders"
         # REQ - List of filter conditions (all must be true - AND logic)
         filters:
           # Filter 1: Amount greater than $1000
@@ -336,13 +336,17 @@ multiple_filters_example:
             condition: "contains_any_in_list"
             # REQ - List of category patterns
             value: ["Premium", "VIP", "Platinum"]
-          # Filter 3: Recent orders only
+          # Filter 3: High-priority tier levels only
+          # (For DATE comparisons use a pandas_expression filter - see
+          # the pandas_expression examples below. The ordering
+          # conditions coerce the column numerically and cannot
+          # compare dates.)
           - # REQ - Column name to filter on
-            column: "Order_Date"
-            # REQ - Date comparison condition
-            condition: "greater_than"
-            # REQ - Date value in YYYY-MM-DD format
-            value: "2024-01-01"
+            column: "Priority_Tier"
+            # REQ - Numeric comparison condition
+            condition: "greater_equal"
+            # REQ - Numeric value for comparison
+            value: 2
           # Filter 4: Exclude cancelled orders
           - # REQ - Column name to filter on
             column: "Status"
@@ -357,10 +361,10 @@ pandas_expression_basic_example:
     settings:
       description: "Filter using pandas expression syntax for complex conditions"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Source data"
           protected: false
-        - stage_name: "filtered_data"
+        - stage_name: "stg_filtered_data"
           description: "Filtered using pandas expression"
           protected: false
 
@@ -368,14 +372,14 @@ pandas_expression_basic_example:
       - step_description: "Import source data"
         processor_type: "import_file"
         input_file: "data/orders.xlsx"
-        save_to_stage: "raw_data"
+        save_to_stage: "stg_raw_data"
 
       - step_description: "Filter using pandas boolean logic"
         processor_type: "filter_data"
-        source_stage: "raw_data"
+        source_stage: "stg_raw_data"
         # Use pandas expression for complex logic that would be impossible with regular filters
         pandas_expression: '(Status == "Active") & ((Priority == "High") | (Amount > 1000))'
-        save_to_stage: "filtered_data"
+        save_to_stage: "stg_filtered_data"
 
 pandas_expression_completed_vans_example:
   description: "Real-world example: Keep recent Completed Vans entries"
@@ -385,10 +389,10 @@ pandas_expression_completed_vans_example:
       variables:
         week_start_date: "2024-08-04"
       stages:
-        - stage_name: "all_orders"
+        - stage_name: "stg_all_orders"
           description: "All order data"
           protected: false
-        - stage_name: "filtered_orders"
+        - stage_name: "stg_filtered_orders"
           description: "Filtered to exclude old Completed Vans"
           protected: false
 
@@ -396,14 +400,14 @@ pandas_expression_completed_vans_example:
       - step_description: "Import all orders"
         processor_type: "import_file"
         input_file: "data/orders.xlsx"
-        save_to_stage: "all_orders"
+        save_to_stage: "stg_all_orders"
 
       - step_description: "Keep recent Completed Vans and all other entries"
         processor_type: "filter_data"
-        source_stage: "all_orders"
+        source_stage: "stg_all_orders"
         # Logic: NOT (Completed Vans AND old date) = Keep everything except old Completed Vans
         pandas_expression: '~(Workflow.str.contains("Completed Vans") & (`Paid Date` < "{week_start_date}"))'
-        save_to_stage: "filtered_orders"
+        save_to_stage: "stg_filtered_orders"
 
 pandas_expression_string_operations_example:
   description: "Use pandas string methods in expressions"
@@ -411,20 +415,20 @@ pandas_expression_string_operations_example:
     settings:
       description: "Complex text filtering using pandas string operations"
       stages:
-        - stage_name: "products"
+        - stage_name: "stg_products"
           description: "Product data"
           protected: false
-        - stage_name: "filtered_products"
+        - stage_name: "stg_filtered_products"
           description: "Filtered products"
           protected: false
 
     recipe:
       - step_description: "Filter products with complex text conditions"
         processor_type: "filter_data"
-        source_stage: "products"
+        source_stage: "stg_products"
         # Multiple string conditions with different logic
         pandas_expression: '`Product Name`.str.contains("Premium|Deluxe", case=False) & ~`Product Name`.str.startswith("Test")'
-        save_to_stage: "filtered_products"
+        save_to_stage: "stg_filtered_products"
 
 pandas_expression_vs_regular_filters_example:
   description: "When to use pandas expressions vs regular filters"
@@ -432,20 +436,20 @@ pandas_expression_vs_regular_filters_example:
     settings:
       description: "Comparison of pandas expressions vs regular filter conditions"
       stages:
-        - stage_name: "orders"
+        - stage_name: "stg_orders"
           description: "Order data"
           protected: false
-        - stage_name: "simple_filtered"
+        - stage_name: "stg_simple_filtered"
           description: "Simple filter results"
           protected: false
-        - stage_name: "complex_filtered"
+        - stage_name: "stg_complex_filtered"
           description: "Complex filter results"
           protected: false
 
     recipe:
       - step_description: "Simple filtering (use regular filters)"
         processor_type: "filter_data"
-        source_stage: "orders"
+        source_stage: "stg_orders"
         # For simple AND conditions, regular filters are cleaner
         filters:
           - column: "Status"
@@ -454,14 +458,14 @@ pandas_expression_vs_regular_filters_example:
           - column: "Amount"
             condition: "greater_than"
             value: 1000
-        save_to_stage: "simple_filtered"
+        save_to_stage: "stg_simple_filtered"
 
       - step_description: "Complex filtering (use pandas expression)"
         processor_type: "filter_data"
-        source_stage: "orders"
+        source_stage: "stg_orders"
         # For OR logic or complex conditions, use pandas expressions
         pandas_expression: '(Status == "Active" & Amount > 1000) | (Status == "Pending" & Priority == "High")'
-        save_to_stage: "complex_filtered"
+        save_to_stage: "stg_complex_filtered"
 
 parameter_details:
   processor_type:
@@ -585,14 +589,6 @@ parameter_details:
         options: ["equals", "not_equals", "greater_than", "less_than", "greater_equal", "less_equal"]
         examples: ["less_than", "greater_equal", "equals"]
 
-integration_notes:
-  stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"
-  variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings"
-  data_preservation: "Original source stage data remains unchanged - filter creates new stage"
-  pipeline_flow: "Pure stage-based architecture - filters transform data between named stages"
-  performance: "Filtering early in workflow reduces memory usage and processing time for subsequent steps"
-  case_sensitivity: "Default case-insensitive behavior is user-friendly while case-sensitive option provides precision"
-
 new_features_summary:
   case_sensitivity: "Control case sensitivity with case_sensitive parameter (default: false for user-friendly behavior)"
   pattern_matching: "Enhanced text pattern matching with starts_with, ends_with, and negation variants"
@@ -642,7 +638,62 @@ parameter_details_update:
       - "Boolean operators: & (and), | (or), ~ (not) - NOT Python 'and/or/not'"
       - "String comparisons are case-sensitive unless using .str methods with case=False"
 
+typed_variable_thresholds_example:
+  description: "Numeric thresholds from recipe variables via typed references"
+  yaml: |
+    # Recipe variables substitute as STRINGS unless typed at the
+    # reference site. An untyped "{min_sales}" delivers the TEXT
+    # "120", and ordering comparisons fail loud rather than guess.
+    # Typed references - {int:name}, {float:name}, {list_int:name} -
+    # substitute the actual typed value, preventing the error when
+    # the value is not meant to be a string. This also works when
+    # the variable arrives as a string from --variable on the CLI
+    # or from an interactive prompt: conversion happens at the
+    # reference, loudly if it cannot.
+
+    settings:
+      description: "Filter sales rows above a configurable threshold"
+      variables:
+        # Declared as a number; quoted "120" would also work because
+        # the typed reference converts - but declare the real type.
+        min_sales: 120
+        allowed_tiers: [2, 3]
+      stages:
+        - stage_name: "stg_sales_raw"
+          description: "Imported sales rows"
+          protected: false
+        - stage_name: "stg_sales_qualified"
+          description: "Rows at or above the threshold"
+          protected: false
+
+    recipe:
+      - step_description: "Keep rows meeting the configured threshold"
+        processor_type: "filter_data"
+        source_stage: "stg_sales_raw"
+        save_to_stage: "stg_sales_qualified"
+        filters:
+          - # REQ - Column name to filter on
+            column: "Sales"
+            # REQ - Numeric comparison condition
+            condition: "greater_equal"
+            # REQ - Typed reference: substitutes the int 120, not "120"
+            value: "{int:min_sales}"
+          - # REQ - Column name to filter on
+            column: "Tier"
+            # REQ - Membership condition
+            condition: "in_list"
+            # REQ - Typed list reference: every member converted to
+            # int, loudly on failure ({list_any:...} passes mixed
+            # members through as declared)
+            value: "{list_int:allowed_tiers}"
+
 integration_notes:
+  stage_manager: "All filtered data flows through declared stages - no direct pipeline data access"
+  variable_substitution: "Supports built-in date/time variables and custom variables from recipe settings; typed references like {int:name} substitute actual typed values for numeric thresholds"
+  data_preservation: "Original source stage data remains unchanged - filter creates new stage"
+  pipeline_flow: "Pure stage-based architecture - filters transform data between named stages"
+  performance: "Filtering early in workflow reduces memory usage and processing time for subsequent steps"
+  case_sensitivity: "Default case-insensitive behavior is user-friendly while case-sensitive option provides precision"
   precedence: "If both pandas_expression and filters are provided, pandas_expression takes precedence"
   error_handling: "Provides specific error messages for syntax, missing columns, and type mismatches"
   performance: "Generally faster than multiple filter steps for complex logic"

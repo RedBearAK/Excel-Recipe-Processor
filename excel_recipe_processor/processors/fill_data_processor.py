@@ -1,13 +1,15 @@
 """
 Fill data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/fill_data_processor.py
+
 Handles filling missing/null values with various strategies similar to Excel's fill capabilities.
 """
 
 import pandas as pd
 import logging
 
-from typing import Any, Optional, Union
+from typing import Any
 
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -140,7 +142,7 @@ class FillDataProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Fill method '{fill_method}' requires 'fill_value' parameter")
     
     def _apply_standard_fill(self, df: pd.DataFrame, columns: list, 
-                           fill_method: str, fill_value, limit: Optional[int]) -> pd.DataFrame:
+                           fill_method: str, fill_value, limit: int | None) -> pd.DataFrame:
         """
         Apply standard fill operations to specified columns.
         
@@ -214,7 +216,7 @@ class FillDataProcessor(BaseStepProcessor):
     
     def _apply_conditional_fill(self, df: pd.DataFrame, columns: list,
                               fill_method: str, fill_value, conditions: list,
-                              limit: Optional[int]) -> pd.DataFrame:
+                              limit: int | None) -> pd.DataFrame:
         """
         Apply conditional fill operations based on other column values.
         
@@ -338,7 +340,7 @@ class FillDataProcessor(BaseStepProcessor):
         
         return total_filled
     
-    def fill_blanks_with_value(self, df: pd.DataFrame, columns: Union[str, list], 
+    def fill_blanks_with_value(self, df: pd.DataFrame, columns: str | list, 
                               fill_value: Any) -> pd.DataFrame:
         """
         Simple helper method to fill blank values with a constant.
@@ -361,8 +363,8 @@ class FillDataProcessor(BaseStepProcessor):
         
         return result
     
-    def forward_fill_series(self, df: pd.DataFrame, columns: Union[str, list], 
-                           limit: Optional[int] = None) -> pd.DataFrame:
+    def forward_fill_series(self, df: pd.DataFrame, columns: str | list, 
+                           limit: int | None = None) -> pd.DataFrame:
         """
         Forward fill (carry forward) missing values in specified columns.
         
@@ -384,7 +386,7 @@ class FillDataProcessor(BaseStepProcessor):
         
         return result
     
-    def fill_with_statistical_value(self, df: pd.DataFrame, columns: Union[str, list],
+    def fill_with_statistical_value(self, df: pd.DataFrame, columns: str | list,
                                    statistic: str = 'mean') -> pd.DataFrame:
         """
         Fill missing values with statistical measures.
@@ -499,7 +501,7 @@ class FillDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Fill missing/null values using various strategies similar to Excel fill operations',
+            'description': 'Fill missing values using Excel-like fill strategies',
             'fill_methods': self.get_supported_fill_methods(),
             'condition_types': self.get_supported_condition_types(),
             'supported_features': [
@@ -528,3 +530,5 @@ class FillDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the fill_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('fill_data')
+
+# End of file #

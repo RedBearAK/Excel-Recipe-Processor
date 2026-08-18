@@ -11,7 +11,7 @@ basic_example:
     settings:
       description: "Export filter step from manually reviewed filter terms"
       stages:
-        - stage_name: "filter_terms_reviewed"
+        - stage_name: "stg_filter_terms_reviewed"
           description: "Filter terms reviewed in Excel with KEEP/REJECT decisions"
           protected: false
     
@@ -23,7 +23,7 @@ basic_example:
         # REQ - Must be "export_filter_step" for this processor type
         processor_type: "export_filter_step"
         # REQ - Stage containing reviewed filter terms with acceptance decisions
-        source_stage: "filter_terms_reviewed"
+        source_stage: "stg_filter_terms_reviewed"
         # REQ - Output file path for generated recipe
         output_file: "generated_filter_recipe.yaml"
         # OPT - Stage name that filter should read from
@@ -41,14 +41,14 @@ step_only_example:
     settings:
       description: "Export filter step only for insertion into existing recipes"
       stages:
-        - stage_name: "reviewed_terms"
+        - stage_name: "stg_reviewed_terms"
           description: "Filter terms with user acceptance decisions"
           protected: false
     
     recipe:
       - step_description: "Export filter step for insertion into existing recipe"
         processor_type: "export_filter_step"
-        source_stage: "reviewed_terms"
+        source_stage: "stg_reviewed_terms"
         output_file: "filter_step_only.yaml"
         # OPT - Generate complete recipe or step only
         # Default value: true
@@ -67,14 +67,14 @@ json_format_example:
     settings:
       description: "Export filter configuration in JSON format"
       stages:
-        - stage_name: "filter_analysis_results"
+        - stage_name: "stg_filter_analysis_results"
           description: "Reviewed filter terms ready for export"
           protected: false
     
     recipe:
       - step_description: "Generate JSON filter configuration"
         processor_type: "export_filter_step"
-        source_stage: "filter_analysis_results"
+        source_stage: "stg_filter_analysis_results"
         output_file: "filter_config.json"
         # OPT - Output format selection
         # Default value: "yaml"
@@ -94,14 +94,14 @@ custom_column_mapping_example:
     settings:
       description: "Export filters with custom column mappings for different review formats"
       stages:
-        - stage_name: "custom_review_results"
+        - stage_name: "stg_custom_review_results"
           description: "Filter terms reviewed with custom column structure"
           protected: false
     
     recipe:
       - step_description: "Export filters with custom column mapping"
         processor_type: "export_filter_step"
-        source_stage: "custom_review_results"
+        source_stage: "stg_custom_review_results"
         output_file: "customized_filter_step.yaml"
         # OPT - Column containing user decisions
         # Default value: "User_Verified"
@@ -129,19 +129,19 @@ complete_workflow_example:
         review_file: "filter_terms_for_review.xlsx"
         reviewed_file: "filter_terms_reviewed.xlsx"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Original unfiltered data"
           protected: false
-        - stage_name: "filtered_reference"
+        - stage_name: "stg_filtered_reference"
           description: "Manually filtered reference data"
           protected: false
-        - stage_name: "detected_terms"
+        - stage_name: "stg_detected_terms"
           description: "Auto-detected filter term candidates"
           protected: false
-        - stage_name: "reviewed_terms"
+        - stage_name: "stg_reviewed_terms"
           description: "Human-reviewed filter terms"
           protected: false
-        - stage_name: "auto_filtered_data"
+        - stage_name: "stg_auto_filtered_data"
           description: "Data filtered using generated rules"
           protected: false
     
@@ -149,30 +149,30 @@ complete_workflow_example:
       # Step 1: Auto-detect filter terms
       - step_description: "Auto-detect potential filter terms"
         processor_type: "filter_terms_detector"
-        raw_stage: "raw_data"
-        filtered_stage: "filtered_reference"
+        raw_stage: "stg_raw_data"
+        filtered_stage: "stg_filtered_reference"
         auto_detect_columns: true
-        save_to_stage: "detected_terms"
+        save_to_stage: "stg_detected_terms"
       
       # Step 2: Export for human review
       - step_description: "Export terms for Excel review"
         processor_type: "export_file"
-        source_stage: "detected_terms"
+        source_stage: "stg_detected_terms"
         output_file: "{review_file}"
       
       # Step 3: Import human-reviewed terms
       - step_description: "Import reviewed filter terms"
         processor_type: "import_file"
         input_file: "{reviewed_file}"
-        save_to_stage: "reviewed_terms"
+        save_to_stage: "stg_reviewed_terms"
       
       # Step 4: Generate filter recipe
       - step_description: "Generate filter recipe from reviewed terms"
         processor_type: "export_filter_step"
-        source_stage: "reviewed_terms"
+        source_stage: "stg_reviewed_terms"
         output_file: "auto_generated_filter.yaml"
         target_stage: "raw_data"
-        output_stage: "auto_filtered_data"
+        output_stage: "stg_auto_filtered_data"
         step_description: "Auto-generated filter from human-reviewed terms"
 
 parameter_details:

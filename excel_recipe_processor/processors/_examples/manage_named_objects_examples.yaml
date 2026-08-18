@@ -36,7 +36,7 @@ export_example:
         operation: "export_all"
         source_file: "reference_workbook.xlsx"
         # OPT - YAML output path
-        export_file: "named_objects.yaml"
+        yaml_file: "named_objects.yaml"
         # OPT - Pipe-delimited output for VBA
         vba_file: "named_objects.txt"
         # OPT - Include sheet-scoped names as well as workbook-scoped
@@ -80,7 +80,7 @@ create_from_columns_example:
             # before any digit so the name can never read as a cell reference
             name: "rng_PID"
             # REQ - Sheet holding the column
-            sheet: "Product_IDs"
+            sheet_name: "Product_IDs"
             # REQ - Column names, or Excel column letters
             columns: ["Product ID"]
             # OPT - "data" (default: data rows only), "data_with_header",
@@ -90,7 +90,7 @@ create_from_columns_example:
           - # Adjacent entries expand into a span covering everything between,
             # so this becomes $B$2:$E$854 rather than two separate columns
             name: "rng_payterms"
-            sheet: "Sales_Orders"
+            sheet_name: "Sales_Orders"
             columns: ["Payment Terms", "Deposit Application"]
             row_mode: "data"
             # OPT - Columns used to measure the extent. Defaults to the columns
@@ -101,7 +101,7 @@ create_from_columns_example:
           - # full_col_no_header has no extent to fall behind, which suits a
             # validation list someone extends by hand
             name: "rng_carrier"
-            sheet: "Carriers"
+            sheet_name: "Carriers"
             columns: ["Carrier"]
             row_mode: "full_col_no_header"
 
@@ -121,7 +121,7 @@ import_example:
         processor_type: "manage_named_objects"
         operation: "import_all"
         # REQ - YAML file produced by export_all
-        import_file: "named_objects.yaml"
+        yaml_file: "named_objects.yaml"
         # REQ - Workbook to write into, which must already exist
         target_file: "output/report.xlsx"
         # OPT - "error" (default), "replace", or "skip"
@@ -170,7 +170,7 @@ validate_example:
       - step_description: "Validate the YAML export"
         processor_type: "manage_named_objects"
         operation: "validate_yaml"
-        import_file: "named_objects.yaml"
+        yaml_file: "named_objects.yaml"
         name_validation: "house"
 
 
@@ -196,11 +196,11 @@ parameter_details:
     required: "for import_all, import_filtered, copy_direct, create_from_columns"
     description: "Workbook to write into. Must already exist - named objects are added to a workbook, not used to create one."
 
-  import_file:
+  yaml_file:
     required: "for import_all, import_filtered, validate_yaml"
     description: "YAML file previously produced by an export operation"
 
-  export_file:
+  yaml_file:
     required: false
     description: "YAML output path for export operations"
 
@@ -266,6 +266,9 @@ row_mode_details:
     example: "$C$2:$C$1048576"
     note: "Cannot go stale either. Suits a validation list that a person extends by hand, where a data-extent range would silently exclude the newest entry."
 
+
+let_lambda_naming_doctrine:
+  rule: "NEVER coin LET/LAMBDA declared names that look like cell references (g0, x2, AB12, R1C1, RC, bare R/C). Excel forbids the class; the import path REFUSES the definition at parse time (2026-08-17: refusals halt the run - they are never demoted to warnings). The rule is terminal-digit: a digit run at the END directly after letters is the one shape that can complete a reference. Letters after digits are safe (a1b, q3total, col2name). Separate terminal digits (g_0, total_2) or use a word (raw, grp, first_pass, keys). Defined OBJECT names keep the stricter everywhere-separated house rule."
 
 limitations:
   tables:

@@ -22,7 +22,7 @@ def stage_with(columns):
 
 
 def build(expected, **overrides):
-    config = {'processor_type': 'verify_columns', 'stage': 'stg_check',
+    config = {'processor_type': 'verify_columns', 'source_stage': 'stg_check',
               'expected_columns': expected}
     config.update(overrides)
     return VerifyColumnsProcessor(config)
@@ -145,14 +145,14 @@ def test_exactly_one_expectation_source():
     passed = True
 
     try:
-        VerifyColumnsProcessor({'processor_type': 'verify_columns', 'stage': 'stg_check'})
+        VerifyColumnsProcessor({'processor_type': 'verify_columns', 'source_stage': 'stg_check'})
         print("  ✗ Neither source accepted")
         passed = False
     except Exception:
         print("  ✓ Neither source rejected")
 
     try:
-        VerifyColumnsProcessor({'processor_type': 'verify_columns', 'stage': 'stg_check',
+        VerifyColumnsProcessor({'processor_type': 'verify_columns', 'source_stage': 'stg_check',
                                 'expected_columns': ['A'], 'expected_from_stage': 'stg_other'})
         print("  ✗ Both sources accepted")
         passed = False

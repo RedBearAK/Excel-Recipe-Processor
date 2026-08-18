@@ -20,7 +20,7 @@ from datetime import datetime
 import pandas as pd
 import openpyxl
 
-from excel_recipe_processor.core.file_reader import FileReader, CALAMINE_AVAILABLE
+from excel_recipe_processor.core.file_reader import FileReader, FileReaderError, CALAMINE_AVAILABLE
 
 
 def make_mixed_workbook(path):
@@ -163,7 +163,12 @@ def test_verbatim_columns_ride_the_new_engine():
 
 
 def test_positional_sheets_through_filereader():
-    """Sheet-by-position (including the numeric-string form) still works."""
+    """
+    Sheet addressing per the 2026-08-14 doctrine: ints are positional for
+    internal callers; STRINGS are always NAMES. The numeric-string
+    coercion that once shadowed tabs literally named "1" is gone, so
+    sheet='1' on a workbook without such a tab must fail loud.
+    """
     print("\nTesting positional sheet addressing...")
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -171,11 +176,19 @@ def test_positional_sheets_through_filereader():
         make_mixed_workbook(path)
 
         by_int = FileReader.read_file(path, sheet=1)
-        by_str = FileReader.read_file(path, sheet='1')
         second = FileReader.read_file(path, sheet=2)
 
-        if by_int.equals(by_str) and list(second.columns) == ['F', 'Plain']:
-            print("  ✓ int and numeric-string address the same sheet; index 2 reaches Formulas")
+        try:
+            FileReader.read_file(path, sheet='1')
+            print("  ✗ sheet='1' should be a NAME and fail loud on this workbook")
+            return False
+        except FileReaderError as error:
+            if 'not found' not in str(error):
+                print(f"  ✗ wrong error for name '1': {error}")
+                return False
+
+        if len(by_int) > 0 and list(second.columns) == ['F', 'Plain']:
+            print("  ✓ int addresses by position; string '1' is a name and fails loud")
             return True
         print(f"  ✗ second sheet columns: {list(second.columns)}")
         return False

@@ -100,7 +100,8 @@ def test_yaml_files_existence():
         print("   ❌ Examples directory doesn't exist")
         return False
     
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
     processor_names_with_yaml = {f.stem.replace('_examples', '') for f in yaml_files}
     
@@ -140,7 +141,8 @@ def test_yaml_file_syntax():
         return True
     
     examples_dir = get_examples_directory()
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
@@ -196,7 +198,8 @@ def test_yaml_content_quality():
     print("\n✨ Testing YAML content quality...")
     
     examples_dir = get_examples_directory()
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
@@ -245,7 +248,8 @@ def test_cli_integration():
     print("\n🖥️  Testing CLI integration...")
     
     examples_dir = get_examples_directory()
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
@@ -302,7 +306,8 @@ def test_processor_method_fallbacks():
     processors = get_all_processors()
     examples_dir = get_examples_directory()
     
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
 
     processors_with_yaml = {f.stem.replace('_examples', '') for f in yaml_files}
@@ -344,61 +349,75 @@ def test_processor_method_fallbacks():
 
 
 def test_revision_dates():
-    """Test that YAML files have today's revision date comment."""
+    """
+    Test that YAML files carry a well-formed revision date comment.
+
+    Doctrine (2026-08-16): the checker requires PRESENCE and validity -
+    a '# Revision date: YYYY-MM-DD' header whose date parses and is not
+    in the future. The old equality-to-a-hardcoded-today literal failed
+    whenever examples changed without editing a constant.
+    """
     print("\n📅 Testing revision date comments...")
-    
+
+    from datetime import date, datetime
+
     examples_dir = get_examples_directory()
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
-    
+
     if not yaml_files:
         print("   ⚠️  No YAML files to test")
         return True
-    
-    today_date = "2025-07-31"  # Update this as needed
+
     all_current = True
-    
+
     for yaml_file in yaml_files:
         processor_name = yaml_file.stem.replace('_examples', '')
-        
+
         try:
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 # Read first 10 lines to look for revision date
                 lines = [f.readline().strip() for _ in range(10)]
-            
+
             # Look for revision date comment
             revision_line = None
-            for i, line in enumerate(lines):
+            for line in lines:
                 if line.startswith("# Revision date:"):
                     revision_line = line
                     break
-            
+
             if revision_line is None:
                 print(f"   ❌ {processor_name:>24}: No revision date comment found")
                 all_current = False
                 continue
-            
-            # Extract the date from the comment
+
+            date_part = revision_line.split("# Revision date:")[1].strip()
             try:
-                date_part = revision_line.split("# Revision date:")[1].strip()
-                if '202' in date_part:
-                    print(f"   ✅ {processor_name:>24}: {revision_line}")
-                else:
-                    print(f"   ⚠️  {processor_name:>24}: {revision_line} (needs update to {today_date})")
-                    all_current = False
-            except (IndexError, ValueError):
-                print(f"   ❌ {processor_name:>24}: Invalid revision date format: {revision_line}")
+                parsed = datetime.strptime(date_part, "%Y-%m-%d").date()
+            except ValueError:
+                print(f"   ❌ {processor_name:>24}: Unparseable revision date "
+                      f"(want YYYY-MM-DD): {revision_line}")
                 all_current = False
-                
+                continue
+
+            if parsed > date.today():
+                print(f"   ❌ {processor_name:>24}: Revision date is in the "
+                      f"future: {revision_line}")
+                all_current = False
+                continue
+
+            print(f"   ✅ {processor_name:>24}: {revision_line}")
+
         except Exception as e:
             print(f"   ❌ {processor_name:>24}: Error reading file - {e}")
             all_current = False
-    
+
     if all_current:
-        print(f"\n   🎉 All YAML files have current revision date ({today_date})")
+        print("\n   🎉 All YAML files have valid revision dates")
     else:
-        print(f"\n   📝 Some files need revision date updates to {today_date}")
-    
+        print("\n   📝 Some files need '# Revision date: YYYY-MM-DD' headers")
+
     return all_current
 
 
@@ -407,7 +426,8 @@ def test_settings_description_requirement():
     print("\n⚙️  Testing settings description requirement...")
     
     examples_dir = get_examples_directory()
-    yaml_files = list(examples_dir.glob("*_examples.yaml"))
+    yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
     yaml_files.sort() # Make list come out in alphabetical order
     
     if not yaml_files:
@@ -539,7 +559,8 @@ def main():
         print("\n📋 Next Steps:")
         processors = get_all_processors()
         examples_dir = get_examples_directory()
-        yaml_files = list(examples_dir.glob("*_examples.yaml"))
+        yaml_files = [p for p in examples_dir.glob("*_examples.yaml")
+                  if not p.stem.startswith("__DEPRECATED__")]
         yaml_files.sort() # Make list come out in alphabetical order
         processors_with_yaml = {f.stem.replace('_examples', '') for f in yaml_files}
         missing_yaml = [p for p in processors if p not in processors_with_yaml]

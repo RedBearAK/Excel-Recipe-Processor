@@ -4,6 +4,8 @@ Test the CleanDataProcessor functionality with new columns list syntax.
 File: excel_recipe_processor/tests/test_clean_data_processor.py
 """
 
+import sys
+
 import pandas as pd
 
 from excel_recipe_processor.core.base_processor import StepProcessorError
@@ -394,14 +396,18 @@ def test_multiple_columns_same_rule():
                     result['Name_Last'].iloc[0] == 'Smith')
     prices_numeric = (pd.api.types.is_numeric_dtype(result['Price1']) and
                      pd.api.types.is_numeric_dtype(result['Price2']))
-    dates_datetime = (pd.api.types.is_datetime64_any_dtype(result['Date1']) and
-                     pd.api.types.is_datetime64_any_dtype(result['Date2']))
-    
-    if names_correct and prices_numeric and dates_datetime:
+    # fix_dates outputs Excel-friendly MM/DD/YYYY strings by design
+    # (data-preserving; a datetime64 column was the OLD contract)
+    dates_normalized = (result['Date1'].iloc[0] == '01/15/2024' and
+                        result['Date1'].iloc[1] == '01/15/2024' and
+                        result['Date2'].iloc[0] == '03/10/2024' and
+                        result['Date2'].iloc[1] == '03/10/2024')
+
+    if names_correct and prices_numeric and dates_normalized:
         print("✓ Multiple columns with same rule worked correctly")
         return True
     else:
-        print(f"✗ Multiple columns failed: names={names_correct}, prices={prices_numeric}, dates={dates_datetime}")
+        print(f"✗ Multiple columns failed: names={names_correct}, prices={prices_numeric}, dates={dates_normalized}")
         return False
 
 
@@ -586,3 +592,5 @@ if __name__ == '__main__':
 
 
 # End of file #
+
+    sys.exit(0 if success else 1)

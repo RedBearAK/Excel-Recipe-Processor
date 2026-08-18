@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Create backup of imported data before processing"
       stages:
-        - stage_name: "raw_import"
+        - stage_name: "stg_raw_import"
           description: "Original imported data"
           protected: false
-        - stage_name: "raw_backup"
+        - stage_name: "stg_raw_backup"
           description: "Backup copy of raw data"
           protected: true
     
@@ -20,7 +20,7 @@ basic_example:
       - step_description: "Import customer data"
         processor_type: "import_file"
         input_file: "data/customers.xlsx"
-        save_to_stage: "raw_import"
+        save_to_stage: "stg_raw_import"
       
       # Create backup copy
       - # OPT - Human-readable description of the copy operation
@@ -29,9 +29,9 @@ basic_example:
         # REQ - Must be "copy_stage" for this processor type
         processor_type: "copy_stage"
         # REQ - Source stage to copy data from
-        source_stage: "raw_import"
-        # REQ - Target stage name for the copy
-        target_stage: "raw_backup"
+        source_stage: "stg_raw_import"
+        # REQ - Destination for the copy
+        save_to_stage: "stg_raw_backup"
 
 workflow_branching_example:
   description: "Create copies for different processing branches"
@@ -39,19 +39,19 @@ workflow_branching_example:
     settings:
       description: "Test different filtering approaches on same data"
       stages:
-        - stage_name: "cleaned_data"
+        - stage_name: "stg_cleaned_data"
           description: "Data after cleaning operations"
           protected: false
-        - stage_name: "branch_strict"
+        - stage_name: "stg_branch_strict"
           description: "Copy for strict filtering"
           protected: false
-        - stage_name: "branch_lenient"
+        - stage_name: "stg_branch_lenient"
           description: "Copy for lenient filtering"
           protected: false
-        - stage_name: "strict_results"
+        - stage_name: "stg_strict_results"
           description: "Results from strict filtering"
           protected: false
-        - stage_name: "lenient_results"
+        - stage_name: "stg_lenient_results"
           description: "Results from lenient filtering"
           protected: false
     
@@ -64,9 +64,9 @@ workflow_branching_example:
         # REQ - Processor type
         processor_type: "copy_stage"
         # REQ - Stage to copy from
-        source_stage: "cleaned_data"
+        source_stage: "stg_cleaned_data"
         # REQ - New stage name for the copy
-        target_stage: "branch_strict"
+        save_to_stage: "stg_branch_strict"
         # OPT - Detailed description for the copied stage
         # Default value: "Copy of {source_stage}"
         description: "Working copy for testing strict business rules"
@@ -74,15 +74,15 @@ workflow_branching_example:
       # Create copy for lenient filtering branch
       - step_description: "Copy data for lenient filtering approach"
         processor_type: "copy_stage"
-        source_stage: "cleaned_data"
-        target_stage: "branch_lenient"
+        source_stage: "stg_cleaned_data"
+        save_to_stage: "stg_branch_lenient"
         description: "Working copy for testing relaxed business rules"
       
       # Process each branch differently
       - step_description: "Apply strict filters"
         processor_type: "filter_data"
-        source_stage: "branch_strict"
-        save_to_stage: "strict_results"
+        source_stage: "stg_branch_strict"
+        save_to_stage: "stg_strict_results"
         filters:
           - column: "Score"
             condition: "greater_than"
@@ -90,8 +90,8 @@ workflow_branching_example:
       
       - step_description: "Apply lenient filters"
         processor_type: "filter_data"
-        source_stage: "branch_lenient"
-        save_to_stage: "lenient_results"
+        source_stage: "stg_branch_lenient"
+        save_to_stage: "stg_lenient_results"
         filters:
           - column: "Score"
             condition: "greater_than"
@@ -106,19 +106,19 @@ checkpoint_recovery_example:
         min_value: "1000"
         category: "premium"
       stages:
-        - stage_name: "initial_data"
+        - stage_name: "stg_initial_data"
           description: "Starting dataset"
           protected: false
-        - stage_name: "checkpoint_1"
+        - stage_name: "stg_checkpoint_1"
           description: "After initial cleaning"
           protected: true
-        - stage_name: "checkpoint_2"
+        - stage_name: "stg_checkpoint_2"
           description: "After enrichment"
           protected: true
-        - stage_name: "checkpoint_3"
+        - stage_name: "stg_checkpoint_3"
           description: "After filtering"
           protected: true
-        - stage_name: "final_output"
+        - stage_name: "stg_final_output"
           description: "Completed processing"
           protected: false
     
@@ -126,8 +126,8 @@ checkpoint_recovery_example:
       # Step 1: Initial processing
       - step_description: "Clean and validate data"
         processor_type: "clean_data"
-        source_stage: "initial_data"
-        save_to_stage: "cleaned"
+        source_stage: "stg_initial_data"
+        save_to_stage: "stg_cleaned"
         # ... cleaning rules
       
       # Checkpoint 1: Save after cleaning
@@ -136,9 +136,9 @@ checkpoint_recovery_example:
         # REQ - Processor type
         processor_type: "copy_stage"
         # REQ - Source stage
-        source_stage: "cleaned"
+        source_stage: "stg_cleaned"
         # REQ - Target checkpoint stage
-        target_stage: "checkpoint_1"
+        save_to_stage: "stg_checkpoint_1"
         # OPT - Allow overwriting during development
         # Default value: false
         overwrite: true
@@ -148,15 +148,15 @@ checkpoint_recovery_example:
       # Step 2: Data enrichment
       - step_description: "Add calculated fields"
         processor_type: "add_calculated_column"
-        source_stage: "cleaned"
-        save_to_stage: "enriched"
+        source_stage: "stg_cleaned"
+        save_to_stage: "stg_enriched"
         # ... calculations
       
       # Checkpoint 2: Save after enrichment
       - step_description: "Checkpoint: Post-enrichment"
         processor_type: "copy_stage"
-        source_stage: "enriched"
-        target_stage: "checkpoint_2"
+        source_stage: "stg_enriched"
+        save_to_stage: "stg_checkpoint_2"
         overwrite: true
         description: "Recovery point after enrichment phase"
 
@@ -169,16 +169,16 @@ versioning_example:
         report_date: "2024-12-15"
         version: "v2"
       stages:
-        - stage_name: "current_report"
+        - stage_name: "stg_current_report"
           description: "Latest processed report data"
           protected: false
-        - stage_name: "report_v1"
+        - stage_name: "stg_report_v1"
           description: "Version 1 of report"
           protected: true
-        - stage_name: "report_v2"
+        - stage_name: "stg_report_v2"
           description: "Version 2 of report"
           protected: true
-        - stage_name: "report_archive_{report_date}"
+        - stage_name: "stg_report_archive_{report_date}"
           description: "Date-stamped archive"
           protected: true
     
@@ -189,9 +189,9 @@ versioning_example:
         # REQ - Processor type
         processor_type: "copy_stage"
         # REQ - Current report stage
-        source_stage: "current_report"
+        source_stage: "stg_current_report"
         # REQ - Versioned target using variable
-        target_stage: "report_{version}"
+        save_to_stage: "stg_report_{version}"
         # OPT - Prevent overwriting existing versions
         # Default value: false
         overwrite: false
@@ -201,8 +201,8 @@ versioning_example:
       # Create date-stamped archive
       - step_description: "Create date-stamped archive"
         processor_type: "copy_stage"
-        source_stage: "current_report"
-        target_stage: "report_archive_{report_date}"
+        source_stage: "stg_current_report"
+        save_to_stage: "stg_report_archive_{report_date}"
         description: "Permanent archive for {report_date}"
 
 iterative_development_example:
@@ -211,13 +211,13 @@ iterative_development_example:
     settings:
       description: "Development workflow with reusable stage names"
       stages:
-        - stage_name: "test_input"
+        - stage_name: "stg_test_input"
           description: "Test data for development"
           protected: false
-        - stage_name: "working_copy"
+        - stage_name: "stg_working_copy"
           description: "Reusable working stage"
           protected: false
-        - stage_name: "test_output"
+        - stage_name: "stg_test_output"
           description: "Results of test processing"
           protected: false
     
@@ -228,9 +228,9 @@ iterative_development_example:
         # REQ - Processor type
         processor_type: "copy_stage"
         # REQ - Test data source
-        source_stage: "test_input"
+        source_stage: "stg_test_input"
         # REQ - Working stage (overwritable)
-        target_stage: "working_copy"
+        save_to_stage: "stg_working_copy"
         # OPT - Enable overwrite for iterative development
         # Default value: false
         # Set to true during development, false in production

@@ -1,6 +1,8 @@
 """
 Split column step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/split_column_processor.py
+
 Handles splitting single columns into multiple columns using various methods.
 """
 
@@ -8,7 +10,7 @@ import re
 import pandas as pd
 import logging
 
-from typing import Any, Optional
+from typing import Any
 
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -179,7 +181,7 @@ class SplitColumnProcessor(BaseStepProcessor):
     
     def _split_by_delimiter(self, df: pd.DataFrame, source_column: str, 
                           new_column_names: list[str], remove_original: bool,
-                          max_splits: Optional[int], fill_missing: str) -> pd.DataFrame:
+                          max_splits: int | None, fill_missing: str) -> pd.DataFrame:
         """
         Split column by delimiter.
         
@@ -308,7 +310,7 @@ class SplitColumnProcessor(BaseStepProcessor):
     
     def _split_by_regex(self, df: pd.DataFrame, source_column: str,
                        new_column_names: list[str], remove_original: bool,
-                       max_splits: Optional[int], fill_missing: str) -> pd.DataFrame:
+                       max_splits: int | None, fill_missing: str) -> pd.DataFrame:
         """
         Split column using regex pattern.
         
@@ -585,3 +587,5 @@ class SplitColumnProcessor(BaseStepProcessor):
         """Get complete usage examples for the split_column processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('split_column')
+
+# End of file #

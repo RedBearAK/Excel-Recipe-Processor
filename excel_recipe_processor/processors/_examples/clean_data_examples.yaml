@@ -10,10 +10,10 @@ basic_example:
     settings:
       description: "Clean customer data formatting issues"
       stages:
-        - stage_name: "raw_customer_data"
+        - stage_name: "stg_raw_customer_data"
           description: "Raw customer data from import"
           protected: false
-        - stage_name: "cleaned_customers"
+        - stage_name: "stg_cleaned_customers"
           description: "Standardized customer data"
           protected: false
     
@@ -23,9 +23,9 @@ basic_example:
         # REQ - Must be "clean_data" for this processor type
         processor_type: "clean_data"
         # REQ - Stage to read data from
-        source_stage: "raw_customer_data"
+        source_stage: "stg_raw_customer_data"
         # REQ - Stage to save cleaned results
-        save_to_stage: "cleaned_customers"
+        save_to_stage: "stg_cleaned_customers"
         # REQ - List of cleaning rules to apply in sequence
         rules:
           # First rule: remove extra whitespace
@@ -50,18 +50,18 @@ multiple_columns_example:
     settings:
       description: "Clean multiple date and numeric columns efficiently"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Raw data with formatting issues"
           protected: false
-        - stage_name: "cleaned_data"
+        - stage_name: "stg_cleaned_data"
           description: "Data with standardized formatting"
           protected: false
     
     recipe:
       - step_description: "Clean multiple columns efficiently"
         processor_type: "clean_data"
-        source_stage: "raw_data"
-        save_to_stage: "cleaned_data"
+        source_stage: "stg_raw_data"
+        save_to_stage: "stg_cleaned_data"
         rules:
           # Clean multiple date columns at once
           - # REQ - List of date columns to standardize
@@ -96,18 +96,18 @@ advanced_example:
     settings:
       description: "Comprehensive data cleaning and standardization"
       stages:
-        - stage_name: "sql_export_data"
+        - stage_name: "stg_sql_export_data"
           description: "Raw data from SQL export"
           protected: false
-        - stage_name: "cleaned_data"
+        - stage_name: "stg_cleaned_data"
           description: "Fully cleaned and standardized data"
           protected: false
     
     recipe:
       - step_description: "Comprehensive data cleaning and standardization"
         processor_type: "clean_data"
-        source_stage: "sql_export_data"
-        save_to_stage: "cleaned_data"
+        source_stage: "stg_sql_export_data"
+        save_to_stage: "stg_cleaned_data"
         # REQ - List of cleaning rules (processed in order)
         rules:
           # Rule 1: Fix invisible characters from SQL exports
@@ -161,18 +161,18 @@ value_standardization_example:
     settings:
       description: "Standardize status and category values"
       stages:
-        - stage_name: "inconsistent_data"
+        - stage_name: "stg_inconsistent_data"
           description: "Data with inconsistent value formats"
           protected: false
-        - stage_name: "standardized_data"
+        - stage_name: "stg_standardized_data"
           description: "Data with standardized values"
           protected: false
     
     recipe:
       - step_description: "Standardize status and category values"
         processor_type: "clean_data"
-        source_stage: "inconsistent_data"
-        save_to_stage: "standardized_data"
+        source_stage: "stg_inconsistent_data"
+        save_to_stage: "stg_standardized_data"
         rules:
           # Map multiple variations to standard values
           - # REQ - List of columns to standardize
@@ -200,18 +200,18 @@ sql_export_cleanup_example:
     settings:
       description: "Fix SQL export formatting issues"
       stages:
-        - stage_name: "sql_raw_data"
+        - stage_name: "stg_sql_raw_data"
           description: "Data directly from SQL export"
           protected: false
-        - stage_name: "filtering_ready_data"
+        - stage_name: "stg_filtering_ready_data"
           description: "Data ready for reliable filtering"
           protected: false
     
     recipe:
       - step_description: "Clean SQL export data for reliable filtering"
         processor_type: "clean_data"
-        source_stage: "sql_raw_data"
-        save_to_stage: "filtering_ready_data"
+        source_stage: "stg_sql_raw_data"
+        save_to_stage: "stg_filtering_ready_data"
         rules:
           # Critical: Fix invisible characters that break exact matching
           - columns: ["Product_Origin", "Major_Species", "Component"]
@@ -231,18 +231,18 @@ data_type_cleaning_example:
     settings:
       description: "Fix data types and formatting for analysis"
       stages:
-        - stage_name: "mixed_format_data"
+        - stage_name: "stg_mixed_format_data"
           description: "Data with various formatting issues"
           protected: false
-        - stage_name: "typed_data"
+        - stage_name: "stg_typed_data"
           description: "Data with correct types and formatting"
           protected: false
     
     recipe:
       - step_description: "Fix data types and formatting"
         processor_type: "clean_data"
-        source_stage: "mixed_format_data"
-        save_to_stage: "typed_data"
+        source_stage: "stg_mixed_format_data"
+        save_to_stage: "stg_typed_data"
         rules:
           # Fix numeric columns with formatting
           - # REQ - List of columns with numeric data
@@ -281,18 +281,18 @@ multiple_rules_example:
     settings:
       description: "Multi-step data cleaning workflow"
       stages:
-        - stage_name: "messy_data"
+        - stage_name: "stg_messy_data"
           description: "Raw data with multiple quality issues"
           protected: false
-        - stage_name: "production_ready_data"
+        - stage_name: "stg_production_ready_data"
           description: "Fully cleaned production-ready data"
           protected: false
     
     recipe:
       - step_description: "Complete data cleaning workflow"
         processor_type: "clean_data"
-        source_stage: "messy_data"
-        save_to_stage: "production_ready_data"
+        source_stage: "stg_messy_data"
+        save_to_stage: "stg_production_ready_data"
         rules:
           # Step 1: Remove invisible characters
           - columns: ["Product_Name"]

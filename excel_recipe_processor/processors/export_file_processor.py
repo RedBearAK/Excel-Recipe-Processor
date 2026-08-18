@@ -2,6 +2,8 @@
 """
 Export file step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/export_file_processor.py
+
 Pure stage-based file export - consumes stages, saves to files.
 """
 
@@ -12,9 +14,10 @@ import openpyxl
 
 from pathlib import Path
 
-from excel_recipe_processor.writers.excel_writer import ExcelWriter
+from excel_recipe_processor.writers.excel_writer import ExcelWriter, DEFAULT_DELETE_BACKUPS_BEYOND
 
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
+from excel_recipe_processor.processors._helpers.sheet_addressing import reject_token_for_creation
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
 
 logger = logging.getLogger(__name__)
@@ -40,7 +43,7 @@ class ExportFileProcessor(ExportBaseProcessor):
     #     output_file = self.get_config_value('output_file')
     #     sheet_name = self.get_config_value('sheet_name', 'Data')
     #     explicit_format = self.get_config_value('format', None)
-    #     sheets = self.get_config_value('sheets', None)
+    #     sheets = self.get_config_value('sheets_to_create', None)
         
     #     # Apply variable substitution if available
     #     if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -69,7 +72,8 @@ class ExportFileProcessor(ExportBaseProcessor):
 
 
     def _export_into_template(self, data, template_file: str, output_file: str,
-                              sheet_name: str, create_backup: bool) -> str:
+                              sheet_name: str, create_backup: bool,
+                              delete_backups_beyond: int) -> str:
         """
         Copy a template workbook and replace one sheet's contents with the data.
 
@@ -90,7 +94,7 @@ class ExportFileProcessor(ExportBaseProcessor):
             raise StepProcessorError(f"Template file not found: {template_file}")
 
         if output_path.exists() and create_backup:
-            ExcelWriter().create_backup(output_path)
+            ExcelWriter().create_backup(output_path, delete_backups_beyond)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -147,20 +151,56 @@ class ExportFileProcessor(ExportBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Export stages to Excel or CSV, including multi-sheet workbooks, backing up any file being replaced',
+            'description': 'Export stages to Excel or CSV multi-sheet workbooks, backing up replaced files',
             'file_formats': ['xlsx', 'csv', 'tsv'],
             'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
-            'safety': ['automatic .backup of an existing output file (create_backup: false to disable)'],
+            'safety': [
+                'timestamped backup of an existing output file, extension preserved',
+                'create_backup: false to disable; delete_backups_beyond keeps the newest N and deletes older',
+            ],
         }
 
     def save_data(self, data):
         """Save data to file (implements ExportBaseProcessor abstract method)."""
         output_file = self.get_config_value('output_file')
+        if not output_file:
+            # Without this guard a missing key reaches Path(None) downstream
+            # and dies with a bare TypeError instead of a guided error.
+            raise StepProcessorError(
+                f"Export step '{self.step_name}' requires 'output_file'"
+            )
+        encoding = self.get_config_value('encoding', 'utf-8')
+        separator = self.get_config_value('separator', ',')
         sheet_name = self.get_config_value('sheet_name', 'Data')
+        try:
+            reject_token_for_creation(sheet_name, f"Export step '{self.step_name}'")
+        except ValueError as error:
+            raise StepProcessorError(str(error))
         explicit_format = self.get_config_value('format', None)
-        sheets = self.get_config_value('sheets', None)
+        for retired_key in ('sheets', 'sheet_names'):
+            if self.get_config_value(retired_key, None):
+                raise StepProcessorError(
+                    f"Export step '{self.step_name}': the multi-sheet key is "
+                    f"'sheets_to_create' - a list of ENTRIES, each with "
+                    f"sheet_name and data_source. ('{retired_key}' is retired: "
+                    f"'sheets' was renamed 2026-08-14 to integrate the purpose "
+                    f"after a sweep rename crossed it with 'sheet_names', the "
+                    f"name-list key on addressing processors, and the silent "
+                    f"fallback wrote a single-sheet 'Data' workbook in "
+                    f"production.)"
+                )
+        sheets = self.get_config_value('sheets_to_create', None)
         # See if user wants to disable the creation of a backup file to avoid clobbering same name
         create_backup = self.get_config_value('create_backup', True)
+
+        # OPT delete_backups_beyond: how many of the NEWEST timestamped
+        # backups to keep, counting the one about to be made; every older
+        # one is deleted. Named for what it does to the surplus rather than
+        # for a ceiling, because "max allowed" could be misread as refusing
+        # to make new backups once the count is reached - the opposite
+        # behaviour, and a dangerous one to assume.
+        delete_backups_beyond = self.get_config_value(
+            'delete_backups_beyond', DEFAULT_DELETE_BACKUPS_BEYOND)
         
         # Apply variable substitution BEFORE calling FileWriter
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -184,7 +224,8 @@ class ExportFileProcessor(ExportBaseProcessor):
                 resolved_template = template_file
 
             return self._export_into_template(
-                data, resolved_template, resolved_file, sheet_name, create_backup
+                data, resolved_template, resolved_file, sheet_name, create_backup,
+                delete_backups_beyond
             )
 
         try:
@@ -211,7 +252,9 @@ class ExportFileProcessor(ExportBaseProcessor):
                     resolved_file,  # No variables parameter needed
                     sheet_name=sheet_name,
                     explicit_format=explicit_format,
-                    create_backup=create_backup
+                    create_backup=create_backup,
+                    encoding=encoding,
+                    separator=separator
                 )
             
             logger.info(f"Exported {len(data)} rows to '{resolved_file}'")
@@ -229,6 +272,15 @@ class ExportFileProcessor(ExportBaseProcessor):
         
         for sheet_config in sheets:
             sheet_name = sheet_config['sheet_name']
+            # Export CREATES tabs; a ?sheet_NNN? pseudo-name addresses tabs
+            # that already exist, so it is meaningless here - and its
+            # characters are illegal in a real title anyway. Fail loud.
+            try:
+                reject_token_for_creation(
+                    sheet_name, f"Export step '{self.step_name}'"
+                )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
             data_source = sheet_config.get('data_source')
             
             if not data_source:
@@ -245,3 +297,5 @@ class ExportFileProcessor(ExportBaseProcessor):
                 )
         
         return sheets_data
+
+# End of file #

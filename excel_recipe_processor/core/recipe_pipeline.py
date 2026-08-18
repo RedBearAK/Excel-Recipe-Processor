@@ -17,6 +17,7 @@ from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.core.verification_ledger import VerificationLedger
 from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor,
     ExportBaseProcessor,
@@ -35,6 +36,37 @@ from excel_recipe_processor.core.interactive_variables import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def count_step_elements(value) -> int:
+    """
+    Ballpark "elements" in one step's config, parsed from the YAML alone.
+
+    The rule: every LIST ITEM the recipe author enumerated counts as one
+    element, at every nesting depth; dict keys and scalar option values
+    count as zero. A filters: list of five conditions is 5; a formula
+    definition is 1 regardless of how many options it carries; a
+    format_excel step counts its sheet entries plus each entry's nested
+    column_formats rules.
+
+    Known ballpark limits, accepted on purpose: a "{list_str:variable}" string
+    counts as 1 though it may expand to many items, and a step with no
+    list content at all reports 0 here (the caller floors it to 1). The
+    number is a property of what the author WROTE - stable across data
+    sizes, which is what makes it comparable between runs. A per-processor
+    semantic count would need every processor touched; this needs none.
+    """
+    if isinstance(value, list):
+        return len(value) + sum(count_step_elements(item) for item in value)
+    if isinstance(value, dict):
+        return sum(count_step_elements(inner) for inner in value.values())
+    return 0
+
+
+def count_recipe_elements(recipe_data: dict) -> int:
+    """Sum of per-step elements across the recipe, each step counting at least 1."""
+    steps = recipe_data.get('recipe', []) if isinstance(recipe_data, dict) else []
+    return sum(max(count_step_elements(step), 1) for step in steps)
 
 
 class ErrorAction(Enum):
@@ -130,8 +162,8 @@ class RecipePipeline:
         """Log a clean separator before each step for better readability."""
         # Add blank line before step (except for first step)
         if step_index >= 0:
-            # logger.info("")  # Blank line
-            print() # real blank line!
+            from excel_recipe_processor.core.main import mirror_print
+            mirror_print()  # per-step separator; mirrored to the log file
         
         # # Add START STEP marker
         # separator = f" -- START STEP '{step_desc}' -- "
@@ -191,7 +223,18 @@ class RecipePipeline:
         recipe_steps_cnt = len(recipe_steps)
         self._run_started_at = time.perf_counter()
         WorkbookSession.reset()
+        VerificationLedger.reset()
         WorkbookSession.set_deferred(True)
+
+        # OPT-IN: route every session save through the dynamic-array
+        # declaration so injected/seeded formulas open without the
+        # implicit-intersection @. See core/dynamic_array_metadata.py.
+        declare_dynamic = self.recipe_data.get('settings', {}).get(
+            'declare_dynamic_formulas', False
+        )
+        WorkbookSession.set_declare_dynamic(bool(declare_dynamic))
+        if declare_dynamic:
+            logger.info("🧬 Dynamic-array declaration enabled for all session saves")
         logger.info(f"🚀 Executing {recipe_steps_cnt} recipe steps")
         
         # Reset execution state
@@ -246,7 +289,7 @@ class RecipePipeline:
                     processor.execute_stage_to_stage()
                 
                 self.steps_executed += 1
-                logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.1f}s)")
+                logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.3f}s)")
 
                 self._dump_requested_stages()
 
@@ -267,10 +310,12 @@ class RecipePipeline:
                     skipped_steps = len(recipe_steps) - (step_index + 1)
                     break
         
-        print()     # blank line to separate from last step logging in recipe
+        from excel_recipe_processor.core.main import mirror_print
+        mirror_print()  # separator; mirrored so the file keeps the spacing
         
         # Generate completion report
         self._completion_report = self._generate_completion_report()
+        self._completion_report['stage_memory'] = StageManager.get_memory_stats()
         
         # All steps succeeded: write every session workbook exactly once
         WorkbookSession.flush_all()
@@ -281,6 +326,12 @@ class RecipePipeline:
                         f"{skipped_steps} steps skipped")
         else:
             logger.info(f"🎉 Recipe execution completed successfully: {self.steps_executed} steps")
+            VerificationLedger.log_summary()
+            logger.info(
+                f"🧮 Recipe elements: {count_recipe_elements(self.recipe_data)} "
+                f"parsed from the YAML across {len(self.recipe_data.get('recipe', []))} "
+                f"step(s) (ballpark: enumerated list items per step, min 1)"
+            )
         
         return self._completion_report
 
@@ -374,19 +425,20 @@ class RecipePipeline:
         if not self._stop_after_stage:
             return False
 
-        written = step_config.get('save_to_stage') or step_config.get('stage_name')
+        written = step_config.get('save_to_stage')
         return written == self._stop_after_stage
 
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
-            print()     # blank line to separate from parsing log line (if present) or command line
+            from excel_recipe_processor.core.main import mirror_print
+            mirror_print()  # separator; buffered for the file's head
             # Load recipe
             logger.info(f"📖 Loading recipe: '{recipe_path}'")
             self.load_recipe(recipe_path)
             
             # Collect external variables
-            print()     # blank line to separate from recipe loading logging
+            mirror_print()  # separator; buffered for the file's head
             logger.info("🔧 Processing external variables...")
             external_variables = self.collect_external_variables(cli_variables)
             
@@ -402,9 +454,29 @@ class RecipePipeline:
             
             # Final validation that all custom variables are fully resolved
             self._validate_all_variables_resolved()
-            
+
+            # Recipe-requested log file: attaches HERE because paths like
+            # {output_dir}/{output_basename}_log.txt need the external
+            # variables just resolved above. Lines before this point live
+            # only in the terminal; --log-file captures those too, and
+            # wins outright when both are given.
+            settings = self.recipe_data.get('settings', {}) \
+                if isinstance(self.recipe_data, dict) else {}
+            log_file_template = settings.get('log_file')
+            if log_file_template:
+                from excel_recipe_processor.core.main import attach_log_file
+                resolved_log_path = self.substitute_template(str(log_file_template)) \
+                    if self.variable_substitution else str(log_file_template)
+                attach_log_file(resolved_log_path, source='recipe')
+            else:
+                # The decision point: no recipe directive, and any CLI
+                # attach already consumed the buffer - drop what remains
+                from excel_recipe_processor.core.main import discard_early_log_buffer
+                discard_early_log_buffer()
+
             # Execute recipe
-            print()     # blank line to separate from earlier meta-info (here we go!)
+            from excel_recipe_processor.core.main import mirror_print
+            mirror_print()  # separator; mirrored so the file keeps the spacing
             logger.info("⚡ Starting recipe execution...")
             return self.execute_recipe()
             
@@ -590,9 +662,15 @@ class RecipePipeline:
         try:
             return self.variable_substitution.substitute_structure(config)
         except Exception as e:
-            # If substitution fails, log warning and return original
-            logger.warning(f"Variable substitution failed for config: {e}")
-            return config
+            # Fail LOUD (2026-08-17). The old warn-and-continue returned
+            # the UNSUBSTITUTED config, so the step then failed on a
+            # misleading shape complaint (e.g. verify_columns seeing the
+            # literal '{list:...}' string instead of a list) while the
+            # real, guided error - a retired reference, an unconvertible
+            # member, a typo'd template - scrolled past as a warning.
+            raise StepProcessorError(
+                f"Variable substitution failed for step configuration: {e}"
+            ) from e
 
     def _generate_completion_report(self) -> dict:
         """Generate completion report with execution statistics."""

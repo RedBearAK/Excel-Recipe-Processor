@@ -1,6 +1,8 @@
 """
 Group data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/group_data_processor.py
+
 Handles grouping individual values into categories with support for:
 - Stage-based group definitions via StageManager integration
 - File-based group definitions with variable substitution via FileReader
@@ -229,7 +231,8 @@ class GroupDataProcessor(BaseStepProcessor):
 
                 # Group by group name and collect values
                 groups = {}
-                for group_name, group_data in stage_data.groupby(group_name_column):
+                # dropna=False is doctrine (2026-08-17, see dev_notes/NOTES_2026-08-17_blank_key_group_loss.md): pandas' default silently DELETES NaN-keyed rows.
+                for group_name, group_data in stage_data.groupby(group_name_column, dropna=False):
 
                     values_series = group_data[values_column]
                     # Explicit check for expected Series type (var replaces group_data[values_column])
@@ -312,7 +315,7 @@ class GroupDataProcessor(BaseStepProcessor):
                     )
                 
                 groups = {}
-                for group_name, group_data in groups_data.groupby(group_name_column):
+                for group_name, group_data in groups_data.groupby(group_name_column, dropna=False):
                     values = group_data[values_column].dropna().astype(str).tolist()
                     if values:
                         groups[str(group_name)] = values
@@ -374,7 +377,7 @@ class GroupDataProcessor(BaseStepProcessor):
             
             # Create groups from lookup data
             groups = {}
-            for group_name, group_data in lookup_data.groupby(group_column):
+            for group_name, group_data in lookup_data.groupby(group_column, dropna=False):
                 values = group_data[values_column].dropna().astype(str).tolist()
                 if values:
                     groups[str(group_name)] = values
@@ -609,7 +612,7 @@ class GroupDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Group individual values into categories using various source types and advanced workflows',
+            'description': 'Group values into categories from various source types and workflows',
             'source_types': self.get_supported_source_types(),
             'unmatched_actions': self.get_supported_unmatched_actions(),
             'file_formats': self.get_supported_file_formats(),
@@ -653,7 +656,6 @@ class GroupDataProcessor(BaseStepProcessor):
                 'unmatched_value': 'Default value for unmatched items',
                 'case_sensitive': 'Whether matching is case sensitive',
                 'save_to_stage': 'Save grouping results to stage',
-                'stage_description': 'Description for saved stage'
             }
         }
     
@@ -661,3 +663,5 @@ class GroupDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the group_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('group_data')
+
+# End of file #

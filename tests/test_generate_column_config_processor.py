@@ -42,7 +42,6 @@ def test_processor_initialization():
             'source_sheet': 'Data',
             'template_sheet': 2,
             'header_row': 3,
-            'check_column_data': False,
             'max_rows': 50000,
             'similarity_threshold': 0.8,
             'include_recipe_section': True

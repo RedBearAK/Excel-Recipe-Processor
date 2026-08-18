@@ -303,7 +303,7 @@ def load_settings_examples() -> dict[str, Any]:
     
     try:
         # Get path to settings examples file
-        # Navigate from utils/ to config/examples/
+        # Navigate from utils/ to config/_examples/
         current_file = Path(__file__)
         examples_dir = current_file.parent.parent / 'config' / '_examples'
         example_file = examples_dir / 'recipe_settings_examples.yaml'
@@ -311,7 +311,7 @@ def load_settings_examples() -> dict[str, Any]:
         if not example_file.exists():
             return {
                 'error': f'Settings examples file not found. '
-                        f'Create config/examples/recipe_settings_examples.yaml to add examples.',
+                        f'Create config/_examples/recipe_settings_examples.yaml to add examples.',
                 'status': 'file_missing',
                 'expected_path': str(example_file)
             }
@@ -347,7 +347,7 @@ def load_settings_examples() -> dict[str, Any]:
     except FileNotFoundError:
         return {
             'error': f'Settings examples file not found. '
-                    f'Create config/examples/recipe_settings_examples.yaml to add examples.',
+                    f'Create config/_examples/recipe_settings_examples.yaml to add examples.',
             'status': 'file_missing'
         }
     except PermissionError:

@@ -39,6 +39,7 @@ def test_basic_recipe_execution():
             # Create recipe with new format - WITH STAGE DECLARATIONS
             recipe_content = f"""
 settings:
+  description: "Import, filter, and export test data"
   variables:
     output_prefix: "filtered"
   stages:
@@ -128,6 +129,7 @@ def test_variable_substitution():
             # Recipe with variable substitution - WITH STAGE DECLARATIONS
             recipe_content = f"""
 settings:
+  description: "Variable substitution smoke recipe"
   variables:
     report_type: "student_scores"
     version: "v1"
@@ -202,6 +204,7 @@ def test_multiple_imports_exports():
             # Recipe with multiple steps - WITH STAGE DECLARATIONS
             recipe_content = f"""
 settings:
+  description: "Multi-import multi-export smoke recipe"
   stages:
     - stage_name: "sales_data"
       description: "Sales data from import"

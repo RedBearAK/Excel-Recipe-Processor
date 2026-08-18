@@ -1,4 +1,4 @@
-# Revision date: 2025-08-08
+# Revision date: 2026-08-13
 
 description: >
   Inject formulas into Excel files with support for live (dynamic) and 
@@ -12,7 +12,7 @@ basic_example:
     settings:
       description: "Export sales data and add live calculation formulas"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Processed sales data"
           protected: false
 
@@ -21,12 +21,12 @@ basic_example:
         step_description: "Import monthly sales report"
         processor_type: "import_file"
         input_file: "data/sales_march_2024.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Export data to Excel file
         step_description: "Export processed data to Excel"
         processor_type: "export_file"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         output_file: "reports/sales_report.xlsx"
 
       - # Step 3: Inject live formulas into the Excel file
@@ -42,18 +42,20 @@ basic_example:
         # Values: "live" (dynamic formulas), "dead" (text formulas), "awaken" (convert dead to live)
         # Default value: "live"
         mode: "live"
-        # OPT - List of formulas to inject with cell locations
-        # Default value: [] (no formulas injected)
-        formulas:
-          # Individual cell formula
-          - cell: "D2"
-            formula: "=B2*C2"
-          # Another cell with percentage calculation
-          - cell: "E2"
-            formula: "=D2*0.1"
-          # Sum formula in total row
-          - cell: "D6"
-            formula: "=SUM(D2:D5)"
+        # REQ (live) - Entries pairing a sheet_names LIST with formulas
+        sheets_to_receive_formulas:
+          - # The export above writes the single sheet as "Data"
+            sheet_names: ["Data"]
+            formulas:
+              # Individual cell formula
+              - cell: "D2"
+                formula: "=B2*C2"
+              # Another cell with percentage calculation
+              - cell: "E2"
+                formula: "=D2*0.1"
+              # Sum formula in total row
+              - cell: "D6"
+                formula: "=SUM(D2:D5)"
 
 range_formulas_example:
   description: "Apply formulas to ranges and multiple sheets"
@@ -64,7 +66,7 @@ range_formulas_example:
         tax_rate: "0.08"
         discount_rate: "0.05"
       stages:
-        - stage_name: "financial_data"
+        - stage_name: "stg_financial_data"
           description: "Financial model data"
           protected: false
 
@@ -73,14 +75,14 @@ range_formulas_example:
         step_description: "Import quarterly financial data"
         processor_type: "import_file"
         input_file: "data/q1_financials.xlsx"
-        save_to_stage: "financial_data"
+        save_to_stage: "stg_financial_data"
 
       - # Step 2: Export to multi-sheet Excel workbook
         step_description: "Export data to formatted workbook"
         processor_type: "export_file"
-        source_stage: "financial_data"
+        source_stage: "stg_financial_data"
         output_file: "reports/financial_model.xlsx"
-        sheets:
+        sheet_names:
           Revenue: "financial_data"
           Expenses: "financial_data"
 
@@ -89,22 +91,22 @@ range_formulas_example:
         processor_type: "inject_formulas"
         target_file: "reports/financial_model.xlsx"
         mode: "live"
-        # OPT - Which sheets to process
-        # Values: None (active sheet), "all" (all sheets), sheet name, or list of sheet names
-        # Default value: None (active sheet only)
-        sheets: ["Revenue", "Expenses"]
-        formulas:
-          # Apply formula to entire column range
-          - range: "D2:D50"
-            formula: "=B2*C2"
-          # Tax calculation column
-          - range: "E2:E50"
-            formula: "=D2*{tax_rate}"
-          # Total formulas
-          - cell: "D51"
-            formula: "=SUM(D2:D50)"
-          - cell: "E51"
-            formula: "=SUM(E2:E50)"
+        # REQ (live) - one entry, both sheets: the same formulas land
+        # on each (the shape that subsumed the old broadcast pair)
+        sheets_to_receive_formulas:
+          - sheet_names: ["Revenue", "Expenses"]
+            formulas:
+              # Apply formula to entire column range
+              - range: "D2:D50"
+                formula: "=B2*C2"
+              # Tax calculation column
+              - range: "E2:E50"
+                formula: "=D2*{tax_rate}"
+              # Total formulas
+              - cell: "D51"
+                formula: "=SUM(D2:D50)"
+              - cell: "E51"
+                formula: "=SUM(E2:E50)"
 
 awaken_dead_formulas_example:
   description: "Convert dead formula text to live calculations"
@@ -112,7 +114,7 @@ awaken_dead_formulas_example:
     settings:
       description: "Convert budget template with dead formulas to live calculations"
       stages:
-        - stage_name: "template_data"
+        - stage_name: "stg_template_data"
           description: "Budget template data with dead formulas"
           protected: false
 
@@ -121,12 +123,12 @@ awaken_dead_formulas_example:
         step_description: "Import budget template with formula documentation"
         processor_type: "import_file"
         input_file: "templates/budget_template.xlsx"
-        save_to_stage: "template_data"
+        save_to_stage: "stg_template_data"
 
       - # Step 2: Export template to working file
         step_description: "Create working copy of template"
         processor_type: "export_file"
-        source_stage: "template_data"
+        source_stage: "stg_template_data"
         output_file: "working/budget_working.xlsx"
 
       - # Step 3: Awaken all dead formulas in the workbook
@@ -136,7 +138,7 @@ awaken_dead_formulas_example:
         # Mode: "awaken" scans for dead formulas and makes them live
         mode: "awaken"
         # Process all sheets in the workbook
-        sheets: "all"
+        sheet_names: "all"
         # OPT - Enable automatic scanning for formula-like text
         # Default value: false (only processes explicit formulas list)
         auto_scan: true
@@ -147,7 +149,7 @@ dead_formula_documentation_example:
     settings:
       description: "Create model documentation with formula examples"
       stages:
-        - stage_name: "model_data"
+        - stage_name: "stg_model_data"
           description: "Financial model base data"
           protected: false
 
@@ -156,12 +158,12 @@ dead_formula_documentation_example:
         step_description: "Import financial model base data"
         processor_type: "import_file"
         input_file: "data/model_base.xlsx"
-        save_to_stage: "model_data"
+        save_to_stage: "stg_model_data"
 
       - # Step 2: Export to documentation file
         step_description: "Create model documentation file"
         processor_type: "export_file"
-        source_stage: "model_data"
+        source_stage: "stg_model_data"
         output_file: "docs/model_documentation.xlsx"
 
       - # Step 3: Add formula documentation as text
@@ -190,7 +192,7 @@ comprehensive_dual_mode_example:
         output_dir: "reports"
         date_suffix: "{date}"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Sales analysis data"
           protected: false
 
@@ -199,18 +201,18 @@ comprehensive_dual_mode_example:
         step_description: "Import sales data for analysis"
         processor_type: "import_file"
         input_file: "data/sales_data.xlsx"
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Export to documentation version
         step_description: "Create documentation version"
         processor_type: "export_file"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         output_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
 
       - # Step 3: Export to calculation version
         step_description: "Create calculation version"
         processor_type: "export_file"
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         output_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
 
       - # Step 4: Add dead formulas to documentation version
@@ -229,13 +231,53 @@ comprehensive_dual_mode_example:
         processor_type: "inject_formulas"
         target_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
         mode: "live"
-        formulas:
-          - range: "E2:E100"
-            formula: "=D2*0.05"
-          - range: "F2:F100"
-            formula: "=IF(D2>C2,'Exceeds','Below')"
-          - cell: "E101"
-            formula: "=SUM(E2:E100)"
+        sheets_to_receive_formulas:
+          - sheet_names: ["Data"]
+            formulas:
+              - range: "E2:E100"
+                formula: "=D2*0.05"
+              - range: "F2:F100"
+                formula: "=IF(D2>C2,'Exceeds','Below')"
+              - cell: "E101"
+                formula: "=SUM(E2:E100)"
+
+named_columns_fill_down_example:
+  description: "Name-addressed cells with fill-down - survives column insertions upstream"
+  yaml: |
+    settings:
+      description: "Inject per-row formulas addressed by header name, filled to the last row"
+      stages:
+        - stage_name: "stg_report_data"
+          description: "Processed rows exported to the report"
+          protected: false
+
+    recipe:
+      - # The exported sheet carries headers; {col:Name} resolves each name
+        # to its column letter from the header row AT INJECTION TIME, so a
+        # column inserted upstream cannot silently repoint any reference.
+        step_description: "Inject the margin formulas by column name"
+        processor_type: "inject_formulas"
+        # REQ - Existing Excel file to modify
+        target_file: "reports/margin_report.xlsx"
+        # OPT - live (default) stores recalculating formulas
+        mode: "live"
+        sheets_to_receive_formulas:
+          - sheet_names: ["Data"]
+            formulas:
+              - # {col:...} works in the cell address AND inside the formula.
+                cell: "{col:Margin}2"
+                # OPT - Fill from the origin row to the last data row,
+                # translating relative references per row like Excel's fill
+                # handle. Default value: false
+                fill_down: true
+                formula: '={col:Price}2-{col:Cost}2'
+              - # Modern function names are stored with the _xlfn. prefix Excel
+                # requires internally; they display without it. With settings
+                # declare_dynamic_formulas: true, injected cells open WITHOUT
+                # the implicit-intersection @ (declared by provenance).
+                cell: "{col:Supplier Region}2"
+                fill_down: true
+                formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
 
 parameter_details:
   target_file:
@@ -265,9 +307,11 @@ parameter_details:
     default: []
     description: "List of formulas to inject with target locations"
     formula_object_structure:
-      cell: "Single cell reference (e.g., 'A1', 'D5')"
+      cell: "Single cell reference: 'A1', 'D5', or name-addressed '{col:Header Name}2'"
       range: "Cell range reference (e.g., 'A1:A10', 'D2:F20')"
-      formula: "Excel formula to inject (with or without leading =)"
+      formula: "Excel formula to inject (with or without leading =); {col:Header Name} placeholders resolve to column letters from the header row"
+      fill_down: "true fills the formula from its origin cell to the last data row, translating relative references per row (default false)"
+      array_formula: "true stores a legacy CSE array formula shown in {braces} - only for formulas that genuinely ARE array formulas; NOT the fix for the @ display (that is the recipe-wide declare_dynamic_formulas setting)"
     examples:
       - - cell: "D2"
           formula: "=B2*C2"
@@ -276,7 +320,7 @@ parameter_details:
         - cell: "E11"
           formula: "=SUM(E2:E10)"
 
-  sheets:
+  sheet_names:
     type: string or list
     required: false
     default: null
@@ -311,10 +355,35 @@ workflow_patterns:
   progressive_enhancement: "Export basic data → Format with format_excel → Add formulas with inject_formula"
   dynamic_models: "Export data with inject_formula for self-updating Excel dashboards"
 
+grouped_sheets_example:
+  description: "sheets_to_receive_formulas is THE live injection shape (2026-08-17): a list of entries, each pairing a sheet_names LIST with its own formulas. Many entries give per-sheet formulas; ONE entry naming several sheets sends the same formulas to each (this subsumed and retired the old top-level sheet_names + formulas broadcast pair). The plural list is required even for one sheet; there is no implicit active-sheet default."
+  yaml: |
+    recipe:
+      - step_description: "Inject the live view spills"
+        processor_type: "inject_formulas"
+        target_file: "output/workbook.xlsx"
+        mode: "live"
+        sheets_to_receive_formulas:
+          - sheet_names: ["Export_View"]
+            formulas:
+              - cell: "A2"
+                formula: '=fn_vms_view(rng_saletype="Export")'
+          - sheet_names: ["Domestic_View"]
+            formulas:
+              - cell: "A2"
+                formula: '=fn_vms_view(rng_saletype="Domestic")'
+          - # One entry, two sheets: the same stamp lands on both
+            sheet_names: ["Notes_A", "Notes_B"]
+            formulas:
+              - cell: "A1"
+                formula: '=TEXT(TODAY(),"yyyy-mm-dd")&" refresh"'
+
 formula_features:
   cell_targeting: "Target individual cells with specific formulas"
   range_application: "Apply base formula to entire ranges (auto-adjusts for each cell)"
   multi_sheet_support: "Process single sheet, specific sheets, or entire workbook"
+  grouped_injection: "sheets_to_receive_formulas entries pair each sheet with its own formulas - different formulas per sheet in one step"
+  let_lambda_naming: "NEVER coin LET/LAMBDA names that look like cell references (g0, x2, AB12, R1C1, RC, bare R/C) - Excel forbids the class and the parser REFUSES it at injection time. The rule is terminal-digit: a digit run at the END of a name directly after letters is the one shape that reads as a reference. Letters after digits are safe (a1b, q3total, col2name). Separate terminal digits (g_0, total_2) or use a word (raw, grp, first_pass)."
   formula_awakening: "Convert text that looks like formulas into live Excel formulas"
   mode_flexibility: "Choose live (dynamic), dead (documentation), or awaken (conversion) modes"
 

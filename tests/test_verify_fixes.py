@@ -77,17 +77,33 @@ def test_configuration_validation():
         from pathlib import Path
         from test_recipe_validator import RecipeValidator
         
-        # Create a recipe with configuration errors
+        # A recipe with valid STRUCTURE (settings, declared stages,
+        # stage keys) but broken per-step configuration - structure must
+        # pass so the validator reaches the field checks under test.
         broken_recipe = {
+            'settings': {
+                'description': 'Deliberately misconfigured steps probe',
+                'stages': [
+                    {'stage_name': 'stg_broken_probe_raw',
+                     'description': 'Raw input', 'protected': False},
+                    {'stage_name': 'stg_broken_probe_out',
+                     'description': 'Output', 'protected': False},
+                ],
+            },
             'recipe': [
                 {
                     'step_description': 'Missing lookup fields',
-                    'processor_type': 'lookup_data'
-                    # Missing required fields: lookup_source, lookup_key, source_key, lookup_columns
+                    'processor_type': 'lookup_data',
+                    'source_stage': 'stg_broken_probe_raw',
+                    'save_to_stage': 'stg_broken_probe_out'
+                    # Missing: lookup_stage, match_col_in_lookup_data,
+                    # match_col_in_main_data, lookup_columns
                 },
                 {
                     'step_description': 'Invalid filter config',
                     'processor_type': 'filter_data',
+                    'source_stage': 'stg_broken_probe_raw',
+                    'save_to_stage': 'stg_broken_probe_out',
                     'filters': 'this should be a list'
                 }
             ]
@@ -206,6 +222,9 @@ def main():
     else:
         print("⚠️  Some issues remain - check the output above")
 
+    return passed == total
+
 
 if __name__ == '__main__':
-    main()
+    import sys
+    sys.exit(0 if main() else 1)

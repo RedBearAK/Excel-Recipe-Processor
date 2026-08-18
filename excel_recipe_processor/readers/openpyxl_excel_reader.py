@@ -10,7 +10,6 @@ cell access for dramatically faster data checking on large Excel files.
 import logging
 
 from pathlib import Path
-from typing import List, Optional
 
 try:
     import openpyxl
@@ -48,7 +47,7 @@ class OpenpyxlExcelReader:
             )
     
     @staticmethod
-    def read_headers(file_path: str, sheet_name=None, header_row: int = 1) -> List[str]:
+    def read_headers(file_path: str, sheet_name=None, header_row: int = 1) -> list[str]:
         """
         Read column headers from Excel file using openpyxl.
         
@@ -332,7 +331,7 @@ class OpenpyxlExcelReader:
             }
     
     @staticmethod
-    def _detect_header_issues(headers: List[str]) -> List[str]:
+    def _detect_header_issues(headers: list[str]) -> list[str]:
         """
         Detect potential issues with headers.
         

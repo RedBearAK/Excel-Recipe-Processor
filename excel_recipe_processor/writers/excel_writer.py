@@ -6,12 +6,27 @@ Handles writing DataFrames to Excel with various formatting options and error ha
 
 import logging
 import io
+import re
+import shutil
 from pathlib import Path
+from datetime import datetime
 from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.processors._helpers.format_excel_theme_manager import apply_base_theme
+from excel_recipe_processor.writers._helpers.excel_writer_backup_rgx import (
+    build_backup_name_rgx,
+    legacy_backup_rgx,
+)
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+# How many of the newest backups survive; everything older is deleted. Two
+# covers the realistic recovery cases - the last good file and the one
+# before it - without letting an auto-generated, out-of-sight artefact
+# accumulate copies forever.
+DEFAULT_DELETE_BACKUPS_BEYOND = 2
 
 
 class ExcelWriterError(Exception):
@@ -51,7 +66,7 @@ class ExcelWriter:
             raise ExcelWriterError("Data must be a pandas DataFrame")
         
         if df.empty:
-            logger.warning("Writing empty DataFrame to Excel file")
+            logger.info(f"Writing empty DataFrame to Excel file '{output_path}'")
         
         if not output_path:
             raise ExcelWriterError("Output path cannot be empty")
@@ -79,8 +94,15 @@ class ExcelWriter:
         logger.info(f"Writing DataFrame to Excel: {output_path}")
         
         try:
-            # Write the DataFrame
-            df.to_excel(output_path, sheet_name=sheet_name, index=index, **kwargs)
+            # Write the DataFrame through an explicit writer, so the
+            # constructed workbook can be given the modern Office theme
+            # before it is serialized (see apply_base_theme).
+            single_writer = pd.ExcelWriter(output_path, engine='openpyxl')
+            try:
+                df.to_excel(single_writer, sheet_name=sheet_name, index=index, **kwargs)
+            finally:
+                apply_base_theme(single_writer.book)
+                single_writer.close()
             
             self.last_output_path = output_path
             
@@ -156,6 +178,13 @@ class ExcelWriter:
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
                     logger.debug(f"Wrote sheet '{sheet_name}': {len(df)} rows")
             finally:
+                # Every workbook ERP constructs gets the modern Office theme
+                # as its base. openpyxl's bundled theme is the 2007 palette,
+                # which is why generated files offered washed-out colours in
+                # Excel's style galleries. Recipe workbook_theme directives
+                # layer on top of this later.
+                apply_base_theme(writer.book)
+
                 if bridged:
                     # Normalize to DISK EQUIVALENCE before adoption. pandas
                     # materializes every NaN as a literal '' cell (na_rep
@@ -241,47 +270,148 @@ class ExcelWriter:
         except Exception as e:
             raise ExcelWriterError(f"Error appending to Excel file: {e}")
     
-    def create_backup(self, file_path) -> Path:
+    def create_backup(self, file_path, delete_backups_beyond: int = DEFAULT_DELETE_BACKUPS_BEYOND):
         """
-        Create a backup copy of an Excel file.
-        
+        Create a timestamped backup copy, then trim the oldest beyond the cap.
+
+        Backups are named so the EXTENSION SURVIVES:
+
+            report_erpbkup_260812_144320.xlsx
+
+        The old scheme appended ".backup" AFTER the extension, which changed
+        the file type as far as the file manager was concerned and stopped
+        the backup opening in its default application.
+
+        Names are written ONCE and never renamed. A rolling scheme would have
+        to shift every file on every run, and a crash mid-shift leaves the set
+        ambiguous; here a crash can only ever leave one extra file. Because
+        YYMMDD_HHMMSS is zero-padded and monotonic, sorting the names
+        lexicographically sorts them chronologically, so trimming is a pure
+        deletion of everything past the newest N.
+
         Args:
-            file_path: Path to file to backup
-            
+            file_path:             File to back up
+            delete_backups_beyond: How many of the newest backups to KEEP;
+                                   every older one is deleted. Counts the
+                                   backup being made, so 2 leaves the new
+                                   one plus its predecessor. 0 makes none.
+
         Returns:
-            Path to the backup file
-            
+            Path to the backup file, or None when the cap is 0
+
         Raises:
-            ExcelWriterError: If backup creation fails
+            ExcelWriterError: If the cap is negative or the copy fails
         """
-        # Guard clause
+        # Guard clauses
         if not file_path:
             raise ExcelWriterError("File path cannot be empty")
-        
+
+        if not isinstance(delete_backups_beyond, int) or isinstance(delete_backups_beyond, bool):
+            raise ExcelWriterError(
+                f"delete_backups_beyond must be an integer, got {type(delete_backups_beyond).__name__}"
+            )
+
+        if delete_backups_beyond < 0:
+            raise ExcelWriterError(
+                f"delete_backups_beyond cannot be negative, got {delete_backups_beyond}. "
+                f"It is the number of newest backups to keep; older ones are deleted."
+            )
+
         file_path = Path(file_path)
-        
+
         if not file_path.exists():
             raise ExcelWriterError(f"File not found: {file_path}")
-        
-        # Generate backup filename
-        backup_path = file_path.with_suffix(f'{file_path.suffix}.backup')
-        
-        # If backup already exists, add a number
-        counter = 1
+
+        if delete_backups_beyond == 0:
+            logger.debug(f"delete_backups_beyond is 0 (keep none); no backup made of {file_path.name}")
+            return None
+
+        stamp = datetime.now().strftime('%y%m%d_%H%M%S')
+        backup_path = file_path.with_name(
+            f"{file_path.stem}_erpbkup_{stamp}{file_path.suffix}"
+        )
+
+        # Same-second collision: a fast rerun, or one recipe exporting the
+        # same file twice. The counter suffix still sorts after its sibling.
+        counter = 2
         while backup_path.exists():
-            backup_path = file_path.with_suffix(f'{file_path.suffix}.backup{counter}')
+            backup_path = file_path.with_name(
+                f"{file_path.stem}_erpbkup_{stamp}_{counter}{file_path.suffix}"
+            )
             counter += 1
-        
+
         try:
-            # Copy the file
-            import shutil
             shutil.copy2(file_path, backup_path)
-            
-            logger.info(f"Created backup: {backup_path}")
-            return backup_path
-            
+            logger.info(f"Created backup: {backup_path.name}")
+
         except Exception as e:
             raise ExcelWriterError(f"Error creating backup: {e}")
+
+        self._trim_backups(file_path, delete_backups_beyond)
+
+        return backup_path
+
+    def _trim_backups(self, file_path, delete_backups_beyond: int) -> int:
+        """
+        Delete this file's oldest backups beyond the allowed count.
+
+        Only names matching the _erpbkup_ pattern for THIS file's stem and
+        extension are considered, so a neighbouring file's backups and any
+        hand-named file are untouchable. Legacy ".backup" files from the old
+        scheme are recognised only to be reported, never deleted.
+
+        Args:
+            file_path:             The source file whose backups to trim
+            delete_backups_beyond: How many of the newest to keep
+
+        Returns:
+            Number of backups deleted
+        """
+        file_path = Path(file_path)
+        folder = file_path.parent
+
+        pattern = build_backup_name_rgx(
+            re.escape(file_path.stem), re.escape(file_path.suffix)
+        )
+
+        # Sorting names lexicographically sorts them chronologically, given
+        # the zero-padded timestamp - no reliance on modification times,
+        # which would not survive the files being copied or moved.
+        existing = sorted(
+            (entry for entry in folder.iterdir()
+             if entry.is_file() and pattern.match(entry.name)),
+            key=lambda entry: entry.name,
+        )
+
+        surplus = existing[:-delete_backups_beyond] if delete_backups_beyond else existing
+        deleted = 0
+
+        for stale in surplus:
+            try:
+                stale.unlink()
+                deleted += 1
+            except OSError as error:
+                logger.warning(f"⚠️  Could not remove old backup {stale.name}: {error}")
+
+        if deleted:
+            logger.info(
+                f"🧹 Deleted {deleted} backup(s) beyond the newest "
+                f"{delete_backups_beyond}; {len(existing) - deleted} kept"
+            )
+
+        legacy = [entry.name for entry in folder.iterdir()
+                  if entry.is_file()
+                  and entry.name.startswith(file_path.name)
+                  and legacy_backup_rgx.search(entry.name)]
+
+        if legacy:
+            logger.info(
+                f"ℹ️  {len(legacy)} backup(s) from the old '.backup' scheme are still "
+                f"present and are NOT trimmed automatically: {sorted(legacy)[:3]}"
+                f"{' ...' if len(legacy) > 3 else ''}"
+            )
+
+        return deleted
     
     def get_output_info(self) -> dict:
         """

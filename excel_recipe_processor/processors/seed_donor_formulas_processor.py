@@ -139,20 +139,24 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         try:
             # 2. Resolve column specifications to Excel column letters
             resolved_columns = self._resolve_column_specs(source_ws, target_ws)
-            logger.info(f"📍 Processing columns: {resolved_columns}")
+            logger.info(
+                f"📍 Processing columns: "
+                f"{[target for _source, target in resolved_columns]}"
+            )
             
             # 3. Extract and transplant formulas
             transplanted_count = 0
             preserved_seed = 0
             empty_source_count = 0
             
-            for col_letter in resolved_columns:
+            for source_letter, target_letter in resolved_columns:
                 for row_offset in range(self.row_count):
                     current_row = self.start_row + row_offset
-                    
-                    # Extract formula from source
-                    source_cell = source_ws[f"{col_letter}{current_row}"]
-                    target_cell = target_ws[f"{col_letter}{current_row}"]
+
+                    # Read from the donor's position, write to the target's
+                    source_cell = source_ws[f"{source_letter}{current_row}"]
+                    target_cell = target_ws[f"{target_letter}{current_row}"]
+                    col_letter = target_letter   # for messages below
                     
                     # Check if source has a formula
                     if source_cell.value is None:
@@ -245,7 +249,8 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
 
         Args:
             target_ws:          Worksheet being written
-            resolved_columns:   Column letters holding the seeded formulas
+            resolved_columns:   (donor, target) letter pairs; the target
+                                side holds the seeded formulas
 
         Returns:
             Count of cells filled
@@ -290,7 +295,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         preserved = 0
         columns_with_formulas = []
 
-        for col_letter in resolved_columns:
+        for _source_letter, col_letter in resolved_columns:
             origin = f"{col_letter}{self.start_row}"
             source_value = target_ws[origin].value
 
@@ -398,7 +403,14 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             raise StepProcessorError(f"Error loading {context} file {file_path}: {e}")
     
     def _resolve_column_specs(self, source_ws, target_ws):
-        """Resolve column specifications to Excel column letters."""
+        """
+        Resolve column specifications to (source_letter, target_letter) pairs.
+
+        A column NAME is looked up separately in each workbook, so the donor
+        and the target may hold it at different positions - which happens the
+        moment either layout gains a column. An explicit Excel reference is
+        taken literally on both sides, since that is what a letter means.
+        """
         resolved_columns = []
         
         for col_spec in self.columns:
@@ -406,7 +418,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
             
             # Check if it's an Excel column reference (unless forced to treat as name)
             if not self.force_column_names and excel_column_ref_rgx.match(col_spec):
-                resolved_columns.append(col_spec)
+                resolved_columns.append((col_spec, col_spec))
                 logger.debug(f"📋 Column '{col_spec}' treated as Excel reference")
             else:
                 # Treat as column name - find in headers
@@ -414,15 +426,18 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 target_col = self._find_column_by_name(target_ws, col_spec)
                 
                 if source_col and target_col:
-                    if source_col == target_col:
-                        resolved_columns.append(source_col)
-                        logger.debug(f"📋 Column name '{col_spec}' resolved to {source_col}")
-                    else:
-                        logger.warning(
-                            f"⚠️ Column '{col_spec}' found at different positions: "
-                            f"source={source_col}, target={target_col}. Using source position."
+                    if source_col != target_col:
+                        # Each workbook keeps its OWN position. Naming a
+                        # column is a request to find it wherever it lives;
+                        # forcing the donor's letter onto the target wrote
+                        # formulas into whatever column happened to sit
+                        # there, which is how a layout change in one file
+                        # silently corrupted the other.
+                        logger.info(
+                            f"📋 Column '{col_spec}': donor {source_col} -> target {target_col} "
+                            f"(layouts differ; each side uses its own position)"
                         )
-                        resolved_columns.append(source_col)
+                    resolved_columns.append((source_col, target_col))
                 else:
                     logger.warning(f"⚠️ Column name '{col_spec}' not found, skipping")
         
@@ -462,7 +477,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities and features."""
         return {
-            'description': 'Transplant formulas from donor Excel files to recipient files for seeding calculation columns',
+            'description': 'Transplant formulas from donor Excel files to seed calculation columns',
             'operation_type': 'file_operations',
             'column_matching': [
                 'excel_column_references',  # A, B, AA, etc.
@@ -470,6 +485,11 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 'mixed_column_types',       # Combination of refs and names
                 'auto_type_detection'       # Automatic ref vs name detection
             ],
+            'force_column_names': 'force_column_names: true treats every configured '
+                                  'column as a header NAME, resolved against each '
+                                  'file\'s own header row - donor and recipient may '
+                                  'have the column at different letters, and column '
+                                  'insertions cannot repoint the transplant',
             'formula_handling': [
                 'verbatim_copying',         # Exact formula preservation
                 'live_formula_creation',    # Creates working Excel formulas

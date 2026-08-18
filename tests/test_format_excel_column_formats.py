@@ -36,7 +36,7 @@ def build_workbook(path: str) -> None:
 
 def run_format(path: str, sheet_config: dict):
     """Apply one sheet formatting configuration."""
-    config = {'sheet': 'VMS Data'}
+    config = {'sheet_name': 'VMS Data'}
     config.update(sheet_config)
     return FormatExcelProcessor({
         'processor_type': 'format_excel',

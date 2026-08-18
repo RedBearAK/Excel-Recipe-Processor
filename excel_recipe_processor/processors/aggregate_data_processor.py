@@ -1,6 +1,8 @@
 """
 Aggregate data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/aggregate_data_processor.py
+
 Handles grouping data and applying aggregation functions to create summary statistics
 with support for:
 - Stage-based aggregation configuration via StageManager integration
@@ -12,7 +14,7 @@ with support for:
 import pandas as pd
 import logging
 
-from typing import Any, Union
+from typing import Any
 
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
@@ -367,7 +369,7 @@ class AggregateDataProcessor(BaseStepProcessor):
         except:
             raise StepProcessorError(f"Could not parse aggregations string: {aggregations_str}")
     
-    def _apply_variable_substitution(self, group_by: Union[str, list], aggregations: list, variables: dict) -> tuple:
+    def _apply_variable_substitution(self, group_by: str | list, aggregations: list, variables: dict) -> tuple:
         """Apply variable substitution to aggregation configuration."""
         
         if not variables:
@@ -395,7 +397,7 @@ class AggregateDataProcessor(BaseStepProcessor):
         
         return group_by, substituted_aggregations
     
-    def _validate_aggregation_config(self, df: pd.DataFrame, group_by: Union[str, list], aggregations: list) -> None:
+    def _validate_aggregation_config(self, df: pd.DataFrame, group_by: str | list, aggregations: list) -> None:
         """
         Validate aggregation configuration parameters.
         
@@ -453,7 +455,7 @@ class AggregateDataProcessor(BaseStepProcessor):
                     f"Supported functions: {supported}"
                 )
     
-    def _perform_aggregation(self, df: pd.DataFrame, group_by: Union[str, list], 
+    def _perform_aggregation(self, df: pd.DataFrame, group_by: str | list, 
                            aggregations: list, keep_group_columns: bool,
                            sort_by_groups: bool, reset_index: bool) -> pd.DataFrame:
         """
@@ -478,8 +480,26 @@ class AggregateDataProcessor(BaseStepProcessor):
         if isinstance(aggregations, dict):
             aggregations = [aggregations]
         
-        # Create the groupby object
-        grouped = df.groupby(group_by, sort=sort_by_groups)
+        # Create the groupby object. dropna=False is DOCTRINE
+        # (2026-08-17): pandas' default dropna=True does not merge
+        # NaN-keyed rows - it silently DELETES them from the result.
+        # Found in production when the live GROUPBY summary view showed
+        # 11 more groups than the static tab: every booked van without
+        # a tracking number had been quietly vanishing from the summary
+        # (13 vans, ~679k lbs). Blank keys are real groups; Excel's
+        # GROUPBY keeps them as "" and so do we. Rows with blank keys
+        # are counted and named in the completion log below.
+        grouped = df.groupby(group_by, sort=sort_by_groups, dropna=False)
+
+        blank_key_rows = int(df[group_by].isna().any(axis=1).sum())
+        if blank_key_rows:
+            blank_columns = [column for column in group_by
+                             if df[column].isna().any()]
+            logger.info(
+                f"{blank_key_rows} row(s) have blank values in group "
+                f"key(s) {blank_columns} - kept as blank-keyed groups "
+                f"(dropna=False doctrine, 2026-08-17)"
+            )
         
         # Build aggregation dictionary for pandas
         agg_dict = {}
@@ -576,7 +596,7 @@ class AggregateDataProcessor(BaseStepProcessor):
             ]
         }
     
-    def create_summary_aggregation(self, df: pd.DataFrame, group_columns: Union[str, list], 
+    def create_summary_aggregation(self, df: pd.DataFrame, group_columns: str | list, 
                                  numeric_columns: list = None) -> pd.DataFrame:
         """
         Create a standard summary aggregation with common statistics.
@@ -604,8 +624,8 @@ class AggregateDataProcessor(BaseStepProcessor):
         
         return self._perform_aggregation(df, group_columns, aggregations, True, True, True)
     
-    def create_crosstab_aggregation(self, df: pd.DataFrame, row_columns: Union[str, list], 
-                                  col_columns: Union[str, list], value_column: str,
+    def create_crosstab_aggregation(self, df: pd.DataFrame, row_columns: str | list, 
+                                  col_columns: str | list, value_column: str,
                                   agg_function: str = 'sum') -> pd.DataFrame:
         """
         Create a crosstab-style aggregation.
@@ -670,3 +690,5 @@ class AggregateDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the aggregate_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('aggregate_data')
+
+# End of file #

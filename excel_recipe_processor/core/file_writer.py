@@ -10,7 +10,11 @@ import logging
 
 from pathlib import Path
 
-from excel_recipe_processor.writers.excel_writer import ExcelWriter, ExcelWriterError
+from excel_recipe_processor.writers.excel_writer import (
+    ExcelWriter,
+    ExcelWriterError,
+    DEFAULT_DELETE_BACKUPS_BEYOND,
+)
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,7 @@ class FileWriter:
     @staticmethod
     def write_file(data, filename, sheet_name='Data', index=False, 
                     create_backup=True, explicit_format=None,
+                    delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND,
                     encoding='utf-8', separator=','):
         """
         Write a DataFrame to file with automatic format detection
@@ -72,14 +77,14 @@ class FileWriter:
         """
         try:
             # Validate input data
-            FileWriter._validate_dataframe(data)
+            FileWriter._validate_dataframe(data, context=f"'{filename}'")
             
             # Ensure output directory exists
             FileWriter._ensure_directory_exists(filename)
             
             # Create backup if requested
             if create_backup:
-                FileWriter._create_backup_if_exists(filename)
+                FileWriter._create_backup_if_exists(filename, delete_backups_beyond)
             
             # Determine file format
             file_format = FileWriter._determine_format(filename, explicit_format)
@@ -103,7 +108,8 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing file '{filename}': {e}")
     
     @staticmethod
-    def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None):
+    def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None,
+                                delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
@@ -127,7 +133,7 @@ class FileWriter:
             for sheet_name, df in sheets_data.items():
                 if not isinstance(sheet_name, str) or not sheet_name.strip():
                     raise FileWriterError(f"Sheet name must be a non-empty string, got: {type(sheet_name)}")
-                FileWriter._validate_dataframe(df)
+                FileWriter._validate_dataframe(df, context=f"sheet '{sheet_name}'")
             
             # Force Excel format
             file_path = Path(filename)
@@ -141,7 +147,7 @@ class FileWriter:
             
             # Create backup if requested
             if create_backup:
-                FileWriter._create_backup_if_exists(filename)
+                FileWriter._create_backup_if_exists(filename, delete_backups_beyond)
             
             # Use ExcelWriter for multi-sheet writing
             excel_writer = ExcelWriter()
@@ -163,7 +169,7 @@ class FileWriter:
             raise FileWriterError(f"Unexpected error writing multi-sheet Excel file '{filename}': {e}")
     
     @staticmethod
-    def create_backup(filename):
+    def create_backup(filename, delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
         """
         Create a backup copy of an existing file.
         
@@ -177,12 +183,14 @@ class FileWriter:
             FileWriterError: If backup creation fails
         """
         try:
-            # Use ExcelWriter's backup functionality for all file types
+            # Use ExcelWriter's backup functionality for all file types.
+            # It logs the backup itself, at the point where the copy really
+            # happens; this wrapper deliberately does NOT log again - a
+            # duplicated line here read as two backups of one file.
             excel_writer = ExcelWriter()
-            backup_path = excel_writer.create_backup(filename)
-            
-            logger.info(f"Created backup: {backup_path}")
-            return str(backup_path)
+            backup_path = excel_writer.create_backup(filename, delete_backups_beyond)
+
+            return str(backup_path) if backup_path else None
             
         except ExcelWriterError as e:
             raise FileWriterError(f"Backup creation error: {e}")
@@ -283,14 +291,27 @@ class FileWriter:
     # =============================================================================
     
     @staticmethod
-    def _validate_dataframe(data):
-        """Validate that data is a proper DataFrame."""
+    def _validate_dataframe(data, context=None):
+        """Validate that data is a proper DataFrame.
+
+        Args:
+            data: Candidate DataFrame
+            context: What is being written (sheet or file name) so the
+                line names its cause instead of being anonymous
+        """
         if not isinstance(data, pd.DataFrame):
             raise FileWriterError(f"Data must be a pandas DataFrame, got: {type(data)}")
-        
-        # Empty DataFrames are allowed - just warn
+
+        # Empty DataFrames are allowed, and writing one is a DESIGNED
+        # pattern here (formula-spill view tabs are exported empty and
+        # seeded after). So this is information, not a warning
+        # (2026-08-17): a warning that fires on intended behavior
+        # trains readers to ignore warnings, and the anonymous form
+        # was unactionable anyway. INFO keeps the fact in the log for
+        # every sheet with no opt-in ceremony and no lost information.
         if data.empty:
-            logger.warning("Writing empty DataFrame")
+            where = f" for {context}" if context else ""
+            logger.info(f"Writing empty DataFrame{where}")
     
     @staticmethod
     def _ensure_directory_exists(filename):
@@ -299,11 +320,11 @@ class FileWriter:
         file_path.parent.mkdir(parents=True, exist_ok=True)
     
     @staticmethod
-    def _create_backup_if_exists(filename):
-        """Create backup of existing file if it exists."""
+    def _create_backup_if_exists(filename, delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
+        """Create backup of existing file if it exists, then trim old ones."""
         file_path = Path(filename)
         if file_path.exists():
-            FileWriter.create_backup(filename)
+            FileWriter.create_backup(filename, delete_backups_beyond)
     
     @staticmethod
     def _determine_format(filename, explicit_format: str):

@@ -1,6 +1,8 @@
 """
 Rename columns step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/rename_columns_processor.py
+
 Handles renaming DataFrame columns with flexible mapping options.
 """
 
@@ -454,3 +456,5 @@ class RenameColumnsProcessor(BaseStepProcessor):
         """Get complete usage examples for the rename_columns processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('rename_columns')
+
+# End of file #

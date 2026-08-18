@@ -13,7 +13,12 @@ import logging
 
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
+
+from excel_recipe_processor.core.variable_substitution_rgx import (
+    BRACKETED_TYPE_COMPLETE_RGX,
+    BRACKETED_TYPE_DANGLING_RGX,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,14 +39,44 @@ class VariableSubstitution:
     - Typed substitution: {type:variable} for lists, dicts, etc.
     """
     
-    # Supported types for structured variables
+    # Supported types for structured variables. Bare 'list' and bare
+    # 'dict' are RETIRED (2026-08-17): every structural reference
+    # declares its member/value typing, even when that declaration is
+    # "any" - see LIST_MEMBER_TYPES and DICT_VALUE_TYPES.
     SUPPORTED_TYPES = {
         'str': str,
-        'list': list, 
-        'dict': dict,
         'int': int,
         'float': float,
-        'bool': bool
+        'bool': bool,
+        'list_int': list,
+        'list_float': list,
+        'list_str': list,
+        'list_any': list,
+        'dict_int': dict,
+        'dict_float': dict,
+        'dict_str': dict,
+        'dict_any': dict,
+    }
+
+    # Member conversion per list type. None means pass-through: the
+    # author has acknowledged the members are intentionally untyped.
+    LIST_MEMBER_TYPES = {
+        'list_int': int,
+        'list_float': float,
+        'list_str': str,
+        'list_any': None,
+    }
+
+    # Value conversion per dict type. Keys are ALWAYS normalized to
+    # str - recipe dict variables are string-keyed mappings (column
+    # names, labels, status codes) by doctrine, which is what collapses
+    # the key-x-value combination space to the value axis alone. None
+    # means values pass through: intentionally untyped/mixed/nested.
+    DICT_VALUE_TYPES = {
+        'dict_int': int,
+        'dict_float': float,
+        'dict_str': str,
+        'dict_any': None,
     }
 
     # Master format definitions - single source of truth
@@ -172,7 +207,7 @@ class VariableSubstitution:
         """
         Substitute variables in a string, returning either string or structure.
         
-        If the entire string is a single typed variable like "{list:columns}",
+        If the entire string is a single typed variable like "{list_str:columns}",
         return the actual structure. Otherwise, do string substitution.
         """
         if not isinstance(template, str):
@@ -314,6 +349,27 @@ class VariableSubstitution:
         Returns:
             Variable value, optionally converted to expected type
         """
+        # Retired vocabulary fails loud with the replacement family:
+        # every structural reference declares its typing, even 'any'.
+        if type_name == 'list':
+            raise VariableSubstitutionError(
+                f"Bare {{list:{var_name}}} is retired (2026-08-17): "
+                f"declare the member typing - {{list_int:{var_name}}}, "
+                f"{{list_float:{var_name}}}, {{list_str:{var_name}}} "
+                f"(members converted, loudly on failure), or "
+                f"{{list_any:{var_name}}} for intentionally mixed or "
+                f"untyped members."
+            )
+        if type_name == 'dict':
+            raise VariableSubstitutionError(
+                f"Bare {{dict:{var_name}}} is retired (2026-08-17): "
+                f"declare the value typing - {{dict_int:{var_name}}}, "
+                f"{{dict_float:{var_name}}}, {{dict_str:{var_name}}} "
+                f"(values converted, loudly on failure; keys always "
+                f"normalized to str), or {{dict_any:{var_name}}} for "
+                f"intentionally mixed, untyped, or nested values."
+            )
+
         # Validate type is supported
         if type_name not in self.SUPPORTED_TYPES:
             supported_types = list(self.SUPPORTED_TYPES.keys())
@@ -337,14 +393,53 @@ class VariableSubstitution:
         if type_name == 'str':
             # String: convert anything to string
             return str(value)
-        elif type_name in ['list', 'dict']:
-            # Structured types: must match exactly
-            if not isinstance(value, expected_type):
+        elif type_name in self.LIST_MEMBER_TYPES:
+            # Container must already be a list (CLI strings stay loud)
+            if not isinstance(value, list):
                 raise VariableSubstitutionError(
                     f"Variable '{var_name}' is {type(value).__name__} "
-                    f"but {{{type_name}:{var_name}}} expects {type_name}"
+                    f"but {{{type_name}:{var_name}}} expects a list"
                 )
-            return value
+            member_type = self.LIST_MEMBER_TYPES[type_name]
+            if member_type is None:
+                # list_any: the author acknowledged untyped members
+                return value
+            converted_members = []
+            for index, member in enumerate(value):
+                try:
+                    converted_members.append(member_type(member))
+                except (ValueError, TypeError):
+                    raise VariableSubstitutionError(
+                        f"Cannot convert member {index} of variable "
+                        f"'{var_name}' (value: {member!r}) to "
+                        f"{member_type.__name__} for "
+                        f"{{{type_name}:{var_name}}}"
+                    )
+            return converted_members
+        elif type_name in self.DICT_VALUE_TYPES:
+            # Container must already be a dict (CLI strings stay loud)
+            if not isinstance(value, dict):
+                raise VariableSubstitutionError(
+                    f"Variable '{var_name}' is {type(value).__name__} "
+                    f"but {{{type_name}:{var_name}}} expects a dict"
+                )
+            value_type = self.DICT_VALUE_TYPES[type_name]
+            if value_type is None:
+                # dict_any: values pass through as declared; keys are
+                # still normalized to str per doctrine
+                return {str(key): val for key, val in value.items()}
+            converted_mapping = {}
+            for key, member in value.items():
+                try:
+                    converted_mapping[str(key)] = value_type(member)
+                except (ValueError, TypeError):
+                    raise VariableSubstitutionError(
+                        f"Cannot convert value for key {str(key)!r} of "
+                        f"variable '{var_name}' (value: {member!r}) to "
+                        f"{value_type.__name__} for "
+                        f"{{{type_name}:{var_name}}}"
+                    )
+            return converted_mapping
         elif type_name in ['int', 'float', 'bool']:
             # Convertible types: try conversion
             try:
@@ -376,6 +471,24 @@ class VariableSubstitution:
         Raises:
             VariableSubstitutionError: If likely typos are detected
         """
+        # Bracketed member typing like {list[int]:name} was considered
+        # and rejected in favor of the underscore family; the syntax is
+        # intuitive enough to reach for accidentally, and unimplemented
+        # it would pass through as LITERAL TEXT - so it fails loud here
+        # with the real vocabulary. The dangling pattern also catches
+        # half-typed forms like {list[int:name}.
+        if (BRACKETED_TYPE_COMPLETE_RGX.search(template)
+                or BRACKETED_TYPE_DANGLING_RGX.search(template)):
+            raise VariableSubstitutionError(
+                f"Bracketed type syntax in {template!r} is not ERP "
+                f"vocabulary. Use the underscore families instead: "
+                f"{{list_int:name}}, {{list_float:name}}, "
+                f"{{list_str:name}}, {{list_any:name}} for lists; "
+                f"{{dict_int:name}}, {{dict_float:name}}, "
+                f"{{dict_str:name}}, {{dict_any:name}} for dicts "
+                f"(values typed; keys always normalized to str)."
+            )
+
         # Simple check 1: If we see "word:word}" check if there's a "{" to the left
         if ':' in template and '}' in template:
             for i in range(len(template)):
@@ -416,7 +529,7 @@ class VariableSubstitution:
         # Simple check 3: Look for obviously empty patterns
         if '{:' in template:
             raise VariableSubstitutionError(
-                f"Empty type name: found '{{:' - specify type like '{{list:variable}}'"
+                f"Empty type name: found '{{:' - specify type like '{{list_str:variable}}'"
             )
         
         if ':}' in template:
@@ -718,8 +831,10 @@ def get_variable_documentation() -> dict:
             'description': 'Backwards compatible string substitution'
         },
         'structured_variables': {
-            'list_syntax': '{list:variable}',
-            'dict_syntax': '{dict:variable}',
+            'list_syntax': '{list_int:variable} / {list_float:variable} / '
+                           '{list_str:variable} / {list_any:variable}',
+            'dict_syntax': '{dict_int:variable} / {dict_float:variable} / '
+                           '{dict_str:variable} / {dict_any:variable}',
             'description': 'Direct structure replacement (lists, dicts)'
         },
         'convertible_variables': {
@@ -755,8 +870,8 @@ def get_variable_documentation() -> dict:
                 'typed': 'output_file: "{str:filename_template}"'
             },
             'structure_usage': {
-                'list': 'columns_to_keep: "{list:customer_columns}"',
-                'dict': 'lookup_mapping: "{dict:status_codes}"'
+                'list': 'columns_to_keep: "{list_str:customer_columns}"',
+                'dict': 'lookup_mapping: "{dict_str:status_codes}"'
             },
             'mixed_recipe': '''
 settings:
@@ -767,7 +882,7 @@ settings:
 
 recipe:
   - processor_type: "select_columns"
-    columns_to_keep: "{list:customer_cols}"
+    columns_to_keep: "{list_str:customer_cols}"
     output_file: "{str:report_name}_{date}.xlsx"
             '''
         }

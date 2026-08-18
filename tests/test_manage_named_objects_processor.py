@@ -127,7 +127,7 @@ def test_object_extraction():
         'processor_type': 'manage_named_objects',
         'operation': 'export_all',
         'source_file': 'test.xlsx',
-        'export_file': 'test_export.yaml'
+        'yaml_file': 'test_export.yaml'
     }
     
     processor = ManageNamedObjectsProcessor(step_config)
@@ -202,16 +202,21 @@ def test_lambda_translation():
     test_cases = [
         {
             'excel': "=_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlpm.x+_xlpm.y)",
+            'excel_canonical': "_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlpm.x+_xlpm.y)",
             'human': "LAMBDA(x, y, x+y)",
             'params': ["x", "y"]
         },
         {
             'excel': "=_xlfn.LAMBDA(_xlpm.rate,_xlpm.periods,_xlfn.PV(_xlpm.rate,_xlpm.periods,0))",
+            # PV is a classic function: no _xlfn storage prefix (differential
+            # oracle vs xlsxwriter's Excel-validated table)
+            'excel_canonical': "_xlfn.LAMBDA(_xlpm.rate,_xlpm.periods,PV(_xlpm.rate,_xlpm.periods,0))",
             'human': "LAMBDA(rate, periods, PV(rate, periods, 0))",
             'params': ["rate", "periods"]
         },
         {
             'excel': "=_xlfn.LAMBDA(_xlpm.current,_xlpm.previous,(_xlpm.current-_xlpm.previous)/_xlpm.previous)",
+            'excel_canonical': "_xlfn.LAMBDA(_xlpm.current,_xlpm.previous,(_xlpm.current-_xlpm.previous)/_xlpm.previous)",
             'human': "LAMBDA(current, previous, (current-previous)/previous)",
             'params': ["current", "previous"]
         }
@@ -243,12 +248,13 @@ def test_lambda_translation():
             # Test human to Excel translation
             excel_result = processor.translate_lambda_to_excel(test_case['human'], test_case['params'])
             
-            # Exact comparison now that we have proper formatting
-            if excel_result == test_case['excel']:
+            # Write funnel strips the leading '=' (the fn_blank_safe
+            # repair-deletion fix): compare against the canonical form.
+            if excel_result == test_case['excel_canonical']:
                 print(f"✓ Test {i}: Human to Excel translation passed")
             else:
                 print(f"✗ Test {i}: Human to Excel translation failed")
-                print(f"  Expected: {test_case['excel']}")
+                print(f"  Expected: {test_case['excel_canonical']}")
                 print(f"  Got: {excel_result}")
                 all_passed = False
                 
@@ -510,7 +516,7 @@ def test_processor_capabilities():
             'processor_type': 'manage_named_objects',
             'operation': 'export_all',
             'source_file': 'test.xlsx',
-            'export_file': 'test.yaml'
+            'yaml_file': 'test.yaml'
         }
         
         processor = ManageNamedObjectsProcessor(step_config)

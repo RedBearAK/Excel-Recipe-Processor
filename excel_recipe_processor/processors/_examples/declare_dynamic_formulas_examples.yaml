@@ -1,0 +1,104 @@
+# Revision date: 2026-08-13
+
+description: >
+  Declare dynamic-era formulas in a finished xlsx so Excel shows them without
+  the implicit-intersection @ (and without legacy {CSE} braces). Adds the
+  cm="1" cell markers plus the XLDAPR xl/metadata.xml part - exactly what
+  Excel writes for the same formula typed by hand. A file operation on a
+  CLOSED file; for a recipe's own outputs, prefer the recipe-wide settings
+  key declare_dynamic_formulas: true, which applies the same pass at save.
+
+
+basic_example:
+  description: "Repair an on-disk workbook whose XLOOKUP formulas display with @"
+  yaml: |
+    settings:
+      description: "Declare the dynamic-era formulas in a finished report"
+
+    recipe:
+      - # Marks formulas containing functions that POSTDATE dynamic arrays
+        # (XLOOKUP, FILTER, LET, ...). Such formulas were necessarily
+        # authored in modern Excel, so the declaration states a fact and
+        # cannot change results. Pre-dynamic-array array-capable functions
+        # (INDEX, OFFSET) are deliberately NOT marked: a legacy formula
+        # depending on implicit intersection would start spilling.
+        step_description: "Declare dynamic formulas in the report"
+        processor_type: "declare_dynamic_formulas"
+        # REQ - Finished xlsx to process (must not be held by the session;
+        # place a flush_workbooks step first if it is)
+        input_file: "reports/quarterly_report.xlsx"
+
+after_flush_example:
+  description: "Declare formulas in a recipe output after an explicit flush"
+  yaml: |
+    settings:
+      description: "Flush the session, then declare the flushed file's formulas"
+
+    recipe:
+      - # The processor refuses to run on a file the session still holds in
+        # memory - the disk bytes would be stale and the rewrite would be
+        # overwritten at the next save. Flush first.
+        step_description: "Write pending workbook changes to disk"
+        processor_type: "flush_workbooks"
+
+      - step_description: "Declare dynamic formulas in the flushed output"
+        processor_type: "declare_dynamic_formulas"
+        input_file: "output/processed_report.xlsx"
+        # OPT - Write the result elsewhere instead of in place
+        # Default value: same path as input_file
+        output_file: "output/processed_report_declared.xlsx"
+
+extra_functions_example:
+  description: "Extend the vocabulary for a file whose formulas are known recipe-authored"
+  yaml: |
+    settings:
+      description: "Declare recipe-authored IFS formulas alongside the safe defaults"
+
+    recipe:
+      - # extra_functions asserts AUTHORSHIP: only add a pre-dynamic-array
+        # function here when every formula using it in this file was
+        # written recently by you or your recipe - a legacy formula relying
+        # on implicit intersection would change behavior if declared.
+        # (Cells written by inject_formulas need none of this: the session
+        # registers them by provenance and the at-save pass declares them
+        # automatically, whatever functions they use.)
+        step_description: "Declare including known recipe-authored IFS"
+        processor_type: "declare_dynamic_formulas"
+        input_file: "output/classification_report.xlsx"
+        # OPT - Additional bare function names to treat as dynamic-era
+        # Default value: [] (only the safe post-dynamic-array set)
+        extra_functions: ["IFS"]
+
+parameter_details:
+  input_file:
+    type: string
+    required: true
+    description: "Finished xlsx/xlsm to process; must not be open in the workbook session"
+    supports_variables: true
+    examples:
+      - "reports/quarterly_report.xlsx"
+      - "{output_dir}/{output_basename}.xlsx"
+
+  output_file:
+    type: string
+    required: false
+    default: "same as input_file (in-place, via a temp file then move)"
+    description: "Where to write the declared workbook"
+    supports_variables: true
+    examples:
+      - "output/report_declared.xlsx"
+
+  extra_functions:
+    type: list of strings
+    required: false
+    default: []
+    description: >
+      Additional bare function names to treat as dynamic-era. Asserts these
+      formulas were authored in modern Excel; only safe when that is known
+      true (e.g. the recipe wrote them). The default vocabulary is safe by
+      construction and needs no extension for XLOOKUP, FILTER, LET, etc.
+    examples:
+      - ["IFS"]
+      - ["IFS", "SWITCH"]
+
+# End of file #

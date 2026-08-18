@@ -495,10 +495,14 @@ from excel_recipe_processor.processors.add_subtotals_processor          import A
 from excel_recipe_processor.processors.aggregate_data_processor         import AggregateDataProcessor
 from excel_recipe_processor.processors.clean_data_processor             import CleanDataProcessor
 from excel_recipe_processor.processors.combine_data_processor           import CombineDataProcessor
+from excel_recipe_processor.processors.columns_to_rows_processor       import ColumnsToRowsProcessor
+from excel_recipe_processor.processors.conditional_format_processor     import ConditionalFormatProcessor
 from excel_recipe_processor.processors.copy_stage_processor             import CopyStageProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
+from excel_recipe_processor.processors.declare_dynamic_formulas_processor import DeclareDynamicFormulasProcessor
 from excel_recipe_processor.processors.diff_data_processor              import DiffDataProcessor
+from excel_recipe_processor.processors.excel_data_validation_processor  import ExcelDataValidationProcessor
 from excel_recipe_processor.processors.export_file_processor            import ExportFileProcessor
 from excel_recipe_processor.processors.export_filter_step_processor     import ExportFilterStepProcessor
 from excel_recipe_processor.processors.fill_data_processor              import FillDataProcessor
@@ -508,10 +512,16 @@ from excel_recipe_processor.processors.format_excel_processor           import F
 from excel_recipe_processor.processors.generate_column_config_processor import GenerateColumnConfigProcessor
 from excel_recipe_processor.processors.group_data_processor             import GroupDataProcessor
 from excel_recipe_processor.processors.import_file_processor            import ImportFileProcessor
-from excel_recipe_processor.processors.file_metadata_processor          import FileMetadataProcessor
+from excel_recipe_processor.processors.profile_files_processor          import ProfileFilesProcessor
+from excel_recipe_processor.processors.profile_named_objects_processor  import ProfileNamedObjectsProcessor
+from excel_recipe_processor.processors.profile_sheets_processor         import ProfileSheetsProcessor
+from excel_recipe_processor.processors.profile_workbooks_processor      import ProfileWorkbooksProcessor
+from excel_recipe_processor.processors.verify_excel_storage_processor   import VerifyExcelStorageProcessor
+from excel_recipe_processor.processors.strip_formula_caches_processor  import StripFormulaCachesProcessor
 from excel_recipe_processor.processors.deduplicate_data_processor      import DeduplicateDataProcessor
 from excel_recipe_processor.processors.free_stages_processor           import FreeStagesProcessor
 from excel_recipe_processor.processors.verify_columns_processor        import VerifyColumnsProcessor
+from excel_recipe_processor.processors.verify_data_processor            import VerifyDataProcessor
 from excel_recipe_processor.processors.flush_workbooks_processor       import FlushWorkbooksProcessor
 from excel_recipe_processor.processors.inject_formulas_processor        import InjectFormulasProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
@@ -519,6 +529,7 @@ from excel_recipe_processor.processors.manage_named_objects_processor   import M
 from excel_recipe_processor.processors.merge_data_processor             import MergeDataProcessor
 from excel_recipe_processor.processors.pivot_table_processor            import PivotTableProcessor
 from excel_recipe_processor.processors.rename_columns_processor         import RenameColumnsProcessor
+from excel_recipe_processor.processors.rows_to_columns_processor       import RowsToColumnsProcessor
 from excel_recipe_processor.processors.seed_donor_formulas_processor    import SeedDonorFormulasProcessor
 from excel_recipe_processor.processors.select_columns_processor         import SelectColumnsProcessor
 from excel_recipe_processor.processors.slice_data_processor             import SliceDataProcessor
@@ -535,15 +546,25 @@ def register_standard_processors():
     registry.register('aggregate_data',                 AggregateDataProcessor              )
     registry.register('clean_data',                     CleanDataProcessor                  )
     registry.register('combine_data',                   CombineDataProcessor                )
+    registry.register('columns_to_rows',                ColumnsToRowsProcessor              )
+    registry.register('conditional_format',             ConditionalFormatProcessor          )
     registry.register('deduplicate_data',               DeduplicateDataProcessor            )
-    registry.register('file_metadata',                  FileMetadataProcessor               )
+    registry.register('profile_files',                  ProfileFilesProcessor               )
+    registry.register('profile_named_objects',          ProfileNamedObjectsProcessor        )
+    registry.register('profile_sheets',                 ProfileSheetsProcessor              )
+    registry.register('profile_workbooks',              ProfileWorkbooksProcessor           )
+    registry.register('verify_excel_storage',           VerifyExcelStorageProcessor         )
+    registry.register('strip_formula_caches',           StripFormulaCachesProcessor         )
     registry.register('free_stages',                    FreeStagesProcessor                 )
     registry.register('verify_columns',                 VerifyColumnsProcessor              )
+    registry.register('verify_data',                    VerifyDataProcessor                 )
     registry.register('flush_workbooks',                FlushWorkbooksProcessor             )
     registry.register('copy_stage',                     CopyStageProcessor                  )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
+    registry.register('declare_dynamic_formulas',       DeclareDynamicFormulasProcessor     )
     registry.register('diff_data',                      DiffDataProcessor                   )
+    registry.register('excel_data_validation',          ExcelDataValidationProcessor        )
     registry.register('export_file',                    ExportFileProcessor                 )
     registry.register('export_filter_step',             ExportFilterStepProcessor           )
     registry.register('fill_data',                      FillDataProcessor                   )
@@ -559,6 +580,7 @@ def register_standard_processors():
     registry.register('merge_data',                     MergeDataProcessor                  )
     registry.register('pivot_table',                    PivotTableProcessor                 )
     registry.register('rename_columns',                 RenameColumnsProcessor              )
+    registry.register('rows_to_columns',                RowsToColumnsProcessor              )
     registry.register('seed_donor_formulas',            SeedDonorFormulasProcessor          )
     registry.register('select_columns',                 SelectColumnsProcessor              )
     registry.register('slice_data',                     SliceDataProcessor                  )

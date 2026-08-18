@@ -136,6 +136,19 @@ def run_main(args: Namespace) -> int:
             logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
         else:
             logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+        # Startup records buffer until the log-file decision: a recipe
+        # log_file attaches too late to see them live, so they are held
+        # and flushed as the file's opening lines - or discarded at the
+        # seam when nobody wants a file.
+        install_early_log_buffer()
+
+        # CLI log file attaches from startup, so it captures everything
+        # including recipe loading. A recipe-settings log_file attaches
+        # later (it needs external variables resolved for paths like
+        # {output_dir}); the CLI flag wins when both are given.
+        if getattr(args, 'log_file', None):
+            attach_log_file(args.log_file, source='cli')
         
         # Main processing workflow
         if hasattr(args, 'recipe_file') and args.recipe_file:
@@ -154,6 +167,140 @@ def run_main(args: Namespace) -> int:
             import traceback
             traceback.print_exc()
         return 1
+
+
+_attached_log_files = {'cli': None, 'recipe': None}
+_attached_log_streams = []
+
+
+def mirror_print(text='') -> None:
+    """print() that also lands in any attached log file, verbatim.
+
+    The run summary and the blank separator lines are deliberately
+    UNPREFIXED terminal output (no 'INFO:'), so they live outside the
+    logging system and no FileHandler ever sees them - the tail of the
+    log file was silently missing the summary block until 2026-08-16.
+    This writes the same bytes to both places: the terminal via print,
+    and each attached log stream raw (no formatter, so the file matches
+    the terminal exactly). Before any attachment it is just print.
+    """
+    print(text)
+    if _attached_log_streams:
+        for stream in _attached_log_streams:
+            try:
+                stream.write(str(text) + '\n')
+                stream.flush()
+            except Exception:
+                pass  # a dead stream must not kill the run for a log line
+    elif _early_buffer is not None:
+        # No file yet: hold the line in emission order beside the log
+        # records, so a later attach replays the head exactly
+        _early_buffer.add_text(str(text))
+
+
+class _EarlyLogBuffer(logging.Handler):
+    """Holds startup log records until the log-file decision is made.
+
+    A recipe's log_file directive cannot attach until external variables
+    resolve, but the loading lines are worth keeping - so this buffer
+    captures everything from startup, attach_log_file() flushes it as
+    the FILE'S OPENING LINES, and the pipeline discards it at the seam
+    when the recipe declines and no --log-file was given. Capped so a
+    pathological pre-seam flood cannot grow memory unbounded.
+    """
+
+    MAX_RECORDS = 1000
+
+    def __init__(self):
+        super().__init__()
+        # Ordered mixed items: ('record', LogRecord) from the logging
+        # system, ('text', str) from mirror_print - so the head of the
+        # file replays in TRUE emission order, blanks included.
+        self.items = []
+
+    def emit(self, record):
+        if len(self.items) < self.MAX_RECORDS:
+            self.items.append(('record', record))
+
+    def add_text(self, text: str) -> None:
+        if len(self.items) < self.MAX_RECORDS:
+            self.items.append(('text', text))
+
+
+_early_buffer = None
+
+
+def install_early_log_buffer() -> None:
+    """Start capturing startup records (called right after basicConfig)."""
+    global _early_buffer
+    if _early_buffer is None:
+        _early_buffer = _EarlyLogBuffer()
+        logging.getLogger().addHandler(_early_buffer)
+
+
+def discard_early_log_buffer() -> None:
+    """The decision point passed with no log file wanted: drop the buffer."""
+    global _early_buffer
+    if _early_buffer is not None:
+        logging.getLogger().removeHandler(_early_buffer)
+        _early_buffer.items.clear()
+        _early_buffer = None
+
+
+def attach_log_file(file_path, source='cli') -> bool:
+    """
+    Mirror the log stream to a file - same format, emoji and all.
+
+    The stream carries no ANSI codes (plain basicConfig), so the file is
+    byte-identical to the terminal's content. UTF-8 is explicit so the
+    Unicode symbols survive on every platform. Overwrites per run (each
+    run's log pairs with that run's output file). A recipe-settings
+    attachment is skipped when the CLI already attached one - the person
+    at the command line outranks the recipe.
+
+    EXTENSION POLICY (2026-08-16, decided): the path is taken VERBATIM -
+    no extension appended, corrected, or warned about. Rewriting an
+    extensionless path would be the framework overriding stated intent,
+    and the 🪵 announcement (terminal + first line of the file itself)
+    already makes any path mistake immediately visible. House default is
+    '_log.txt': the NAME carries the semantics, the txt EXTENSION the
+    ergonomics (double-click opens a text editor everywhere; macOS
+    routes .log to Console.app, which reads worse for this content).
+    Anyone preferring .log simply writes it.
+
+    Returns True if attached, False if skipped.
+    """
+    if source == 'recipe' and _attached_log_files['cli']:
+        logging.getLogger(__name__).info(
+            f"🪵 Recipe log_file skipped; --log-file already active: "
+            f"{_attached_log_files['cli']}")
+        return False
+    if _attached_log_files.get(source):
+        return False
+
+    resolved = Path(file_path).expanduser()
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(resolved, mode='w', encoding='utf-8')
+    handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+
+    # The buffered startup lines become the FILE'S OPENING LINES - they
+    # already reached the terminal, so they flush to the file handler
+    # only, before it joins the root logger for live records.
+    global _early_buffer
+    if _early_buffer is not None:
+        for kind, payload in _early_buffer.items:
+            if kind == 'record':
+                handler.handle(payload)
+            else:
+                handler.stream.write(payload + '\n')
+        handler.stream.flush()
+        discard_early_log_buffer()
+
+    logging.getLogger().addHandler(handler)
+    _attached_log_files[source] = str(resolved)
+    _attached_log_streams.append(handler.stream)
+    logging.getLogger(__name__).info(f"🪵 Logging to file: {resolved}")
+    return True
 
 
 def process_recipe(args: Namespace) -> int:
@@ -181,14 +328,14 @@ def process_recipe(args: Namespace) -> int:
         if getattr(args, 'variable_pairs', None):
             for name, value in args.variable_pairs:
                 cli_variables[name] = value
-            print()     # blank line to separate from command line
+            mirror_print()  # separator; buffered for the file's head
             logger.info(f"Parsed {len(cli_variables)} variable overrides from --set")
 
         if hasattr(args, 'variable_overrides') and args.variable_overrides:
             try:
                 cli_variables.update(parse_cli_variables(args.variable_overrides))
                 if cli_variables:
-                    print()     # blank line to separate from command line
+                    mirror_print()  # separator; buffered for the file's head
                     logger.info(f"Parsed {len(cli_variables)} variable overrides from CLI")
             except InteractiveVariableError as e:
                 print(f"Error parsing variable overrides: {e}")
@@ -239,22 +386,31 @@ def process_recipe(args: Namespace) -> int:
         stages_created = completion_report.get('stages_created', [])
         stages_declared = completion_report.get('stages_declared', [])
         
-        print()     # blank line to separate from last logging line
+        mirror_print()  # blank line to separate from last logging line
         elapsed = completion_report.get('elapsed_seconds')
         elapsed_text = ""
         if elapsed is not None:
             minutes, seconds = divmod(elapsed, 60)
             elapsed_text = f" in {int(minutes)}m {seconds:.1f}s" if minutes else f" in {seconds:.1f}s"
 
-        print(f"✓ Recipe completed successfully{elapsed_text}")
-        print(f"  Steps executed: {steps_executed}")
+        mirror_print(f"✓ Recipe completed successfully{elapsed_text}")
+        mirror_print(f"  Steps executed: {steps_executed}")
         stages_freed = completion_report.get('stages_freed', [])
         if stages_freed:
-            print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")
+            mirror_print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")
         else:
-            print(f"  Data stages created: {len(stages_created)}")
-        print(f"  Data stages declared: {len(stages_declared)}")
-        print()     # blank line to separate from next command prompt
+            mirror_print(f"  Data stages created: {len(stages_created)}")
+        mirror_print(f"  Data stages declared: {len(stages_declared)}")
+        stage_memory = completion_report.get('stage_memory')
+        if stage_memory and stage_memory.get('total_allocated_mb'):
+            def _mb(value):
+                # Tiny runs deserve a decimal; big numbers stay round
+                return f"{value:.1f}" if value < 10 else f"{value:.0f}"
+            mirror_print(
+                f"  Stage memory: ~{_mb(stage_memory['peak_concurrent_mb'])} MB peak concurrent, "
+                f"~{_mb(stage_memory['total_allocated_mb'])} MB allocated, "
+                f"~{_mb(stage_memory['total_freed_mb'])} MB freed during the run")
+        mirror_print()  # blank line to separate from next command prompt
         
         # Verbose stage details (preserving current behavior)
         if verbose and stages_created:
@@ -342,9 +498,13 @@ def list_system_capabilities_detailed() -> int:
             if 'parameters' in info:
                 print("Parameters:")
                 for param_name, param_info in info['parameters'].items():
-                    required = "Required" if param_info.get('required', False) else "Optional"
-                    param_desc = param_info.get('description', 'No description')
-                    print(f"  {param_name} ({required}): {param_desc}")
+                    if isinstance(param_info, dict):
+                        required = "Required" if param_info.get('required', False) else "Optional"
+                        param_desc = param_info.get('description', 'No description')
+                        print(f"  {param_name} ({required}): {param_desc}")
+                    else:
+                        # Some processors supply a plain description string
+                        print(f"  {param_name}: {param_info}")
             
             # Show capabilities if available
             if 'supported_actions' in info:
@@ -706,6 +866,8 @@ def get_usage_examples(processor_name: str, format_type: str = 'yaml') -> int:
         # No examples available
         print(f"No usage examples available for processor: {processor_name}")
         print()
+        print('Tip: use "settings" as the name for recipe settings examples')
+        print()
         print("Available processors:")
         
         # Show available processors
@@ -952,7 +1114,29 @@ def _display_all_examples_yaml(all_examples: dict) -> None:
     print(f"# Processors with examples: {system_info.get('processors_with_examples', 0)}")
     print(f"# Processors missing examples: {system_info.get('processors_missing_examples', 0)}")
     print()
-    
+
+    # Designed behavior: the complete reference opens with the RECIPE
+    # SETTINGS section, so a copy-paste starting point precedes the
+    # per-processor steps.
+    try:
+        from excel_recipe_processor.utils.processor_examples_loader import load_settings_examples
+        settings_examples = load_settings_examples()
+        if 'error' not in settings_examples:
+            print("# RECIPE SETTINGS")
+            print(f"# {'-' * 20}")
+            settings_keys = [key for key in settings_examples.keys()
+                             if key.endswith('_example')]
+            for settings_key in settings_keys:
+                settings_entry = settings_examples[settings_key]
+                if isinstance(settings_entry, dict) and 'yaml' in settings_entry:
+                    print(f"# {settings_entry.get('description', settings_key)}")
+                    print(settings_entry['yaml'])
+                    print()
+            print()
+    except Exception as settings_error:
+        print(f"# RECIPE SETTINGS - unavailable: {settings_error}")
+        print()
+
     processors = all_examples.get('processors', {})
     
     for processor_name in sorted(processors.keys()):

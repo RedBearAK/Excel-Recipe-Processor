@@ -10,7 +10,6 @@ filter terms using n-gram analysis and statistical comparison techniques.
 import pandas as pd
 import logging
 
-from typing import Any, Optional
 
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -162,8 +161,10 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         column_lower = column_name.lower()
         has_text_indicator = any(indicator in column_lower for indicator in text_indicators)
         
-        # Analyze content
-        if column_data.dtype == 'object':
+        # Analyze content. pandas 3 note: string columns report dtype
+        # 'str' (not 'object'), so equality against 'object' silently
+        # rejected every string column and detection returned empty.
+        if pd.api.types.is_string_dtype(column_data):
             # Sample some values to check text characteristics
             sample_values = column_data.head(100).astype(str)
             
@@ -207,8 +208,9 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         unique_count = column_data.nunique()
         is_small_vocabulary = unique_count <= 50
         
-        # Must be object type or string-like to be meaningful for filtering
-        is_suitable_type = column_data.dtype == 'object'
+        # Must be string-like to be meaningful for filtering (pandas 3:
+        # covers both the new 'str' dtype and legacy object columns)
+        is_suitable_type = pd.api.types.is_string_dtype(column_data)
         
         # ENHANCED: Check for problematic mixed types
         if is_suitable_type:
@@ -283,7 +285,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
         if not isinstance(self.score_threshold, (int, float)) or self.score_threshold < 0:
             raise StepProcessorError("score_threshold must be a non-negative number")
 
-    def execute(self, source_stage_data: Optional[pd.DataFrame]) -> pd.DataFrame:
+    def execute(self, source_stage_data: pd.DataFrame | None) -> pd.DataFrame:
         """Execute filter terms detection analysis."""
         try:
             self.log_step_start()
@@ -1014,7 +1016,7 @@ class FilterTermsDetectorProcessor(BaseStepProcessor):
             Dictionary describing processor capabilities
         """
         return {
-            'description': 'Detect potential filter terms by comparing raw vs filtered datasets using n-gram analysis',
+            'description': 'Detect candidate filter terms by n-gram comparison of raw vs filtered data',
             'category': 'Data Analysis',
             'stage_to_stage': True,
             'analysis_features': [

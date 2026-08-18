@@ -101,20 +101,23 @@ def test_basic_live_formula_injection():
             'processor_type': 'inject_formulas',
             'target_file': excel_file,
             'mode': 'live',
-            'formulas': [
-                {
-                    'cell': 'D2',
-                    'formula': '=B2*C2'
-                },
-                {
-                    'cell': 'D3',
-                    'formula': '=B3*C3'
-                },
-                {
-                    'cell': 'D5',
-                    'formula': '=SUM(D2:D4)'
-                }
-            ]
+            'sheets_to_receive_formulas': [{
+                'sheet_names': ['TestData'],
+                'formulas': [
+                    {
+                        'cell': 'D2',
+                        'formula': '=B2*C2'
+                    },
+                    {
+                        'cell': 'D3',
+                        'formula': '=B3*C3'
+                    },
+                    {
+                        'cell': 'D5',
+                        'formula': '=SUM(D2:D4)'
+                    }
+                ]
+            }]
         }
         
         # Execute processor
@@ -234,12 +237,15 @@ def test_range_formula_injection():
             'processor_type': 'inject_formulas',
             'target_file': excel_file,
             'mode': 'live',
-            'formulas': [
-                {
-                    'range': 'D2:D6',
-                    'formula': '=B2*C2'
-                }
-            ]
+            'sheets_to_receive_formulas': [{
+                'sheet_names': ['TestData'],
+                'formulas': [
+                    {
+                        'range': 'D2:D6',
+                        'formula': '=B2*C2'
+                    }
+                ]
+            }]
         }
         
         # Execute processor
@@ -257,11 +263,15 @@ def test_range_formula_injection():
         
         workbook.close()
         
-        # All should have the same base formula (simple implementation for now)
-        if (formula_d2 == '=B2*C2' and 
-            formula_d3 == '=B2*C2' and 
-            formula_d6 == '=B2*C2'):
-            print("✓ Range formulas injected successfully")
+        # Relative references must TRANSLATE down the range, the way Excel
+        # shifts them when a formula is copied. This test previously asserted
+        # that every cell kept '=B2*C2' verbatim, which meant every row
+        # computed row 2's numbers - the behaviour, and the expectation, were
+        # both wrong. (2026-08-13)
+        if (formula_d2 == '=B2*C2' and
+                formula_d3 == '=B3*C3' and
+                formula_d6 == '=B6*C6'):
+            print("✓ Range formulas injected and translated per row")
             return True
         else:
             print(f"✗ Range formula injection failed: D2={formula_d2}, D3={formula_d3}, D6={formula_d6}")
@@ -330,6 +340,38 @@ def test_configuration_validation():
         return False
 
 
+def test_future_functions_get_storage_prefixes():
+    """Post-2007 functions must be stored with _xlfn. or Excel shows #NAME?."""
+    print("Testing future-function prefixes...")
+
+    processor = InjectFormulasProcessor({
+        'processor_type': 'inject_formulas',
+        'target_file': 'unused.xlsx',
+        'mode': 'live',
+    })
+
+    cases = [
+        ('=IFS(A2=1,"x",TRUE,"y")',            '=_xlfn.IFS(A2=1,"x",TRUE,"y")'),
+        ('=XLOOKUP(A2,rng_a,rng_b)',           '=_xlfn.XLOOKUP(A2,rng_a,rng_b)'),
+        ('=_xlfn.IFS(A2=1,"x")',               '=_xlfn.IFS(A2=1,"x")'),
+        ('=SUM(A2:A9)+COUNTIF(B:B,"z")',       '=SUM(A2:A9)+COUNTIF(B:B,"z")'),
+        ('=MYIFS(A2)',                         '=MYIFS(A2)'),
+        ('=FILTER(A:A,B:B=1)',                 '=_xlfn._xlws.FILTER(A:A,B:B=1)'),
+    ]
+
+    passed = True
+
+    for written, expected in cases:
+        got = processor._prefix_future_functions(written)
+        if got == expected:
+            print(f"  \u2713 {written}")
+        else:
+            print(f"  \u2717 {written} -> {got}, expected {expected}")
+            passed = False
+
+    return passed
+
+
 def main():
     """Run all tests for InjectFormulasProcessor."""
     print("🧪 TESTING INJECT FORMULAS PROCESSOR")
@@ -341,6 +383,7 @@ def main():
         test_basic_live_formula_injection,
         test_dead_formula_injection,
         test_range_formula_injection,
+        test_future_functions_get_storage_prefixes,
     ]
     
     passed = 0

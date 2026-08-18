@@ -1,0 +1,65 @@
+# Revision date: 2026-08-13
+
+description: >
+  Promote one column's values into the header row, spreading another
+  column's values under them (long to wide, re-crosstabbing). A pivot
+  WITHOUT aggregation, enforced: each (id, label) pair must map to at most
+  one value, and duplicates halt the run naming the offending pairs -
+  pivot_table would silently aggregate them, and refusing that is this
+  processor's reason to exist. Inverse: columns_to_rows.
+
+
+basic_example:
+  description: "Spread month-per-row amounts back into one column per month"
+  yaml: |
+    settings:
+      description: "Re-crosstab the long amounts table for the report layout"
+      stages:
+        - stage_name: "stg_amounts_long"
+          description: "One row per customer-month"
+          protected: false
+        - stage_name: "stg_amounts_wide"
+          description: "Customer per row, one column per month"
+          protected: false
+
+    recipe:
+      - # New columns appear in FIRST-APPEARANCE order of the labels, so
+        # months stay in the order the data carries them, not alphabetized.
+        # Combinations absent from the data become blank cells.
+        step_description: "Spread months into columns"
+        processor_type: "rows_to_columns"
+        source_stage: "stg_amounts_long"
+        # REQ - Column whose VALUES become the new headers
+        labels_from: "Month"
+        # REQ - Column supplying the cell contents
+        values_from: "Amount"
+        # OPT - Row identity. Default: every other column. An explicit list
+        # must claim every remaining column - leftovers would silently
+        # vanish from the output, so they halt instead.
+        id_columns: ["Customer", "Region"]
+        # OPT - Value for absent (id, label) combinations
+        # Default value: blank cells
+        fill_missing_with: 0
+        save_to_stage: "stg_amounts_wide"
+
+parameter_details:
+  labels_from:
+    type: string
+    required: true
+    description: "Column whose distinct values become the new column headers; blank values halt (a column needs a name)"
+  values_from:
+    type: string
+    required: true
+    description: "Column whose values fill the new columns' cells"
+  id_columns:
+    type: list of strings
+    required: false
+    default: "every column other than labels_from/values_from"
+    description: "The row identity. Explicit lists must claim all remaining columns."
+  fill_missing_with:
+    type: scalar
+    required: false
+    default: "blank cells"
+    description: "Fill for (id, label) combinations absent from the data"
+
+# End of file #

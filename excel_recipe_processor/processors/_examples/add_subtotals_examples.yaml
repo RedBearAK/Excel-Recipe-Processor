@@ -8,10 +8,10 @@ basic_example:
     settings:
       description: "Create sales report with regional subtotals"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Raw sales data from import"
           protected: false
-        - stage_name: "sales_with_subtotals"
+        - stage_name: "stg_sales_with_subtotals"
           description: "Sales data with regional subtotals"
           protected: false
 
@@ -23,7 +23,7 @@ basic_example:
         # REQ - Path to input Excel file
         input_file: "data/monthly_sales.xlsx"
         # REQ - Stage to save imported data (import_file only needs save_to_stage)
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
 
       - # Step 2: Add regional subtotals
         # OPT - Human-readable step description
@@ -32,7 +32,7 @@ basic_example:
         # REQ - Must be "add_subtotals" for this processor type
         processor_type: "add_subtotals"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         # REQ - Columns to group by for subtotal calculation
         # Groups data by these columns before adding subtotal rows
         group_by: ["Region"]
@@ -47,7 +47,7 @@ basic_example:
         # Default value: "Subtotal"
         subtotal_label: "Regional Total"
         # REQ - Stage to save data with subtotals
-        save_to_stage: "sales_with_subtotals"
+        save_to_stage: "stg_sales_with_subtotals"
 
 hierarchical_example:
   description: "Multi-level hierarchical subtotals for complex reporting"
@@ -55,16 +55,16 @@ hierarchical_example:
     settings:
       description: "Create hierarchical financial report with division and department subtotals"
       stages:
-        - stage_name: "financial_data" 
+        - stage_name: "stg_financial_data" 
           description: "Imported financial data"
           protected: false
-        - stage_name: "sorted_data"
+        - stage_name: "stg_sorted_data"
           description: "Data sorted for proper grouping"
           protected: false
-        - stage_name: "division_subtotals"
+        - stage_name: "stg_division_subtotals"
           description: "Data with division-level subtotals"
           protected: false
-        - stage_name: "department_subtotals"
+        - stage_name: "stg_department_subtotals"
           description: "Data with department-level subtotals"
           protected: false
 
@@ -73,23 +73,23 @@ hierarchical_example:
         step_description: "Import quarterly financial report"
         processor_type: "import_file"
         input_file: "reports/Q4_financial_data.xlsx"
-        save_to_stage: "financial_data"
+        save_to_stage: "stg_financial_data"
 
       - # Step 2: Sort data for proper grouping
         step_description: "Sort by division and department for hierarchical subtotals"
         processor_type: "sort_data"
-        source_stage: "financial_data"
+        source_stage: "stg_financial_data"
         # REQ - Columns to sort by (should match grouping hierarchy)
         columns: ["Division", "Department", "Cost_Center"]
         # OPT - Sort order for each column
         # Default value: [true] for all columns
         ascending: [true, true, true]
-        save_to_stage: "sorted_data"
+        save_to_stage: "stg_sorted_data"
 
       - # Step 3: Add division-level subtotals
         step_description: "Add division-level financial subtotals"
         processor_type: "add_subtotals"
-        source_stage: "sorted_data"
+        source_stage: "stg_sorted_data"
         # REQ - Group by division for high-level subtotals
         group_by: ["Division"]
         # REQ - Financial columns to subtotal
@@ -98,19 +98,19 @@ hierarchical_example:
         subtotal_functions: ["sum", "sum", "sum"]
         # OPT - Clear label for division subtotals
         subtotal_label: "Division Total"
-        save_to_stage: "division_subtotals"
+        save_to_stage: "stg_division_subtotals"
 
       - # Step 4: Add department-level subtotals  
         step_description: "Add department-level subtotals within divisions"
         processor_type: "add_subtotals"
-        source_stage: "division_subtotals"
+        source_stage: "stg_division_subtotals"
         # REQ - Multi-level grouping for hierarchical subtotals
         # Creates subtotals for each Division/Department combination
         group_by: ["Division", "Department"]
         subtotal_columns: ["Revenue", "Expenses", "Net_Income"]
         subtotal_functions: ["sum", "sum", "sum"]
         subtotal_label: "Department Total"
-        save_to_stage: "department_subtotals"
+        save_to_stage: "stg_department_subtotals"
 
 multiple_functions_example:
   description: "Use different aggregation functions for comprehensive analysis"
@@ -118,10 +118,10 @@ multiple_functions_example:
     settings:
       description: "Customer analysis with multiple aggregation functions"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Raw customer transaction data"
           protected: false
-        - stage_name: "customer_analysis"
+        - stage_name: "stg_customer_analysis"
           description: "Customer data with comprehensive subtotals"
           protected: false
 
@@ -130,12 +130,12 @@ multiple_functions_example:
         step_description: "Import customer transaction data"
         processor_type: "import_file"
         input_file: "data/customer_transactions.xlsx"
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
 
       - # Step 2: Add customer tier analysis with multiple functions
         step_description: "Analyze customer performance by tier"
         processor_type: "add_subtotals"
-        source_stage: "customer_data"
+        source_stage: "stg_customer_data"
         # REQ - Group by customer tier
         group_by: ["Customer_Tier"]
         # REQ - Multiple columns for comprehensive analysis
@@ -145,7 +145,7 @@ multiple_functions_example:
         subtotal_functions: ["sum", "count", "mean", "max"]
         # OPT - Descriptive label for business context
         subtotal_label: "Tier Summary"
-        save_to_stage: "customer_analysis"
+        save_to_stage: "stg_customer_analysis"
 
 pivot_enhancement_example:
   description: "Enhance existing pivot table results with subtotals"
@@ -153,13 +153,13 @@ pivot_enhancement_example:
     settings:
       description: "Create pivot table and enhance with custom subtotals"
       stages:
-        - stage_name: "product_data"
+        - stage_name: "stg_product_data"
           description: "Raw product sales data"
           protected: false
-        - stage_name: "pivot_results"
+        - stage_name: "stg_pivot_results"
           description: "Pivot table cross-tabulation"
           protected: false
-        - stage_name: "enhanced_pivot"
+        - stage_name: "stg_enhanced_pivot"
           description: "Pivot table with custom subtotals"
           protected: false
 
@@ -168,12 +168,12 @@ pivot_enhancement_example:
         step_description: "Import product sales data"
         processor_type: "import_file"
         input_file: "data/product_sales.xlsx"
-        save_to_stage: "product_data"
+        save_to_stage: "stg_product_data"
 
       - # Step 2: Create pivot table
         step_description: "Create sales pivot by region and product"
         processor_type: "pivot_table"
-        source_stage: "product_data"
+        source_stage: "stg_product_data"
         # REQ - Pivot table configuration
         # Rows: Region, Product_Category
         index: ["Region", "Product_Category"]
@@ -186,12 +186,12 @@ pivot_enhancement_example:
         # OPT - Include grand totals
         # Default value: false
         margins: true
-        save_to_stage: "pivot_results"
+        save_to_stage: "stg_pivot_results"
 
       - # Step 3: Add custom subtotals to pivot results
         step_description: "Add regional subtotals to pivot table"
         processor_type: "add_subtotals"
-        source_stage: "pivot_results"
+        source_stage: "stg_pivot_results"
         # REQ - Group by region (first level of original pivot)
         group_by: ["Region"]
         # REQ - Subtotal the quarterly columns created by pivot
@@ -202,7 +202,7 @@ pivot_enhancement_example:
         # OPT - Preserve existing grand totals from pivot
         # Default value: true
         preserve_totals: true
-        save_to_stage: "enhanced_pivot"
+        save_to_stage: "stg_enhanced_pivot"
 
 advanced_workflow_example:
   description: "Complex multi-step workflow with filtering and subtotal positioning"
@@ -213,16 +213,16 @@ advanced_workflow_example:
         year: "2024"
         min_sales: "1000"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Complete imported dataset"
           protected: false
-        - stage_name: "filtered_data"
+        - stage_name: "stg_filtered_data"
           description: "Data filtered for analysis criteria"
           protected: false
-        - stage_name: "prepared_data"
+        - stage_name: "stg_prepared_data"
           description: "Data sorted and prepared for subtotals"
           protected: false
-        - stage_name: "subtotaled_data"
+        - stage_name: "stg_subtotaled_data"
           description: "Final data with positioned subtotals"
           protected: false
 
@@ -233,12 +233,12 @@ advanced_workflow_example:
         # REQ - File path with variable substitution
         # Variables: {year} defined in settings
         input_file: "data/sales_{year}.xlsx"
-        save_to_stage: "raw_data"
+        save_to_stage: "stg_raw_data"
 
       - # Step 2: Filter for significant sales only
         step_description: "Filter for sales above minimum threshold"
         processor_type: "filter_data"
-        source_stage: "raw_data"
+        source_stage: "stg_raw_data"
         # REQ - Filter criteria
         filters:
           - column: "Sales_Amount"
@@ -247,20 +247,20 @@ advanced_workflow_example:
           - column: "Status"
             condition: "equals"
             value: "Closed"
-        save_to_stage: "filtered_data"
+        save_to_stage: "stg_filtered_data"
 
       - # Step 3: Sort for optimal subtotal grouping
         step_description: "Sort data for proper subtotal grouping"
         processor_type: "sort_data"
-        source_stage: "filtered_data"
+        source_stage: "stg_filtered_data"
         columns: ["Territory", "Sales_Rep", "Deal_Size"]
         ascending: [true, true, false]
-        save_to_stage: "prepared_data"
+        save_to_stage: "stg_prepared_data"
 
       - # Step 4: Add subtotals with custom positioning
         step_description: "Add territory subtotals with advanced configuration"
         processor_type: "add_subtotals"
-        source_stage: "prepared_data"
+        source_stage: "stg_prepared_data"
         # REQ - Multi-level grouping for detailed analysis
         group_by: ["Territory", "Sales_Rep"]
         # REQ - Multiple analysis columns
@@ -275,7 +275,7 @@ advanced_workflow_example:
         position: "after_group"
         # OPT - Preserve any existing totals
         preserve_totals: true
-        save_to_stage: "subtotaled_data"
+        save_to_stage: "stg_subtotaled_data"
 
 parameter_details:
   processor_type:

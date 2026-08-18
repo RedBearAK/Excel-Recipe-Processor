@@ -76,7 +76,8 @@ examples:
     %(prog)s --get-usage-examples export_file --format-examples text
     %(prog)s --get-usage-examples --format-examples json
     
-    # Get recipe settings configuration examples
+    # Get recipe settings examples (both forms below are equivalent)
+    excel-recipe-processor --get-usage-examples settings
     %(prog)s --get-settings-examples
 
   ADVANCED SCENARIOS:
@@ -200,6 +201,11 @@ For detailed documentation and more examples:
 
     # Verbose logging
     parser.add_argument(
+        '--log-file',
+        metavar='PATH',
+        help='Mirror the run log to this file (same content as the terminal, UTF-8)'
+    )
+    parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose output and debug logging'
@@ -255,7 +261,7 @@ For detailed documentation and more examples:
         metavar='PROCESSOR_NAME',
         nargs='?',
         const='all',  # Default value when flag is used without argument
-        help='Show usage examples for specific processor or all processors'
+        help='Show usage examples for specific processor or all processors. Use "settings" as the name for recipe settings examples'
     )
 
     parser.add_argument(

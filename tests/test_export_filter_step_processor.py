@@ -384,19 +384,26 @@ def test_error_handling():
     StageManager.save_stage('error_test', test_data, 'Error test data')
     
     try:
-        # Try to write to invalid path (should create directories)
-        output_file = Path("/nonexistent/deeply/nested/path/test.yaml")
-        step_config = {
-            'processor_type': 'export_filter_step',
-            'source_stage': 'error_test',
-            'output_file': str(output_file)
-        }
-        processor = ExportFilterStepProcessor(step_config)
-        processor.execute_export()
-        print("✗ Should have failed with invalid path")
-        return False
-    except (StepProcessorError, PermissionError, OSError):
-        print("✓ Caught expected error for invalid path")
+        # A path THROUGH an existing file is invalid regardless of
+        # privileges (an absolute /nonexistent path succeeds when the
+        # test runs as root, and mkdir-parents is a designed feature)
+        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as blocker:
+            blocker_path = blocker.name
+        try:
+            output_file = Path(blocker_path) / "child" / "test.yaml"
+            step_config = {
+                'processor_type': 'export_filter_step',
+                'source_stage': 'error_test',
+                'output_file': str(output_file)
+            }
+            processor = ExportFilterStepProcessor(step_config)
+            processor.execute_export()
+            print("✗ Should have failed with a path through a file")
+            return False
+        except (StepProcessorError, NotADirectoryError, OSError):
+            print("✓ Caught expected error for a path through a file")
+        finally:
+            os.unlink(blocker_path)
     finally:
         StageManager.cleanup_stages()
     

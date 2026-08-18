@@ -10,13 +10,13 @@ basic_example:
     settings:
       description: "Combine report title and data sections into complete document"
       stages:
-        - stage_name: "title_section"
+        - stage_name: "stg_title_section"
           description: "Report title and metadata"
           protected: false
-        - stage_name: "data_section"
+        - stage_name: "stg_data_section"
           description: "Main report data"
           protected: false
-        - stage_name: "complete_report"
+        - stage_name: "stg_complete_report"
           description: "Combined title and data"
           protected: false
     
@@ -28,9 +28,9 @@ basic_example:
         # REQ - Must be "combine_data" for this processor type
         processor_type: "combine_data"
         # REQ - Stage to read base data from (will be combined with other sources)
-        source_stage: "title_section"
+        source_stage: "stg_title_section"
         # REQ - Stage to save combined results
-        save_to_stage: "complete_report"
+        save_to_stage: "stg_complete_report"
         # REQ - Combination method
         combine_type: "vertical_stack"
         # REQ - Column handling policy
@@ -56,19 +56,19 @@ desktop_publishing_example:
         quarter: "Q4"
         year: "2024"
       stages:
-        - stage_name: "report_header"
+        - stage_name: "stg_report_header"
           description: "Report title and metadata section"
           protected: false
-        - stage_name: "column_headers"
+        - stage_name: "stg_column_headers"
           description: "Data column headers"
           protected: false
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Main sales data"
           protected: false
-        - stage_name: "report_footer"
+        - stage_name: "stg_report_footer"
           description: "Report summary and footer"
           protected: false
-        - stage_name: "assembled_report"
+        - stage_name: "stg_assembled_report"
           description: "Complete assembled document"
           protected: false
     
@@ -80,9 +80,9 @@ desktop_publishing_example:
         # REQ - Must be "combine_data" for this processor type
         processor_type: "combine_data"
         # REQ - Start with report header stage
-        source_stage: "report_header"
+        source_stage: "stg_report_header"
         # REQ - Stage to save complete assembled report
-        save_to_stage: "assembled_report"
+        save_to_stage: "stg_assembled_report"
         # REQ - Stack sections vertically
         combine_type: "vertical_stack"
         # REQ - Allow different column structures between sections
@@ -122,13 +122,13 @@ horizontal_comparison_example:
     settings:
       description: "Compare current year vs previous year data side-by-side"
       stages:
-        - stage_name: "current_year_data"
+        - stage_name: "stg_current_year_data"
           description: "Current year sales data"
           protected: false
-        - stage_name: "previous_year_data"
+        - stage_name: "stg_previous_year_data"
           description: "Previous year sales data"
           protected: false
-        - stage_name: "yoy_comparison"
+        - stage_name: "stg_yoy_comparison"
           description: "Year-over-year comparison report"
           protected: false
     
@@ -140,9 +140,9 @@ horizontal_comparison_example:
         # REQ - Must be "combine_data" for this processor type
         processor_type: "combine_data"
         # REQ - Start with current year data
-        source_stage: "current_year_data"
+        source_stage: "stg_current_year_data"
         # REQ - Stage to save comparison results
-        save_to_stage: "yoy_comparison"
+        save_to_stage: "stg_yoy_comparison"
         # REQ - Place data side-by-side
         combine_type: "horizontal_concat"
         # REQ - Allow different column names for comparison
@@ -167,16 +167,16 @@ strict_column_validation_example:
     settings:
       description: "Combine quarterly sales data with strict column validation"
       stages:
-        - stage_name: "q1_sales"
+        - stage_name: "stg_q1_sales"
           description: "Q1 sales data"
           protected: false
-        - stage_name: "q2_sales"
+        - stage_name: "stg_q2_sales"
           description: "Q2 sales data"
           protected: false
-        - stage_name: "q3_sales"
+        - stage_name: "stg_q3_sales"
           description: "Q3 sales data"
           protected: false
-        - stage_name: "annual_sales"
+        - stage_name: "stg_annual_sales"
           description: "Combined annual sales data"
           protected: false
     
@@ -188,9 +188,9 @@ strict_column_validation_example:
         # REQ - Must be "combine_data" for this processor type
         processor_type: "combine_data"
         # REQ - Start with Q1 data
-        source_stage: "q1_sales"
+        source_stage: "stg_q1_sales"
         # REQ - Stage to save annual results
-        save_to_stage: "annual_sales"
+        save_to_stage: "stg_annual_sales"
         # REQ - Stack quarters vertically
         combine_type: "vertical_stack"
         # REQ - Require identical columns (validation)
@@ -228,13 +228,13 @@ variable_substitution_example:
         comparison_region: "east"
         report_type: "quarterly"
       stages:
-        - stage_name: "west_data"
+        - stage_name: "stg_west_data"
           description: "Western region data"
           protected: false
-        - stage_name: "east_data"
+        - stage_name: "stg_east_data"
           description: "Eastern region data"
           protected: false
-        - stage_name: "regional_comparison"
+        - stage_name: "stg_regional_comparison"
           description: "Combined regional comparison"
           protected: false
     
@@ -248,7 +248,7 @@ variable_substitution_example:
         # REQ - Use variable to select primary region stage
         source_stage: "{primary_region}_data"
         # REQ - Stage to save comparison results
-        save_to_stage: "regional_comparison"
+        save_to_stage: "stg_regional_comparison"
         # REQ - Stack regions vertically
         combine_type: "vertical_stack"
         # REQ - Allow different structures between regions
@@ -276,19 +276,19 @@ complete_workflow_example:
         input_date: "20250130"
         output_prefix: "combined"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Raw sales data from import"
           protected: false
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Raw customer data from import"
           protected: false
-        - stage_name: "enriched_sales"
+        - stage_name: "stg_enriched_sales"
           description: "Sales data enriched with customer info"
           protected: false
-        - stage_name: "summary_stats"
+        - stage_name: "stg_summary_stats"
           description: "Summary statistics"
           protected: false
-        - stage_name: "final_report"
+        - stage_name: "stg_final_report"
           description: "Complete combined report"
           protected: false
     
@@ -302,7 +302,7 @@ complete_workflow_example:
         # REQ - Input file with variable substitution
         input_file: "sales_{input_date}.xlsx"
         # REQ - Stage to save imported data
-        save_to_stage: "sales_data"
+        save_to_stage: "stg_sales_data"
       
       # Step 2: Import customer data
       - # OPT - Human-readable step description
@@ -313,7 +313,7 @@ complete_workflow_example:
         # REQ - Input file path
         input_file: "customers.xlsx"
         # REQ - Stage to save imported data
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
       
       # Step 3: Enrich sales with customer data
       - # OPT - Human-readable step description
@@ -322,13 +322,13 @@ complete_workflow_example:
         # REQ - Must be "lookup_data" for this processor type
         processor_type: "lookup_data"
         # REQ - Stage to read sales data from
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         # REQ - Stage to save enriched results
-        save_to_stage: "enriched_sales"
+        save_to_stage: "stg_enriched_sales"
         # REQ - Lookup source configuration
         lookup_source:
           type: "stage"
-          stage_name: "customer_data"
+          stage_name: "stg_customer_data"
         # REQ - Key columns for joining
         lookup_key: "Customer_ID"
         source_key: "Customer_ID"
@@ -342,9 +342,9 @@ complete_workflow_example:
         # REQ - Must be "aggregate_data" for this processor type
         processor_type: "aggregate_data"
         # REQ - Stage to read enriched data from
-        source_stage: "enriched_sales"
+        source_stage: "stg_enriched_sales"
         # REQ - Stage to save summary results
-        save_to_stage: "summary_stats"
+        save_to_stage: "stg_summary_stats"
         # REQ - Grouping columns
         group_by: ["Region"]
         # REQ - Aggregation operations
@@ -363,9 +363,9 @@ complete_workflow_example:
         # REQ - Must be "combine_data" for this processor type
         processor_type: "combine_data"
         # REQ - Start with enriched sales data
-        source_stage: "enriched_sales"
+        source_stage: "stg_enriched_sales"
         # REQ - Stage to save final combined report
-        save_to_stage: "final_report"
+        save_to_stage: "stg_final_report"
         # REQ - Stack data and summary vertically
         combine_type: "vertical_stack"
         # REQ - Allow different column structures
@@ -389,7 +389,7 @@ complete_workflow_example:
         # REQ - Must be "export_file" for this processor type
         processor_type: "export_file"
         # REQ - Stage to read final report from
-        source_stage: "final_report"
+        source_stage: "stg_final_report"
         # REQ - Output file with variable substitution
         output_file: "reports/{output_prefix}_report_{input_date}.xlsx"
 

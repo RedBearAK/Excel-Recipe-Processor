@@ -3,6 +3,8 @@ Test the FileWriter functionality.
 """
 
 import os
+import sys
+
 import pandas as pd
 import tempfile
 from pathlib import Path
@@ -237,47 +239,38 @@ def test_multi_sheet_excel():
 def test_variable_substitution():
     """Test variable substitution in output filenames."""
     
-    print("\nTesting variable substitution...")
-    
+    print("\nTesting variable substitution layer boundary...")
+
     sample_data = create_sample_data()
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Test with built-in date variables
+        # FileWriter does NOT substitute variables (2026 doctrine): the
+        # processor layer resolves {date}-style templates BEFORE calling
+        # FileWriter. Braces are legal filename characters, so a template
+        # reaching this layer unresolved is written literally - visible
+        # evidence of an upstream bug rather than a silent wrong file.
         template_filename = str(Path(temp_dir) / "output_{date}.xlsx")
-        
-        final_path = FileWriter.write_file(sample_data, template_filename)
-        
-        print(f"✓ Variable substitution result: {final_path}")
-        
-        # Check if date was substituted
-        if "{date}" not in final_path and Path(final_path).exists():
-            print("✓ Built-in date variable substituted correctly")
+
+        FileWriter.write_file(sample_data, template_filename)
+
+        literal_path = Path(template_filename)
+        if literal_path.exists():
+            print("✓ Unresolved template written literally, braces visible on disk")
         else:
-            print("✗ Built-in date variable substitution failed")
+            print("✗ Literal-braces file not found where written")
             return False
-        
-        # Test with custom variables
-        custom_variables = {
-            'project': 'test_project',
-            'version': 'v1.0'
-        }
-        
-        custom_template = str(Path(temp_dir) / "{project}_{version}_report.csv")
-        
-        custom_final_path = FileWriter.write_file(
-            sample_data, custom_template, variables=custom_variables
-        )
-        
-        print(f"✓ Custom variable result: {custom_final_path}")
-        
-        # Check if custom variables were substituted
-        expected_in_name = "test_project_v1.0_report"
-        if expected_in_name in custom_final_path and Path(custom_final_path).exists():
-            print("✓ Custom variable substitution worked correctly")
+
+        # The retired variables= parameter must not be silently accepted
+        try:
+            FileWriter.write_file(
+                sample_data, str(Path(temp_dir) / "x.csv"),
+                variables={'project': 'p'}
+            )
+            print("✗ Retired variables= parameter was accepted")
+            return False
+        except TypeError:
+            print("✓ Retired variables= parameter rejected")
             return True
-        else:
-            print("✗ Custom variable substitution failed")
-            return False
 
 
 def test_format_detection():
@@ -358,7 +351,9 @@ def test_backup_creation():
         print(f"✓ Wrote file with backup enabled: {final_path}")
         
         # Check for backup file
-        backup_files = list(temp_path.parent.glob(f"{temp_path.stem}*.backup*"))
+        # Backup naming: {stem}_erpbkup_{timestamp}{ext}
+        backup_files = list(temp_path.parent.glob(
+            f"{temp_path.stem}_erpbkup_*{temp_path.suffix}"))
         
         if backup_files:
             print(f"✓ Backup file created: {backup_files[0]}")
@@ -626,3 +621,5 @@ if __name__ == '__main__':
         print(f"Total formats supported: {len(formats['all_formats'])}")
     except Exception as e:
         print(f"\n⚠️  Could not get supported formats: {e}")
+
+    sys.exit(0 if success else 1)

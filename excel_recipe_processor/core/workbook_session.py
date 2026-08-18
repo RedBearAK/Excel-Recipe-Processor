@@ -28,6 +28,7 @@ absolute path and flushes every dirty one at pipeline end. A recipe can
 force an earlier write with the flush_workbooks processor.
 """
 
+import io
 import time
 import logging
 
@@ -35,8 +36,36 @@ import openpyxl
 
 from pathlib import Path
 
+from excel_recipe_processor.core.inline_string_consolidation import (
+    log_consolidation,
+    consolidate_inline_strings,
+)
+from excel_recipe_processor.core.dynamic_array_metadata import (
+    declare_dynamic_formulas_in_zip,
+)
+
 
 logger = logging.getLogger(__name__)
+
+
+def _write_bytes_atomically(package_bytes: bytes, destination) -> None:
+    """Sibling temp file + os.replace: a crash never truncates the target."""
+    import os
+    import tempfile
+
+    if hasattr(destination, 'write'):
+        destination.write(package_bytes)
+        return
+    directory = os.path.dirname(os.path.abspath(destination)) or '.'
+    handle, temp_path = tempfile.mkstemp(dir=directory, suffix='.save_tmp')
+    try:
+        with os.fdopen(handle, 'wb') as out:
+            out.write(package_bytes)
+        os.replace(temp_path, destination)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
 
 
 class WorkbookSessionError(Exception):
@@ -60,6 +89,23 @@ class WorkbookSession:
     # away, so a processor used outside a pipeline still writes its file.
     # The pipeline turns deferral on at run start and flushes at run end.
     _deferred: bool          = False
+
+    # When on, every session save routes the workbook bytes through the
+    # dynamic-array declaration before they touch disk, so injected and
+    # seeded formulas open in Excel without the implicit-intersection @.
+    # OPT-IN via recipe settings (declare_dynamic_formulas: true); see
+    # core/dynamic_array_metadata.py for what the declaration is and why
+    # the default vocabulary makes the pass safe by construction.
+    _declare_dynamic: bool   = False
+
+    # Provenance registry for the declaration pass: file path ->
+    # {sheet name: [(column_letters, first_row, last_row), ...]} of formula
+    # cells that inject_formulas wrote in live mode this run. Cells listed
+    # here are declared dynamic-array-aware at save REGARDLESS of which
+    # functions they use - the recipe authored them now, so the declaration
+    # states a fact, exactly as if the user had typed them into Excel 365.
+    # Cleared per file after its save, and wholesale on reset().
+    _injected_formula_ranges: dict = {}
 
     @classmethod
     def _key(cls, file_path) -> str:
@@ -87,7 +133,7 @@ class WorkbookSession:
         if key not in cls._open_workbooks:
             started = time.perf_counter()
             cls._open_workbooks[key] = openpyxl.load_workbook(key, data_only=False)
-            logger.info(f"⏱️  Workbook loaded in {time.perf_counter() - started:.1f}s (session)")
+            logger.info(f"⏱️  Workbook loaded in {time.perf_counter() - started:.3f}s (session)")
 
         return cls._open_workbooks[key]
 
@@ -107,15 +153,99 @@ class WorkbookSession:
             )
 
         if not cls._deferred:
-            started = time.perf_counter()
-            cls._open_workbooks[key].save(key)
-            logger.info(
-                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
-                f"(immediate; no pipeline session active)"
-            )
+            cls._save_workbook(cls._open_workbooks[key], key,
+                               "immediate; no pipeline session active")
             return
 
         cls._dirty_paths.add(key)
+
+    @classmethod
+    def _save_workbook(cls, workbook, key: str, context: str) -> None:
+        """
+        The one place session workbooks are written to disk.
+
+        With the dynamic-array declaration enabled, the workbook serializes
+        to memory, the declaration is applied to the bytes, and only the
+        corrected package touches disk - so the file never exists on disk
+        in the form that draws the implicit-intersection @.
+        """
+        started = time.perf_counter()
+
+        # Inline-string consolidation runs on EVERY save (2026-08-17
+        # ruling: intrinsic, not optional): openpyxl 3.1+ writes all
+        # literal strings inline, which on repetitive production data
+        # costs ~10-15% of file size against Excel's shared-string
+        # dialect. The workbook serializes to memory, the bytes are
+        # rewritten to the shared dialect (level-9 packed), and the
+        # declaration - when enabled - runs on the consolidated bytes.
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        consolidated, stats = consolidate_inline_strings(buffer.getvalue())
+        log_consolidation(stats, context)
+
+        if cls._declare_dynamic:
+            declare_dynamic_formulas_in_zip(
+                io.BytesIO(consolidated), key,
+                injected_cells=cls._injected_formula_ranges.get(key)
+            )
+        else:
+            _write_bytes_atomically(consolidated, key)
+
+        # The provenance registry deliberately SURVIVES the save
+        # (2026-08-16): openpyxl does not preserve the cm attribute, so a
+        # flush -> reload -> save cycle re-serializes declared cells as
+        # bare t="array" - legacy CSE braces - and the re-declaration pass
+        # at the next save needs the provenance to rescue them. The old
+        # pop here assumed "already-marked cells are recognized on
+        # re-saves", which is true only within one set of bytes, not
+        # across an openpyxl round trip (the Dom_View braces incident).
+        # The registry clears with the session, not with a save.
+
+        logger.info(
+            f"💾 Workbook saved in {time.perf_counter() - started:.3f}s "
+            f"({context}): {Path(key).name}"
+        )
+
+    @classmethod
+    def peek_workbook(cls, file_path):
+        """The cached live workbook for this path, or None - NEVER loads.
+
+        For consumers like profile_sheets that prefer the in-memory
+        object when the session already holds one (all recipe-applied
+        formatting present, no disk parse) but must not drag arbitrary
+        disk files into the session cache.
+        """
+        return cls._open_workbooks.get(cls._key(file_path))
+
+    @classmethod
+    def register_injected_formulas(cls, file_path, sheet_name: str, ranges) -> None:
+        """
+        Record recipe-authored formula cells for the declaration pass.
+
+        Called by inject_formulas (live mode) with the cells it just wrote,
+        as (column_letters, first_row, last_row) ranges - one entry per
+        filled column, not one per cell. No-op checks are deliberate: the
+        registry simply accumulates; whether it is consumed depends on the
+        declare_dynamic setting at save time.
+
+        Args:
+            file_path:  Target workbook path (same value passed to
+                        get_workbook / mark_dirty)
+            sheet_name: Tab name the cells live on
+            ranges:     Iterable of (column_letters, first_row, last_row)
+        """
+        key = cls._key(file_path)
+
+        clean_ranges = []
+        for entry in ranges:
+            column_letters, first_row, last_row = entry
+            clean_ranges.append((str(column_letters), int(first_row), int(last_row)))
+
+        if not clean_ranges:
+            return
+
+        file_entry = cls._injected_formula_ranges.setdefault(key, {})
+        file_entry.setdefault(sheet_name, []).extend(clean_ranges)
 
     @classmethod
     def adopt_workbook(cls, file_path, workbook) -> None:
@@ -149,15 +279,19 @@ class WorkbookSession:
                 f"Two steps exported to the same file without a flush between."
             )
 
+        if not Path(key).parent.is_dir():
+            # Fail at the EXPORT step, the way a direct save would - not at
+            # the end-of-run flush, where a missing directory would surface
+            # long after its cause and could interrupt the batch of saves.
+            raise WorkbookSessionError(
+                f"Export destination directory does not exist: {Path(key).parent}"
+            )
+
         if not cls._deferred:
             # Standalone semantics: no session lifecycle exists to flush
             # later, so adoption degenerates to an immediate save.
-            started = time.perf_counter()
-            workbook.save(key)
-            logger.info(
-                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s "
-                f"(immediate; no pipeline session active)"
-            )
+            cls._save_workbook(workbook, key,
+                               "immediate; no pipeline session active")
             return
 
         cls._open_workbooks[key] = workbook
@@ -168,6 +302,11 @@ class WorkbookSession:
     def set_deferred(cls, deferred: bool) -> None:
         """Pipeline lifecycle hook: batch saves (True) or save-per-step (False)."""
         cls._deferred = bool(deferred)
+
+    @classmethod
+    def set_declare_dynamic(cls, declare: bool) -> None:
+        """Pipeline lifecycle hook: apply the dynamic-array declaration at save."""
+        cls._declare_dynamic = bool(declare)
 
     @classmethod
     def is_deferred(cls) -> bool:
@@ -190,15 +329,18 @@ class WorkbookSession:
         written = 0
 
         for key in sorted(cls._dirty_paths):
-            started = time.perf_counter()
-            cls._open_workbooks[key].save(key)
-            logger.info(
-                f"💾 Workbook saved in {time.perf_counter() - started:.1f}s (session): "
-                f"{Path(key).name}"
-            )
+            cls._save_workbook(cls._open_workbooks[key], key, "session")
             written += 1
 
-        cls.reset()
+        # Empty the caches but KEEP the mode flags. A full reset() here
+        # silently dropped _deferred after a mid-run flush_workbooks step,
+        # so every later file operation paid an immediate per-step save -
+        # the batching the session exists for, quietly lost. The pipeline
+        # sets the flags at run start and reset() still clears them on the
+        # failure path and at the next run's start.
+        cls._open_workbooks = {}
+        cls._dirty_paths = set()
+        cls._injected_formula_ranges = {}
         return written
 
     @classmethod
@@ -229,5 +371,7 @@ class WorkbookSession:
         cls._open_workbooks = {}
         cls._dirty_paths = set()
         cls._deferred = False
+        cls._declare_dynamic = False
+        cls._injected_formula_ranges = {}
 
 # End of file #

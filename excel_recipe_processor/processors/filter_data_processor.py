@@ -1,6 +1,8 @@
 """
 Filter data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/filter_data_processor.py
+
 Handles filtering DataFrame rows based on various conditions including 
 stage-based comparisons using StageManager integration.
 """
@@ -142,6 +144,57 @@ class FilterDataProcessor(BaseStepProcessor):
         
         return filtered_data
     
+    def _require_numeric_comparison_value(self, value, condition, filter_index, column):
+        """
+        Guard clause: ordering comparisons never accept string values.
+
+        Substituted recipe variables arrive as STRINGS unless typed at
+        the reference site, so 'value': '{min_sales}' yields '120' and
+        pandas raises a baffling "Invalid comparison between dtype=int64
+        and str". A string here can never be a valid ordering operand,
+        so this fails first with the fix in the message: typed variable
+        references like {int:min_sales} or {float:threshold} substitute
+        the actual numeric value (see core/variable_substitution.py).
+        """
+        if isinstance(value, bool) or not isinstance(value, str):
+            return
+        raise StepProcessorError(
+            f"Filter {filter_index + 1} with '{condition}' condition on "
+            f"column '{column}' received the STRING value {value!r}, and "
+            f"ordering comparisons need a number. If this came from a "
+            f"recipe variable, reference it typed - "
+            f"{{int:variable_name}} or {{float:variable_name}} - so the "
+            f"actual numeric value is substituted instead of its text. "
+            f"For DATE comparisons use a pandas_expression filter "
+            f"instead: the ordering conditions coerce the column "
+            f"numerically and cannot compare dates."
+        )
+
+    def _require_numeric_list_members(self, value, condition, filter_index, column):
+        """
+        Guard clause: min/max ordering lists never accept string members.
+
+        Same footgun as the scalar guard, list-shaped: a list variable
+        referenced untyped, or authored with quoted numbers, delivers
+        strings that min()/max() would order LEXICALLY ('9' > '100')
+        before the comparison even fails. Typed references -
+        {list_int:thresholds} or {list_float:thresholds} - convert every
+        member loudly; {list_any:name} passes members through as
+        declared for intentionally mixed lists.
+        """
+        string_members = [member for member in value if isinstance(member, str)]
+        if not string_members:
+            return
+        raise StepProcessorError(
+            f"Filter {filter_index + 1} with '{condition}' condition on "
+            f"column '{column}' received STRING list member(s) "
+            f"{string_members!r}, and min/max ordering needs numbers "
+            f"(strings would order lexically: '9' > '100'). If the list "
+            f"comes from a recipe variable, reference it typed - "
+            f"{{list_int:variable_name}} or {{list_float:variable_name}} "
+            f"- so every member is converted, loudly on failure."
+        )
+
     def _apply_filter(self, df: pd.DataFrame, filter_rule: dict, filter_index: int) -> pd.DataFrame:
     
         """
@@ -268,21 +321,25 @@ class FilterDataProcessor(BaseStepProcessor):
             elif condition == 'greater_than':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than' condition requires a 'value'")
+                self._require_numeric_comparison_value(value, 'greater_than', filter_index, column)
                 mask = pd.to_numeric(df[column], errors='coerce') > value
                 
             elif condition == 'less_than':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than' condition requires a 'value'")
+                self._require_numeric_comparison_value(value, 'less_than', filter_index, column)
                 mask = pd.to_numeric(df[column], errors='coerce') < value
                 
             elif condition == 'greater_equal':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal' condition requires a 'value'")
+                self._require_numeric_comparison_value(value, 'greater_equal', filter_index, column)
                 mask = pd.to_numeric(df[column], errors='coerce') >= value
                 
             elif condition == 'less_equal':
                 if value is None:
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal' condition requires a 'value'")
+                self._require_numeric_comparison_value(value, 'less_equal', filter_index, column)
                 mask = pd.to_numeric(df[column], errors='coerce') <= value
                 
             # Empty/null conditions
@@ -417,6 +474,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_min_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_min_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'greater_than_min_in_list', filter_index, column)
                 min_value = min(value)
                 mask = pd.to_numeric(df[column], errors='coerce') > min_value
                 
@@ -425,6 +483,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_max_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_than_max_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'greater_than_max_in_list', filter_index, column)
                 max_value = max(value)
                 mask = pd.to_numeric(df[column], errors='coerce') > max_value
                 
@@ -433,6 +492,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_min_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_min_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'greater_equal_min_in_list', filter_index, column)
                 min_value = min(value)
                 mask = pd.to_numeric(df[column], errors='coerce') >= min_value
                 
@@ -441,6 +501,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_max_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'greater_equal_max_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'greater_equal_max_in_list', filter_index, column)
                 max_value = max(value)
                 mask = pd.to_numeric(df[column], errors='coerce') >= max_value
                 
@@ -449,6 +510,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_max_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_max_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'less_than_max_in_list', filter_index, column)
                 max_value = max(value)
                 mask = pd.to_numeric(df[column], errors='coerce') < max_value
                 
@@ -457,6 +519,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_min_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_than_min_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'less_than_min_in_list', filter_index, column)
                 min_value = min(value)
                 mask = pd.to_numeric(df[column], errors='coerce') < min_value
                 
@@ -465,6 +528,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_max_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_max_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'less_equal_max_in_list', filter_index, column)
                 max_value = max(value)
                 mask = pd.to_numeric(df[column], errors='coerce') <= max_value
                 
@@ -473,6 +537,7 @@ class FilterDataProcessor(BaseStepProcessor):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_min_in_list' condition requires a 'value'")
                 if not isinstance(value, list):
                     raise StepProcessorError(f"Filter {filter_index + 1} with 'less_equal_min_in_list' condition requires a list value")
+                self._require_numeric_list_members(value, 'less_equal_min_in_list', filter_index, column)
                 min_value = min(value)
                 mask = pd.to_numeric(df[column], errors='coerce') <= min_value
                 
@@ -777,7 +842,7 @@ class FilterDataProcessor(BaseStepProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Filter DataFrame rows based on specified conditions including stage-based comparisons',
+            'description': 'Filter rows by conditions, including stage-based comparisons',
             'supported_conditions': self.get_supported_conditions(),
             'stage_based_conditions': self.get_stage_based_conditions(),
             'filter_operations': [
@@ -816,3 +881,5 @@ class FilterDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the filter_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('filter_data')
+
+# End of file #

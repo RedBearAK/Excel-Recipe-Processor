@@ -90,6 +90,15 @@ r1c1_name_rgx = re.compile(r'^R\d*C\d*$', re.IGNORECASE)
 # Allows: "TAX_24", "Q_1", "rng_PID_2026", "rng_v1_2" (digits after "_")
 unseparated_digit_rgx = re.compile(r'(?<![_.\d])\d')
 
+# Terminal unseparated digits: letters directly followed by a digit run
+# at the very END of a name - the only position where unseparated
+# digits can complete a cell-reference shape (2026-08-17 ruling:
+# letters-digits-LETTERS like a1b or q3total can never be a reference
+# and is allowed for LET/LAMBDA names; defined OBJECT names keep the
+# stricter everywhere-separated house rule above).
+terminal_unseparated_digit_rgx = re.compile(r'[A-Za-z](\d+)$')
+
+
 # House rule: minimum length of three characters, so that a single letter
 # followed by a separated digit ("Q_1") is the shortest permitted form.
 MINIMUM_NAME_LENGTH = 3
@@ -97,6 +106,21 @@ MINIMUM_NAME_LENGTH = 3
 # Project convention prefix. Not enforced by the validator, but supplied here
 # so recipes and processors can share one definition.
 CONVENTIONAL_NAME_PREFIX = 'rng_'
+
+
+# ============================================================================
+# Spill-range anchor references (dynamic arrays)
+# ============================================================================
+
+# Spilled-range anchor reference, with optional sheet prefix. The trailing
+# '#' addresses the whole spilled range of the anchor cell (Excel 365
+# dynamic arrays). Leading '=' is NOT part of the reference; callers strip
+# it before matching.
+# Matches: "$Z$2#", "Z2#", "Lookups!$Z$2#", "'Look Ups'!$Z$2#"
+# Rejects: "Z2", "Z:Z#", "=Z2#", "Z2# "
+spill_anchor_ref_rgx = re.compile(
+    r"^(?:(?:'[^']+'|[A-Za-z_][A-Za-z0-9_.]*)!)?\$?[A-Z]{1,3}\$?\d{1,7}#$"
+)
 
 
 # End of file #

@@ -77,10 +77,10 @@ basic_template_example:
 
         # Apply templates to sheets
         formatting:
-          - sheet: "Financial Summary"
+          - sheet_name: "Financial Summary"
             apply_templates: ["corporate_header_style", "standard_sizing", "financial_data_style"]
 
-          - sheet: "Sales Performance"
+          - sheet_name: "Sales Performance"
             apply_templates: ["corporate_header_style", "standard_sizing"]
             # Override template for sales data alignment
             general_alignment_horizontal: "left"
@@ -136,21 +136,21 @@ advanced_template_example:
 
         formatting:
           # Executive summary with full branding
-          - sheet: 1
+          - sheet_name: 1
             apply_templates: ["base_professional", "executive_branding", "summary_highlights"]
 
           # Financial details with precision formatting
-          - sheet: 2
+          - sheet_name: 2
             apply_templates: ["base_professional", "executive_branding", "financial_precision"]
 
           # Data visualization sheet
-          - sheet: 3
+          - sheet_name: 3
             apply_templates: ["base_professional", "data_visualization_ready"]
             # Override header color for this sheet
             header_background_color: "forestgreen"
 
           # Raw data sheet with minimal formatting
-          - sheet: 4
+          - sheet_name: 4
             apply_templates: ["base_professional"]
             # Completely override header styling for raw data
             header_background_color: "lightgray"
@@ -188,9 +188,9 @@ template_reuse_example:
             auto_filter: true
 
         formatting:
-          - sheet: 1
+          - sheet_name: 1
             apply_templates: ["company_standard", "data_presentation"]
-          - sheet: 2
+          - sheet_name: 2
             apply_templates: ["company_standard", "data_presentation"]
 
       # Second formatting step - appendix with same templates
@@ -217,7 +217,7 @@ template_reuse_example:
             header_font_size: 12
 
         formatting:
-          - sheet: 1
+          - sheet_name: 1
             apply_templates: ["company_standard", "appendix_style"]
 
 # Migration example - before and after templates
@@ -227,7 +227,7 @@ migration_example:
     BEFORE: Repetitive configuration (hard to maintain)
     
     formatting:
-      - sheet: 1
+      - sheet_name: 1
         freeze_top_row: true
         header_background_color: "2F5597"
         header_background: true
@@ -240,7 +240,7 @@ migration_example:
         auto_filter: true
         auto_fit_columns: true
       
-      - sheet: 2
+      - sheet_name: 2
         freeze_top_row: true
         header_background_color: "2F5597"
         header_background: true
@@ -253,7 +253,7 @@ migration_example:
         auto_filter: true
         auto_fit_columns: true
       
-      - sheet: 3
+      - sheet_name: 3
         freeze_top_row: true
         header_background_color: "2F5597"
         header_background: true
@@ -291,11 +291,11 @@ migration_example:
             auto_fit_columns: true
 
         formatting:
-          - sheet: 1
+          - sheet_name: 1
             apply_templates: ["standard_professional"]
-          - sheet: 2
+          - sheet_name: 2
             apply_templates: ["standard_professional"]
-          - sheet: 3
+          - sheet_name: 3
             apply_templates: ["standard_professional"]
 
 # Complex override example
@@ -328,12 +328,12 @@ complex_override_example:
             max_column_width: 50                   # This adds column width limits
 
         formatting:
-          - sheet: 1
+          - sheet_name: 1
             # Apply templates in order: base_style, then enhanced_style, then premium_style
             # Final result: gold background, black text, font size 14, frozen row, auto-fit, max width 50
             apply_templates: ["base_style", "enhanced_style", "premium_style"]
 
-          - sheet: 2
+          - sheet_name: 2
             # Template + direct overrides
             apply_templates: ["base_style", "enhanced_style"]
             # Direct rules override template rules
@@ -364,15 +364,15 @@ validation_example:
             header_background_color: "notacolor"  # Invalid: unrecognized color
 
         formatting:
-          - sheet: 1
+          - sheet_name: 1
             apply_templates: ["valid_template"]
 
-          - sheet: 2
+          - sheet_name: 2
             # Reference to non-existent template (will be warned and skipped)
             apply_templates: ["valid_template", "missing_template"]
             header_bold: true  # This will still be applied
 
-          - sheet: 3
+          - sheet_name: 3
             # Mix of valid and invalid templates
             apply_templates: ["valid_template", "invalid_template"]
 
@@ -422,7 +422,7 @@ column_formats_example:
         processor_type: "format_excel"
         target_file: "output/report.xlsx"
         formatting:
-          - sheet: "Data"
+          - sheet_name: "Data"
             header_bold: true
             header_background: true
             header_background_color: "1F4E79"
@@ -483,6 +483,19 @@ number_format_aliases:
     text: "@"
 
 
+sheet_option_parameter_details:
+  zoom_percent:
+    type: "number"
+    required: false
+    description: "Sheet view zoom, 10-400 (Excel's range); sets the live and remembered normal-view zoom"
+  sheet_state:
+    type: "string"
+    required: false
+    description: >
+      visible / hidden / very_hidden. Hidden tabs re-show via Excel's
+      Unhide dialog; very_hidden only via VBA or the file format. The
+      workbook must keep at least one visible sheet - Excel enforces it.
+
 column_format_parameter_details:
   columns:
     required: true
@@ -522,6 +535,30 @@ column_format_parameter_details:
     description: "Explicit column width. Applied after auto-fit, so a stated width wins."
 
 
+tab_color_example:
+  description: "Color sheet tabs so related sheets read as a family at a glance"
+  yaml: |
+    settings:
+      description: "Color the summary tabs as a stepped family of blues"
+
+    recipe:
+      - step_description: "Color the summary tabs"
+        processor_type: "format_excel"
+        # REQ - Existing Excel file to format
+        target_file: "reports/monthly_report.xlsx"
+        formatting:
+          - sheet_name: "Summary"
+            # OPT - Tab color. Same vocabulary as every other color option:
+            # hex with or without #, CSS names ("lightsteelblue"), rgb().
+            # Sheets without the option keep the default (uncolored) tab.
+            # Excel washes out INACTIVE tab colors, so shades meant to be
+            # told apart should be spaced widely.
+            tab_color: "CFE7F7"
+          - sheet_name: "Regional_Summary"
+            tab_color: "A6D2EF"
+          - sheet_name: "Exception_Summary"
+            tab_color: "79B8E4"
+
 ordering_notes:
   within_format_excel:
     description: "Column formats run before auto-fit, because formatted text measures wider - '1,234' is wider than '1234', and an accounting format wider still. Explicit widths run after auto-fit, or auto-fit would overwrite them. Hiding runs last, so auto-fit does not spend effort measuring a column nobody will see."
@@ -545,7 +582,111 @@ autofit_scan_limit_example:
         processor_type: "format_excel"
         target_file: "big_output.xlsx"
         formatting:
-          - sheet: "Data"
+          - sheet_name: "Data"
             auto_fit_columns: true
             # OPT - Measure only the first 2000 data rows (default: all)
             autofit_scan_rows: 2000
+
+
+pivot_style_example:
+  description: "Style the PivotTables a user builds in the generated file"
+  yaml: |
+    # THREE INDEPENDENT LEVERS, from cheapest to heaviest:
+    #
+    # 1. DEFAULT (nothing configured) - format_excel points the workbook's
+    #    defaultPivotStyle at PivotStyleLight19, the purple swatch beside
+    #    Excel's usual blue default (PivotStyleLight16). One attribute; no
+    #    theme change, no style definition. A pivot the user inserts comes
+    #    up purple, which makes a generated file recognisable at a glance.
+    #
+    # 2. default_pivot_style - name any other built-in gallery style.
+    #
+    # 3. pivot_style - define a NAMED style with exact colours and bold
+    #    total rows, and make it the workbook default. Built-in gallery
+    #    styles resolve their colours through the workbook's theme accents,
+    #    so only a custom style can pin an exact header colour, and only a
+    #    custom style can bold subtotals and grand totals.
+    #
+    # None of these touches explicit cell formatting - header fills, fonts
+    # and number formats are literal RGB and are unaffected.
+
+    recipe:
+      - step_description: "Name a different built-in default"
+        processor_type: "format_excel"
+        target_file: "report.xlsx"
+        # OPT - Any built-in gallery style name
+        default_pivot_style: "PivotStyleMedium19"
+        formatting:
+          - sheet_name: "Data"
+            header_bold: true
+
+      - step_description: "Define a custom pivot style instead"
+        processor_type: "format_excel"
+        target_file: "report2.xlsx"
+        pivot_style:
+          name: "Company Pivot"
+          header_background_color: "1F4E79"
+          header_font_color: "white"
+          header_bold: true
+          bold_subtotals: true
+          bold_grand_totals: true
+          # set_as_default: false     # register without making it default
+        formatting:
+          - sheet_name: "Data"
+            header_bold: true
+
+workbook_theming_example:
+  description: "Accent palette and a custom PivotTable style for user-built pivots"
+  yaml: |
+    # TWO DIFFERENT MECHANISMS, often confused:
+    #
+    # THE BASE: every workbook ERP constructs already carries the modern
+    # Office theme (Aptos font scheme, 156082/E97132/196B24/0F9ED5/A02B93/
+    # 4EA72E accents), applied by the writer. That is the floor, not an
+    # option - openpyxl's bundled 2007 palette is never what ships.
+    #
+    # workbook_theme is OPT-IN and layers ON TOP of that base.
+    # It replaces the six ACCENT SLOTS every gallery style resolves through,
+    # which is why the same gallery style looks more saturated in a file
+    # Excel wrote than in a generated one: openpyxl bundles a theme frozen
+    # at the Office 2007 palette. Use it to make generated files match what
+    # Excel produces, or to carry a brand palette. It changes the colours of
+    # EVERY gallery style in the file, so it is never applied by default.
+    #
+    # It does NOT touch explicit cell formatting - header fills, fonts and
+    # number formats applied below are literal RGB and are unaffected.
+
+    recipe:
+      - step_description: "Format with workbook theming"
+        processor_type: "format_excel"
+        target_file: "report.xlsx"
+
+        # OPT - ONE source: from_file, accent_colors, or preset
+        workbook_theme:
+          # from_file: "brand_book.xlsx"   # any OOXML: xlsx/xlsm/xltx/pptx/docx/thmx
+          # preset: "office_modern"        # purple (default), office_modern, office_legacy
+          accent_colors: ["1F4E79", "2E75B6", "9DC3E6", "203864", "8FAADC", "548235"]
+          # apply: false                   # leave the workbook's theme alone
+
+        # OPT - A named PivotTable style, set as the workbook default
+        pivot_style:
+          name: "Company Pivot"
+          header_background_color: "1F4E79"
+          header_font_color: "white"
+          header_bold: true
+          bold_subtotals: true
+          bold_grand_totals: true
+          # set_as_default: false          # register without making it default
+
+        formatting:
+          - sheet_name: "Data"
+            header_bold: true
+
+parameter_details_theming:
+  workbook_theme:
+    required: false
+    default: "the purple signature palette"
+    description: "Accent palette for style galleries; one of from_file / accent_colors / preset, or apply: false"
+  pivot_style:
+    required: false
+    description: "Named PivotTable style with exact colours and bold total rows, registered as the workbook default"

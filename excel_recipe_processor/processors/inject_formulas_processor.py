@@ -21,9 +21,27 @@ from pathlib import Path
 #     OPENPYXL_AVAILABLE = False
 
 from openpyxl.utils import get_column_letter, column_index_from_string
+from openpyxl.formula.translate import Translator
+from openpyxl.worksheet.formula import ArrayFormula
+from openpyxl.utils.cell import coordinate_from_string
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
+    column_placeholder_rgx,
+    function_call_rgx,
+)
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
+from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
+    FUTURE_FUNCTION_PREFIXES,
+    prefix_future_functions,
+    transform_storage_forms,
+)
+from excel_recipe_processor.processors._helpers.xlpm_name_storage import (
+    transform_xlpm_names,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -195,9 +213,57 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         target_file = self.get_config_value('target_file')
         mode = self.get_config_value('mode', 'live')
-        formulas = self.get_config_value('formulas', [])
         auto_scan = self.get_config_value('auto_scan', False)
-        sheets = self.get_config_value('sheets', None)  # None = active sheet, 'all' = all sheets
+        if 'sheets' in self.step_config:
+            raise StepProcessorError(
+                f"Inject step '{self.step_name}': 'sheets' was replaced by "
+                f"'sheet_names' (2026-08-14 sheet-addressing doctrine)"
+            )
+        # awaken addresses existing text with sheet_names; live injection
+        # uses the grouped shape exclusively (see below).
+        sheets = self.get_config_value('sheet_names', None)  # awaken: None = active sheet, 'all' = all sheets
+
+        # sheets_to_receive_formulas (2026-08-17, the SOLE live shape
+        # since the same-day retirement of the broadcast pair): a list
+        # of ENTRIES, each pairing a sheet_names LIST with its own
+        # formulas, so one step injects different formulas into
+        # different sheets - and the same formulas into several sheets
+        # via one entry's list, which is why the grouped shape subsumes
+        # the retired broadcast form. Entry anatomy mirrors
+        # export_file's sheets_to_create; the key names what entries DO
+        # (sheets RECEIVE formulas), and the plural sheet_names is
+        # REQUIRED per the columns_to_keep one-spelling doctrine. No
+        # implicit active-sheet default: every target is named.
+        sheets_to_receive_formulas = self.get_config_value('sheets_to_receive_formulas', None)
+        if mode == 'awaken':
+            if sheets_to_receive_formulas is not None:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': "
+                    f"'sheets_to_receive_formulas' applies to live "
+                    f"injection; awaken mode addresses sheets with "
+                    f"'sheet_names'."
+                )
+        else:
+            retired = [key for key in ('formulas', 'sheet_names')
+                       if key in self.step_config]
+            if retired:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': top-level "
+                    f"{retired} with mode 'live' is retired "
+                    f"(2026-08-17): live injection uses "
+                    f"'sheets_to_receive_formulas' - a list of entries, "
+                    f"each with a sheet_names LIST and its formulas. "
+                    f"The old broadcast form is one entry whose "
+                    f"sheet_names lists every target sheet; there is "
+                    f"no implicit active-sheet default."
+                )
+            if sheets_to_receive_formulas is None:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': mode 'live' "
+                    f"requires 'sheets_to_receive_formulas' (a list of "
+                    f"entries, each with a sheet_names LIST and its "
+                    f"formulas)."
+                )
         
         # Apply variable substitution to target filename
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -206,17 +272,111 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             resolved_file = target_file
         
         # Check file exists
-        if not Path(resolved_file).exists():
+        # "Exists" means on disk OR live in the workbook session - under the
+        # export bridge the file has not touched disk yet.
+        if not Path(resolved_file).exists() and not WorkbookSession.is_open(resolved_file):
             raise StepProcessorError(f"Target file not found: '{resolved_file}'")
         
         # Process the file based on mode
         if mode == 'awaken':
             result = self._awaken_formulas(resolved_file, sheets, auto_scan)
         else:
-            result = self._inject_formulas(resolved_file, mode, formulas, sheets)
+            result = self._inject_grouped(resolved_file, mode, sheets_to_receive_formulas)
         
         return result
     
+    def _inject_grouped(self, filename: str, mode: str, entries: list) -> str:
+        """
+        Inject per-sheet formula groups: each entry pairs a sheet_names
+        LIST with its own formulas (the sheets_to_receive_formulas
+        shape - the sole live shape). One entry, many sheets = the old
+        broadcast; many entries = per-sheet formulas; both compose.
+        Entry validation fails loud naming the entry index; per-sheet
+        counts land in the completion log so a consolidated step still
+        tells the story tab by tab.
+        """
+        if not isinstance(entries, list) or not entries:
+            raise StepProcessorError(
+                f"Inject step '{self.step_name}': 'sheets_to_receive_formulas' must "
+                f"be a non-empty list of entries, each with a "
+                f"sheet_names LIST and formulas"
+            )
+
+        workbook = WorkbookSession.get_workbook(filename)
+        self._written_live_cells = {}
+        per_sheet_counts = []
+
+        for position, entry in enumerate(entries, start=1):
+            if not isinstance(entry, dict):
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} must be a mapping with sheet_name "
+                    f"and formulas, got: {type(entry).__name__}"
+                )
+            if 'sheet_name' in entry:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} uses singular 'sheet_name' - the "
+                    f"key is 'sheet_names' and takes a LIST, even for one "
+                    f"sheet (one spelling, per the columns_to_keep "
+                    f"doctrine): sheet_names: [\"Sheet1\"]"
+                )
+            entry_sheet_names = entry.get('sheet_names')
+            entry_formulas = entry.get('formulas')
+            if isinstance(entry_sheet_names, str):
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} gives sheet_names as a bare "
+                    f"string ({entry_sheet_names!r}) - it takes a LIST, "
+                    f"even for one sheet: sheet_names: "
+                    f"[{entry_sheet_names!r}]"
+                )
+            if not entry_sheet_names or not isinstance(entry_sheet_names, list) or not entry_formulas:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} needs BOTH a non-empty sheet_names "
+                    f"LIST and a non-empty formulas list (got "
+                    f"sheet_names: {entry_sheet_names!r})"
+                )
+            unknown_keys = set(entry) - {'sheet_names', 'formulas'}
+            if unknown_keys:
+                raise StepProcessorError(
+                    f"Inject step '{self.step_name}': sheets_to_receive_formulas "
+                    f"entry {position} ({entry_sheet_names}) has unknown "
+                    f"key(s): {sorted(unknown_keys)}. Each entry takes "
+                    f"sheet_names and formulas; mode and target_file are "
+                    f"step-level."
+                )
+
+            target_sheets = []
+            for requested_name in entry_sheet_names:
+                target_sheets.extend(
+                    self._get_target_sheets(workbook, requested_name))
+            for resolved_name in target_sheets:
+                worksheet = workbook[resolved_name]
+                sheet_count = 0
+                for formula_def in entry_formulas:
+                    try:
+                        sheet_count += self._apply_formula_to_sheet(
+                            worksheet, formula_def, mode)
+                    except StepProcessorError as error:
+                        raise StepProcessorError(
+                            f"sheets_to_receive_formulas entry {position} "
+                            f"(sheet '{resolved_name}'): {error}"
+                        )
+                per_sheet_counts.append(f"{resolved_name}: {sheet_count}")
+
+        for sheet_name, written_cells in self._written_live_cells.items():
+            ranges = self._compress_cells_to_ranges(written_cells)
+            WorkbookSession.register_injected_formulas(filename, sheet_name, ranges)
+
+        WorkbookSession.mark_dirty(filename)
+
+        mode_desc = 'live' if mode == 'live' else 'dead'
+        detail = '; '.join(per_sheet_counts)
+        return (f"injected {mode_desc} formulas across "
+                f"{len(per_sheet_counts)} sheet(s) - {detail} ({filename})")
+
     def _inject_formulas(self, filename: str, mode: str, formulas: list, sheets) -> str:
         """
         Inject specific formulas into the Excel file.
@@ -230,10 +390,14 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Description of operation performed
         """
-        workbook = openpyxl.load_workbook(filename)
+        workbook = WorkbookSession.get_workbook(filename)
         formulas_injected = 0
         sheets_processed = 0
-        
+
+        # Per-cell live writes collected by _store_formula, keyed by sheet
+        # title; compressed to ranges and registered with the session below.
+        self._written_live_cells = {}
+
         # Determine which sheets to process
         target_sheets = self._get_target_sheets(workbook, sheets)
         
@@ -248,10 +412,16 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             sheets_processed += 1
             
             logger.debug(f"Injected {sheet_formulas} formulas in sheet '{sheet_name}'")
-        
+
+        # Register the recipe-authored cells BEFORE mark_dirty: in
+        # standalone (non-deferred) mode, mark_dirty saves immediately and
+        # the declaration pass reads the registry during that save.
+        for sheet_name, written_cells in self._written_live_cells.items():
+            ranges = self._compress_cells_to_ranges(written_cells)
+            WorkbookSession.register_injected_formulas(filename, sheet_name, ranges)
+
         # Save the modified workbook
-        workbook.save(filename)
-        workbook.close()
+        WorkbookSession.mark_dirty(filename)
         
         mode_desc = "live" if mode == "live" else "dead"
         return f"injected {formulas_injected} {mode_desc} formulas across {sheets_processed} sheets in {filename}"
@@ -268,7 +438,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Description of operation performed
         """
-        workbook = openpyxl.load_workbook(filename)
+        workbook = WorkbookSession.get_workbook(filename)
         formulas_awakened = 0
         sheets_processed = 0
         
@@ -285,11 +455,46 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             logger.debug(f"Awakened {sheet_awakened} formulas in sheet '{sheet_name}'")
         
         # Save the modified workbook
-        workbook.save(filename)
-        workbook.close()
+        WorkbookSession.mark_dirty(filename)
         
         return f"awakened {formulas_awakened} dead formulas across {sheets_processed} sheets in {filename}"
     
+    @staticmethod
+    def _compress_cells_to_ranges(written_cells) -> list:
+        """
+        Collapse (column_letters, row) cells into (column, first, last) runs.
+
+        A fill-down of eight thousand rows becomes one entry; scattered
+        single cells stay single-row ranges. Keeps the session registry and
+        the declaration pass proportional to the number of injected
+        COLUMNS rather than cells.
+
+        Args:
+            written_cells: List of (column_letters, row_number)
+
+        Returns:
+            List of (column_letters, first_row, last_row)
+        """
+        by_column = {}
+        for column_letters, row_number in written_cells:
+            by_column.setdefault(column_letters, set()).add(row_number)
+
+        ranges = []
+        for column_letters in sorted(by_column):
+            rows = sorted(by_column[column_letters])
+            run_start = rows[0]
+            previous = rows[0]
+            for row_number in rows[1:]:
+                if row_number == previous + 1:
+                    previous = row_number
+                    continue
+                ranges.append((column_letters, run_start, previous))
+                run_start = row_number
+                previous = row_number
+            ranges.append((column_letters, run_start, previous))
+
+        return ranges
+
     def _get_target_sheets(self, workbook, sheets) -> list:
         """
         Determine which sheets to process.
@@ -308,18 +513,22 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             # All sheets
             return workbook.sheetnames
         elif isinstance(sheets, str):
-            # Single sheet by name
-            if sheets not in workbook.sheetnames:
-                raise StepProcessorError(f"Sheet '{sheets}' not found in workbook")
-            return [sheets]
+            # Single entry: a name or a ?sheet_NNN? token
+            try:
+                return [resolve_sheet_ref(sheets, workbook.sheetnames,
+                                          f"Inject step '{self.step_name}'")]
+            except ValueError as error:
+                raise StepProcessorError(str(error))
         elif isinstance(sheets, list):
-            # Multiple specific sheets
-            for sheet in sheets:
-                if sheet not in workbook.sheetnames:
-                    raise StepProcessorError(f"Sheet '{sheet}' not found in workbook")
-            return sheets
+            # A plain name/token list - resolved through the one recognizer
+            try:
+                return [resolve_sheet_ref(entry, workbook.sheetnames,
+                                          f"Inject step '{self.step_name}'")
+                        for entry in sheets]
+            except ValueError as error:
+                raise StepProcessorError(str(error))
         else:
-            raise StepProcessorError(f"Invalid 'sheets' specification: '{sheets}'")
+            raise StepProcessorError(f"Invalid 'sheet_names' specification: '{sheets}'")
     
     def _apply_formula_to_sheet(self, worksheet, formula_def: dict, mode: str) -> int:
         """
@@ -327,7 +536,10 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         Args:
             worksheet: openpyxl worksheet
-            formula_def: Dictionary with 'cell'/'range' and 'formula' keys
+            formula_def: Dictionary with 'cell'/'range' and 'formula' keys.
+                         The formula may use {col:Header Name} placeholders,
+                         resolved against the sheet's header row, and a cell
+                         target may set fill_down: true
             mode: 'live' or 'dead'
             
         Returns:
@@ -345,13 +557,208 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         if mode == 'live' and not formula.startswith('='):
             formula = '=' + formula
         
+        # LET/LAMBDA declared names gain _xlpm. (optional parameters
+        # _xlop.) via the same transformer the library import path uses -
+        # and it must run FIRST, on the display form: once the prefix
+        # pass rewrites LET( to _xlfn.LET(, the name scanner no longer
+        # recognizes the construct. (Wired 2026-08-17 after the storage
+        # audit caught a cell-level LET stored bare; the 2026-08-14
+        # refusal guard was retired for the capability, but only
+        # manage_named_objects was calling it.) Live storage only.
+        if mode == 'live':
+            try:
+                formula = transform_xlpm_names(formula)
+            except ValueError as error:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': {error}"
+                )
+
+        # Functions added after the 2007 format must be STORED with an
+        # _xlfn. prefix or Excel shows #NAME?; see the prefix map for why.
+        formula = self._prefix_future_functions(formula)
+
+        # Display syntax that Excel stores differently: spill '#' refs
+        # become ANCHORARRAY(...) and bare eta aggregations gain _xleta.
+        # Live storage only - dead formulas are documentation text and
+        # keep the display forms the reader would type.
+        if mode == 'live':
+            try:
+                formula = transform_storage_forms(formula)
+            except ValueError as error:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': {error}"
+                )
+
+        # Column names resolve to letters against THIS sheet's header row -
+        # in the formula AND in the target, since naming the column a formula
+        # is written INTO is the same fragility as naming ones it reads.
+        formula = self._resolve_column_placeholders(worksheet, formula)
+
         # Handle cell vs range specification
         if 'cell' in formula_def:
-            return self._apply_formula_to_cell(worksheet, formula_def['cell'], formula, mode)
+            cell_ref = self._resolve_column_placeholders(worksheet, str(formula_def['cell']))
+            as_array = formula_def.get('array_formula', False)
+            if formula_def.get('fill_down', False):
+                return self._apply_formula_with_fill_down(
+                    worksheet, cell_ref, formula, mode, as_array
+                )
+            if as_array:
+                self._store_formula(worksheet, cell_ref, formula, mode, True)
+                return 1
+            return self._apply_formula_to_cell(worksheet, cell_ref, formula, mode)
         elif 'range' in formula_def:
-            return self._apply_formula_to_range(worksheet, formula_def['range'], formula, mode)
+            range_ref = self._resolve_column_placeholders(worksheet, str(formula_def['range']))
+            return self._apply_formula_to_range(worksheet, range_ref, formula, mode)
         else:
             raise StepProcessorError("Formula definition must include either 'cell' or 'range' key")
+
+    def _prefix_future_functions(self, formula: str) -> str:
+        """
+        Give post-2007 Excel functions the storage prefix they require.
+
+        Excel stores XLOOKUP as _xlfn.XLOOKUP and displays it as XLOOKUP. A
+        formula written with the plain name is read as an unknown defined
+        name, so the cell shows #NAME? and the formula bar renders it with an
+        implicit-intersection marker (=@IFS(...)). Recipes therefore write
+        ordinary Excel syntax and this adds the prefixes.
+
+        Only names present in the map are touched, and a name that already
+        carries a prefix is left alone, so re-running is safe.
+
+        Args:
+            formula: Formula text as written in the recipe
+
+        Returns:
+            Formula with future-function names prefixed for storage
+        """
+        prefixed = prefix_future_functions(formula)
+
+        if prefixed != formula:
+            changed = sorted({
+                name for name in FUTURE_FUNCTION_PREFIXES
+                if f"{FUTURE_FUNCTION_PREFIXES[name]}{name}" in prefixed
+            })
+            logger.debug(f"Prefixed future function(s) for storage: {changed}")
+
+        return prefixed
+
+    def _resolve_column_placeholders(self, worksheet, formula: str) -> str:
+        """
+        Replace {col:Header Name} with that column's letter on THIS sheet.
+
+        Excel formulas address columns by letter, which makes a recipe
+        fragile: inserting one column shifts every letter after it and the
+        formula silently reads the wrong data. Naming the column instead
+        means the letter is resolved from the header row at injection time,
+        so a layout change costs nothing.
+
+        Args:
+            worksheet: Sheet whose header row supplies the positions
+            formula:   Formula text, possibly containing placeholders
+
+        Returns:
+            Formula with every placeholder replaced by a column letter
+        """
+        if '{col:' not in formula:
+            return formula
+
+        headers = {}
+        for column_index, cell in enumerate(worksheet[1], start=1):
+            if cell.value is not None:
+                headers[str(cell.value).strip()] = get_column_letter(column_index)
+
+        def substitute(match):
+            name = match.group(1).strip()
+            if name not in headers:
+                raise StepProcessorError(
+                    f"Formula references column '{name}', which is not in the header row "
+                    f"of sheet '{worksheet.title}'. Available: {sorted(headers)[:8]}..."
+                )
+            return headers[name]
+
+        return column_placeholder_rgx.sub(substitute, formula)
+
+    def _store_formula(self, worksheet, target_ref: str, formula_text: str,
+                       mode: str, as_array: bool) -> None:
+        """
+        Write one formula cell, optionally marked as an array formula.
+
+        Excel applies IMPLICIT INTERSECTION to a plain formula whose result
+        could be an array - a formula containing XLOOKUP, say - and displays
+        it with a leading @.
+
+        CORRECTED CLAIM (2026-08-13): the array marker alone is NOT enough
+        to retire the @ - it trades it for legacy {CSE} braces, because
+        t="array" without the cm="1"/xl/metadata.xml declaration means "old
+        Ctrl+Shift+Enter formula". Use array_formula only for a formula
+        that genuinely IS an array formula. The honest fix for the @ is the
+        dynamic-array declaration pass (settings: declare_dynamic_formulas,
+        or the declare_dynamic_formulas processor); see
+        core/dynamic_array_metadata.py.
+
+        Args:
+            worksheet:   Target sheet
+            target_ref:  Cell to write, e.g. 'AV2'
+            formula_text: Formula, already translated for this cell
+            mode:        'live' or 'dead'
+            as_array:    Store with the array marker
+        """
+        if mode != 'live':
+            worksheet[target_ref].value = f"'{formula_text}"
+            return
+
+        if as_array:
+            worksheet[target_ref].value = ArrayFormula(target_ref, formula_text)
+        else:
+            worksheet[target_ref].value = formula_text
+
+        # Record the write for the dynamic-array declaration's provenance
+        # registry: cells the recipe authored are declared aware at save
+        # regardless of function vocabulary. Collected per cell here (the
+        # one live-write funnel), compressed to ranges at registration.
+        if not hasattr(self, '_written_live_cells'):
+            self._written_live_cells = {}
+        column_letters, row_number = coordinate_from_string(target_ref)
+        self._written_live_cells.setdefault(worksheet.title, []).append(
+            (column_letters, row_number)
+        )
+
+    def _apply_formula_with_fill_down(self, worksheet, cell_ref: str, formula: str, mode: str,
+                                      as_array: bool = False) -> int:
+        """
+        Write the formula at cell_ref and continue it to the last data row.
+
+        The row extent comes from the sheet itself, so the fill follows
+        however many rows this run produced.
+
+        Args:
+            worksheet: openpyxl worksheet
+            cell_ref:  Where the formula starts, e.g. 'AV2'
+            formula:   Formula text, already placeholder-resolved
+            mode:      'live' or 'dead'
+
+        Returns:
+            Number of cells written
+        """
+        origin_cell = worksheet[cell_ref]
+        last_row = worksheet.max_row
+
+        if last_row < origin_cell.row:
+            logger.warning(f"⚠️  Nothing to fill: sheet ends at row {last_row}")
+            return 0
+
+        written = 0
+        column_letter = origin_cell.column_letter
+
+        for row_number in range(origin_cell.row, last_row + 1):
+            target = f"{column_letter}{row_number}"
+            adjusted = self._adjust_formula_for_cell(formula, target, cell_ref)
+            self._store_formula(worksheet, target, adjusted, mode, as_array)
+            written += 1
+
+        logger.info(f"⬇️  Filled {column_letter}{origin_cell.row}:{column_letter}{last_row} "
+                    f"({written:,} cells)")
+        return written
     
     def _apply_formula_to_cell(self, worksheet, cell_ref: str, formula: str, mode: str) -> int:
         """
@@ -369,71 +776,62 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         # Validate cell reference
         if not self._is_valid_cell_reference(cell_ref):
             raise StepProcessorError(f"Invalid cell reference: {cell_ref}")
-        
-        cell = worksheet[cell_ref]
-        
-        if mode == 'live':
-            # Set as live formula (openpyxl auto-detects = prefix)
-            cell.value = formula
-        else:  # dead mode
-            # Set as text (prefix with single quote to force text)
-            cell.value = f"'{formula}"
-        
+
+        # All writes go through the one live-write funnel so the provenance
+        # registry sees every recipe-authored cell. (Until 2026-08-13 this
+        # wrote cell.value directly, invisibly to the declaration pass.)
+        self._store_formula(worksheet, cell_ref, formula, mode, False)
+
         logger.debug(f"Set {mode} formula in {cell_ref}: {formula}")
         return 1
     
     def _apply_formula_to_range(self, worksheet, range_ref: str, formula: str, mode: str) -> int:
         """
         Apply formula to a range of cells.
-        
+
+        The range's FIRST cell is the origin the formula was written for;
+        every other cell gets the formula translated relative to it, the
+        way Excel's own fill does.
+
         Args:
             worksheet: openpyxl worksheet
             range_ref: Range reference like 'A1:A10', 'B2:D5', etc.
             formula: Base formula to inject (will be adjusted for each cell)
             mode: 'live' or 'dead'
-            
+
         Returns:
             Number of cells modified
         """
         # Validate range reference
         if not self._is_valid_range_reference(range_ref):
             raise StepProcessorError(f"Invalid range reference: {range_ref}")
-        
+
+        range_origin = range_ref.split(':')[0].replace('$', '')
         cells_modified = 0
-        
-        # Get the range
+
         cell_range = worksheet[range_ref]
-        
-        # Handle both single row/column and multi-dimensional ranges
-        if hasattr(cell_range, '__iter__') and not hasattr(cell_range, 'value'):
-            # Multi-dimensional range
-            for row in cell_range:
-                if hasattr(row, '__iter__'):
-                    # Row is iterable (multiple cells)
-                    for cell in row:
-                        adjusted_formula = self._adjust_formula_for_cell(formula, cell.coordinate)
-                        if mode == 'live':
-                            cell.value = adjusted_formula
-                        else:
-                            cell.value = f"'{adjusted_formula}"
-                        cells_modified += 1
-                else:
-                    # Single cell in row
-                    adjusted_formula = self._adjust_formula_for_cell(formula, row.coordinate)
-                    if mode == 'live':
-                        row.value = adjusted_formula
-                    else:
-                        row.value = f"'{adjusted_formula}"
-                    cells_modified += 1
+
+        # worksheet[range] yields a tuple of row tuples for a real range,
+        # or a bare Cell for a single-cell "range" like "B2:B2" - normalize
+        # to a flat cell walk so every write goes through the one funnel
+        # (which also feeds the provenance registry).
+        if hasattr(cell_range, 'coordinate'):
+            flat_cells = [cell_range]
         else:
-            # Single cell range
-            adjusted_formula = self._adjust_formula_for_cell(formula, cell_range.coordinate)
-            if mode == 'live':
-                cell_range.value = adjusted_formula
-            else:
-                cell_range.value = f"'{adjusted_formula}"
+            flat_cells = []
+            for row in cell_range:
+                if hasattr(row, 'coordinate'):
+                    flat_cells.append(row)
+                else:
+                    flat_cells.extend(row)
+
+        for cell in flat_cells:
+            adjusted_formula = self._adjust_formula_for_cell(
+                formula, cell.coordinate, range_origin
+            )
+            self._store_formula(worksheet, cell.coordinate, adjusted_formula, mode, False)
             cells_modified += 1
-        
+
         logger.debug(f"Applied {mode} formula to range {range_ref}: {cells_modified} cells")
         return cells_modified
     
@@ -471,7 +869,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         return formulas_awakened
     
-    def _adjust_formula_for_cell(self, base_formula: str, cell_coord: str) -> str:
+    def _adjust_formula_for_cell(self, base_formula: str, cell_coord: str, origin: str = None) -> str:
         """
         Adjust a base formula for a specific cell location.
         
@@ -485,14 +883,18 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Adjusted formula for the specific cell
         """
-        # Simple implementation - just return the base formula
-        # Future enhancement: parse and adjust relative references
-        
-        # Ensure formula starts with = if not already
         if not base_formula.startswith('='):
-            return '=' + base_formula
-        
-        return base_formula
+            base_formula = '=' + base_formula
+
+        if origin is None or origin == cell_coord:
+            return base_formula
+
+        # openpyxl's Translator shifts relative references the way Excel does
+        # when a formula is copied: A2 written at row 2 becomes A3 at row 3,
+        # while $A$2 and named ranges stay put. Without this, a formula
+        # applied to a range repeated the ORIGIN's references in every cell,
+        # so every row silently read row 2's data.
+        return Translator(base_formula, origin=origin).translate_formula(cell_coord)
     
     def _is_valid_cell_reference(self, cell_ref: str) -> bool:
         """Check if a string is a valid Excel cell reference."""
@@ -551,89 +953,42 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
         return {
-            'description': 'Inject formulas into existing Excel files with live/dead modes',
+            'description': 'Inject live or dead formulas with name-addressed cells '
+                           'and fill-down',
             'operation_type': 'formula_injection',
             'supported_modes': ['live', 'dead', 'awaken'],
             'targeting_options': ['single_cell', 'cell_range', 'auto_scan'],
+            'column_placeholders': '{col:Header Name} in cell refs and formulas '
+                                   'resolves to the column letter from the header '
+                                   'row at injection time, so upstream column '
+                                   'insertions cannot silently repoint a formula',
+            'fill_down': 'fill_down: true fills a formula from its origin cell to '
+                         'the last data row, translating relative references per '
+                         'row the way Excel\'s own fill handle does',
+            'function_name_translation': 'modern function names (XLOOKUP, IFS, '
+                                         'FILTER, ...) are stored with the _xlfn. '
+                                         'prefixes Excel requires internally, and '
+                                         'display without them',
+            'dynamic_array_declaration': 'live-mode cells register with the '
+                                         'workbook session as recipe-authored; with '
+                                         'settings declare_dynamic_formulas: true '
+                                         'they are declared dynamic-array-aware at '
+                                         'save and open without the implicit-'
+                                         'intersection @ (any function, by '
+                                         'provenance)',
+            'array_formula_caveat': 'array_formula: true stores a legacy CSE array '
+                                    'formula ({braces}); use it only for formulas '
+                                    'that genuinely are array formulas - it is NOT '
+                                    'the fix for the @ display',
             'sheet_support': ['single_sheet', 'multiple_sheets', 'all_sheets'],
             'file_requirements': ['xlsx', 'xlsm'],
             'dependencies': ['openpyxl'],
             'stage_requirements': 'none',
-            'examples': {
-                'live_formula': 'Creates dynamic formulas that recalculate automatically',
-                'dead_formula': 'Inserts formula text for documentation/templates',
-                'auto_awaken': 'Scans and awakens all dead formulas in file'
-            }
-        }
-    
-    def get_usage_examples(self) -> dict:
-        """Get usage examples for this processor."""
-        # For now, return inline examples - could be moved to YAML file later
-        return {
-            'description': 'Inject formulas into Excel files with flexible targeting and live/dead modes',
-            
-            'basic_example': {
-                'description': 'Inject live formulas into specific cells',
-                'yaml': '''
-  - step_description: "Add calculation formulas to report"
-    processor_type: "inject_formulas"
-    target_file: "sales_report.xlsx"
-    mode: "live"
-    formulas:
-      - cell: "D2"
-        formula: "=B2*C2"
-      - cell: "D3"
-        formula: "=B3*C3"
-      - cell: "E4"
-        formula: "=SUM(D2:D3)"
-'''
-            },
-            
-            'range_example': {
-                'description': 'Apply formulas to ranges and multiple sheets',
-                'yaml': '''
-  - step_description: "Add formulas to entire columns"
-    processor_type: "inject_formulas"
-    target_file: "financial_model.xlsx"
-    mode: "live"
-    sheets: ["Revenue", "Expenses"]
-    formulas:
-      - range: "D2:D50"
-        formula: "=B2*C2"
-      - range: "E2:E50"
-        formula: "=D2*0.1"
-      - cell: "D51"
-        formula: "=SUM(D2:D50)"
-'''
-            },
-            
-            'awaken_example': {
-                'description': 'Awaken dead formulas across entire workbook',
-                'yaml': '''
-  - step_description: "Convert template to live calculations"
-    processor_type: "inject_formulas"
-    target_file: "budget_template.xlsx"
-    mode: "awaken"
-    sheets: "all"
-    auto_scan: true
-'''
-            },
-            
-            'documentation_example': {
-                'description': 'Create dead formulas for documentation',
-                'yaml': '''
-  - step_description: "Add formula documentation"
-    processor_type: "inject_formulas"
-    target_file: "model_documentation.xlsx"
-    mode: "dead"
-    formulas:
-      - cell: "F1"
-        formula: "=VLOOKUP(E1,RefTable,2,FALSE)"
-      - cell: "F2"
-        formula: "This cell should contain: =E2*Rate"
-'''
-            }
         }
 
+    def get_usage_examples(self) -> dict:
+        """Get usage examples from the external YAML file."""
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        return load_processor_examples('inject_formulas')
 
 # End of file #

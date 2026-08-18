@@ -23,10 +23,10 @@ settings:
   #     default_value: "west"
   
   stages:
-    - stage_name: "raw_data"
+    - stage_name: "stg_raw_data"
       description: "Raw imported data"
       protected: false
-    - stage_name: "processed_data"
+    - stage_name: "stg_processed_data"
       description: "Final processed results"
       protected: false
 
@@ -34,15 +34,15 @@ recipe:
   - step_description: "Import source data"
     processor_type: "import_file"
     input_file: "data.xlsx"
-    save_to_stage: "raw_data"
+    save_to_stage: "stg_raw_data"
   
   - step_description: "Process the data"
     processor_type: "filter_data"  # or whatever processor
-    source_stage: "raw_data"
-    save_to_stage: "processed_data"
+    source_stage: "stg_raw_data"
+    save_to_stage: "stg_processed_data"
     # processor-specific parameters here
   
   - step_description: "Export results"
     processor_type: "export_file"
-    source_stage: "processed_data"
+    source_stage: "stg_processed_data"
     output_file: "results.xlsx"

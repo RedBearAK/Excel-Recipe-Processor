@@ -1,6 +1,8 @@
 """
 Add calculated column step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/add_calculated_column_processor.py
+
 Handles creating new columns with calculated values based on existing data.
 """
 
@@ -661,15 +663,31 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         Returns:
             Safe formula string with proper df references
         """
-        safe_formula = formula
-        
-        # Replace column names with df['column'] references
-        for col in df.columns:
-            # Use word boundaries to avoid partial matches
-            pattern = r'\b' + re.escape(col) + r'\b'
-            replacement = f"df['{col}']"
-            safe_formula = re.sub(pattern, replacement, safe_formula)
-        
+        # Replace column names with df['column'] references in ONE PASS.
+        #
+        # A loop of separate substitutions cannot do this correctly when one
+        # column name contains another. With "Species" and "Major Species"
+        # both present, replacing the short name first mangles the long one
+        # ("Major df['Species']"), and replacing the long one first is no
+        # better - the later short-name pass then matches INSIDE the text
+        # just substituted. A single pass over an alternation, longest name
+        # first so the regex prefers it, cannot re-enter its own output.
+        if len(df.columns) == 0:
+            return formula
+
+        names_longest_first = sorted(
+            (str(col) for col in df.columns),
+            key=len,
+            reverse=True,
+        )
+        alternation = '|'.join(re.escape(name) for name in names_longest_first)
+        column_ref_rgx = re.compile(r'\b(?:' + alternation + r')\b')
+
+        safe_formula = column_ref_rgx.sub(
+            lambda match: f"df['{match.group(0)}']",
+            formula,
+        )
+
         logger.debug(f"Formula: {formula} → {safe_formula}")
         return safe_formula
     
@@ -779,3 +797,5 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
     def get_usage_examples(self) -> dict:
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('add_calculated_column')
+
+# End of file #

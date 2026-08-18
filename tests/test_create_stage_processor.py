@@ -32,7 +32,7 @@ def test_list_format_creation():
         step_config = {
             'processor_type': 'create_stage',
             'step_description': 'Create approved customer list',
-            'stage_name': 'Approved Customers',
+            'save_to_stage': 'Approved Customers',
             'description': 'List of customers approved for promotions',
             'data': {
                 'format': 'list',
@@ -82,7 +82,7 @@ def test_table_format_creation():
         step_config = {
             'processor_type': 'create_stage',
             'step_description': 'Create customer tier mapping',
-            'stage_name': 'Customer Tiers',
+            'save_to_stage': 'Customer Tiers',
             'description': 'Customer tier assignments',
             'data': {
                 'format': 'table',
@@ -131,7 +131,7 @@ def test_dictionary_format_creation():
         step_config = {
             'processor_type': 'create_stage',
             'step_description': 'Create region mapping',
-            'stage_name': 'Region Mapping',
+            'save_to_stage': 'Region Mapping',
             'description': 'State to region mappings',
             'data': {
                 'format': 'dictionary',
@@ -187,7 +187,7 @@ def test_size_limits_and_warnings():
         step_config = {
             'processor_type': 'create_stage',
             'step_description': 'Test size limits',
-            'stage_name': 'Too Large List',
+            'save_to_stage': 'Too Large List',
             'data': {
                 'format': 'list',
                 'column': 'Item_Code',
@@ -213,7 +213,7 @@ def test_size_limits_and_warnings():
         step_config = {
             'processor_type': 'create_stage',
             'step_description': 'Test table size limits',
-            'stage_name': 'Too Large Table',
+            'save_to_stage': 'Too Large Table',
             'data': {
                 'format': 'table',
                 'columns': ['ID', 'Value'],
@@ -270,7 +270,7 @@ def test_error_handling():
         try:
             bad_config = {
                 'processor_type': 'create_stage',
-                'stage_name': 'Test Stage',
+                'save_to_stage': 'Test Stage',
                 'data': {
                     'format': 'invalid_format',
                     'column': 'Test',
@@ -288,7 +288,7 @@ def test_error_handling():
         try:
             bad_config = {
                 'processor_type': 'create_stage',
-                'stage_name': 'current',  # Reserved name
+                'save_to_stage': 'current',  # Reserved name
                 'data': {
                     'format': 'list',
                     'column': 'Test',
@@ -306,7 +306,7 @@ def test_error_handling():
         try:
             bad_config = {
                 'processor_type': 'create_stage',
-                'stage_name': 'Bad Table',
+                'save_to_stage': 'Bad Table',
                 'data': {
                     'format': 'table',
                     'columns': ['A', 'B', 'C'],  # 3 columns
@@ -342,7 +342,7 @@ def test_overwrite_behavior():
         # Create initial stage
         step_config = {
             'processor_type': 'create_stage',
-            'stage_name': 'Test Overwrite',
+            'save_to_stage': 'Test Overwrite',
             'data': {
                 'format': 'list',
                 'column': 'Items',
@@ -400,7 +400,7 @@ def test_metadata_tracking():
         step_config = {
             'processor_type': 'create_stage',
             'step_description': 'Test metadata tracking',
-            'stage_name': 'Metadata Test Stage',
+            'save_to_stage': 'Metadata Test Stage',
             'description': 'This is a test stage for metadata',
             'data': {
                 'format': 'list',
@@ -452,7 +452,7 @@ if __name__ == '__main__':
     # Show supported features
     processor = CreateStageProcessor({
         'processor_type': 'create_stage',
-        'stage_name': 'test',
+        'save_to_stage': 'test',
         'data': {'format': 'list', 'column': 'test', 'values': []}
     })
     print(f"\nSupported formats: {processor.get_supported_formats()}")

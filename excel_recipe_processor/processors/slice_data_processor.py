@@ -1,14 +1,15 @@
 """
 Slice data step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/slice_data_processor.py
+
 Handles extracting portions of DataFrames by row ranges, column ranges,
-or other criteria. Uses 1-based indexing to match Excel user expectations.
+or headers-aware transposition. Uses 1-based indexing to match Excel user
+expectations.
 """
 
-import pandas as pd
 import logging
-
-from typing import Any
+import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
@@ -36,7 +37,7 @@ class SliceDataProcessor(BaseStepProcessor):
             'end_row': 3
         }
     
-    def execute(self, data: Any) -> pd.DataFrame:
+    def execute(self, data) -> pd.DataFrame:
         """
         Execute the data slicing operation.
         
@@ -77,6 +78,8 @@ class SliceDataProcessor(BaseStepProcessor):
             result = self._slice_row_range(data)
         elif slice_type == 'column_range':
             result = self._slice_column_range(data)
+        elif slice_type == 'transpose':
+            result = self._slice_transpose(data)
         else:
             raise StepProcessorError(f"Unsupported slice_type: {slice_type}. Supported types: {self.get_supported_slice_types()}")
         
@@ -206,6 +209,88 @@ class SliceDataProcessor(BaseStepProcessor):
         logger.debug(f"Promoted first row to headers: {list(df.columns)}")
         return df
     
+    def _slice_transpose(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transpose the table the way a person means it, not the way .T does.
+
+        The label column's values become the NEW HEADER ROW, and the old
+        headers become the values of a new first column - the same result
+        as Excel's Paste Special > Transpose on a table with row labels.
+        A raw positional .T would instead produce integer-labelled columns
+        and silently drop the label structure.
+
+        Fails loud on the two silent-corruption cases: duplicate label
+        values (they would become duplicate column names and collide in
+        every downstream step) and blank/missing labels (a column with no
+        name is unaddressable by name-based steps).
+
+        Mixed-type rows come back as object-dtype columns - unavoidable in
+        any transpose, since a source ROW mixes what will become one
+        COLUMN. Re-coerce downstream with clean_data where it matters.
+
+        Config:
+            header_column:            Column whose values become the new
+                                      headers. Default: the first column.
+            old_headers_column_name:  Name for the new first column holding
+                                      the previous headers. Default:
+                                      "Field" - the source has no name for
+                                      what its own headers represent, so
+                                      say what you mean here.
+        """
+        if len(df.columns) < 2:
+            raise StepProcessorError(
+                f"Transpose needs at least a label column and one data column, "
+                f"got {len(df.columns)} column(s)"
+            )
+
+        header_column = self.get_config_value('header_column', None)
+        if header_column is None:
+            header_column = df.columns[0]
+        elif header_column not in df.columns:
+            raise StepProcessorError(
+                f"header_column '{header_column}' not found. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+        old_headers_name = self.get_config_value('old_headers_column_name', 'Field')
+
+        labels = df[header_column]
+
+        blank_mask = labels.isna() | (labels.astype(str).str.strip() == '')
+        if blank_mask.any():
+            blank_rows = [index + 1 for index in range(len(labels)) if blank_mask.iloc[index]]
+            raise StepProcessorError(
+                f"header_column '{header_column}' has blank value(s) at data "
+                f"row(s) {blank_rows[:10]} - every row's label becomes a column "
+                f"name, and a blank one would be unaddressable"
+            )
+
+        label_strings = [str(value) for value in labels]
+
+        duplicates = sorted({name for name in label_strings if label_strings.count(name) > 1})
+        if duplicates:
+            raise StepProcessorError(
+                f"header_column '{header_column}' has duplicate value(s) "
+                f"{duplicates[:10]} - they would become duplicate column names "
+                f"and silently collide downstream. Deduplicate first, or pick "
+                f"a different header_column."
+            )
+
+        if old_headers_name in label_strings:
+            raise StepProcessorError(
+                f"old_headers_column_name '{old_headers_name}' collides with a "
+                f"value in '{header_column}'; choose a different name"
+            )
+
+        body = df.drop(columns=[header_column])
+
+        transposed = body.T
+        transposed.columns = label_strings
+        transposed.insert(0, old_headers_name, [str(name) for name in body.columns])
+        transposed = transposed.reset_index(drop=True)
+
+        return transposed
+
     def _excel_col_to_index(self, col_ref: str) -> int:
         """
         Convert Excel column reference (A, B, AA, etc.) to 0-based index.
@@ -226,7 +311,7 @@ class SliceDataProcessor(BaseStepProcessor):
     
     def get_supported_slice_types(self) -> list:
         """Get list of supported slice types."""
-        return ['row_range', 'column_range']
+        return ['row_range', 'column_range', 'transpose']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
@@ -235,9 +320,13 @@ class SliceDataProcessor(BaseStepProcessor):
             'supported_slice_types': self.get_supported_slice_types(),
             'indexing': '1-based for user configuration (converted internally)',
             'slice_operations': [
-                'row_range_extraction', 'column_range_extraction', 
-                'header_promotion'
+                'row_range_extraction', 'column_range_extraction',
+                'header_promotion', 'headers_aware_transpose'
             ],
+            'transpose': 'slice_type: transpose turns the label column\'s values '
+                         'into the header row and the old headers into a new '
+                         'first column (Excel Paste Special > Transpose '
+                         'semantics); fails loud on duplicate or blank labels',
             'configuration_options': {
                 'slice_type': 'Type of slice operation to perform',
                 'start_row': '1-based starting row number (inclusive)',
@@ -258,3 +347,5 @@ class SliceDataProcessor(BaseStepProcessor):
         """Get complete usage examples for the slice_data processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('slice_data')
+
+# End of file #

@@ -55,12 +55,13 @@ def test_header_text_color():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'header_text_color': color,
                     'header_bold': True,
                     'header_background': True,
                     'header_background_color': '1F4E79'  # Dark navy
-                }
+                }]
             }
             
             try:
@@ -98,10 +99,11 @@ def test_header_font_size():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'header_font_size': size,
                     'header_bold': True
-                }
+                }]
             }
             
             try:
@@ -136,7 +138,8 @@ def test_combined_header_formatting():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 # Phase 1 enhancements
                 'header_text_color': 'FFFFFF',      # White text
                 'header_font_size': 14,             # Prominent size
@@ -148,7 +151,7 @@ def test_combined_header_formatting():
                 'auto_fit_columns': True,
                 'freeze_top_row': True,
                 'auto_filter': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)
@@ -200,9 +203,10 @@ def test_color_validation():
             step_config = {
                 'processor_type': 'format_excel',
                 'target_file': test_file,
-                'formatting': {
+                'formatting': [{
+                    'sheet_name': '?sheet_001?',
                     'header_text_color': invalid_color
-                }
+                }]
             }
             
             try:
@@ -238,7 +242,8 @@ def test_dark_theme_scenario():
         step_config = {
             'processor_type': 'format_excel',
             'target_file': test_file,
-            'formatting': {
+            'formatting': [{
+                'sheet_name': '?sheet_001?',
                 # This solves the readability problem!
                 'header_text_color': 'FFFFFF',      # White text for dark backgrounds
                 'header_font_size': 16,             # Larger for prominence
@@ -248,7 +253,7 @@ def test_dark_theme_scenario():
                 'auto_fit_columns': True,
                 'freeze_top_row': True,
                 'auto_filter': True
-            }
+            }]
         }
         
         processor = FormatExcelProcessor(step_config)

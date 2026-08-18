@@ -1,13 +1,15 @@
 """
 Add subtotals step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/add_subtotals_processor.py
+
 Handles inserting subtotal rows into grouped data with various aggregation functions.
 """
 
 import pandas as pd
 import logging
 
-from typing import Any, Union
+from typing import Any
 
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -145,7 +147,7 @@ class AddSubtotalsProcessor(BaseStepProcessor):
         if position not in valid_positions:
             raise StepProcessorError(f"Position '{position}' not supported. Valid positions: {valid_positions}")
     
-    def _extract_existing_totals(self, df: pd.DataFrame) -> Union[pd.DataFrame, None]:
+    def _extract_existing_totals(self, df: pd.DataFrame) -> pd.DataFrame | None:
         """
         Extract existing grand total rows to preserve them.
         
@@ -174,7 +176,7 @@ class AddSubtotalsProcessor(BaseStepProcessor):
     def _add_subtotals_to_data(self, df: pd.DataFrame, group_by: list, 
                               subtotal_columns: list, subtotal_functions: list,
                               subtotal_label: str, position: str, 
-                              existing_totals: Union[pd.DataFrame, None]) -> pd.DataFrame:
+                              existing_totals: pd.DataFrame | None) -> pd.DataFrame:
         """
         Add subtotal rows to the DataFrame.
         
@@ -208,7 +210,8 @@ class AddSubtotalsProcessor(BaseStepProcessor):
         result_rows = []
         
         # Group by the specified columns
-        grouped = sorted_df.groupby(group_by, sort=False)
+        # dropna=False is doctrine (2026-08-17, see dev_notes/NOTES_2026-08-17_blank_key_group_loss.md): pandas' default silently DELETES NaN-keyed rows.
+        grouped = sorted_df.groupby(group_by, sort=False, dropna=False)
         
         for group_key, group_data in grouped:
             # Add subtotal before group if requested
@@ -439,3 +442,5 @@ class SubtotalUtils:
             'position': 'after_group',
             'preserve_totals': True
         }
+
+# End of file #

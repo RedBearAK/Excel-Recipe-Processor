@@ -54,25 +54,25 @@ def test_usage_examples_cli():
             'name': 'Get usage examples for export_file processor',
             'args': ['--get-usage-examples', 'export_file'],
             'expect_success': True,
-            'check_content': ['processor_type: "export_file"', 'output_file:', '# required:']
+            'check_content': ['processor_type: "export_file"', 'output_file:', '# REQ -']
         },
         {
             'name': 'Get usage examples for export_file in JSON format',
             'args': ['--get-usage-examples', 'export_file', '--format-examples', 'json'],
             'expect_success': True,
-            'check_content': ['"processor_name":', '"basic_example":', '"advanced_example":']
+            'check_content': ['"description":', '"basic_example":', '"multi_sheet_example":']
         },
         {
             'name': 'Get usage examples for export_file in text format',
             'args': ['--get-usage-examples', 'export_file', '--format-examples', 'text'],
             'expect_success': True,
-            'check_content': ['Processor: export_file', 'Description:', 'Parameters:']
+            'check_content': ['Processor: export_file', 'Description:', 'Example: basic_example']
         },
         {
             'name': 'Get usage examples for all processors',
             'args': ['--get-usage-examples'],
             'expect_success': True,
-            'check_content': ['# Complete Usage Examples', '# Available Processors:', 'EXPORT_FILE PROCESSOR']
+            'check_content': ['# Complete Usage Examples', '# Total processors:', 'EXPORT_FILE PROCESSOR']
         },
         {
             'name': 'Get usage examples for all processors in JSON',
@@ -84,13 +84,14 @@ def test_usage_examples_cli():
             'name': 'Get usage examples for nonexistent processor',
             'args': ['--get-usage-examples', 'nonexistent_processor'],
             'expect_success': False,
-            'check_content': ['not found', 'Available processors:']
+            'check_content': ['No usage examples available', 'Available processors:']
         },
         {
-            'name': 'Test processor without get_usage_examples method',
-            'args': ['--get-usage-examples', 'filter_data'],  # Assuming filter_data doesn't have method yet
-            'expect_success': False,
-            'check_content': ['missing get_usage_examples() method']
+            # Every processor ships examples now; verify one more succeeds
+            'name': 'Get usage examples for filter_data processor',
+            'args': ['--get-usage-examples', 'filter_data'],
+            'expect_success': True,
+            'check_content': ['processor_type: "filter_data"', '# REQ -']
         }
     ]
     

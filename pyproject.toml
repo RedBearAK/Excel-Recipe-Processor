@@ -1,11 +1,67 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
-[tool.black]
-line-length = 88
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
-include = '\.pyi?$'
+[project]
+name = "excel_recipe_processor"
+description = "Automate complex manual Excel workflows as YAML-configured recipes: import, clean, enrich, verify, and export with live formulas, named ranges, and professional formatting"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "RedBearAK", email = "64876997+RedBearAK@users.noreply.github.com" },
+]
+# Floor set where the SUPPORTED ECOSYSTEM lives, not at maximal syntax
+# compatibility: the suite is verified on Python 3.12+ with pandas 3, and
+# pandas 3 itself does not run below 3.10. The old ">=3.7" was never true -
+# even pandas 2.0 needs 3.8.
+requires-python = ">=3.10"
+# Version stays in excel_recipe_processor/_version.py (single source);
+# dependencies stay in requirements.txt, THE curated dependency file with the
+# per-entry rationale comments. Both are read dynamically so nothing here can
+# drift out of sync with them.
+dynamic = ["version", "dependencies"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.scripts]
+excel_recipe_processor = "excel_recipe_processor.__main__:main"
+
+[project.optional-dependencies]
+# requirements-dev.txt remains the canonical dev file; it cannot be read
+# dynamically here because its "-r requirements.txt" include is pip syntax
+# the setuptools file parser does not understand. This literal list mirrors
+# it minus that include - update both together. (Formatters, linters, sphinx
+# and pre-commit were removed 2026-08-13; see the Removed section there for
+# why the formatters were actively harmful to the house style, not just
+# unused.)
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["excel_recipe_processor*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "excel_recipe_processor._version.__version__" }
+dependencies = { file = ["requirements.txt"] }
+
+# [tool.black] removed 2026-08-13 along with black itself: running it would
+# rewrite the codebase against project conventions (length-sorted imports,
+# aligned registry entries, deliberate spacing). See requirements-dev.txt.
+
+# [tool.mypy] removed: the project deliberately avoids the typing module and
+# uses guard clauses for runtime type narrowing (see requirements-dev.txt,
+# which removed mypy itself for the same documented reason). A config block
+# with disallow_untyped_defs=true described a project this is not.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -13,13 +69,6 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--cov=excel_recipe_processor --cov-report=html --cov-report=term"
-
-[tool.mypy]
-python_version = "3.7"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-check_untyped_defs = true
 
 [tool.coverage.run]
 source = ["excel_recipe_processor"]

@@ -1,31 +1,61 @@
 {
   "system_info": {
     "description": "Excel Recipe Processor - Automated Excel data processing system",
-    "total_processors": 17,
+    "total_processors": 45,
     "processor_types": [
       "add_calculated_column",
       "add_subtotals",
       "aggregate_data",
       "clean_data",
+      "columns_to_rows",
+      "combine_data",
+      "conditional_format",
+      "copy_stage",
       "create_stage",
       "debug_breakpoint",
+      "declare_dynamic_formulas",
+      "deduplicate_data",
+      "diff_data",
+      "excel_data_validation",
+      "export_file",
+      "export_filter_step",
       "fill_data",
       "filter_data",
+      "filter_terms_detector",
+      "flush_workbooks",
+      "format_excel",
+      "free_stages",
+      "generate_column_config",
       "group_data",
-      "load_stage",
+      "import_file",
+      "inject_formulas",
       "lookup_data",
+      "manage_named_objects",
       "merge_data",
       "pivot_table",
+      "profile_files",
+      "profile_named_objects",
+      "profile_sheets",
+      "profile_workbooks",
       "rename_columns",
-      "copy_stage",
+      "rows_to_columns",
+      "seed_donor_formulas",
+      "select_columns",
+      "slice_data",
       "sort_data",
-      "split_column"
+      "split_column",
+      "strip_formula_caches",
+      "verify_columns",
+      "verify_data",
+      "verify_excel_storage"
     ]
   },
   "processors": {
     "add_calculated_column": {
       "description": "Add new columns with calculated values based on existing data",
       "calculation_types": [
+        "constant",
+        "row_number",
         "expression",
         "concat",
         "conditional",
@@ -103,7 +133,7 @@
       }
     },
     "aggregate_data": {
-      "description": "Groups data and calculates summary statistics",
+      "description": "Group data and calculate summary statistics",
       "aggregation_functions": [
         "sum",
         "mean",
@@ -173,7 +203,8 @@
         "fix_dates",
         "fill_empty",
         "remove_duplicates",
-        "standardize_values"
+        "standardize_values",
+        "blank_repeats"
       ],
       "cleaning_operations": [
         "find_replace",
@@ -204,9 +235,234 @@
         "title"
       ],
       "examples": {
-        "conditional_replace": "Replace 'FLESH' with 'CANS' only in rows where Product_Name contains 'CANNED'",
+        "conditional_replace": "Replace 'FLESH' with 'CANS' in rows where Product_Name contains 'Canned'",
         "clean_price": "Remove $ signs and convert to numeric",
         "standardize": "Map various status values to standard terms"
+      }
+    },
+    "combine_data": {
+      "description": "Combine multiple DataFrames from stages with enhanced column handling",
+      "supported_combine_types": [
+        "vertical_stack",
+        "horizontal_concat"
+      ],
+      "supported_column_policies": [
+        "require_matching_columns",
+        "allow_mismatched_columns"
+      ],
+      "combination_operations": [
+        "vertical_stacking",
+        "horizontal_concatenation",
+        "blank_row_insertion",
+        "blank_column_insertion",
+        "header_retention",
+        "smart_column_defaults"
+      ],
+      "data_sources": [
+        "saved_stages",
+        "current_pipeline_data"
+      ],
+      "configuration_options": {
+        "combine_type": "Type of combination operation to perform",
+        "column_handling": "Global policy for handling column mismatches",
+        "data_sources": "Sequential list of data sources and blank insertions",
+        "insert_from_stage": "Load data from a saved stage or current_dataframe",
+        "insert_blank_rows": "Insert N blank rows (vertical_stack only)",
+        "insert_blank_cols": "Insert N blank columns (horizontal_concat only)",
+        "retain_column_names": "Insert column headers as data row (per-source setting)"
+      },
+      "data_source_operations": {
+        "insert_from_stage": "Load data from saved stage or current_dataframe",
+        "insert_blank_rows": "Insert blank rows between sections",
+        "insert_blank_cols": "Insert blank columns between sections"
+      },
+      "column_policies": {
+        "require_matching_columns": "All DataFrames must have identical column structures",
+        "allow_mismatched_columns": "Allow DataFrames with different columns (NaN fill)"
+      },
+      "smart_defaults": {
+        "require_matching_columns": "retain_column_names defaults to false",
+        "allow_mismatched_columns": "retain_column_names defaults to true"
+      },
+      "examples": {
+        "desktop_publishing": "Combine title sections, headers, and data preserving visual meaning",
+        "metadata_and_data": "Vertically stack metadata and processed data",
+        "side_by_side_comparison": "Horizontally concatenate related datasets",
+        "spaced_sections": "Combine with blank rows for visual separation",
+        "multi_stage_report": "Combine data from multiple processing stages"
+      }
+    },
+    "columns_to_rows": {
+      "description": "Demote header columns into label/value rows - wide to long, nothing lost",
+      "not_a_transpose": "transpose (slice_data) rotates the grid keeping one dimension in the headers; this ELIMINATES the header dimension by turning header names into data",
+      "inverse": "rows_to_columns restores the wide layout (losslessly, because that processor verifies uniqueness)",
+      "column_split": "give id_columns, value_columns, or both; the missing one is the complement, and with both given every column must be claimed - pandas.melt silently drops unclaimed columns and this processor refuses instead",
+      "options": [
+        "labels_to (default Field)",
+        "values_to (default Value)",
+        "drop_empty_values (default false)"
+      ]
+    },
+    "conditional_format": {
+      "description": "Write native Excel conditional-formatting rules that stay live in the file",
+      "vocabulary": "canonical ERP condition names (filter_data's equals, greater_than, is_empty, ... plus between, duplicates, unique in the same style); Excel-native spellings (greaterThan, containsText, ...) accepted as aliases with a warning naming the canonical form",
+      "rule_kinds": [
+        "when_formula",
+        "when_cell",
+        "color_scale",
+        "data_bar"
+      ],
+      "formula_convention": "same as inject_formulas - write for data row 2 with {col:Header Name} placeholders - except placeholders resolve $-LOCKED here so row-wise tests cannot drift sideways as Excel translates the rule across its range; modern function names get the _xlfn storage prefix automatically",
+      "targeting": "apply_to: entire_row, columns: [names], or a literal range",
+      "ordering": "list order is Excel priority order; stop_if_true supported",
+      "per_column_anchoring": "text, blank, duplicate and unique conditions emit one Excel rule per named column, each anchored to its own range (and duplicates are per-column domains by design)"
+    },
+    "deduplicate_data": {
+      "description": "Collapse rows to one per key, keeping all columns, reporting value conflicts",
+      "keep_options": [
+        "first",
+        "last"
+      ],
+      "conflict_outputs": [
+        "per-key warning log with disputed columns and values",
+        "optional stage of conflicted rows (kept and discarded, annotated)",
+        "optional report file, written only when conflicts exist"
+      ],
+      "column_handling": "all columns kept - nothing to enumerate, nothing to silently lose",
+      "empty_input": "empty output, not an error"
+    },
+    "profile_files": {
+      "description": "Per-file metadata discovery (e.g., modification times, sizes)",
+      "file_columns": [
+        "File",
+        "Modified",
+        "Size (KB)"
+      ],
+      "missing_file_handling": [
+        "error",
+        "note",
+        "skip"
+      ],
+      "preserves_listed_order": true
+    },
+    "profile_named_objects": {
+      "description": "Per-name workbook object discovery (ranges, lambdas, formulas, tables)",
+      "profile_columns": [
+        "Workbook",
+        "Name",
+        "Object_Type",
+        "Scope",
+        "Hidden",
+        "Definition",
+        "Human_Definition",
+        "Parameters"
+      ],
+      "shares_helpers_with": "manage_named_objects (named_objects_extraction)",
+      "anchor_consumer": "name-drift alarm: diff_data on profiles of consecutive run outputs"
+    },
+    "profile_sheets": {
+      "description": "Per-column sheet metadata discovery (e.g., widths, dtypes, blanks, distincts)",
+      "profile_columns": [
+        "Source",
+        "Column",
+        "Position",
+        "Width",
+        "Dtype",
+        "Blank_Count",
+        "Distinct_Count",
+        "Row_Count"
+      ],
+      "input_kinds": [
+        "source_stage",
+        "input_file (+ sheet_name)"
+      ],
+      "width_math": "shared with format_excel auto-fit (column_width_scan helper)",
+      "consumers": [
+        "format_excel column_widths_from_stage"
+      ]
+    },
+    "profile_workbooks": {
+      "description": "Per-sheet workbook metadata discovery (state, color, extents, counts)",
+      "profile_columns": [
+        "Workbook",
+        "Sheet",
+        "Position",
+        "State",
+        "Tab_Color",
+        "Max_Row",
+        "Max_Col",
+        "Frozen_Panes",
+        "Zoom_Percent",
+        "DV_Count",
+        "Named_Object_Count",
+        "Has_VBA"
+      ],
+      "named_objects": "COUNT only - the catalog is Name-keyed and belongs to the planned profile_named_objects",
+      "anchor_consumer": "drift alarm: diff_data on profiles of consecutive run outputs"
+    },
+    "verify_excel_storage": {
+      "description": "Audit workbooks' stored formula grammar and dynamic-array declarations",
+      "checks": [
+        "stored grammar (prefixes, declarations, forbidden forms)",
+        "legacy CSE (t=\"array\" without cm)"
+      ],
+      "session_aware": "in-flight workbooks audit their WILL-BE-WRITTEN bytes via an in-memory serialize",
+      "on_violation": [
+        "halt (default)",
+        "warn"
+      ]
+    },
+    "strip_formula_caches": {
+      "description": "strip_formula_caches step processor",
+      "note": "this processor has not published detailed capabilities"
+    },
+    "free_stages": {
+      "description": "Delete named stages mid-run to reclaim memory once their consumers have run",
+      "safety": [
+        "protected stages refuse deletion",
+        "a missing stage halts by default (on_missing: skip to tolerate)",
+        "a stage a later step needs fails loudly at that step, naming it",
+        "never conflicts with --dump-stage: dumps write at save time"
+      ],
+      "reporting": "logs stage count and approximate MB returned"
+    },
+    "verify_columns": {
+      "description": "Verify a stage's columns against an expected list, announcing drift",
+      "directions": {
+        "missing expected column": "on_missing_expected: error (default) / warn",
+        "new unexpected column": "on_unexpected: warn (default) / error"
+      },
+      "order_checking": "deliberately none - downstream steps address columns by name",
+      "memory": "reads the stage without re-saving it"
+    },
+    "verify_data": {
+      "description": "Check row values against expectations - warn (default) or halt per rule",
+      "vocabulary": "the full filter_data condition set, borrowed live from filter_data itself so the two can never drift: not_empty, equals, in_list, in_stage (referential checks against a lookup stage), and the rest",
+      "severity": "per rule: warn (default) logs count + sample and continues; halt raises naming the rule and sample",
+      "sources": "source_stage (mid-pipeline values) or a file sheet; a session-held file is read live, pre-save",
+      "formula_caveat": "formula cells in files this framework wrote have no cached values, so file-mode rules on injected formula columns see blanks - verify formula INPUTS in stages instead",
+      "run_summary": "every rule outcome lands in the run-end verification summary line"
+    },
+    "flush_workbooks": {
+      "description": "Write every session-held workbook to disk now, instead of at run end",
+      "when_to_use": "an external tool or risky operation needs the file on disk mid-run",
+      "after_effects": "the session empties; later file operations reload from disk"
+    },
+    "copy_stage": {
+      "description": "Copy a stage to another named stage",
+      "keys": "source_stage in, save_to_stage out - the standard data-flow pair; plus optional description and overwrite",
+      "stage_features": [
+        "data_preservation",
+        "overwrite_protection",
+        "metadata_tracking",
+        "usage_monitoring",
+        "memory_tracking",
+        "stage_limits"
+      ],
+      "examples": {
+        "backup": "Copy original data before processing",
+        "checkpoint": "Copy intermediate results for later analysis",
+        "branching": "Copy data before trying different processing paths"
       }
     },
     "create_stage": {
@@ -259,15 +515,17 @@
       }
     },
     "debug_breakpoint": {
-      "description": "Stop recipe execution and save current data state for debugging",
+      "description": "Export data for debugging and stop recipe execution",
       "features": [
         "automatic_timestamping",
         "custom_output_paths",
         "data_preview",
         "execution_stopping",
-        "troubleshooting_support"
+        "troubleshooting_support",
+        "stage_based_loading"
       ],
       "options": [
+        "source_stage",
         "output_path",
         "filename_prefix",
         "include_timestamp",
@@ -276,13 +534,143 @@
         "sample_rows"
       ],
       "examples": {
-        "simple": "Stop execution and save data with timestamp",
+        "simple": "Stop execution and save stage data with timestamp",
         "custom": "Save to specific location with custom message",
         "testing": "Check intermediate results during recipe development"
       }
     },
+    "declare_dynamic_formulas": {
+      "description": "Declare dynamic-era formulas in a finished xlsx to retire the implicit @",
+      "when_to_use": "repairing a file already on disk (an inherited donor, a flushed output); for recipe outputs prefer the settings key declare_dynamic_formulas: true",
+      "safety": "only formulas containing post-dynamic-array functions are marked by default, so legacy implicit-intersection semantics cannot be changed; extend with extra_functions only for files whose formulas are known recipe-authored",
+      "relation_to_injection": "cells written by inject_formulas need neither this processor nor extra_functions: the session registers them by provenance and the at-save pass (settings declare_dynamic_formulas: true) declares them automatically, whatever functions they use"
+    },
+    "diff_data": {
+      "description": "Compare two datasets and identify new, changed, unchanged, and deleted rows",
+      "category": "Data Analysis",
+      "stage_to_stage": true,
+      "comparison_features": [
+        "Single or multiple key columns",
+        "Row-level change detection",
+        "Field-level change tracking",
+        "Metadata column generation",
+        "Configurable column exclusions"
+      ],
+      "output_options": [
+        "Combined results with metadata",
+        "Separate filtered stages by change type",
+        "Human-readable change details",
+        "Machine-readable JSON format"
+      ],
+      "key_columns_support": {
+        "single_column": "customer_id",
+        "multiple_columns": [
+          "region",
+          "product_code"
+        ],
+        "composite_key": "pre_built_composite_key"
+      },
+      "metadata_columns_added": [
+        "Row_Status (NEW/CHANGED/UNCHANGED/DELETED)",
+        "Changed_Fields (comma-separated list)",
+        "Change_Count (integer)",
+        "Change_Details (human-readable)",
+        "Change_Details_JSON (optional machine-readable)"
+      ],
+      "filtered_stages": {
+        "new_rows": "{prefix}_new_rows_subset",
+        "changed_rows": "{prefix}_changed_rows_subset",
+        "unchanged_rows": "{prefix}_unchanged_rows_subset",
+        "deleted_rows": "{prefix}_deleted_rows_subset"
+      },
+      "deleted_row_handling": [
+        "include",
+        "exclude",
+        "separate_stage"
+      ],
+      "use_cases": [
+        "Database change tracking between time periods",
+        "Inventory variance analysis",
+        "Customer data updates monitoring",
+        "Configuration drift detection",
+        "Data quality auditing"
+      ],
+      "configuration_options": {
+        "required": [
+          "reference_stage",
+          "key_columns",
+          "source_stage",
+          "save_to_stage"
+        ],
+        "optional": [
+          "exclude_columns",
+          "create_filtered_stages",
+          "include_json_details",
+          "handle_deleted_rows"
+        ]
+      }
+    },
+    "excel_data_validation": {
+      "description": "Native Excel data-validation rules: dropdowns, bounds, formula gates, prompts",
+      "validation_types": [
+        "custom",
+        "date",
+        "decimal",
+        "list",
+        "text_length",
+        "time",
+        "whole_number"
+      ],
+      "list_sources": "exactly one of values_list (inline), list_from_named_range (pairs with lookup tabs and manage_named_objects), or list_from_spill_ref (\"$Z$2#\" anchors)",
+      "bounds_vocabulary": "operator + minimum/maximum for between/not_between; operator + compare_to for the six comparisons; bounds accept numbers, \"=formulas\", ISO dates, and clock times (auto-converted to DATE()/TIME())",
+      "targeting": "apply_to_ranges is ALWAYS a list of A1 cells/ranges; one rule may cover several areas (multi-area sqref)",
+      "behaviors": "allow_blank (default true), show_dropdown (list only, default true), input_prompt {title, message}, error_alert {style: stop/warning/information, title, message}",
+      "enforcement_scope": "fires on MANUAL entry only - paste, fill-down and formulas bypass Excel data validation; use verify_data for pipeline integrity",
+      "session": "file operation on the workbook session, like conditional_format - run after export, before flush"
+    },
+    "export_file": {
+      "description": "Export stages to Excel or CSV multi-sheet workbooks, backing up replaced files",
+      "file_formats": [
+        "xlsx",
+        "csv",
+        "tsv"
+      ],
+      "excel_options": [
+        "multi-sheet export from named stages",
+        "sheet naming",
+        "active sheet selection",
+        "template-based export"
+      ],
+      "safety": [
+        "timestamped backup of an existing output file, extension preserved",
+        "create_backup: false to disable; delete_backups_beyond keeps the newest N and deletes older"
+      ]
+    },
+    "export_filter_step": {
+      "description": "Generate copy-paste ready filter_data steps from reviewed filter terms",
+      "export_formats": [
+        "yaml",
+        "json"
+      ],
+      "export_features": [
+        "full_recipe_generation",
+        "step_only_generation",
+        "proper_column_quoting",
+        "categorical_and_text_filters",
+        "copy_paste_ready_output"
+      ],
+      "stage_integration": [
+        "reads_reviewed_filter_terms",
+        "no_stage_output_required"
+      ],
+      "examples": [
+        "Generate YAML recipe from Excel-reviewed terms",
+        "Create JSON filter step for programmatic use",
+        "Export step-only format for insertion into existing recipes"
+      ]
+    },
     "fill_data": {
-      "description": "Fill missing/null values using various strategies similar to Excel fill operations",
+      "description": "Fill missing values using Excel-like fill strategies",
       "fill_methods": [
         "constant",
         "forward_fill",
@@ -338,12 +726,16 @@
       }
     },
     "filter_data": {
-      "description": "Filter DataFrame rows based on specified conditions including stage-based comparisons",
+      "description": "Filter rows by conditions, including stage-based comparisons",
       "supported_conditions": [
         "equals",
         "not_equals",
         "contains",
         "not_contains",
+        "starts_with",
+        "ends_with",
+        "not_starts_with",
+        "not_ends_with",
         "greater_than",
         "less_than",
         "greater_equal",
@@ -352,6 +744,19 @@
         "is_empty",
         "in_list",
         "not_in_list",
+        "contains_any_in_list",
+        "not_contains_any_in_list",
+        "contains_all_in_list",
+        "starts_with_any_in_list",
+        "ends_with_any_in_list",
+        "greater_than_min_in_list",
+        "greater_than_max_in_list",
+        "less_than_min_in_list",
+        "less_than_max_in_list",
+        "greater_equal_min_in_list",
+        "greater_equal_max_in_list",
+        "less_equal_min_in_list",
+        "less_equal_max_in_list",
         "in_stage",
         "not_in_stage",
         "stage_comparison"
@@ -406,8 +811,188 @@
         "comparison_operator": "Operator for stage value comparisons"
       }
     },
+    "filter_terms_detector": {
+      "description": "Detect candidate filter terms by n-gram comparison of raw vs filtered data",
+      "category": "Data Analysis",
+      "stage_to_stage": true,
+      "analysis_features": [
+        "N-gram analysis (1-6 word phrases)",
+        "Categorical value comparison",
+        "Statistical frequency analysis",
+        "Configurable scoring thresholds",
+        "Custom stop word filtering"
+      ],
+      "output_structure": [
+        "Ranked filter term candidates",
+        "Confidence scores and frequency data",
+        "Analysis method metadata",
+        "Summary statistics"
+      ],
+      "column_types_supported": {
+        "text_columns": "Long text fields (notes, descriptions)",
+        "categorical_columns": "Discrete value fields (status, category)"
+      },
+      "parameters": {
+        "ngram_range": "Tuple defining n-gram size range (default: (1,4))",
+        "min_frequency": "Minimum occurrences to consider term (default: 2)",
+        "max_features": "Maximum n-grams to analyze (default: 10000)",
+        "score_threshold": "Minimum score for inclusion (default: 0.1)",
+        "custom_stop_words": "Additional words to ignore"
+      },
+      "use_cases": [
+        "Reverse-engineer manual filtering rules",
+        "Automate report generation workflows",
+        "Identify data quality patterns",
+        "Document implicit business logic",
+        "Create reusable filter configurations"
+      ],
+      "configuration_options": {
+        "required": [
+          "raw_stage",
+          "filtered_stage",
+          "text_columns"
+        ],
+        "optional": [
+          "categorical_columns",
+          "ngram_range",
+          "min_frequency",
+          "max_features",
+          "score_threshold",
+          "custom_stop_words"
+        ]
+      }
+    },
+    "format_excel": {
+      "description": "Format existing Excel files with professional presentation features",
+      "formatting_features": [
+        "auto_fit_columns",
+        "header_formatting",
+        "general_formatting",
+        "cell_range_targeting",
+        "freeze_panes",
+        "auto_filter",
+        "row_sizing",
+        "advanced_colors",
+        "border_formatting",
+        "template_support"
+      ],
+      "formatting_categories": [
+        "column_sizing",
+        "enhanced_header_styling",
+        "general_cell_formatting",
+        "cell_range_targeting",
+        "advanced_color_support",
+        "border_formatting",
+        "pane_freezing",
+        "row_sizing",
+        "data_filtering",
+        "sheet_activation"
+      ],
+      "template_support": true,
+      "file_requirements": [
+        "xlsx",
+        "xls"
+      ],
+      "dependencies": [
+        "openpyxl"
+      ],
+      "optional_dependencies": [
+        "webcolors"
+      ],
+      "phase_1_enhancements": [
+        "header_text_color",
+        "header_font_size"
+      ],
+      "phase_2_enhancements": [
+        "general_text_color",
+        "general_font_size",
+        "general_font_name",
+        "general_alignment_horizontal",
+        "general_alignment_vertical"
+      ],
+      "phase_3_enhancements": [
+        "cell_ranges",
+        "webcolors_integration",
+        "border_formatting",
+        "css_color_names",
+        "rgb_color_support"
+      ],
+      "worksheet_level_features": [
+        "freeze_top_row",
+        "auto_filter",
+        "tab_color"
+      ],
+      "tab_color": "per-sheet tab_color option colors the sheet tab; accepts the same vocabulary as every other color option (hex with or without #, CSS names, rgb())",
+      "template_enhancements": [
+        "reusable_templates",
+        "template_composition",
+        "template_override"
+      ],
+      "color_formats_supported": [
+        "hex_with_hash (#FF0000)",
+        "hex_without_hash (FF0000)",
+        "short_hex (#F00)",
+        "css_color_names (red, blue, forestgreen)",
+        "rgb_format (rgb(255, 0, 0))"
+      ],
+      "examples": {
+        "auto_fit": "Automatically size columns to fit content",
+        "enhanced_headers": "Bold headers with custom text color and font size",
+        "general_formatting": "Apply font and alignment to all data cells",
+        "cell_range_targeting": "Format specific ranges with custom styles",
+        "css_colors": "Use CSS color names like 'red', 'forestgreen', 'navy'",
+        "rgb_colors": "Use RGB format like 'rgb(255, 0, 0)' for red",
+        "borders": "Add professional borders to specific cell ranges",
+        "dark_theme_fix": "White text on dark backgrounds for readability",
+        "freeze_panes": "Freeze top row for easier navigation",
+        "professional": "Apply comprehensive formatting for business reports",
+        "templates": "Create reusable formatting templates to reduce configuration redundancy"
+      }
+    },
+    "generate_column_config": {
+      "description": "Generate YAML column configuration by comparing source and template files",
+      "operation_type": "file_analysis",
+      "file_formats": [
+        "csv",
+        "xlsx",
+        "xls",
+        "xlsm"
+      ],
+      "analysis_features": [
+        "header_comparison",
+        "fuzzy_column_matching",
+        "empty_column_detection",
+        "text_format_preservation",
+        "rename_mapping_generation"
+      ],
+      "optimization_features": [
+        "fast_excel_sampling",
+        "smart_column_trimming",
+        "configurable_similarity_threshold"
+      ],
+      "output_formats": [
+        "yaml"
+      ],
+      "special_capabilities": [
+        "preserves_date_headers",
+        "avoids_pandas_autoconversion",
+        "handles_empty_columns",
+        "generates_example_recipes"
+      ],
+      "dependencies": [
+        "pandas",
+        "openpyxl",
+        "yaml"
+      ],
+      "stage_requirements": "none",
+      "examples": {
+        "basic_comparison": "Compare source.xlsx with template.csv to generate column mapping",
+        "fuzzy_matching": "Find similar column names using configurable similarity threshold",
+        "empty_detection": "Identify columns with headers but no data (ghost columns)"
+      }
+    },
     "group_data": {
-      "description": "Group individual values into categories using various source types and advanced workflows",
+      "description": "Group values into categories from various source types and workflows",
       "source_types": [
         "inline",
         "stage",
@@ -485,105 +1070,207 @@
         "unmatched_action": "How to handle unmatched values",
         "unmatched_value": "Default value for unmatched items",
         "case_sensitive": "Whether matching is case sensitive",
-        "save_to_stage": "Save grouping results to stage",
-        "stage_description": "Description for saved stage"
+        "save_to_stage": "Save grouping results to stage"
       }
     },
-    "load_stage": {
-      "description": "Load previously saved stage data, replacing current DataFrame",
-      "stage_features": [
-        "stage_retrieval",
-        "usage_tracking",
-        "data_replacement",
-        "confirm_replace_safety",
-        "stage_validation"
+    "import_file": {
+      "description": "Import Excel, CSV, or TSV files into stages, with sheet selection",
+      "fast_excel_reader": "when the optional python-calamine wheel is installed, Excel imports use it automatically (several times faster on large files, values identical); without it the openpyxl path serves unchanged - no configuration",
+      "file_formats": [
+        "xlsx",
+        "xls",
+        "xlsm",
+        "xlsb",
+        "csv",
+        "tsv",
+        "txt (as tsv)"
       ],
-      "safety_features": [
-        "confirm_replace_required",
-        "stage_existence_validation",
-        "data_copying"
+      "excel_options": [
+        "sheet selection by name or index"
       ],
-      "examples": {
-        "restore_backup": "Return to original data after processing",
-        "branch_switching": "Switch to different processing branch",
-        "comparison": "Load reference data for comparison"
-      }
+      "path_features": [
+        "recipe variable substitution"
+      ]
+    },
+    "inject_formulas": {
+      "description": "Inject live or dead formulas with name-addressed cells and fill-down",
+      "operation_type": "formula_injection",
+      "supported_modes": [
+        "live",
+        "dead",
+        "awaken"
+      ],
+      "targeting_options": [
+        "single_cell",
+        "cell_range",
+        "auto_scan"
+      ],
+      "column_placeholders": "{col:Header Name} in cell refs and formulas resolves to the column letter from the header row at injection time, so upstream column insertions cannot silently repoint a formula",
+      "fill_down": "fill_down: true fills a formula from its origin cell to the last data row, translating relative references per row the way Excel's own fill handle does",
+      "function_name_translation": "modern function names (XLOOKUP, IFS, FILTER, ...) are stored with the _xlfn. prefixes Excel requires internally, and display without them",
+      "dynamic_array_declaration": "live-mode cells register with the workbook session as recipe-authored; with settings declare_dynamic_formulas: true they are declared dynamic-array-aware at save and open without the implicit-intersection @ (any function, by provenance)",
+      "array_formula_caveat": "array_formula: true stores a legacy CSE array formula ({braces}); use it only for formulas that genuinely are array formulas - it is NOT the fix for the @ display",
+      "sheet_support": [
+        "single_sheet",
+        "multiple_sheets",
+        "all_sheets"
+      ],
+      "file_requirements": [
+        "xlsx",
+        "xlsm"
+      ],
+      "dependencies": [
+        "openpyxl"
+      ],
+      "stage_requirements": "none"
     },
     "lookup_data": {
-      "description": "Lookup and enrich data from multiple source types with advanced join operations",
+      "description": "Stage-to-stage lookups with smart key normalization and detailed logging",
+      "data_sources": [
+        "stages"
+      ],
       "join_types": [
         "left",
         "right",
         "inner",
         "outer"
       ],
-      "duplicate_handling": [
-        "first",
-        "last",
-        "error"
-      ],
-      "source_types": [
-        "file",
-        "stage",
-        "inline",
-        "dataframe"
-      ],
-      "lookup_features": [
-        "vlookup_style_joins",
-        "index_match_operations",
-        "multi_column_lookups",
-        "case_insensitive_matching",
+      "key_features": [
+        "type_and_format_normalization",
+        "whitespace_handling",
+        "numeric_format_cleanup",
+        "prefix_suffix_naming",
+        "per_column_default_values",
         "duplicate_handling",
-        "default_values",
-        "column_prefixes_suffixes",
-        "fuzzy_matching_planned"
+        "detailed_match_statistics",
+        "clean_error_messages"
       ],
-      "data_sources": [
-        "excel_files",
-        "csv_files",
-        "tsv_files",
-        "saved_stages",
-        "inline_dictionaries",
-        "pandas_dataframes"
+      "normalization_features": [
+        "handles_numeric_to_string_conversion",
+        "removes_trailing_zeros",
+        "strips_whitespace",
+        "handles_null_values"
       ],
-      "file_features": [
-        "variable_substitution",
-        "automatic_format_detection",
-        "custom_sheet_selection",
-        "encoding_support"
+      "logging_features": [
+        "per_column_match_statistics",
+        "success_rate_analysis",
+        "low_match_rate_warnings",
+        "default_value_tracking"
       ],
-      "stage_integration": [
-        "dynamic_reference_data",
-        "stage_based_lookups",
-        "multi_stage_workflows",
-        "cached_lookup_tables"
+      "configuration_options": {
+        "lookup_stage": "Stage name containing lookup data",
+        "match_col_in_lookup_data": "Key column in lookup data",
+        "match_col_in_main_data": "Key column in main data",
+        "lookup_columns": "List of columns to retrieve from lookup data",
+        "join_type": "Type of join (default: left)",
+        "prefix": "Prefix for lookup column names",
+        "suffix": "Suffix for lookup column names",
+        "default_values": "Dict of per-column default values for missing lookups",
+        "normalize_keys": "Enable smart key normalization (default: true)",
+        "handle_duplicates": "How to handle duplicate lookup keys (first/last/error)"
+      }
+    },
+    "manage_named_objects": {
+      "description": "Manage Excel named ranges, formulas, lambda functions, and tables",
+      "operations": [
+        "export_all",
+        "export_filtered",
+        "import_all",
+        "import_filtered",
+        "list_objects",
+        "validate_yaml",
+        "copy_direct",
+        "create_from_columns"
       ],
-      "advanced_operations": [
-        "chained_lookups",
-        "conditional_lookups",
-        "cross_reference_validation",
-        "lookup_quality_analysis",
-        "performance_optimization"
+      "read_operations": [
+        "export_all",
+        "export_filtered",
+        "list_objects",
+        "validate_yaml"
+      ],
+      "write_operations": [
+        "import_all",
+        "import_filtered",
+        "copy_direct",
+        "create_from_columns"
+      ],
+      "supported_object_types": [
+        "range",
+        "constant",
+        "formula",
+        "lambda",
+        "table"
+      ],
+      "scope_options": [
+        "global",
+        "local"
+      ],
+      "export_formats": [
+        "yaml",
+        "vba_compatible"
+      ],
+      "dual_export_support": true,
+      "write_features": [
+        "column_name_addressing",
+        "automatic_extent_detection",
+        "defined_name_validation",
+        "existing_name_policies",
+        "global_and_sheet_scope",
+        "lambda_round_trip"
+      ],
+      "existing_name_policies": [
+        "error",
+        "replace",
+        "skip"
+      ],
+      "name_validation_levels": [
+        "none",
+        "excel",
+        "house"
+      ],
+      "write_limitations": [
+        "tables are not created; they require a matching data region"
+      ],
+      "lambda_features": [
+        "parameter_extraction",
+        "excel_format_translation",
+        "human_readable_conversion",
+        "syntax_validation"
+      ],
+      "table_features": [
+        "structure_preservation",
+        "column_definitions",
+        "style_information",
+        "filter_state"
+      ],
+      "filtering_options": [
+        "name_patterns",
+        "object_types",
+        "scope_filtering",
+        "sheet_filtering",
+        "include_exclude_patterns"
+      ],
+      "vba_integration": [
+        "simple_text_format",
+        "pipe_delimited_fields",
+        "section_based_organization",
+        "vba_importable"
+      ],
+      "file_requirements": [
+        "xlsx",
+        "xlsm"
+      ],
+      "dependencies": [
+        "openpyxl",
+        "pyyaml"
       ],
       "examples": {
-        "file_lookup": "Lookup customer data from customers.xlsx file",
-        "stage_lookup": "Lookup from dynamically updated stage data",
-        "variable_substitution": "Lookup from customer_data_{date}.xlsx with date substitution",
-        "multi_column": "Lookup using combination of customer_id and region",
-        "case_insensitive": "Fuzzy matching for customer names and codes",
-        "chained_lookups": "First lookup customer tier, then lookup tier benefits"
-      },
-      "configuration_options": {
-        "lookup_source": "Source configuration (file, stage, inline data)",
-        "lookup_key": "Key column in lookup data",
-        "source_key": "Key column in main data",
-        "lookup_columns": "List of columns to retrieve from lookup data",
-        "join_type": "Type of join operation (left, right, inner, outer)",
-        "handle_duplicates": "How to handle duplicate keys (first, last, error)",
-        "case_sensitive": "Whether matching should be case sensitive",
-        "prefix": "Prefix to add to lookup column names",
-        "suffix": "Suffix to add to lookup column names",
-        "default_value": "Default value for missing lookups"
+        "export_yaml": "Export all named objects to human-readable YAML file",
+        "export_vba": "Export to VBA-compatible pipe-delimited text format",
+        "dual_export": "Export to both YAML and VBA formats simultaneously",
+        "lambda_translation": "Convert Excel LAMBDA functions to human-readable format",
+        "table_extraction": "Extract complete table definitions with properties",
+        "vba_workflow": "Enable Excel VBA import/export of named objects"
       }
     },
     "merge_data": {
@@ -719,25 +1406,132 @@
         "mapping": "Rename specific columns to business-friendly names"
       }
     },
-    "copy_stage": {
-      "description": "Save current DataFrame as a named stage for later use",
-      "stage_features": [
-        "data_preservation",
-        "overwrite_protection",
-        "metadata_tracking",
-        "usage_monitoring",
-        "memory_tracking",
-        "stage_limits"
+    "rows_to_columns": {
+      "description": "Promote a column's values into headers: long to wide, silent aggregation refused",
+      "losslessness": "each (id, label) pair must map to at most one value; duplicates halt naming the offending pairs, because pivot_table would silently aggregate them and this processor exists to refuse that",
+      "inverse": "columns_to_rows produces this processor's input shape; the round trip restores the original table",
+      "column_order": "new columns appear in first-appearance order of the labels (months stay in arrival order, not alphabetized)",
+      "options": [
+        "id_columns (default: all other columns; explicit lists must claim everything or the step halts)",
+        "fill_missing_with (default: blank cells for absent combinations)"
+      ]
+    },
+    "seed_donor_formulas": {
+      "description": "Transplant formulas from donor Excel files to seed calculation columns",
+      "operation_type": "file_operations",
+      "column_matching": [
+        "excel_column_references",
+        "column_name_matching",
+        "mixed_column_types",
+        "auto_type_detection"
       ],
-      "safety_features": [
-        "overwrite_validation",
-        "stage_name_validation",
-        "data_copying"
+      "force_column_names": "force_column_names: true treats every configured column as a header NAME, resolved against each file's own header row - donor and recipient may have the column at different letters, and column insertions cannot repoint the transplant",
+      "formula_handling": [
+        "verbatim_copying",
+        "live_formula_creation",
+        "empty_cell_detection",
+        "collision_prevention"
+      ],
+      "file_requirements": [
+        "source_file_must_exist",
+        "target_file_must_exist",
+        "sheet_validation",
+        "openpyxl_dependency"
+      ],
+      "performance_features": [
+        "row_count_limiting",
+        "efficient_cell_access",
+        "resource_cleanup"
+      ],
+      "integration_features": [
+        "fileops_inheritance",
+        "stage_bypass",
+        "workflow_integration",
+        "error_handling"
+      ],
+      "supported_formats": [
+        "xlsx"
+      ],
+      "max_rows_per_operation": 10,
+      "examples": {
+        "template_seeding": "Copy calculation formulas from budget template to new budget files",
+        "model_deployment": "Deploy formula logic across multiple similar Excel files",
+        "starter_cultures": "Seed empty formula columns with working calculation examples"
+      }
+    },
+    "select_columns": {
+      "description": "Select and reorder DataFrame columns with flexible inclusion/exclusion patterns",
+      "selection_modes": [
+        "inclusion",
+        "exclusion"
+      ],
+      "column_operations": [
+        "column_selection",
+        "column_reordering",
+        "column_duplication",
+        "inclusion_filtering",
+        "exclusion_filtering",
+        "missing_column_handling"
+      ],
+      "configuration_options": {
+        "columns_to_keep": "List of columns to select by name (string) or position (1-based integer)",
+        "columns_to_drop": "List of columns to exclude from result",
+        "columns_to_create": "List of columns to create if missing (used with columns_to_keep)",
+        "allow_duplicates": "Allow same column to appear multiple times (default: true)",
+        "strict_mode": "Fail on missing columns vs skip them (default: true)",
+        "default_value": "Default value for created columns (default: pd.NA)"
+      },
+      "helper_methods": [
+        "get_column_info",
+        "suggest_common_columns"
+      ],
+      "features": [
+        "automatic_reordering",
+        "duplicate_column_support",
+        "missing_column_handling",
+        "column_type_analysis",
+        "smart_column_suggestions",
+        "dynamic_column_creation",
+        "numeric_position_references",
+        "1_based_indexing"
       ],
       "examples": {
-        "backup": "Save original data before processing",
-        "checkpoint": "Save intermediate results for later analysis",
-        "branching": "Save data before trying different processing paths"
+        "basic_selection": "Keep only Customer_ID, Product_Name, Price columns",
+        "reordering": "Reorder columns by specifying them in desired sequence",
+        "duplication": "Duplicate columns by listing them multiple times",
+        "exclusion": "Drop unwanted columns while keeping everything else",
+        "column_creation": "Create new empty columns alongside existing ones",
+        "numeric_references": "Select columns by position: [1, 3, 5] (1-based indexing)"
+      }
+    },
+    "slice_data": {
+      "description": "Extract portions of DataFrames with flexible slicing options",
+      "supported_slice_types": [
+        "row_range",
+        "column_range",
+        "transpose"
+      ],
+      "indexing": "1-based for user configuration (converted internally)",
+      "slice_operations": [
+        "row_range_extraction",
+        "column_range_extraction",
+        "header_promotion",
+        "headers_aware_transpose"
+      ],
+      "transpose": "slice_type: transpose turns the label column's values into the header row and the old headers into a new first column (Excel Paste Special > Transpose semantics); fails loud on duplicate or blank labels",
+      "configuration_options": {
+        "slice_type": "Type of slice operation to perform",
+        "start_row": "1-based starting row number (inclusive)",
+        "end_row": "1-based ending row number (inclusive, optional)",
+        "start_col": "Starting column (name, Excel ref, or 1-based number)",
+        "end_col": "Ending column (name, Excel ref, or 1-based number, optional)",
+        "slice_result_contains_headers": "Whether first row of slice contains headers (default: false)",
+        "source_stage": "Stage name to load data from (instead of input data)"
+      },
+      "examples": {
+        "extract_metadata": "Extract rows 1-3 from Excel file",
+        "extract_data_section": "Extract rows 5-end with header promotion",
+        "extract_columns": "Extract columns A-D or Product-Price"
       }
     },
     "sort_data": {

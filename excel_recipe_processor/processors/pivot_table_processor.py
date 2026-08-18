@@ -1,6 +1,8 @@
 """
 Pivot table step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/pivot_table_processor.py
+
 Handles creating pivot tables with various configurations and aggregation functions.
 """
 
@@ -59,7 +61,15 @@ class PivotTableProcessor(BaseStepProcessor):
         aggfunc = self.get_config_value('aggfunc', 'sum')
         fill_value = self.get_config_value('fill_value', 0)
         margins = self.get_config_value('margins', False)
-        dropna = self.get_config_value('dropna', True)
+        # Default flipped to False (2026-08-17 doctrine, see
+        # dev_notes/NOTES_2026-08-17_blank_key_group_loss.md): with
+        # True, pandas silently DELETES rows whose index keys are NaN
+        # (verified on pandas 3: 4 rows summing 10 pivot to 1 row
+        # summing 3). Blank keys are real groups. The key stays
+        # configurable for the rare recipe that WANTS the pruning -
+        # which is then a visible, per-step choice, not a silent
+        # default.
+        dropna = self.get_config_value('dropna', False)
         
         # Validate configuration
         self._validate_pivot_config(data, index, columns, values, aggfunc)
@@ -240,7 +250,8 @@ class PivotTableProcessor(BaseStepProcessor):
             Summary pivot table
         """
         try:
-            summary = data.groupby(row_field)[value_field].agg(aggfunc).reset_index()
+            # dropna=False is doctrine (2026-08-17, see dev_notes/NOTES_2026-08-17_blank_key_group_loss.md): pandas' default silently DELETES NaN-keyed rows.
+            summary = data.groupby(row_field, dropna=False)[value_field].agg(aggfunc).reset_index()
             summary.columns = [row_field, f'{value_field}_{aggfunc}']
             return summary
         except Exception as e:
@@ -264,13 +275,16 @@ class PivotTableProcessor(BaseStepProcessor):
         try:
             if value_field:
                 # Pivot with values
+                # dropna=False per the 2026-08-17 doctrine: NaN keys
+                # are real groups, never silently deleted
                 crosstab = pd.pivot_table(
                     data, 
                     index=row_field, 
                     columns=col_field, 
                     values=value_field,
                     aggfunc=aggfunc, 
-                    fill_value=0
+                    fill_value=0,
+                    dropna=False
                 )
             else:
                 # Simple count cross-tab
@@ -343,3 +357,5 @@ class PivotTableProcessor(BaseStepProcessor):
         """Get complete usage examples for the pivot_table processor."""
         from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
         return load_processor_examples('pivot_table')
+
+# End of file #

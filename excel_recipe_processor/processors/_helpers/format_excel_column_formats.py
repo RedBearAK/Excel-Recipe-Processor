@@ -19,6 +19,7 @@ import logging
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter, column_index_from_string
 
+from excel_recipe_processor.processors._helpers.range_patterns import cell_ref_rgx, range_ref_rgx
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
     resolve_column_letters, find_last_data_row, ExcelRangeResolverError
 )
@@ -114,6 +115,19 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
     is what makes it possible to mark a subset of columns - the ten this recipe
     inserts, for instance - without touching the rest.
 
+    A rule may instead set whole_column: true, which applies number_format,
+    font and alignment at the COLUMN-DIMENSION level (a col-level style in
+    the file) rather than per cell. That is the correct mechanism for
+    columns whose values arrive at Excel calculation time - dynamic-array
+    spills - because those cells do not exist in the file when formats are
+    written, so per-cell formatting up to the current data extent cannot
+    reach them, while a column style is inherited by every cell Excel
+    creates. Header-cell styling stays per-cell either way (an explicit
+    cell style overrides the column style, keeping the header clean).
+    NOTE: openpyxl serializes a col-level style with a width attribute; a
+    whole_column rule without an explicit 'width' therefore leaves the
+    column at openpyxl's default 13 - pair whole_column with width.
+
     Args:
         worksheet:          openpyxl worksheet object
         rules:              List of rule dictionaries
@@ -141,7 +155,10 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
     except ExcelRangeResolverError as error:
         raise ColumnFormatError(f"Could not determine data extent: {error}")
 
-    if last_row <= header_row:
+    sheet_has_data = last_row > header_row
+    if not sheet_has_data and not any(
+            isinstance(rule, dict) and rule.get('whole_column')
+            for rule in rules):
         logger.warning(f"[{worksheet.title}] No data rows below header, skipping column formats")
         return applied
 
@@ -163,13 +180,29 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         font_color = rule.get('font_color')
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
+        font_size = rule.get('font_size')
         header_font_color = rule.get('header_font_color')
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
         width = rule.get('width')
+        whole_column = rule.get('whole_column', False)
+
+        if not isinstance(whole_column, bool):
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'whole_column' must be "
+                f"true or false, got {whole_column!r}"
+            )
+
+        if not whole_column and not sheet_has_data:
+            logger.warning(
+                f"[{worksheet.title}] column_formats rule {index + 1} "
+                f"skipped: no data rows below the header (whole_column "
+                f"rules still apply on empty sheets)"
+            )
+            continue
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
-                      font_bold, font_italic, header_font_color,
+                      font_bold, font_italic, font_size, header_font_color,
                       header_background_color, header_bold, width)
 
         if all(value is None for value in actionable):
@@ -212,12 +245,41 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         head_fill = (color_normalizer(header_background_color)
                      if header_background_color is not None else None)
 
-        touches_data_font = data_color is not None or font_bold is not None or font_italic is not None
+        if font_size is not None and (
+                not isinstance(font_size, (int, float)) or font_size <= 0):
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'font_size' must be a "
+                f"positive number, got {font_size!r}"
+            )
+
+        touches_data_font = (data_color is not None or font_bold is not None
+                             or font_italic is not None or font_size is not None)
         touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
         touches_header = head_color is not None or head_fill is not None or header_bold is not None
 
         for letter in letters:
             col_index = column_index_from_string(letter)
+
+            if whole_column:
+                dimension = worksheet.column_dimensions[letter]
+                if format_code:
+                    dimension.number_format = format_code
+                if touches_data_font:
+                    dimension.font = Font(
+                        bold=font_bold, italic=font_italic,
+                        size=font_size, color=data_color
+                    )
+                if touches_alignment:
+                    dimension.alignment = Alignment(
+                        horizontal=horizontal, vertical=vertical,
+                        wrap_text=wrap_text
+                    )
+                if width is None:
+                    logger.info(
+                        f"[{worksheet.title}] whole_column style on {letter} "
+                        f"carries openpyxl's default width 13; add 'width:' "
+                        f"to the rule to control it"
+                    )
 
             if touches_header:
                 header_cell = worksheet.cell(row=header_row, column=col_index)
@@ -227,13 +289,17 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     size=existing_font.size,
                     bold=header_bold if header_bold is not None else existing_font.bold,
                     italic=existing_font.italic,
-                    color=head_color if head_color is not None else (
-                        existing_font.color.rgb if existing_font.color else None)
+                    # Color OBJECT passthrough: .rgb on a theme-based
+                    # default is an RGB descriptor Font() rejects
+                    color=head_color if head_color is not None else existing_font.color
                 )
                 if head_fill is not None:
                     header_cell.fill = PatternFill(
                         start_color=head_fill, end_color=head_fill, fill_type='solid'
                     )
+
+            if whole_column:
+                continue
 
             for row_num in range(header_row + 1, last_row + 1):
                 cell = worksheet.cell(row=row_num, column=col_index)
@@ -245,11 +311,10 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     existing = cell.font
                     cell.font = Font(
                         name=existing.name,
-                        size=existing.size,
+                        size=font_size if font_size is not None else existing.size,
                         bold=font_bold if font_bold is not None else existing.bold,
                         italic=font_italic if font_italic is not None else existing.italic,
-                        color=data_color if data_color is not None else (
-                            existing.color.rgb if existing.color else None)
+                        color=data_color if data_color is not None else existing.color
                     )
 
                 if touches_alignment:
@@ -274,12 +339,15 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"font {font_color}")
         if font_bold is not None:
             parts.append(f"bold {font_bold}")
+        if font_size is not None:
+            parts.append(f"size {font_size}")
         if header_font_color is not None or header_background_color is not None:
             parts.append("header styling")
         if width is not None:
             parts.append(f"width {width}")
 
-        description = f"{', '.join(parts)} on {len(letters)} column(s): {', '.join(columns[:4])}"
+        mechanism = ' (whole column)' if whole_column else ''
+        description = f"{', '.join(parts)}{mechanism} on {len(letters)} column(s): {', '.join(columns[:4])}"
         if len(columns) > 4:
             description += ' ...'
 
@@ -380,6 +448,152 @@ def apply_hidden_columns(worksheet, columns: list, header_row: int = 1,
     )
 
     return letters
+
+
+def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
+    """
+    Apply fonts, alignment and number formats to SPECIFIC cells or ranges.
+
+    The spot-styling counterpart of apply_column_formats: a rule names
+    explicit A1-style cells or ranges ("B2", "A4:D4") instead of columns,
+    for the styling that column vocabulary cannot express - a single
+    prompt cell, a label row on a sheet whose headers live elsewhere.
+    Explicit cell styles also override column-dimension (whole_column)
+    styles, so a spot rule wins where they overlap.
+
+    Args:
+        worksheet:          openpyxl worksheet object
+        rules:              List of rule dictionaries with a 'cells' list
+                            plus number_format / font_color / font_bold /
+                            font_italic / alignment_horizontal /
+                            alignment_vertical / wrap_text
+        color_normalizer:   Callable turning a colour spec into 6-digit hex
+
+    Returns:
+        List of human-readable descriptions of what was applied
+    """
+    if color_normalizer is None:
+        color_normalizer = _default_color_normalizer
+    if not isinstance(rules, list):
+        raise ColumnFormatError("cell_formats must be a list of rules")
+
+    applied = []
+
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            raise ColumnFormatError(f"cell_formats rule {index + 1} must be a dictionary")
+
+        cells = rule.get('cells')
+        if not isinstance(cells, list) or len(cells) == 0:
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1} requires a non-empty 'cells' "
+                f"list of A1-style cells or ranges, e.g. ['B2'] or ['A4:D4']"
+            )
+        for cell_text in cells:
+            candidate = str(cell_text).strip()
+            if not (cell_ref_rgx.match(candidate) or range_ref_rgx.match(candidate)):
+                raise ColumnFormatError(
+                    f"cell_formats rule {index + 1}: {cell_text!r} is not an "
+                    f"A1-style cell or range (like 'B2' or 'A4:D4')"
+                )
+
+        number_format = rule.get('number_format')
+        horizontal = rule.get('alignment_horizontal')
+        vertical = rule.get('alignment_vertical')
+        wrap_text = rule.get('wrap_text')
+        font_color = rule.get('font_color')
+        font_bold = rule.get('font_bold')
+        font_italic = rule.get('font_italic')
+        font_size = rule.get('font_size')
+
+        if font_size is not None and (
+                not isinstance(font_size, (int, float)) or font_size <= 0):
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1}: 'font_size' must be a "
+                f"positive number, got {font_size!r}"
+            )
+
+        actionable = (number_format, horizontal, vertical, wrap_text,
+                      font_color, font_bold, font_italic, font_size)
+        if all(value is None for value in actionable):
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1} does nothing: supply "
+                f"number_format, alignment_horizontal, alignment_vertical, "
+                f"wrap_text, font_color, font_bold, font_italic, or font_size"
+            )
+
+        if horizontal is not None and horizontal not in VALID_HORIZONTAL:
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1} invalid alignment_horizontal "
+                f"'{horizontal}'. Valid: {', '.join(VALID_HORIZONTAL)}"
+            )
+        if vertical is not None and vertical not in VALID_VERTICAL:
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1} invalid alignment_vertical "
+                f"'{vertical}'. Valid: {', '.join(VALID_VERTICAL)}"
+            )
+
+        format_code = resolve_number_format(number_format) if number_format else None
+        data_color = color_normalizer(font_color) if font_color is not None else None
+        touches_font = (data_color is not None or font_bold is not None
+                        or font_italic is not None or font_size is not None)
+        touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
+
+        cell_count = 0
+        for cell_text in cells:
+            block = worksheet[str(cell_text).strip().replace('$', '')]
+            # A single cell comes back bare; ranges come back as row tuples
+            if not isinstance(block, tuple):
+                block = ((block,),)
+            for row_cells in block:
+                for cell in row_cells:
+                    if format_code:
+                        cell.number_format = format_code
+                    if touches_font:
+                        existing = cell.font
+                        cell.font = Font(
+                            name=existing.name,
+                            size=font_size if font_size is not None else existing.size,
+                            bold=font_bold if font_bold is not None else existing.bold,
+                            italic=font_italic if font_italic is not None else existing.italic,
+                            # Pass the Color OBJECT through when preserving:
+                            # .rgb on a theme-based default is an RGB
+                            # descriptor, which Font(color=...) rejects.
+                            color=data_color if data_color is not None else existing.color
+                        )
+                    if touches_alignment:
+                        existing = cell.alignment
+                        cell.alignment = Alignment(
+                            horizontal=horizontal if horizontal is not None else existing.horizontal,
+                            vertical=vertical if vertical is not None else existing.vertical,
+                            wrap_text=wrap_text if wrap_text is not None else existing.wrap_text
+                        )
+                    cell_count += 1
+
+        parts = []
+        if format_code:
+            label = number_format if number_format in NUMBER_FORMAT_ALIASES else 'custom'
+            parts.append(f"number format {label}")
+        if horizontal is not None:
+            parts.append(f"h-align {horizontal}")
+        if vertical is not None:
+            parts.append(f"v-align {vertical}")
+        if wrap_text is not None:
+            parts.append(f"wrap {wrap_text}")
+        if font_color is not None:
+            parts.append(f"font {font_color}")
+        if font_bold is not None:
+            parts.append(f"bold {font_bold}")
+        if font_italic is not None:
+            parts.append(f"italic {font_italic}")
+        if font_size is not None:
+            parts.append(f"size {font_size}")
+
+        description = f"{', '.join(parts)} on {cell_count} cell(s): {', '.join(str(c) for c in cells[:4])}"
+        applied.append(description)
+        logger.info(f"🔤 [{worksheet.title}] {description}")
+
+    return applied
 
 
 # End of file #

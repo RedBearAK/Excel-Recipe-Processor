@@ -1,0 +1,62 @@
+# Usage examples and vocabulary for the strip_formula_caches processor.
+# Revision date: 2026-08-17
+#
+# excel_recipe_processor/processors/_examples/strip_formula_caches_examples.yaml
+
+description: "Remove cached formula RESULTS from saved xlsx files while keeping every FORMULA, returning the file to the small formulas-without-caches state it was authored in. Excel caches every calculated cell on save with no opt-out (measured: 3.9 MB authored -> 7.7 MB after open + save with no changes); this reverses it and sets fullCalcOnLoad so Excel recalculates on the next open."
+
+basic_example:
+  description: "Strip a whole workbook back to formulas-only, with a backup"
+  yaml: |
+    settings:
+      description: "Strip an archived output back to its authored size"
+
+    recipe:
+      - step_description: "Strip cached formula results from the archive copy"
+        processor_type: "strip_formula_caches"
+        # REQ - xlsx files to strip, in place (variables substituted)
+        files:
+          - "archive/260815_VMS_processed.xlsx"
+        # OPT - write file.xlsx.stripbak beside each file first
+        # Default value: true
+        create_backup: true
+
+scoped_example:
+  description: "Limit the surgery to particular sheets, columns, rows or cells. Each scope entry names sheet_names (a LIST, even for one sheet) and at most ONE of cells / columns / rows - use separate entries to combine restrictions. Without scope, the whole workbook."
+  yaml: |
+    settings:
+      description: "Scoped strip: named sheets and columns only"
+
+    recipe:
+      - step_description: "Strip only the formula columns on the VMS sheet"
+        processor_type: "strip_formula_caches"
+        files:
+          - "archive/processed.xlsx"
+        scope:
+          - sheet_names: ["VMS"]
+            columns: ["AV:BB"]
+          - sheet_names: ["Cust_Summ", "Cust_List"]
+
+safety_doctrine:
+  what_is_stripped: "Formula/result dyads lose the cached <v> and keep the <f> (ordinary, shared-master, shared-slave, cached errors). Array spill anchors (dynamic or legacy CSE) lose their cache; member cells inside the anchor's declared ref are removed, or blanked in place when they carry a style attribute so per-cell formatting survives. calcChain.xml is deleted (rebuilds on demand); calcPr gains fullCalcOnLoad, and calcMode manual is normalized to auto because Excel ignores the flag under manual mode."
+  what_is_refused: "Formulas referencing an EXTERNAL workbook ([1]Sheet!A1) - their cached value may be the ONLY copy of the data when the linked file is absent - and any cell carrying both a formula and an inline string. Refusals are NAMED in the report, capped per class."
+  what_is_never_touched: "Value-only cells outside every array ref: that is literal data, and it is the entire safety boundary."
+  reporting: "The completion log names exactly what was found and removed per sheet - dyad caches stripped, spill cells removed, spill cells blanked with style kept, every refusal by cell address - plus calc-flag changes and bytes before/after with percent reclaimed."
+  cost: "Excel recalculates on the next open (sub-second for ordinary workbooks) and will re-cache on the next user save - stripping reclaims space in stored/archived copies, not in actively edited ones. Non-Excel readers of cached values (pandas data_only, previewers) see formulas without values in a stripped file."
+
+parameter_details:
+  files:
+    type: "list of str"
+    required: true
+    description: "xlsx paths to strip in place; variable substitution applies"
+  create_backup:
+    type: "bool"
+    required: false
+    default: true
+    description: "Copy each file to file.xlsx.stripbak before surgery"
+  scope:
+    type: "list of entries"
+    required: false
+    description: "Restrict the surgery; each entry has sheet_names (LIST) plus at most one of cells / columns / rows. An array anchor inside scope strips its whole spill; an anchor outside scope leaves the spill untouched."
+
+# End of file #

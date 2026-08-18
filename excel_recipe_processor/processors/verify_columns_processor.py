@@ -43,14 +43,22 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
     def get_minimal_config(cls) -> dict:
         """Smallest configuration that constructs and validates."""
         return {
-            'stage': 'stg_to_verify',
+            'source_stage': 'stg_to_verify',
             'expected_columns': ['some_column']
         }
 
     def __init__(self, step_config: dict):
         super().__init__(step_config)
 
-        self.stage = self.get_config_value('stage', None)
+        # Canonical key: source_stage, the data-flow family's name for "the
+        # stage this step reads". Bare 'stage' was retired in the 2026-08-13
+        # standardization - no alias; the error names the right key.
+        self.stage = self.get_config_value('source_stage', None)
+        if self.get_config_value('stage', None):
+            raise StepProcessorError(
+                f"Step '{self.step_name}': use 'source_stage' (the stage this "
+                f"step reads), not 'stage'"
+            )
         self.expected_columns = self.get_config_value('expected_columns', None)
 
         # The expectation can come from another stage's columns instead of a
@@ -69,7 +77,7 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
 
         if not self.stage:
             raise StepProcessorError(
-                f"Step '{self.step_name}' requires 'stage': the stage to verify"
+                f"Step '{self.step_name}' requires 'source_stage': the stage to verify"
             )
 
         has_list = bool(self.expected_columns) and isinstance(self.expected_columns, list)
@@ -165,7 +173,7 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Verify a stage\'s columns against an expected list, announcing new or missing columns',
+            'description': "Verify a stage's columns against an expected list, announcing drift",
             'directions': {
                 'missing expected column': 'on_missing_expected: error (default) / warn',
                 'new unexpected column': 'on_unexpected: warn (default) / error',

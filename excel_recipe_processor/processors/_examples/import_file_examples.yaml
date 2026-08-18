@@ -10,7 +10,7 @@ basic_example:
     settings:
       description: "Simple Excel file import saving customer data to a stage"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Imported customer data from Excel"
           protected: false
     
@@ -22,7 +22,7 @@ basic_example:
         # REQ - File path (supports variable substitution)
         input_file: "customer_data.xlsx"
         # REQ - Stage to save imported data
-        save_to_stage: "customer_data"
+        save_to_stage: "stg_customer_data"
 
 excel_sheet_example:
   description: "Import specific sheet from multi-sheet Excel file"
@@ -32,7 +32,7 @@ excel_sheet_example:
     settings:
       description: "Import specific sheet from multi-sheet Excel workbook"
       stages:
-        - stage_name: "q4_sales"
+        - stage_name: "stg_q4_sales"
           description: "Q4 sales data from specific sheet"
           protected: false
     
@@ -44,11 +44,11 @@ excel_sheet_example:
         # REQ - Excel file path
         input_file: "reports/quarterly_sales.xlsx"
         # REQ - Stage to save imported data
-        save_to_stage: "q4_sales"
+        save_to_stage: "stg_q4_sales"
         # OPT - Sheet name or index to import
         # Can be sheet name (string) or sheet index (integer, 1-based)
         # Default value: 1 (first sheet)
-        sheet: "Q4 Sales Data"
+        sheet_name: "Q4 Sales Data"
 
 csv_import_example:
   description: "Import CSV file with custom encoding and separator"
@@ -58,7 +58,7 @@ csv_import_example:
     settings:
       description: "Import CSV file with custom encoding and separator options"
       stages:
-        - stage_name: "system_data"
+        - stage_name: "stg_system_data"
           description: "System data imported from CSV"
           protected: false
     
@@ -70,7 +70,7 @@ csv_import_example:
         # REQ - CSV file path
         input_file: "exports/system_data.csv"
         # REQ - Stage to save imported data
-        save_to_stage: "system_data"
+        save_to_stage: "stg_system_data"
         # OPT - Text encoding for CSV/TSV files (ignored for Excel files)
         # Valid examples: "utf-8", "latin1", "cp1252", "ascii"
         # Default value: "utf-8"
@@ -90,7 +90,7 @@ variable_substitution_example:
       variables:
         department: "sales"
       stages:
-        - stage_name: "daily_data"
+        - stage_name: "stg_daily_data"
           description: "Daily data imported with variables"
           protected: false
     
@@ -105,9 +105,9 @@ variable_substitution_example:
         # Variable examples: department="sales", batch_id="B001"
         input_file: "daily_data/{department}_{YYYY}{MM}{DD}.xlsx"
         # REQ - Stage to save imported data
-        save_to_stage: "daily_data"
+        save_to_stage: "stg_daily_data"
         # OPT - Import specific sheet by index (starts at 1, converts to 0-based internally)
-        sheet: 1
+        sheet_name: 1
 
 multi_import_workflow_example:
   description: "Complete workflow importing multiple files to different stages"
@@ -119,13 +119,13 @@ multi_import_workflow_example:
       variables:
         processing_date: "20250729"
       stages:
-        - stage_name: "customer_master"
+        - stage_name: "stg_customer_master"
           description: "Master customer data"
           protected: false
-        - stage_name: "product_catalog"
+        - stage_name: "stg_product_catalog"
           description: "Current product catalog"
           protected: false
-        - stage_name: "orders_data"
+        - stage_name: "stg_orders_data"
           description: "Daily orders for processing"
           protected: false
     
@@ -134,19 +134,19 @@ multi_import_workflow_example:
       - step_description: "Import customer master data"
         processor_type: "import_file"
         input_file: "master/customers.xlsx"
-        save_to_stage: "customer_master"
+        save_to_stage: "stg_customer_master"
         
       # Import product catalog
       - step_description: "Import product catalog"
         processor_type: "import_file"
         input_file: "master/products.xlsx"
-        save_to_stage: "product_catalog"
+        save_to_stage: "stg_product_catalog"
         
       # Import daily orders with variable substitution
       - step_description: "Import daily orders"
         processor_type: "import_file"
         input_file: "daily/orders_{processing_date}.xlsx"
-        save_to_stage: "orders_data"
+        save_to_stage: "stg_orders_data"
 
 parameter_details:
   input_file:
@@ -168,7 +168,7 @@ parameter_details:
       - "Raw Import Data"
       - "Daily Sales {date}"
 
-  sheet:
+  sheet_name:
     type: "string or integer"
     required: false
     # Uses 1-based index, converts to 0-based internally
@@ -244,7 +244,7 @@ verbatim_text_example:
       - step_description: "Import, keeping ref text verbatim"
         processor_type: "import_file"
         input_file: "download.xlsx"
-        sheet: "Van Detail Report"
+        sheet_name: "Van Detail Report"
         # OPT - Columns whose literal text must survive import
         verbatim_text_columns: ["Customer Ref #"]
         save_to_stage: "stg_import_raw"

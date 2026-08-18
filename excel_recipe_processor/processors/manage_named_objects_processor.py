@@ -19,6 +19,20 @@ from datetime import datetime
 from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
+from excel_recipe_processor.processors._helpers.named_objects_extraction import (
+    detect_object_type,
+    translate_lambda_to_human,
+    clean_formula_for_display,
+)
+from excel_recipe_processor.processors._helpers.xlpm_name_storage import (
+    transform_xlpm_names,
+    parse_lambda_parameters,
+)
+from excel_recipe_processor.processors._helpers.inject_formulas_functions import (
+    prefix_future_functions,
+    apply_outside_strings,
+)
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
     resolve_range, ExcelRangeResolverError
@@ -66,12 +80,21 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     def __init__(self, step_config: dict):
         super().__init__(step_config)
         self.operation = self.get_config_value('operation')
-        
+
         if self.operation not in self.SUPPORTED_OPERATIONS:
             raise StepProcessorError(
                 f"Invalid operation '{self.operation}'. "
                 f"Supported: {', '.join(self.SUPPORTED_OPERATIONS)}"
             )
+
+        for retired_key in ('import_file', 'export_file'):
+            if self.get_config_value(retired_key, None):
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': '{retired_key}' was renamed to "
+                    f"'yaml_file' (2026-08-13 survey; the old names collided "
+                    f"with processor names). Direction follows the operation: "
+                    f"export_* writes it, import_*/validate_yaml reads it."
+                )
     
     def perform_file_operation(self, filename: str) -> dict:
         """
@@ -292,135 +315,62 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     # =============================================================================
     
     def detect_object_type(self, defined_name) -> str:
-        """Classify defined name as 'lambda', 'formula', 'range', or 'constant'."""
-        
-        attr_text = defined_name.attr_text or ""
-        
-        # Check for lambda function
-        if excel_lambda_detection_rgx.search(attr_text):
-            return 'lambda'
-        
-        # Check for formula (contains function calls)
-        if function_call_rgx.search(attr_text):
-            return 'formula'
-            
-        # Check for range reference (contains sheet references or cell ranges)
-        if '!' in attr_text or ':' in attr_text:
-            return 'range'
-            
-        # Everything else is a constant
-        return 'constant'
+        """Classify defined name (delegates to the shared extraction helper)."""
+        return detect_object_type(defined_name)
     
     # =============================================================================
     # LAMBDA TRANSLATION METHODS
     # =============================================================================
     
     def translate_lambda_to_human(self, excel_formula: str) -> tuple:
-        """Convert '_xlfn.LAMBDA(_xlpm.param,...)' to 'LAMBDA(param,...)'."""
-        
-        # Guard clause for input validation
-        if not isinstance(excel_formula, str):
-            excel_formula = str(excel_formula) if excel_formula else ""
-        
-        # Extract parameters
-        params_match = excel_lambda_params_rgx.search(excel_formula)
-        if not params_match:
-            return excel_formula, []
-        
-        # Get parameter names without _xlpm prefix
-        param_names = excel_param_name_rgx.findall(params_match.group(1))
-        
-        # Extract the lambda body
-        body_match = excel_lambda_body_rgx.search(excel_formula)
-        if not body_match:
-            return excel_formula, param_names
-        
-        lambda_body = body_match.group(2)
-        
-        # Clean up the body - remove Excel prefixes
-        clean_body = self._clean_formula_for_display(lambda_body)
-        
-        # Build human-readable format
-        param_list = ', '.join(param_names)
-        human_formula = f"LAMBDA({param_list}, {clean_body})"
-        
-        return human_formula, param_names
+        """Stored lambda -> human syntax (delegates to the shared helper)."""
+        return translate_lambda_to_human(excel_formula)
     
     def translate_lambda_to_excel(self, human_formula: str, parameters) -> str:
-        """Convert 'LAMBDA(param,...)' to '=_xlfn.LAMBDA(_xlpm.param,...)'."""
-        
-        # Guard clauses for input validation
+        """
+        Convert a human-syntax lambda to Excel's stored form.
+
+        The xlpm_name_storage transformer is the engine (it parses the
+        declarations from the TEXT, handles LET in bodies, nesting,
+        sequential scoping, and string safety); call-name prefixing goes
+        through the shared future-function map (legacy names stay BARE -
+        harvest-verified). The YAML 'parameters' list is a CROSS-CHECK
+        against the definition text, catching drift between the two.
+        """
         if not isinstance(human_formula, str):
             raise StepProcessorError(f"Human formula must be string, got {type(human_formula)}")
-        
-        if not isinstance(parameters, list):
-            if hasattr(parameters, '__iter__') and not isinstance(parameters, str):
-                parameters = list(parameters)
-            else:
-                raise StepProcessorError(f"Parameters must be list-like, got {type(parameters)}")
-        
-        # Extract the body from human format
-        body_match = human_lambda_body_rgx.search(human_formula)
-        if not body_match:
+
+        stripped = human_formula.strip().lstrip('=').strip()
+        declared = parse_lambda_parameters(stripped)
+        if not declared:
             raise StepProcessorError(f"Invalid lambda format: {human_formula}")
-        
-        lambda_body = body_match.group(2)
-        
-        # Add Excel prefixes to the body
-        excel_body = self._add_excel_prefixes(lambda_body, parameters)
-        
-        # Build parameter list with _xlpm prefixes (no spaces)
-        excel_params = ','.join(f"_xlpm.{param}" for param in parameters)
-        
-        # Build Excel format with = prefix and no spaces after commas
-        excel_formula = f"=_xlfn.LAMBDA({excel_params},{excel_body})"
-        
+
+        if parameters:
+            provided = [str(p) for p in parameters]
+            if [p.upper() for p in provided] != [d.upper() for d in declared]:
+                raise StepProcessorError(
+                    f"Lambda 'parameters' list {provided} does not match the "
+                    f"names declared in the definition {declared} - the "
+                    f"definition text is the source of truth; fix the YAML"
+                )
+
+        try:
+            excel_formula = transform_xlpm_names(stripped)
+        except ValueError as error:
+            raise StepProcessorError(f"Lambda definition invalid: {error}")
+
+        excel_formula = prefix_future_functions(excel_formula)
+        excel_formula = apply_outside_strings(
+            excel_formula, lambda segment: re.sub(r',\s+', ',', segment)
+        )
+        # Canonical storage carries NO leading '=' (definedName grammar);
+        # the write funnel strips defensively, but this path should not
+        # produce the wrong form in the first place.
         return excel_formula
-    
+
     def _clean_formula_for_display(self, formula: str) -> str:
-        """Remove Excel internal prefixes for human-readable display."""
-        
-        # Remove _xlfn and _xlpm prefixes
-        clean_formula = excel_prefix_cleanup_rgx.sub('', formula)
-        
-        return clean_formula.strip()
-    
-    def _add_excel_prefixes(self, formula: str, parameters) -> str:
-        """Add Excel internal prefixes to formula for Excel compatibility."""
-        
-        # Guard clauses for input validation
-        if not isinstance(formula, str):
-            formula = str(formula) if formula else ""
-        
-        if not isinstance(parameters, list):
-            if hasattr(parameters, '__iter__') and not isinstance(parameters, str):
-                parameters = list(parameters)
-            else:
-                parameters = []
-        
-        # Add _xlpm prefix to parameter references
-        for param in parameters:
-            if isinstance(param, str) and param:
-                formula = re.sub(rf'\b{param}\b', f'_xlpm.{param}', formula)
-        
-        # Add _xlfn prefix to functions and remove spaces in function calls
-        common_functions = [
-            'SUM', 'SUMIF', 'SUMIFS', 'AVERAGE', 'COUNT', 'COUNTA', 'VLOOKUP',
-            'XLOOKUP', 'INDEX', 'MATCH', 'IF', 'IFS', 'AND', 'OR', 'NOT',
-            'PV', 'FV', 'PMT', 'RATE', 'NPER', 'NPV', 'IRR', 'XIRR',
-            'MAX', 'MIN', 'ABS', 'ROUND', 'ROUNDUP', 'ROUNDDOWN',
-            'LEFT', 'RIGHT', 'MID', 'LEN', 'TRIM', 'UPPER', 'LOWER',
-            'CONCATENATE', 'TEXTJOIN', 'SUBSTITUTE', 'REPLACE'
-        ]
-        
-        for func in common_functions:
-            # First add _xlfn prefix
-            formula = re.sub(rf'\b{func}\s*\(', f'_xlfn.{func}(', formula, flags=re.IGNORECASE)
-        
-        # Remove spaces after commas in function calls (Excel format)
-        formula = re.sub(r',\s+', ',', formula)
-        
-        return formula
+        """Remove storage prefixes (delegates to the shared helper)."""
+        return clean_formula_for_display(formula)
     
     # =============================================================================
     # UTILITY METHODS
@@ -656,7 +606,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Execute export all operation."""
         
         source_file = self.get_config_value('source_file')
-        export_file = self.get_config_value('export_file')
+        export_file = self.get_config_value('yaml_file')
         vba_file = self.get_config_value('vba_file')
         export_formats = self.get_config_value('export_formats')
         
@@ -828,6 +778,18 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         Returns:
             'written', 'replaced', or 'skipped'
         """
+        # Excel STORES definedName content WITHOUT a leading '=' - same
+        # grammar lesson as <formula1>. A stored '=...' is invalid and
+        # Excel's repair deletes the whole name (2026-08-14 incident:
+        # fnBlankSafe vanished, orphaning its callers into #NAME?).
+        # Verified against xlsxwriter's Excel-validated serializer, which
+        # strips the API-convention '=' at exactly this point. This
+        # funnel is the ONE write path, so every producer is covered.
+        if isinstance(definition, str):
+            definition = definition.strip()
+            if definition.startswith('='):
+                definition = definition[1:]
+
         if not isinstance(name, str) or not name.strip():
             raise StepProcessorError("Defined name must be a non-empty string")
 
@@ -902,6 +864,21 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
         definition = obj.get('definition')
         if isinstance(definition, str) and definition.strip():
+            if object_type in ('formula', 'lambda'):
+                # Hand-authored (no excel_definition): translate display
+                # syntax to storage - _xlpm names, future-function
+                # prefixes. No-op for text containing neither, so a
+                # misclassified plain reference passes through untouched.
+                try:
+                    stored = transform_xlpm_names(definition.strip().lstrip('='))
+                except ValueError as error:
+                    raise StepProcessorError(
+                        f"Object '{obj.get('name', 'unknown')}': {error}"
+                    )
+                stored = prefix_future_functions(stored)
+                return apply_outside_strings(
+                    stored, lambda segment: re.sub(r',\s+', ',', segment)
+                )
             return definition
 
         raise StepProcessorError(
@@ -986,8 +963,22 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Write one object and record the outcome in the results dictionary."""
         name = obj.get('name', 'unknown')
 
+        # Definition translation errors raise UNCONDITIONALLY
+        # (2026-08-17): a definition the storage transformer rejects is
+        # a recipe error, and on_existing is a name-COLLISION policy -
+        # it must not decide whether a broken definition is fatal. The
+        # old coupling swallowed a transformer rejection into a
+        # warning, the completion line reported only
+        # written/replaced/skipped, and a library formula silently
+        # never reached the workbook.
         try:
             definition = self._definition_for_write(obj)
+        except (StepProcessorError, ValueError) as error:
+            raise StepProcessorError(
+                f"Named object '{name}': definition cannot be stored: {error}"
+            ) from error
+
+        try:
             outcome = self.write_named_object(
                 workbook, name, definition, sheet_name, on_existing, name_validation
             )
@@ -1029,7 +1020,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         """Export named objects matching the configured name patterns."""
 
         source_file = self.get_config_value('source_file')
-        export_file = self.get_config_value('export_file')
+        export_file = self.get_config_value('yaml_file')
         vba_file = self.get_config_value('vba_file')
         include_patterns = self.get_config_value('include_patterns')
         exclude_patterns = self.get_config_value('exclude_patterns')
@@ -1114,7 +1105,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     def _import_from_yaml_file(self, filtered: bool) -> dict:
         """Shared implementation for import_all and import_filtered."""
 
-        import_file = self.get_config_value('import_file')
+        import_file = self.get_config_value('yaml_file')
         target_file = self.get_config_value('target_file')
         include_local = self.get_config_value('include_local', True)
         include_patterns = self.get_config_value('include_patterns')
@@ -1123,7 +1114,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         operation_name = 'import_filtered' if filtered else 'import_all'
 
         if not import_file:
-            raise StepProcessorError(f"import_file required for {operation_name} operation")
+            raise StepProcessorError(f"yaml_file required for {operation_name} operation")
 
         if not target_file:
             raise StepProcessorError(f"target_file required for {operation_name} operation")
@@ -1154,10 +1145,14 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         finally:
             pass  # the session owns the workbook's lifetime
 
+        failed_note = ""
+        if results.get('failed'):
+            failed_names = ', '.join(entry['name'] for entry in results['failed'])
+            failed_note = f", {len(results['failed'])} FAILED: {failed_names}"
         logger.info(
             f"Imported named objects into '{target_file}': "
             f"{len(results['written'])} written, {len(results['replaced'])} replaced, "
-            f"{len(results['skipped'])} skipped"
+            f"{len(results['skipped'])} skipped{failed_note}"
         )
 
         return {
@@ -1175,10 +1170,10 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     def _execute_validate_yaml(self) -> dict:
         """Check a YAML export for structural and naming problems without writing."""
 
-        import_file = self.get_config_value('import_file')
+        import_file = self.get_config_value('yaml_file')
 
         if not import_file:
-            raise StepProcessorError("import_file required for validate_yaml operation")
+            raise StepProcessorError("yaml_file required for validate_yaml operation")
 
         name_validation = self.get_config_value('name_validation', 'excel')
 
@@ -1340,20 +1335,31 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     )
 
                 name = spec.get('name')
-                sheet = spec.get('sheet')
+                sheet = spec.get('sheet_name')
                 columns = spec.get('columns')
 
                 if not name:
                     raise StepProcessorError(f"Range entry {index + 1} missing 'name'")
 
+                if spec.get('sheet'):
+                    raise StepProcessorError(
+                        f"Range '{name}': 'sheet' was replaced by 'sheet_name' "
+                        f"(2026-08-14 sheet-addressing doctrine)"
+                    )
                 if not sheet:
-                    raise StepProcessorError(f"Range '{name}' missing 'sheet'")
+                    raise StepProcessorError(f"Range '{name}' missing 'sheet_name'")
 
                 if not isinstance(columns, list) or len(columns) == 0:
                     raise StepProcessorError(
                         f"Range '{name}' requires a non-empty 'columns' list"
                     )
 
+                try:
+                    sheet = resolve_sheet_ref(
+                        sheet, workbook.sheetnames, f"Range '{name}'"
+                    )
+                except ValueError as error:
+                    raise StepProcessorError(str(error))
                 if sheet not in workbook.sheetnames:
                     raise StepProcessorError(
                         f"Range '{name}' targets sheet '{sheet}', which was not found. "

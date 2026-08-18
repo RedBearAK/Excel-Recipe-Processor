@@ -10,17 +10,19 @@ basic_example:
     settings:
       description: "Simple export from processed data to monthly Excel report"
       stages:
-        - stage_name: "processed_data"
+        - stage_name: "stg_processed_data"
           description: "Data ready for export"
           protected: false
     
     recipe:
       # Previous steps would populate 'processed_data' stage
-      - step_description: "Export processed data to monthly report"
+      - # OPT - Human-readable step description
+        # Default value: "Unnamed export_file step"
+        step_description: "Export processed data to monthly report"
         # REQ - Must be "export_file" for this processor type
         processor_type: "export_file"
         # REQ - Stage to export data from (must be declared in settings.stages)
-        source_stage: "processed_data"
+        source_stage: "stg_processed_data"
         # REQ - Output file path with variable substitution support
         # Variable examples: {date}, {timestamp}, {company}
         output_file: "reports/monthly_report.xlsx"
@@ -42,13 +44,13 @@ multi_sheet_example:
         company: "AcmeCorp"
         quarter: "Q4"
       stages:
-        - stage_name: "executive_summary"
+        - stage_name: "stg_executive_summary"
           description: "Executive summary data"
           protected: false
-        - stage_name: "detailed_data"
+        - stage_name: "stg_detailed_data"
           description: "Detailed transaction data"
           protected: false
-        - stage_name: "monthly_trends"
+        - stage_name: "stg_monthly_trends"
           description: "Monthly trend analysis"
           protected: false
     
@@ -58,26 +60,26 @@ multi_sheet_example:
         processor_type: "export_file"
         # REQ - Still required in multi-sheet mode. The sheets list says what
         # goes on each tab; source_stage is what the step consumes.
-        source_stage: "executive_summary"
+        source_stage: "stg_executive_summary"
         # REQ - Output file path with variable substitution
         # Built-in variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}
         # Custom variables: defined in recipe settings or CLI --var
         output_file: "reports/{company}_Q{quarter}_{date}.xlsx"
         create_backup: true
         # OPT - List of sheet configurations for multi-sheet Excel export
-        sheets:
+        sheets_to_create:
           # First sheet from executive summary stage
           - sheet_name: "Executive Summary"
             # REQ - Stage name must match exactly what was saved
-            data_source: "executive_summary"
+            data_source: "stg_executive_summary"
           
           # Second sheet from detailed data stage
           - sheet_name: "Detailed Data"
-            data_source: "detailed_data"
+            data_source: "stg_detailed_data"
           
           # Third sheet from trends analysis
           - sheet_name: "Monthly Trends"
-            data_source: "monthly_trends"
+            data_source: "stg_monthly_trends"
 
 csv_export_example:
   description: "Export to CSV with custom formatting options"
@@ -87,7 +89,7 @@ csv_export_example:
     settings:
       description: "Export data to CSV file with custom formatting options"
       stages:
-        - stage_name: "export_ready_data"
+        - stage_name: "stg_export_ready_data"
           description: "Data formatted for CSV export"
           protected: false
     
@@ -95,7 +97,7 @@ csv_export_example:
       # Previous steps populate export_ready_data
       - step_description: "Export data to CSV with custom separator"
         processor_type: "export_file"
-        source_stage: "export_ready_data"
+        source_stage: "stg_export_ready_data"
         output_file: "exports/system_data.csv"
         # OPT - Text encoding for CSV/TSV files (ignored for Excel files)
         # Valid examples: "utf-8", "latin1", "cp1252", "ascii"
@@ -120,7 +122,7 @@ variable_substitution_example:
         department: "sales"
         batch_id: "B001"
       stages:
-        - stage_name: "final_results"
+        - stage_name: "stg_final_results"
           description: "Final processed results ready for export"
           protected: false
     
@@ -128,7 +130,7 @@ variable_substitution_example:
       # Previous steps populate final_results
       - step_description: "Export with dynamic file naming"
         processor_type: "export_file"
-        source_stage: "final_results"
+        source_stage: "stg_final_results"
         # REQ - Output file with multiple variable types
         # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
         # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
@@ -148,10 +150,10 @@ complete_workflow_example:
         region: "west"
         output_prefix: "processed"
       stages:
-        - stage_name: "raw_data"
+        - stage_name: "stg_raw_data"
           description: "Raw imported data"
           protected: false
-        - stage_name: "filtered_data"
+        - stage_name: "stg_filtered_data"
           description: "Filtered data ready for export"
           protected: false
     
@@ -160,13 +162,13 @@ complete_workflow_example:
       - step_description: "Import raw sales data"
         processor_type: "import_file"
         input_file: "sales_data_{region}.xlsx"
-        save_to_stage: "raw_data"
+        save_to_stage: "stg_raw_data"
       
       # Step 2: Process data
       - step_description: "Filter for active customers"
         processor_type: "filter_data"
-        source_stage: "raw_data"
-        save_to_stage: "filtered_data"
+        source_stage: "stg_raw_data"
+        save_to_stage: "stg_filtered_data"
         filters:
           - column: "Status"
             condition: "equals"
@@ -175,7 +177,7 @@ complete_workflow_example:
       # Step 3: Export results
       - step_description: "Export filtered results"
         processor_type: "export_file"
-        source_stage: "filtered_data"
+        source_stage: "stg_filtered_data"
         output_file: "output/{output_prefix}_{region}_{date}.xlsx"
         create_backup: true
 
@@ -207,7 +209,7 @@ parameter_details:
     description: "Sheet name for single-sheet Excel export (ignored if sheets parameter is used)"
     applies_to: "Single-sheet Excel export only"
 
-  sheets:
+  sheets_to_create:
     type: list
     required: false
     description: "List of sheet configurations for multi-sheet Excel export"
@@ -310,3 +312,47 @@ template_notes:
     description: "The replaced sheet is cleared in place rather than deleted and recreated, so it keeps its position in the tab order."
 
 # End of file #
+
+
+backup_control_example:
+  description: "Timestamped backups with a hard cap"
+  yaml: |
+    # An existing output file is backed up before being replaced. Backups
+    # are named with the marker BEFORE the extension:
+    #
+    #     report_erpbkup_260812_144320.xlsx
+    #
+    # so the file still opens in its default application - the old scheme
+    # appended ".backup" after the extension and broke that.
+    #
+    # Names are written once and never renamed: because the timestamp is
+    # zero-padded, sorting the names sorts them chronologically, so trimming
+    # is a pure deletion of the oldest. delete_backups_beyond says how many
+    # of the NEWEST to keep, counting the one being made - every older
+    # backup is deleted. Without it, an auto-generated file nobody looks at
+    # accumulates copies forever.
+    #
+    # Only names carrying the _erpbkup_ marker for THIS file's stem and
+    # extension are ever deleted. Backups from the older ".backup" scheme
+    # are reported once and left alone.
+
+    recipe:
+      - step_description: "Export with two backups kept"
+        processor_type: "export_file"
+        source_stage: "stg_final"
+        output_file: "report.xlsx"
+        # OPT - Back up an existing file first (default: true)
+        create_backup: true
+        # OPT - Keep this many newest backups, delete older ones
+        # (default: 2; 0 means make no backup at all)
+        delete_backups_beyond: 2
+
+parameter_details_backups:
+  create_backup:
+    required: false
+    default: true
+    description: "Back up an existing output file before replacing it"
+  delete_backups_beyond:
+    required: false
+    default: 2
+    description: "How many newest backups of this file to keep; every older one is deleted. 0 means no backup"

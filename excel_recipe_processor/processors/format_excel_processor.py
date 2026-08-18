@@ -13,6 +13,9 @@ import time
 import openpyxl
 import webcolors
 
+from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
+from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
+
 from pathlib import Path
 
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -21,8 +24,15 @@ from openpyxl.utils import get_column_letter
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
+from excel_recipe_processor.processors._helpers.format_excel_theme_manager import (
+    resolve_theme,
+    build_pivot_style,
+    set_default_pivot_style,
+    ERP_DEFAULT_PIVOT_STYLE,
+    ThemeManagerError,
+)
 from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
-    apply_column_formats, apply_column_widths, apply_hidden_columns,
+    apply_cell_formats, apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
 )
 
@@ -43,14 +53,26 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
-            'target_file': 'output.xlsx'
+            'target_file': 'output.xlsx',
+            # One sheet entry, so the minimal config is valid WITHOUT the
+            # empty-formatting warning - which otherwise leaks into
+            # --list-capabilities, where every processor is instantiated
+            # from its minimal config.
+            'formatting': [
+                {'sheet_name': 'Data', 'auto_fit_columns': True},
+            ],
         }
 
     def perform_file_operation(self) -> str:
         """Format the target Excel file with template support."""
         target_file = self.get_config_value('target_file')
         sheet_configs = self.get_config_value('formatting', [])
-        active_sheet = self.get_config_value('active_sheet')
+        active_sheet = self.get_config_value('active_sheet_name')
+        if 'active_sheet' in self.step_config:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'active_sheet' was replaced by "
+                f"'active_sheet_name' (2026-08-14 sheet-addressing doctrine)"
+            )
         templates = self.get_config_value('templates', [])
         
         # Validate configuration
@@ -79,7 +101,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Get and validate the formatting configuration
         sheet_configs = self.get_config_value('formatting', [])
-        active_sheet = self.get_config_value('active_sheet')
+        active_sheet = self.get_config_value('active_sheet_name')
+        if 'active_sheet' in self.step_config:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'active_sheet' was replaced by "
+                f"'active_sheet_name' (2026-08-14 sheet-addressing doctrine)"
+            )
         target_file = self.get_config_value('target_file')
         templates = self.get_config_value('templates', [])
         
@@ -102,7 +129,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Require sheet_configs to be a list
         if not isinstance(sheet_configs, list):
-            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet' key")
+            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet_name' key")
         
         if not sheet_configs:
             logger.warning("Empty formatting list - no sheets will be formatted")
@@ -120,16 +147,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(sheet_config, dict):
                 raise StepProcessorError(f"Formatting entry {i+1} must be a dictionary")
             
-            if 'sheet' not in sheet_config:
-                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet' key")
-            
-            sheet_spec = sheet_config['sheet']
-            if not isinstance(sheet_spec, (str, int)):
-                raise StepProcessorError(f"Sheet specification must be string (name) or integer (1-based index), got: {type(sheet_spec).__name__}")
-            
-            if isinstance(sheet_spec, int) and sheet_spec < 1:
-                raise StepProcessorError(f"Sheet index must be >= 1, got: {sheet_spec}")
-            
+            if 'sheet' in sheet_config:
+                raise StepProcessorError(
+                    f"Formatting entry {i+1}: 'sheet' was replaced by "
+                    f"'sheet_name' (2026-08-14 sheet-addressing doctrine). A "
+                    f"tab name, or '?sheet_001?' to address by position."
+                )
+            if 'sheet_name' not in sheet_config:
+                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet_name' key")
+
+            sheet_spec = sheet_config['sheet_name']
             if isinstance(sheet_spec, str) and not sheet_spec.strip():
                 raise StepProcessorError("Sheet name cannot be empty")
             
@@ -151,11 +178,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Validate active_sheet specification
         if active_sheet is not None:
-            if not isinstance(active_sheet, (str, int)):
-                raise StepProcessorError(f"active_sheet must be string (name) or integer (1-based index), got: {type(active_sheet).__name__}")
-            
-            if isinstance(active_sheet, int) and active_sheet < 1:
-                raise StepProcessorError(f"active_sheet index must be >= 1, got: {active_sheet}")
             
             if isinstance(active_sheet, str) and not active_sheet.strip():
                 raise StepProcessorError("active_sheet name cannot be empty")
@@ -268,14 +290,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # List of known formatting options (this helps catch typos)
         known_options = {
             # Sheet targeting
-            'sheet', 'apply_templates', 'template_name',
+            'sheet_name', 'apply_templates', 'template_name',
             
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
-            'column_formats', 'hidden_columns', 'header_row', 'on_missing_column',
-            'row_heights',
+            'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
+            'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
+            'column_widths_from_stage', 'column_widths_source',
+            'column_styles_from_stage', 'column_styles_source',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -315,6 +339,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 self._normalize_color(sheet_config['general_text_color'])
             except ValueError as e:
                 raise StepProcessorError(f"Invalid general_text_color in {context}: {e}")
+
+        if 'tab_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['tab_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid tab_color in {context}: {e}")
         
         # Validate alignment values
         valid_h_alignments = ['left', 'center', 'right', 'justify', 'distributed']
@@ -345,6 +375,53 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(font_size, (int, float)) or font_size <= 0:
                 raise StepProcessorError(f"general_font_size must be a positive number in {context}, got: {font_size}")
         
+        if 'column_styles_from_stage' in sheet_config:
+            stage_ref = sheet_config['column_styles_from_stage']
+            if not isinstance(stage_ref, str) or not stage_ref.strip():
+                raise StepProcessorError(
+                    f"column_styles_from_stage must be a stage name string "
+                    f"in {context}, got: {stage_ref!r}"
+                )
+        if ('column_styles_source' in sheet_config
+                and 'column_styles_from_stage' not in sheet_config):
+            raise StepProcessorError(
+                f"column_styles_source without column_styles_from_stage "
+                f"in {context}"
+            )
+
+        if 'column_widths_from_stage' in sheet_config:
+            stage_ref = sheet_config['column_widths_from_stage']
+            if not isinstance(stage_ref, str) or not stage_ref.strip():
+                raise StepProcessorError(
+                    f"column_widths_from_stage must be a stage name string "
+                    f"in {context}, got: {stage_ref!r}"
+                )
+        if ('column_widths_source' in sheet_config
+                and 'column_widths_from_stage' not in sheet_config):
+            raise StepProcessorError(
+                f"column_widths_source without column_widths_from_stage "
+                f"in {context} - the selector only means something when a "
+                f"profile stage is being consumed"
+            )
+
+        if 'sheet_state' in sheet_config:
+            state = sheet_config['sheet_state']
+            if state not in ('visible', 'hidden', 'very_hidden'):
+                raise StepProcessorError(
+                    f"sheet_state must be 'visible', 'hidden', or "
+                    f"'very_hidden' in {context}, got: {state!r}. "
+                    f"(very_hidden tabs can only be re-shown via VBA or the "
+                    f"file format, not Excel's Unhide dialog.)"
+                )
+
+        if 'zoom_percent' in sheet_config:
+            zoom = sheet_config['zoom_percent']
+            if not isinstance(zoom, (int, float)) or not 10 <= zoom <= 400:
+                raise StepProcessorError(
+                    f"zoom_percent must be a number from 10 to 400 (Excel's "
+                    f"zoom range) in {context}, got: {zoom}"
+                )
+
         if 'max_column_width' in sheet_config:
             width = sheet_config['max_column_width']
             if not isinstance(width, (int, float)) or width <= 0:
@@ -438,126 +515,13 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
     def _normalize_color(self, color) -> str:
         """
-        Normalize color to 6-digit uppercase hex format with webcolors support.
-        
-        Supports multiple color formats:
-        - Hex with hash: #FF0000, #F00
-        - Hex without hash: FF0000, F00  
-        - CSS color names: red, blue, forestgreen (if webcolors available)
-        - RGB format: rgb(255, 0, 0) (if webcolors available)
-        
-        Args:
-            color: Color in various formats
-            
-        Returns:
-            6-digit uppercase hex color (without #)
-            
-        Raises:
-            ValueError: If color format is invalid
-        """
-        if color is None:
-            raise ValueError("Color cannot be None")
-        
-        # Convert to string and clean whitespace
-        color_str = str(color).strip()
-        
-        if not color_str:
-            raise ValueError("Color cannot be empty")
-        
-        # Try webcolors first if available
-        try:
-            import webcolors
-            return self._normalize_color_with_webcolors(color_str)
-        except ImportError:
-            # Fall back to basic hex color processing
-            return self._normalize_color_basic(color_str)
+        Normalize a color to 6-digit uppercase hex.
 
-    def _normalize_color_with_webcolors(self, color_str: str) -> str:
+        Thin wrapper over the shared helper so every internal caller keeps
+        working; the actual vocabulary (hex, CSS names, rgb()) lives in
+        _helpers/excel_color_support.py, shared with conditional_format.
         """
-        Normalize color using webcolors library for advanced color format support.
-        
-        Args:
-            color_str: Color string in various formats
-            
-        Returns:
-            6-digit uppercase hex color
-        """
-        # Handle RGB format: rgb(255, 0, 0)
-        if color_str.lower().startswith('rgb(') and color_str.endswith(')'):
-            try:
-                # Extract RGB values
-                rgb_content = color_str[4:-1]  # Remove 'rgb(' and ')'
-                rgb_parts = [int(x.strip()) for x in rgb_content.split(',')]
-                
-                if len(rgb_parts) != 3:
-                    raise ValueError("RGB format must have exactly 3 values")
-                
-                for val in rgb_parts:
-                    if not 0 <= val <= 255:
-                        raise ValueError("RGB values must be between 0 and 255")
-                
-                # Convert to hex
-                hex_color = '%02X%02X%02X' % tuple(rgb_parts)
-                return hex_color
-                
-            except (ValueError, TypeError) as e:
-                raise ValueError(f"Invalid RGB format '{color_str}': {e}")
-        
-        # Try CSS color name
-        try:
-            # webcolors.name_to_hex returns hex with #, so we remove it
-            hex_with_hash = webcolors.name_to_hex(color_str.lower())
-            return hex_with_hash[1:].upper()  # Remove # and convert to uppercase
-        except ValueError:
-            pass  # Not a CSS color name, try hex format
-        
-        # Handle hex format (with or without #)
-        if self._contains_non_hex_chars(color_str):
-            raise ValueError(f"Unrecognized color format: '{color_str}'. Supported formats: hex (#FF0000), CSS names (red, blue), RGB (rgb(255,0,0))")
-        
-        return self._normalize_color_basic(color_str)
-
-    def _contains_non_hex_chars(self, text: str) -> bool:
-        """
-        Check if text contains characters that aren't valid hex.
-        
-        Args:
-            text: Text to check
-            
-        Returns:
-            True if contains non-hex characters, False if only hex characters
-        """
-        hex_chars = set('0123456789ABCDEFabcdef')
-        return any(c not in hex_chars for c in text)
-
-    def _normalize_color_basic(self, color_clean: str) -> str:
-        """
-        Basic color normalization (fallback when webcolors unavailable).
-        
-        Args:
-            color_clean: Cleaned color string
-            
-        Returns:
-            6-digit uppercase hex color
-        """
-        # Remove # if present
-        if color_clean.startswith('#'):
-            color_clean = color_clean[1:]
-        
-        # Check for empty string after removing hash
-        if not color_clean:
-            raise ValueError("Color cannot be just a hash symbol")
-        
-        if not all(c in '0123456789ABCDEFabcdef' for c in color_clean):
-            raise ValueError("Must be a valid hex color (e.g., 'FF0000', '#FF0000')")
-        
-        if len(color_clean) == 3:
-            # Expand 3-digit to 6-digit hex
-            color_clean = ''.join([c*2 for c in color_clean])
-        elif len(color_clean) != 6:
-            raise ValueError("Hex color must be 3 or 6 digits")
-        
-        return color_clean.upper()
+        return normalize_color(color)
 
     def _format_excel_file(self, filename: str, sheet_configs: list, active_sheet=None, templates: list = None) -> int:
         """
@@ -599,12 +563,19 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Process each sheet configuration
         for i, sheet_config in enumerate(sheet_configs):
-            if 'sheet' not in sheet_config:
-                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet' key")
-            
-            sheet_spec = sheet_config['sheet']
-            sheet_name = self._resolve_sheet_name(workbook, sheet_spec)
-            
+            sheet_spec = sheet_config['sheet_name']
+            # Shared recognizer: real names, ?sheet_NNN? tokens, numbers
+            # warned-as-names - and unresolvable sheets FAIL LOUD here. The
+            # old path returned None and silently skipped the entry at
+            # debug level, which hid typos and substitution accidents.
+            try:
+                sheet_name = resolve_sheet_ref(
+                    sheet_spec, workbook.sheetnames,
+                    f"Formatting entry {i+1} in step '{self.step_name}'"
+                )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
+
             if sheet_name:
                 worksheet = workbook[sheet_name]
                 logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {sheet_spec})")
@@ -619,14 +590,54 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 
                 _sheet_clock = time.perf_counter()
                 self._apply_sheet_formatting(worksheet, enhanced_config)
-                logger.info(f"⏱️  [{sheet_name}] formatted in {time.perf_counter() - _sheet_clock:.1f}s")
+                logger.info(f"⏱️  [{sheet_name}] formatted in {time.perf_counter() - _sheet_clock:.3f}s")
                 sheets_processed += 1
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")
         
+        # ---- Workbook-level settings, applied once, after the sheets -------
+        # These act on the WORKBOOK, not on any sheet, and none of them
+        # touches the explicit cell formatting applied above - those colours
+        # are literal RGB and are unaffected.
+        try:
+            theme_config = self.get_config_value('workbook_theme', None)
+            pivot_config = self.get_config_value('pivot_style', None)
+            default_pivot_style = self.get_config_value('default_pivot_style', None)
+
+            # Theme injection is OPT-IN: it recolours every gallery style in
+            # the file, too large a side effect to happen by default.
+            theme_bytes = resolve_theme(workbook, theme_config,
+                                        color_normalizer=self._normalize_color)
+            if theme_bytes is not None:
+                workbook.loaded_theme = theme_bytes
+
+            if pivot_config:
+                # A full custom style definition, registered and (by default)
+                # made the workbook default.
+                build_pivot_style(workbook, pivot_config,
+                                  color_normalizer=self._normalize_color)
+            else:
+                # No custom style: point defaultPivotStyle at a built-in.
+                # Unless the recipe names one, that is the ERP purple
+                # signature - one attribute, no theme, no style definition,
+                # so a pivot the user inserts comes up purple rather than
+                # Excel's stock blue.
+                set_default_pivot_style(
+                    workbook, default_pivot_style or ERP_DEFAULT_PIVOT_STYLE
+                )
+
+        except ThemeManagerError as error:
+            raise StepProcessorError(f"Step '{self.step_name}': {error}")
+
         # Set active sheet if specified (supports both names and numbers)
         if active_sheet is not None:
-            active_sheet_name = self._resolve_sheet_name(workbook, active_sheet)
+            try:
+                active_sheet_name = resolve_sheet_ref(
+                    active_sheet, workbook.sheetnames,
+                    f"active_sheet_name in step '{self.step_name}'"
+                )
+            except ValueError as error:
+                raise StepProcessorError(str(error))
             if active_sheet_name:
                 workbook.active = workbook[active_sheet_name]
                 logger.info(f"📌 Set active sheet to '{active_sheet_name}' (specified as: {active_sheet})")
@@ -639,41 +650,6 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         logger.info(f"✅ Excel formatting completed: {sheets_processed}/{total_sheets} sheets processed")
         return sheets_processed
-
-    def _resolve_sheet_name(self, workbook, sheet_spec) -> str:
-        """
-        Resolve a sheet specification (name or number) to actual sheet name.
-        
-        Args:
-            workbook: openpyxl workbook object
-            sheet_spec: Sheet name (string) or 1-based index (integer)
-            
-        Returns:
-            Actual sheet name if found, None if not found
-        """
-        if isinstance(sheet_spec, str):
-            # Sheet specified by name
-            if sheet_spec in workbook.sheetnames:
-                return sheet_spec
-            else:
-                logger.debug(f"Sheet name '{sheet_spec}' not found in {workbook.sheetnames}")
-                return None
-                
-        elif isinstance(sheet_spec, int):
-            # Sheet specified by 1-based index
-            if 1 <= sheet_spec <= len(workbook.worksheets):
-                # Convert to 0-based index and get sheet name
-                resolved_name = workbook.worksheets[sheet_spec - 1].title
-                logger.debug(f"Sheet index {sheet_spec} resolved to '{resolved_name}'")
-                return resolved_name
-            else:
-                logger.debug(f"Sheet index {sheet_spec} out of range (1-{len(workbook.worksheets)})")
-                return None
-                
-        else:
-            # Invalid sheet specification type
-            logger.debug(f"Invalid sheet specification type: {type(sheet_spec)}")
-            return None
 
     def _apply_sheet_formatting(self, worksheet, formatting: dict) -> None:
         """
@@ -715,6 +691,17 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             self._apply_row_heights(worksheet, row_heights)
             applied_operations.append(f"row heights ({len(row_heights)} rows)")
         
+        # STEP 2a-ter: Inherited column STYLES from a profile_sheets format
+        # survey - number formats, alignment, data font color at the
+        # dimension, header fill/font/bold per cell. Runs AFTER the header
+        # band (band is the default, inheritance the surveyed specifics)
+        # and BEFORE column_formats rules, so an explicit rule still wins:
+        # the escape hatch stays.
+        if 'column_styles_from_stage' in formatting:
+            styled = self._apply_styles_from_profile_stage(
+                worksheet, formatting)
+            applied_operations.append(f"inherited styles ({styled})")
+
         # STEP 2b: Column-addressed number formats and alignment. Runs before
         # auto-fit so widths are measured against the formatted text - "1,234"
         # is wider than "1234", and an accounting format wider still.
@@ -739,6 +726,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         if formatting.get('auto_fit_columns'):
             logger.info(f"📐 [{sheet_name}] Auto-fitting column widths")
             self._auto_fit_columns(worksheet, formatting)
+
+        if 'column_widths_from_stage' in formatting:
+            inherited = self._apply_widths_from_profile_stage(
+                worksheet, formatting)
+            applied_operations.append(f"inherited widths ({inherited})")
             applied_operations.append("auto-fit columns")
         
         # STEP 3a: Explicit widths AFTER auto-fit, so a stated width wins over
@@ -755,6 +747,22 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if width_notes:
                 applied_operations.append(f"explicit widths ({len(width_notes)})")
+
+        # STEP 3a-bis: Spot styling of specific cells/ranges, AFTER the
+        # column-level passes so an explicit cell rule wins where they
+        # overlap (an explicit cell style also overrides whole_column
+        # dimension styles by OOXML precedence).
+        if 'cell_formats' in formatting:
+            try:
+                cell_notes = apply_cell_formats(
+                    worksheet,
+                    formatting['cell_formats'],
+                    color_normalizer=self._normalize_color
+                )
+            except ColumnFormatError as error:
+                raise StepProcessorError(f"Cell formatting failed: {error}")
+            if cell_notes:
+                applied_operations.append(f"cell formats ({len(cell_notes)} rules)")
 
         # STEP 3b: Hide columns AFTER sizing, so auto-fit does not spend effort
         # measuring a column nobody will see
@@ -782,6 +790,31 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             logger.info(f"🔍 [{sheet_name}] Adding auto-filter")
             self._add_auto_filter(worksheet)
             applied_operations.append("auto-filter")
+
+        if 'sheet_state' in formatting:
+            # openpyxl spells the third state in camelCase; recipes use
+            # the house snake_case and translate here
+            state_map = {'visible': 'visible', 'hidden': 'hidden',
+                         'very_hidden': 'veryHidden'}
+            worksheet.sheet_state = state_map[formatting['sheet_state']]
+            applied_operations.append(f"sheet {formatting['sheet_state']}")
+
+        if 'zoom_percent' in formatting:
+            zoom = int(formatting['zoom_percent'])
+            # zoomScale is the live zoom; zoomScaleNormal is the remembered
+            # normal-view zoom - Excel writes both, so both are set.
+            worksheet.sheet_view.zoomScale = zoom
+            worksheet.sheet_view.zoomScaleNormal = zoom
+            applied_operations.append(f"zoom {zoom}%")
+
+        # Tab color: same color vocabulary as every other color option
+        # (hex with or without #, CSS names, rgb()). openpyxl takes the
+        # bare 6-digit hex on sheet_properties.tabColor.
+        if formatting.get('tab_color'):
+            tab_hex = self._normalize_color(formatting['tab_color'])
+            worksheet.sheet_properties.tabColor = tab_hex
+            logger.info(f"🏷️  [{sheet_name}] Tab color set to #{tab_hex}")
+            applied_operations.append(f"tab color #{tab_hex}")
         
         # Log summary of applied operations
         if applied_operations:
@@ -915,14 +948,21 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
     def _apply_header_formatting(self, worksheet, formatting: dict) -> None:
         """
-        Apply enhanced header formatting to the first row.
-        
+        Apply enhanced header formatting to the header row.
+
+        The row is the sheet entry's header_row option (default 1) - the
+        same option column_formats, widths and hidden_columns already
+        honor. Until 2026-08-14 this method hardcoded row 1, so a sheet
+        declaring header_row: 4 had its band painted on the wrong row.
+
         Args:
             worksheet: openpyxl worksheet object
             formatting: Formatting configuration
         """
-        if worksheet.max_row < 1:
-            return  # No data to format
+        header_row = formatting.get('header_row', 1)
+
+        if worksheet.max_row < header_row:
+            return  # No such row to format
         
         # Build font formatting
         font_kwargs = {}
@@ -959,8 +999,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         if header_v_align:
             alignment_kwargs['vertical'] = header_v_align
         
-        # Apply to first row
-        for cell in worksheet[1]:  # First row
+        # Apply to the header row
+        for cell in worksheet[header_row]:
             # Apply font formatting
             if font_kwargs:
                 # Preserve existing font properties and merge with new ones
@@ -1248,6 +1288,159 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             adjusted_width = max(min_width, min(max_length + total_padding, max_width))
             worksheet.column_dimensions[column_letter].width = adjusted_width
 
+    def _apply_widths_from_profile_stage(self, worksheet, formatting: dict) -> int:
+        """
+        Inherit column widths from a profile_sheets stage, by HEADER NAME.
+
+        Runs AFTER auto-fit and BEFORE explicit width rules: inherited
+        widths overwrite whatever auto-fit computed (a spill view's
+        auto-fit only ever sees headers), while a stated width rule still
+        wins over inheritance - the escape hatch stays.
+
+        The stage is the profile_* family contract: rows keyed by
+        Source + Column with a Width column. When the profile holds more
+        than one Source, column_widths_source selects; with exactly one,
+        no selector is needed. Headers absent from the profile are
+        skipped silently - a view projecting a subset is normal.
+        """
+        from excel_recipe_processor.core.stage_manager import StageManager
+
+        stage_name = formatting['column_widths_from_stage']
+        header_row = formatting.get('header_row', 1)
+
+        try:
+            profile = StageManager.load_stage(stage_name)
+        except Exception as error:
+            raise StepProcessorError(
+                f"column_widths_from_stage: could not load stage "
+                f"'{stage_name}': {error}"
+            )
+        for required in ('Column', 'Width'):
+            if required not in profile.columns:
+                raise StepProcessorError(
+                    f"column_widths_from_stage: stage '{stage_name}' lacks "
+                    f"the '{required}' column - it should be a "
+                    f"profile_sheets output (or match its contract)"
+                )
+
+        if 'Source' in profile.columns:
+            sources = list(profile['Source'].unique())
+            selector = formatting.get('column_widths_source')
+            if selector is not None:
+                if selector not in sources:
+                    raise StepProcessorError(
+                        f"column_widths_source '{selector}' not in stage "
+                        f"'{stage_name}'; it holds: {sources}"
+                    )
+                profile = profile[profile['Source'] == selector]
+            elif len(sources) > 1:
+                raise StepProcessorError(
+                    f"Stage '{stage_name}' profiles {len(sources)} sources "
+                    f"({sources}); add column_widths_source to pick one"
+                )
+
+        width_by_name = dict(zip(profile['Column'].astype(str),
+                                 profile['Width']))
+        inherited = 0
+        for cell in worksheet[header_row]:
+            header = cell.value
+            if header is None:
+                continue
+            width = width_by_name.get(str(header))
+            if width is None:
+                continue
+            worksheet.column_dimensions[cell.column_letter].width = float(width)
+            inherited += 1
+        logger.info(
+            f"📏 [{worksheet.title}] Inherited {inherited} column widths "
+            f"from stage '{stage_name}'")
+        return inherited
+
+    def _apply_styles_from_profile_stage(self, worksheet, formatting: dict) -> int:
+        """
+        Inherit surveyed column FORMATTING from a profile_sheets stage.
+
+        By header name, skipping absent headers and empty survey values:
+        Number_Format / Alignment_Horizontal / Data_Font_Color apply at
+        the COLUMN DIMENSION (spill-created cells inherit them);
+        Header_Fill_Color / Header_Font_Color / Header_Bold apply to the
+        header CELL. Runs before column_formats so explicit rules win.
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from excel_recipe_processor.core.stage_manager import StageManager
+
+        stage_name = formatting['column_styles_from_stage']
+        header_row = formatting.get('header_row', 1)
+
+        try:
+            profile = StageManager.load_stage(stage_name)
+        except Exception as error:
+            raise StepProcessorError(
+                f"column_styles_from_stage: could not load stage "
+                f"'{stage_name}': {error}"
+            )
+        required = ('Column', 'Number_Format', 'Header_Fill_Color')
+        for column in required:
+            if column not in profile.columns:
+                raise StepProcessorError(
+                    f"column_styles_from_stage: stage '{stage_name}' lacks "
+                    f"'{column}' - it should be a profile_sheets output "
+                    f"with the format survey (file-input profiling)"
+                )
+
+        if 'Source' in profile.columns:
+            sources = list(profile['Source'].unique())
+            selector = formatting.get('column_styles_source')
+            if selector is not None:
+                if selector not in sources:
+                    raise StepProcessorError(
+                        f"column_styles_source '{selector}' not in stage "
+                        f"'{stage_name}'; it holds: {sources}"
+                    )
+                profile = profile[profile['Source'] == selector]
+            elif len(sources) > 1:
+                raise StepProcessorError(
+                    f"Stage '{stage_name}' profiles {len(sources)} sources "
+                    f"({sources}); add column_styles_source to pick one"
+                )
+
+        by_name = {str(row['Column']): row
+                   for _, row in profile.iterrows()}
+        styled = 0
+        for header_cell in worksheet[header_row]:
+            header = header_cell.value
+            if header is None or str(header) not in by_name:
+                continue
+            facts = by_name[str(header)]
+            dimension = worksheet.column_dimensions[header_cell.column_letter]
+            touched = False
+            if facts.get('Number_Format'):
+                dimension.number_format = facts['Number_Format']
+                touched = True
+            if facts.get('Alignment_Horizontal'):
+                dimension.alignment = Alignment(
+                    horizontal=facts['Alignment_Horizontal'])
+                touched = True
+            if facts.get('Data_Font_Color'):
+                dimension.font = Font(color=facts['Data_Font_Color'])
+                touched = True
+            if facts.get('Header_Fill_Color'):
+                header_cell.fill = PatternFill(
+                    start_color=facts['Header_Fill_Color'],
+                    end_color=facts['Header_Fill_Color'], fill_type='solid')
+                touched = True
+            if facts.get('Header_Font_Color') or facts.get('Header_Bold'):
+                header_cell.font = Font(
+                    bold=bool(facts.get('Header_Bold')),
+                    color=facts.get('Header_Font_Color') or None)
+                touched = True
+            if touched:
+                styled += 1
+        logger.info(
+            f"🎨 [{worksheet.title}] Inherited formatting for {styled} "
+            f"columns from stage '{stage_name}'")
+        return styled
+
     def _add_auto_filter(self, worksheet) -> None:
         """
         Add auto-filter to the data range.
@@ -1279,6 +1472,10 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'phase_1_enhancements': ['header_text_color', 'header_font_size'],
             'phase_2_enhancements': ['general_text_color', 'general_font_size', 'general_font_name', 'general_alignment_horizontal', 'general_alignment_vertical'],
             'phase_3_enhancements': ['cell_ranges', 'webcolors_integration', 'border_formatting', 'css_color_names', 'rgb_color_support'],
+            'worksheet_level_features': ['freeze_top_row', 'auto_filter', 'tab_color'],
+            'tab_color': 'per-sheet tab_color option colors the sheet tab; accepts '
+                         'the same vocabulary as every other color option (hex with '
+                         'or without #, CSS names, rgb())',
             'template_enhancements': ['reusable_templates', 'template_composition', 'template_override'],  # NEW
             'color_formats_supported': [
                 'hex_with_hash (#FF0000)', 'hex_without_hash (FF0000)', 'short_hex (#F00)', 

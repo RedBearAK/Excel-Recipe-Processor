@@ -1,6 +1,8 @@
 """
 Create stage step processor for Excel automation recipes.
 
+excel_recipe_processor/processors/create_stage_processor.py
+
 Handles creating stages from inline data with support for lists, tables, and dictionaries.
 """
 
@@ -25,9 +27,8 @@ class CreateStageProcessor(BaseStepProcessor):
     """
 
     # Builds a stage from inline recipe data, so there is nothing to read from
-    # and the destination is given as 'stage_name'.
+    # and the destination is the standard 'save_to_stage'.
     requires_source_stage = False
-    requires_save_to_stage = False
     
     # Data size limits to prevent YAML bloat
     MAX_LIST_ITEMS = 100
@@ -42,7 +43,7 @@ class CreateStageProcessor(BaseStepProcessor):
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
-            'stage_name': 'test_stage',
+            'save_to_stage': 'test_stage',
             'description': 'Test stage for validation',
             'data': {
                 'format': 'list',
@@ -71,9 +72,15 @@ class CreateStageProcessor(BaseStepProcessor):
             raise StepProcessorError(f"Create stage step '{self.step_name}' requires a pandas DataFrame")
         
         # Validate required configuration
-        self.validate_required_fields(['stage_name', 'data'])
+        if self.step_config.get('stage_name'):
+            raise StepProcessorError(
+                f"Create stage step '{self.step_name}': the destination key is "
+                f"'save_to_stage' (2026-08-13 standardization; 'stage_name' is "
+                f"for declarations and rule references, never step-level flow)"
+            )
+        self.validate_required_fields(['save_to_stage', 'data'])
         
-        stage_name = self.get_config_value('stage_name')
+        stage_name = self.get_config_value('save_to_stage')
         data_config = self.get_config_value('data')
         overwrite = self.get_config_value('overwrite', False)
         description = self.get_config_value('description', '')
@@ -460,3 +467,5 @@ class CreateStageUtils:
             return 'csv'  # Two-column CSV
         else:
             return 'xlsx'  # Default to Excel
+
+# End of file #

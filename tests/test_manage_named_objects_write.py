@@ -59,11 +59,11 @@ def test_create_from_columns():
             'operation': 'create_from_columns',
             'target_file': target,
             'ranges': [
-                {'name': 'rng_PID', 'sheet': 'Product_IDs',
+                {'name': 'rng_PID', 'sheet_name': 'Product_IDs',
                  'columns': ['Product ID'], 'row_mode': 'data'},
-                {'name': 'rng_Prod_Form', 'sheet': 'Product_IDs',
+                {'name': 'rng_Prod_Form', 'sheet_name': 'Product_IDs',
                  'columns': ['Product Form'], 'row_mode': 'data'},
-                {'name': 'rng_PlantOrig', 'sheet': 'Region-Carrier',
+                {'name': 'rng_PlantOrig', 'sheet_name': 'Region-Carrier',
                  'columns': ['Plant Origin'], 'row_mode': 'data'},
             ]
         })
@@ -109,9 +109,9 @@ def test_sparse_column_needs_anchor():
             'operation': 'create_from_columns',
             'target_file': target,
             'ranges': [
-                {'name': 'rng_CanSize_bad', 'sheet': 'Product_IDs',
+                {'name': 'rng_CanSize_bad', 'sheet_name': 'Product_IDs',
                  'columns': ['Can Size'], 'row_mode': 'data'},
-                {'name': 'rng_CanSize_good', 'sheet': 'Product_IDs',
+                {'name': 'rng_CanSize_good', 'sheet_name': 'Product_IDs',
                  'columns': ['Can Size'], 'row_mode': 'data',
                  'anchor_columns': ['Product ID']},
             ]
@@ -148,7 +148,7 @@ def test_column_span():
             'operation': 'create_from_columns',
             'target_file': target,
             'ranges': [
-                {'name': 'rng_prodinfo', 'sheet': 'Product_IDs',
+                {'name': 'rng_prodinfo', 'sheet_name': 'Product_IDs',
                  'columns': ['Species', 'Component'], 'row_mode': 'data'},
             ]
         })
@@ -180,7 +180,7 @@ def test_house_style_rejected():
             'operation': 'create_from_columns',
             'target_file': target,
             'ranges': [
-                {'name': 'rng_PID2026', 'sheet': 'Product_IDs',
+                {'name': 'rng_PID2026', 'sheet_name': 'Product_IDs',
                  'columns': ['Product ID'], 'row_mode': 'data'},
             ]
         })
@@ -206,7 +206,7 @@ def test_on_existing_policies():
         target = str(Path(temp_dir) / 'lookup.xlsx')
         build_lookup_workbook(target)
 
-        base_spec = [{'name': 'rng_PID', 'sheet': 'Product_IDs',
+        base_spec = [{'name': 'rng_PID', 'sheet_name': 'Product_IDs',
                       'columns': ['Product ID'], 'row_mode': 'data'}]
 
         def run(policy):
@@ -258,9 +258,9 @@ def test_sheet_scoped_names():
             'operation': 'create_from_columns',
             'target_file': target,
             'ranges': [
-                {'name': 'rng_local_pid', 'sheet': 'Product_IDs',
+                {'name': 'rng_local_pid', 'sheet_name': 'Product_IDs',
                  'columns': ['Product ID'], 'row_mode': 'data', 'scope': 'local'},
-                {'name': 'rng_global_pid', 'sheet': 'Product_IDs',
+                {'name': 'rng_global_pid', 'sheet_name': 'Product_IDs',
                  'columns': ['Product ID'], 'row_mode': 'data'},
             ]
         }).execute()
@@ -296,9 +296,9 @@ def test_export_then_import_round_trip():
             'operation': 'create_from_columns',
             'target_file': source,
             'ranges': [
-                {'name': 'rng_PID', 'sheet': 'Product_IDs',
+                {'name': 'rng_PID', 'sheet_name': 'Product_IDs',
                  'columns': ['Product ID'], 'row_mode': 'data'},
-                {'name': 'rng_region', 'sheet': 'Region-Carrier',
+                {'name': 'rng_region', 'sheet_name': 'Region-Carrier',
                  'columns': ['Region'], 'row_mode': 'data'},
             ]
         }).execute()
@@ -307,7 +307,7 @@ def test_export_then_import_round_trip():
             'processor_type': 'manage_named_objects',
             'operation': 'export_all',
             'source_file': source,
-            'export_file': yaml_path
+            'yaml_file': yaml_path
         }).execute()
 
         if export_result['objects_exported'] < 2:
@@ -319,7 +319,7 @@ def test_export_then_import_round_trip():
         import_result = ManageNamedObjectsProcessor({
             'processor_type': 'manage_named_objects',
             'operation': 'import_all',
-            'import_file': yaml_path,
+            'yaml_file': yaml_path,
             'target_file': target
         }).execute()
 
@@ -352,9 +352,9 @@ def test_copy_direct():
             'operation': 'create_from_columns',
             'target_file': source,
             'ranges': [
-                {'name': 'rng_PID', 'sheet': 'Product_IDs',
+                {'name': 'rng_PID', 'sheet_name': 'Product_IDs',
                  'columns': ['Product ID'], 'row_mode': 'data'},
-                {'name': 'rng_ProdGrp', 'sheet': 'Product_IDs',
+                {'name': 'rng_ProdGrp', 'sheet_name': 'Product_IDs',
                  'columns': ['Product Group'], 'row_mode': 'data'},
             ]
         }).execute()
@@ -401,7 +401,7 @@ def test_validate_yaml_finds_problems():
         result = ManageNamedObjectsProcessor({
             'processor_type': 'manage_named_objects',
             'operation': 'validate_yaml',
-            'import_file': str(yaml_path)
+            'yaml_file': str(yaml_path)
         }).execute()
 
         if not result['valid'] and len(result['problems']) >= 1:

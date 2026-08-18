@@ -10,10 +10,10 @@ basic_example:
     settings:
       description: "Calculate regional sales totals"
       stages:
-        - stage_name: "sales_data"
+        - stage_name: "stg_sales_data"
           description: "Raw sales data from import"
           protected: false
-        - stage_name: "regional_summary"
+        - stage_name: "stg_regional_summary"
           description: "Sales summarized by region"
           protected: false
     
@@ -23,9 +23,9 @@ basic_example:
         # REQ - Must be "aggregate_data" for this processor type
         processor_type: "aggregate_data"
         # REQ - Stage to read data from (must be declared in settings.stages)
-        source_stage: "sales_data"
+        source_stage: "stg_sales_data"
         # REQ - Stage to save aggregated results
-        save_to_stage: "regional_summary"
+        save_to_stage: "stg_regional_summary"
         # REQ - List of columns to group by
         group_by: ["Sales_Region"]
         # REQ - List of aggregation operations to perform
@@ -48,10 +48,10 @@ multiple_aggregations_example:
       variables:
         analysis_year: "2024"
       stages:
-        - stage_name: "customer_data"
+        - stage_name: "stg_customer_data"
           description: "Customer transaction data"
           protected: false
-        - stage_name: "customer_metrics"
+        - stage_name: "stg_customer_metrics"
           description: "Customer behavior metrics by segment"
           protected: false
     
@@ -59,8 +59,8 @@ multiple_aggregations_example:
       # Previous steps populate customer_data
       - step_description: "Calculate customer metrics by segment and year"
         processor_type: "aggregate_data"
-        source_stage: "customer_data"
-        save_to_stage: "customer_metrics"
+        source_stage: "stg_customer_data"
+        save_to_stage: "stg_customer_metrics"
         # REQ - Multiple grouping columns for hierarchical analysis
         group_by: ["Customer_Segment", "Registration_Year"]
         # REQ - Multiple aggregations with different functions
@@ -108,10 +108,10 @@ business_intelligence_example:
         current_year: "2024"
         company_name: "AcmeCorp"
       stages:
-        - stage_name: "sales_transactions"
+        - stage_name: "stg_sales_transactions"
           description: "All sales transaction data"
           protected: false
-        - stage_name: "executive_metrics"
+        - stage_name: "stg_executive_metrics"
           description: "Executive-level KPIs"
           protected: false
     
@@ -119,8 +119,8 @@ business_intelligence_example:
       # Previous steps populate sales_transactions
       - step_description: "Generate executive dashboard KPIs"
         processor_type: "aggregate_data"
-        source_stage: "sales_transactions"
-        save_to_stage: "executive_metrics"
+        source_stage: "stg_sales_transactions"
+        save_to_stage: "stg_executive_metrics"
         # REQ - Group by business dimensions
         group_by: ["Business_Unit", "Quarter"]
         # REQ - Comprehensive business metrics

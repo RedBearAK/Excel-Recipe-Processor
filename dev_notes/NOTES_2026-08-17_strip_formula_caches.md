@@ -150,6 +150,31 @@ diagnostic: if any row range ever behaves pathologically, the
 heartbeat pinpoints WHERE it stalls, turning an opaque hang into a
 bisectable row number.
 
+## The 500x field slowdown: single-cell array refs (root cause)
+
+The heartbeat's first field data showed a UNIFORM ~700 cells/s
+(sandbox: ~380,000/s) - not a stall, a constant per-cell cost. The
+user's real file reproduced it in the sandbox instantly where every
+synthetic had failed to, and cProfile pinned 80% of runtime in
+in_spill().
+
+Root cause, a storage-grammar fact worth remembering: on resave,
+Excel rewrites every cm-declared dynamic formula as a SINGLE-CELL
+array - <f t="array" ref="AV2:AV2"> - one per cell. 67,726 of them on
+the production VMS sheet. Pass 1 dutifully built a 67k-entry spill
+list, the fast bail disarmed itself (spans present), and every
+literal cell linearly scanned all 67k entries: O(anchors x cells),
+billions of comparisons.
+
+Fix: a single-cell ref (first == last) has NO member cells and needs
+no span entry - skipped in pass 1. The span list then holds only
+genuine multi-cell spills (the user's file: exactly one, the
+Cust_List pick-list), the fast bail re-arms, and the real workbook
+strips in 3.3s wall: 67,728 caches, 3 spill members, calcChain
+removed, 29.2% reclaimed, openpyxl round-trip and grammar audit
+CLEAN. Also proven: the heartbeat did exactly its diagnostic job -
+the uniform rate ruled out stalls and swap before profiling began.
+
 ## Standing limits
 
 Reclaims space in STORED copies; the next user save re-caches (that

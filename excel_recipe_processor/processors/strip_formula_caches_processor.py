@@ -373,6 +373,16 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
                     continue
                 first = ref_match.group(1)
                 last = ref_match.group(2) or first
+                # SINGLE-CELL array refs have no member cells and need
+                # no span entry. This is not an edge case: Excel, on
+                # resave, rewrites every cm-declared dynamic formula as
+                # a single-cell array (<f t="array" ref="AV2:AV2">) -
+                # 67,726 of them on the production VMS sheet, which
+                # turned the member lookup into an O(anchors x cells)
+                # scan and a 500x field slowdown (2026-08-17, found by
+                # heartbeat rate + cProfile on the real file).
+                if first == last:
+                    continue
                 fm = cell_ref_attr_rgx.match(f'r="{first}"')
                 lm = cell_ref_attr_rgx.match(f'r="{last}"')
                 spill_spans.append((

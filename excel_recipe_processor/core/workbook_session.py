@@ -28,6 +28,7 @@ absolute path and flushes every dirty one at pipeline end. A recipe can
 force an earlier write with the flush_workbooks processor.
 """
 
+import io
 import time
 import logging
 
@@ -35,10 +36,36 @@ import openpyxl
 
 from pathlib import Path
 
-from excel_recipe_processor.core.dynamic_array_metadata import save_workbook_with_declaration
+from excel_recipe_processor.core.inline_string_consolidation import (
+    log_consolidation,
+    consolidate_inline_strings,
+)
+from excel_recipe_processor.core.dynamic_array_metadata import (
+    declare_dynamic_formulas_in_zip,
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+def _write_bytes_atomically(package_bytes: bytes, destination) -> None:
+    """Sibling temp file + os.replace: a crash never truncates the target."""
+    import os
+    import tempfile
+
+    if hasattr(destination, 'write'):
+        destination.write(package_bytes)
+        return
+    directory = os.path.dirname(os.path.abspath(destination)) or '.'
+    handle, temp_path = tempfile.mkstemp(dir=directory, suffix='.save_tmp')
+    try:
+        with os.fdopen(handle, 'wb') as out:
+            out.write(package_bytes)
+        os.replace(temp_path, destination)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
 
 
 class WorkbookSessionError(Exception):
@@ -144,12 +171,25 @@ class WorkbookSession:
         """
         started = time.perf_counter()
 
+        # Inline-string consolidation runs on EVERY save (2026-08-17
+        # ruling: intrinsic, not optional): openpyxl 3.1+ writes all
+        # literal strings inline, which on repetitive production data
+        # costs ~10-15% of file size against Excel's shared-string
+        # dialect. The workbook serializes to memory, the bytes are
+        # rewritten to the shared dialect (level-9 packed), and the
+        # declaration - when enabled - runs on the consolidated bytes.
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        consolidated, stats = consolidate_inline_strings(buffer.getvalue())
+        log_consolidation(stats, context)
+
         if cls._declare_dynamic:
-            save_workbook_with_declaration(
-                workbook, key, injected_cells=cls._injected_formula_ranges.get(key)
+            declare_dynamic_formulas_in_zip(
+                io.BytesIO(consolidated), key,
+                injected_cells=cls._injected_formula_ranges.get(key)
             )
         else:
-            workbook.save(key)
+            _write_bytes_atomically(consolidated, key)
 
         # The provenance registry deliberately SURVIVES the save
         # (2026-08-16): openpyxl does not preserve the cm attribute, so a

@@ -552,7 +552,8 @@ def _write_all_members(members: dict, destination_path) -> None:
     safety is meaningless for a buffer.
     """
     if hasattr(destination_path, 'write'):
-        with zipfile.ZipFile(destination_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+        with zipfile.ZipFile(destination_path, 'w', zipfile.ZIP_DEFLATED,
+                             compresslevel=9) as archive:
             for member_name, member_bytes in members.items():
                 archive.writestr(member_name, member_bytes)
         return
@@ -565,7 +566,10 @@ def _write_all_members(members: dict, destination_path) -> None:
 
     temp_path = destination.with_name(destination.name + '.da_tmp')
 
-    with zipfile.ZipFile(temp_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+    # compresslevel 9 (2026-08-17): authored files are archives from
+    # birth - the save-side twin of the strip processor's packing.
+    with zipfile.ZipFile(temp_path, 'w', compression=zipfile.ZIP_DEFLATED,
+                         compresslevel=9) as archive:
         for name, content in members.items():
             archive.writestr(name, content)
 

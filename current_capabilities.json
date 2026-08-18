@@ -1216,7 +1216,8 @@
         "defined_name_validation",
         "existing_name_policies",
         "global_and_sheet_scope",
-        "lambda_round_trip"
+        "lambda_round_trip",
+        "name_mgr_comments"
       ],
       "existing_name_policies": [
         "error",

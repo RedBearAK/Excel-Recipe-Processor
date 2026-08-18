@@ -77,6 +77,12 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
     # Object categories carried in the export structure, in write order.
     OBJECT_SECTIONS = ['named_ranges', 'lambda_functions', 'named_formulas']
 
+    # Excel's Name Manager Comment field caps at 255 characters; the
+    # dialog truncates silently, so the funnel refuses over-length text
+    # instead. Long-form documentation belongs in the YAML library's
+    # 'description' field, which has no such ceiling.
+    NAME_MGR_COMMENT_LIMIT = 255
+
     def __init__(self, step_config: dict):
         super().__init__(step_config)
         self.operation = self.get_config_value('operation')
@@ -190,6 +196,11 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     'definition': defined_name.attr_text,
                     'excel_definition': defined_name.attr_text
                 }
+                # Stored Name Manager comments round-trip; without this,
+                # a hand-entered comment would be the one property that
+                # export silently drops.
+                if defined_name.comment:
+                    range_obj['name_mgr_comment'] = defined_name.comment
                 ranges.append(range_obj)
         
         return ranges
@@ -219,6 +230,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     'parameters': parameters,
                     'excel_definition': excel_formula
                 }
+                if defined_name.comment:
+                    lambda_obj['name_mgr_comment'] = defined_name.comment
                 lambda_funcs.append(lambda_obj)
         
         return lambda_funcs
@@ -244,6 +257,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     'definition': self._clean_formula_for_display(defined_name.attr_text),
                     'excel_definition': defined_name.attr_text
                 }
+                if defined_name.comment:
+                    formula_obj['name_mgr_comment'] = defined_name.comment
                 formulas.append(formula_obj)
         
         return formulas
@@ -302,6 +317,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                     'definition': defined_name.attr_text,
                     'excel_definition': defined_name.attr_text
                 }
+                if defined_name.comment:
+                    local_obj['name_mgr_comment'] = defined_name.comment
                 sheet_objects['named_ranges'].append(local_obj)
 
             # Only include sheets that have local objects
@@ -760,7 +777,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
     def write_named_object(self, workbook, name: str, definition: str,
                            sheet_name=None, on_existing: str = 'error',
-                           name_validation: str = 'excel') -> str:
+                           name_validation: str = 'excel',
+                           name_mgr_comment=None) -> str:
         """
         Write a single defined name into a workbook.
 
@@ -774,6 +792,9 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             sheet_name:         Sheet for local scope, or None for global
             on_existing:        'error', 'replace', or 'skip'
             name_validation:    'none', 'excel', or 'house'
+            name_mgr_comment:   Text for Excel's Name Manager Comment
+                                column, or None. Max 255 chars, checked
+                                loud; newlines flattened to spaces.
 
         Returns:
             'written', 'replaced', or 'skipped'
@@ -801,6 +822,10 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
         self._check_name(clean_name, name_validation)
 
+        # Validated BEFORE the collision handling so an over-length
+        # comment cannot first delete the existing name and then die.
+        clean_comment = self._prepare_name_mgr_comment(clean_name, name_mgr_comment)
+
         if sheet_name is not None and sheet_name not in workbook.sheetnames:
             raise StepProcessorError(
                 f"Cannot scope '{clean_name}' to sheet '{sheet_name}': "
@@ -825,7 +850,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             self._remove_name(workbook, clean_name, sheet_name)
             outcome = 'replaced'
 
-        defined_name = DefinedName(clean_name, attr_text=clean_definition)
+        defined_name = DefinedName(clean_name, attr_text=clean_definition,
+                                   comment=clean_comment)
 
         if sheet_name is None:
             workbook.defined_names[clean_name] = defined_name
@@ -834,6 +860,52 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
         logger.debug(f"{outcome.title()} '{clean_name}' -> {clean_definition}")
         return outcome
+
+    def _prepare_name_mgr_comment(self, name: str, comment):
+        """
+        Normalize and validate text bound for the Name Manager Comment column.
+
+        The comment attribute is stored on the definedName element in
+        xl/workbook.xml and round-trips through openpyxl. Excel's dialog
+        renders it as a single line and caps entry at 255 characters, so
+        multi-line YAML text is flattened to one line here and over-length
+        text is refused loudly rather than silently truncated.
+
+        Args:
+            name:     Defined name the comment belongs to, for error text
+            comment:  Raw comment text, or None/empty for no comment
+
+        Returns:
+            Cleaned single-line comment string, or None when absent
+        """
+        if comment is None:
+            return None
+
+        if not isinstance(comment, str):
+            raise StepProcessorError(
+                f"name_mgr_comment for '{name}' must be a string, "
+                f"got {type(comment).__name__}"
+            )
+
+        # Folded YAML arrives with newlines; the Name Manager column is a
+        # single line, so collapse all internal whitespace runs to one space.
+        flattened = ' '.join(comment.split())
+
+        if not flattened:
+            return None
+
+        if len(flattened) > self.NAME_MGR_COMMENT_LIMIT:
+            raise StepProcessorError(
+                f"name_mgr_comment for '{name}' is {len(flattened)} characters "
+                f"after whitespace flattening; Excel's Name Manager Comment "
+                f"field caps at {self.NAME_MGR_COMMENT_LIMIT} and truncates "
+                f"silently, so the over-length text is refused instead. Trim "
+                f"the name_mgr_comment to a one-line summary; long-form "
+                f"documentation belongs in the YAML 'description' field or in "
+                f"YAML comments, which have no length ceiling."
+            )
+
+        return flattened
 
     def _definition_for_write(self, obj: dict) -> str:
         """
@@ -980,7 +1052,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
         try:
             outcome = self.write_named_object(
-                workbook, name, definition, sheet_name, on_existing, name_validation
+                workbook, name, definition, sheet_name, on_existing, name_validation,
+                name_mgr_comment=obj.get('name_mgr_comment')
             )
 
             if outcome == 'written':
@@ -1215,6 +1288,13 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                             'name': name, 'section': section, 'problem': str(error)
                         })
 
+                try:
+                    self._prepare_name_mgr_comment(name, obj.get('name_mgr_comment'))
+                except StepProcessorError as error:
+                    problems.append({
+                        'name': name, 'section': section, 'problem': str(error)
+                    })
+
         for sheet_name, sheet_objects in objects_dict.get('local_objects', {}).items():
             for obj in sheet_objects.get('named_ranges', []):
                 checked += 1
@@ -1346,6 +1426,14 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                         f"Range '{name}': 'sheet' was replaced by 'sheet_name' "
                         f"(2026-08-14 sheet-addressing doctrine)"
                     )
+                for wrong_key in ('comment', 'name_manager_comment'):
+                    if wrong_key in spec:
+                        raise StepProcessorError(
+                            f"Range '{name}': '{wrong_key}' is not a range spec "
+                            f"key. The Name Manager Comment column is set with "
+                            f"'name_mgr_comment' (max "
+                            f"{self.NAME_MGR_COMMENT_LIMIT} chars)."
+                        )
                 if not sheet:
                     raise StepProcessorError(f"Range '{name}' missing 'sheet_name'")
 
@@ -1387,7 +1475,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                 scope_sheet = sheet if spec.get('scope', 'global') == 'local' else None
 
                 outcome = self.write_named_object(
-                    workbook, name, reference, scope_sheet, on_existing, name_validation
+                    workbook, name, reference, scope_sheet, on_existing, name_validation,
+                    name_mgr_comment=spec.get('name_mgr_comment')
                 )
 
                 record = {'name': name, 'definition': reference, 'sheet': sheet}
@@ -1481,7 +1570,8 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             'write_features': [
                 'column_name_addressing', 'automatic_extent_detection',
                 'defined_name_validation', 'existing_name_policies',
-                'global_and_sheet_scope', 'lambda_round_trip'
+                'global_and_sheet_scope', 'lambda_round_trip',
+                'name_mgr_comments'
             ],
             'existing_name_policies': self.EXISTING_NAME_POLICIES,
             'name_validation_levels': self.NAME_VALIDATION_LEVELS,

@@ -57,8 +57,22 @@ class SelectColumnsProcessor(BaseStepProcessor):
         # Guard clause: ensure we have a DataFrame
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Select columns step '{self.step_name}' requires a pandas DataFrame")
-        
-        self.validate_data_not_empty(data)
+
+        # Zero ROWS is a valid input here (2026-08-17): column selection is
+        # fully defined on an empty frame, and pipelines routinely produce
+        # legitimately-empty stages (a diff with no NEW rows). Only a frame
+        # with no COLUMNS has nothing to select from. The old
+        # validate_data_not_empty call killed the no-news-is-good-news run.
+        if len(data.columns) == 0:
+            raise StepProcessorError(
+                f"Select columns step '{self.step_name}' received a DataFrame "
+                f"with no columns - nothing to select or drop"
+            )
+        if data.empty:
+            logger.warning(
+                f"⚠️  '{self.step_name}': input has 0 rows; selecting columns "
+                f"on the empty frame and passing it through"
+            )
         
         # Get configuration parameters
         columns_to_keep = self.get_config_value('columns_to_keep')

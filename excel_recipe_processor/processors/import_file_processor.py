@@ -8,6 +8,10 @@ Pure stage-based file import - no pipeline data concept.
 
 import logging
 
+import pandas as pd
+
+from pathlib import Path
+
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
@@ -46,6 +50,10 @@ class ImportFileProcessor(ImportBaseProcessor):
             'file_formats': ['xlsx', 'xls', 'xlsm', 'xlsb', 'csv', 'tsv', 'txt (as tsv)'],
             'excel_options': ['sheet selection by name or index'],
             'path_features': ['recipe variable substitution'],
+            'missing_file_policy': "on_missing_file: 'error' (default) or "
+                                   "'create_empty' with declared "
+                                   "create_empty_columns for fail-safe "
+                                   "imports of files that may not exist yet",
         }
 
     def load_data(self):
@@ -69,7 +77,38 @@ class ImportFileProcessor(ImportBaseProcessor):
         encoding = self.get_config_value('encoding', 'utf-8')
         separator = self.get_config_value('separator', ',')
         explicit_format = self.get_config_value('format', None)
-        
+
+        # Fail-safe for files that legitimately may not exist yet (a lookup
+        # produced by a sibling recipe that has not run, a first-run
+        # baseline). 'error' preserves the historical loud failure;
+        # 'create_empty' stands up an empty stage with the DECLARED columns
+        # so every downstream step (keys, filters, exports) stays valid.
+        on_missing_file = self.get_config_value('on_missing_file', 'error')
+        create_empty_columns = self.get_config_value('create_empty_columns', None)
+
+        if on_missing_file not in ('error', 'create_empty'):
+            raise StepProcessorError(
+                f"Import step '{self.step_name}': invalid on_missing_file "
+                f"'{on_missing_file}'. Supported: 'error' (default), "
+                f"'create_empty' (requires 'create_empty_columns')."
+            )
+        if on_missing_file == 'create_empty':
+            if (not create_empty_columns or
+                    not isinstance(create_empty_columns, list) or
+                    not all(isinstance(col, str) for col in create_empty_columns)):
+                raise StepProcessorError(
+                    f"Import step '{self.step_name}': on_missing_file "
+                    f"'create_empty' requires 'create_empty_columns': a list "
+                    f"of column names, so downstream steps that address "
+                    f"columns still find them when the file is absent."
+                )
+        elif create_empty_columns is not None:
+            raise StepProcessorError(
+                f"Import step '{self.step_name}': 'create_empty_columns' "
+                f"only applies with on_missing_file: 'create_empty'. Remove "
+                f"the key or set the policy explicitly."
+            )
+
         # Check if sheet was explicitly specified in the recipe step
         sheet_was_specified = 'sheet_name' in self.step_config
         
@@ -78,6 +117,15 @@ class ImportFileProcessor(ImportBaseProcessor):
             resolved_file = self.variable_substitution.substitute(input_file)
         else:
             resolved_file = input_file
+
+        if on_missing_file == 'create_empty' and not Path(resolved_file).is_file():
+            logger.warning(
+                f"⚠️  '{self.step_name}': input file not found: {resolved_file} - "
+                f"continuing with an EMPTY stage carrying declared columns "
+                f"{create_empty_columns} (on_missing_file: create_empty)"
+            )
+            return pd.DataFrame(columns=create_empty_columns)
+
         
         # Determine if this is an Excel file for sheet-specific logging
         try:

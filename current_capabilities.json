@@ -1090,7 +1090,8 @@
       ],
       "path_features": [
         "recipe variable substitution"
-      ]
+      ],
+      "missing_file_policy": "on_missing_file: 'error' (default) or 'create_empty' with declared create_empty_columns for fail-safe imports of files that may not exist yet"
     },
     "inject_formulas": {
       "description": "Inject live or dead formulas with name-addressed cells and fill-down",

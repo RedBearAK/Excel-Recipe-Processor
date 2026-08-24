@@ -16,7 +16,7 @@ is still accepted.
 
 import logging
 
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 
 from excel_recipe_processor.processors._helpers.range_patterns import cell_ref_rgx, range_ref_rgx
@@ -182,6 +182,8 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         font_italic = rule.get('font_italic')
         font_size = rule.get('font_size')
         background_color = rule.get('background_color')
+        border_style = rule.get('border_style')
+        border_color = rule.get('border_color')
         header_font_color = rule.get('header_font_color')
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
@@ -203,8 +205,9 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             continue
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
-                      background_color, font_bold, font_italic, font_size,
-                      header_font_color, header_background_color, header_bold, width)
+                      background_color, border_style, font_bold, font_italic,
+                      font_size, header_font_color, header_background_color,
+                      header_bold, width)
 
         if all(value is None for value in actionable):
             raise ColumnFormatError(
@@ -252,6 +255,23 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         data_fill = (color_normalizer(background_color)
                      if background_color is not None else None)
 
+        # Data-cell borders (2026-08-23). A cell FILL suppresses Excel's
+        # gridlines wherever it lands - not a bug of ours, just how Excel
+        # paints - so a tinted column looks like a solid slab. A thin
+        # border in gridline gray (D9D9D9) restores the ruled look. Any
+        # openpyxl border style name works; border_color defaults to the
+        # gridline gray when only border_style is given.
+        data_border = None
+        if border_style is not None:
+            side_color = color_normalizer(border_color) if border_color else 'D9D9D9'
+            edge = Side(style=border_style, color=side_color)
+            data_border = Border(left=edge, right=edge, top=edge, bottom=edge)
+        elif border_color is not None:
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'border_color' requires "
+                f"'border_style' (e.g. thin, hair, medium)."
+            )
+
         if font_size is not None and (
                 not isinstance(font_size, (int, float)) or font_size <= 0):
             raise ColumnFormatError(
@@ -268,12 +288,12 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             col_index = column_index_from_string(letter)
 
             if whole_column:
-                if data_fill is not None:
+                if data_fill is not None or data_border is not None:
                     raise ColumnFormatError(
                         f"column_formats rule {index + 1}: 'background_color' "
-                        f"is per-cell and does not combine with whole_column "
-                        f"(a column-dimension fill would tint a million empty "
-                        f"rows). Remove one of the two."
+                        f"and 'border_style' are per-cell and do not combine "
+                        f"with whole_column (a column-dimension fill or border "
+                        f"would paint a million empty rows). Remove one side."
                     )
                 dimension = worksheet.column_dimensions[letter]
                 if format_code:
@@ -343,6 +363,9 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     cell.fill = PatternFill(
                         start_color=data_fill, end_color=data_fill, fill_type='solid'
                     )
+
+                if data_border is not None:
+                    cell.border = data_border
 
         parts = []
         if format_code:

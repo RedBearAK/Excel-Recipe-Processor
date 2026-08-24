@@ -90,13 +90,18 @@ class SelectColumnsProcessor(BaseStepProcessor):
         try:
             # Determine which columns to select
             if columns_to_keep is not None:
+                # Note which create-listed columns are genuinely absent BEFORE
+                # selection, so the log reports what actually happened - a
+                # column that already existed is kept untouched, not created.
+                actually_created = [c for c in (columns_to_create or [])
+                                    if c not in result_data.columns]
                 result_data = self._select_by_inclusion(
                     result_data, columns_to_keep, columns_to_create, allow_duplicates, strict_mode
                 )
-                if columns_to_create:
+                if actually_created:
                     logger.info(
-                        f"➕ Created {len(columns_to_create)} blank column(s): "
-                        f"{', '.join(str(c) for c in columns_to_create)}"
+                        f"➕ Created {len(actually_created)} blank column(s): "
+                        f"{', '.join(str(c) for c in actually_created)}"
                     )
                 operation_desc = f"selected {len(columns_to_keep)} column specifications"
             elif columns_to_drop is not None:

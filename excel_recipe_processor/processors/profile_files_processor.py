@@ -58,6 +58,13 @@ class ProfileFilesProcessor(ImportBaseProcessor):
         #   "skip"   leave the row out
         self.on_missing = self.get_config_value('on_missing', 'error')
 
+        # Adds a Path column with the absolute resolved path of each file.
+        # Built for the Sources-tab file:// hyperlink pattern: the recipe
+        # points a make_hyperlinks column rule at Path and every source
+        # file becomes one click away. Opt-in so existing Sources tabs
+        # keep their shape.
+        self.include_full_paths = self.get_config_value('include_full_paths', False)
+
         if not self.files or not isinstance(self.files, list):
             raise StepProcessorError(
                 f"Step '{self.step_name}' requires 'files': a list of paths"
@@ -66,6 +73,12 @@ class ProfileFilesProcessor(ImportBaseProcessor):
         if self.on_missing not in ('error', 'note', 'skip'):
             raise StepProcessorError(
                 f"Invalid on_missing '{self.on_missing}'. Supported: error, note, skip"
+            )
+
+        if not isinstance(self.include_full_paths, bool):
+            raise StepProcessorError(
+                f"Step '{self.step_name}': 'include_full_paths' must be "
+                f"true or false, got {self.include_full_paths!r}"
             )
 
     def get_capabilities(self) -> dict:
@@ -78,6 +91,7 @@ class ProfileFilesProcessor(ImportBaseProcessor):
         return {
             'description': 'Per-file metadata discovery (e.g., modification times, sizes)',
             'file_columns': ['File', 'Modified', 'Size (KB)'],
+            'optional_columns': {'Path': 'include_full_paths: true'},
             'missing_file_handling': ['error', 'note', 'skip'],
             'preserves_listed_order': True,
         }
@@ -101,6 +115,10 @@ class ProfileFilesProcessor(ImportBaseProcessor):
                     'File': path.name,
                     'Modified': 'MISSING',
                     'Size (KB)': None,
+                    # resolve() works on nonexistent paths too; a MISSING
+                    # row pointing at where the file SHOULD be is exactly
+                    # the diagnostic a provenance sheet is for
+                    'Path': str(path.resolve()),
                 })
                 continue
 
@@ -112,9 +130,14 @@ class ProfileFilesProcessor(ImportBaseProcessor):
                 # a real datetime so Excel can sort and format it.
                 'Modified': datetime.fromtimestamp(stat.st_mtime).replace(microsecond=0),
                 'Size (KB)': round(stat.st_size / 1024, 1),
+                'Path': str(path.resolve()),
             })
 
-        frame = pd.DataFrame(rows, columns=['File', 'Modified', 'Size (KB)'])
+        columns_to_emit = ['File', 'Modified', 'Size (KB)']
+        if self.include_full_paths:
+            columns_to_emit.append('Path')
+
+        frame = pd.DataFrame(rows, columns=columns_to_emit)
 
         logger.info(f"📋 Collected metadata for {len(frame)} file(s)")
 

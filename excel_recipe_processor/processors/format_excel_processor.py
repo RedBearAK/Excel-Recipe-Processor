@@ -35,6 +35,9 @@ from excel_recipe_processor.processors._helpers.format_excel_column_formats impo
     apply_cell_formats, apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
 )
+from excel_recipe_processor.processors._helpers.format_excel_sheet_features import (
+    apply_banded_rows, apply_outline_border, sheet_data_extent, SheetFeatureError
+)
 
 
 logger = logging.getLogger(__name__)
@@ -300,6 +303,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
             'column_widths_from_stage', 'column_widths_source',
             'column_styles_from_stage', 'column_styles_source',
+
+            # Consolidated formatting cycle (2026-08-23): row height
+            # conveniences, gridline toggle, banded rows, outline borders
+            'header_row_height', 'data_row_height', 'show_gridlines',
+            'banded_row_color', 'banded_row_border_style',
+            'banded_row_border_color',
+            'outline_border_style', 'outline_border_color',
+            'outline_border_range',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -444,6 +455,70 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 
                 if not isinstance(height, (int, float)) or height <= 0:
                     raise StepProcessorError(f"row_heights values must be positive numbers in {context}, got: {height}")
+
+        # Validate the consolidated-cycle sheet keys (2026-08-23)
+        for height_key in ('header_row_height', 'data_row_height'):
+            if height_key in sheet_config:
+                height = sheet_config[height_key]
+                if not isinstance(height, (int, float)) or height <= 0:
+                    raise StepProcessorError(
+                        f"{height_key} must be a positive number of points "
+                        f"in {context}, got: {height!r}"
+                    )
+
+        if 'show_gridlines' in sheet_config:
+            if not isinstance(sheet_config['show_gridlines'], bool):
+                raise StepProcessorError(
+                    f"show_gridlines must be true or false in {context}, "
+                    f"got: {sheet_config['show_gridlines']!r}"
+                )
+
+        if 'banded_row_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['banded_row_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid banded_row_color in {context}: {e}")
+        else:
+            for band_key in ('banded_row_border_style', 'banded_row_border_color'):
+                if band_key in sheet_config:
+                    raise StepProcessorError(
+                        f"{band_key} requires banded_row_color in {context} "
+                        f"(there is nothing to rule without a band)"
+                    )
+
+        if 'banded_row_border_color' in sheet_config:
+            if 'banded_row_border_style' not in sheet_config:
+                raise StepProcessorError(
+                    f"banded_row_border_color requires banded_row_border_style "
+                    f"in {context} (e.g. thin, hair, medium)"
+                )
+            try:
+                self._normalize_color(sheet_config['banded_row_border_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid banded_row_border_color in {context}: {e}")
+
+        if 'outline_border_style' in sheet_config:
+            if 'outline_border_color' in sheet_config:
+                try:
+                    self._normalize_color(sheet_config['outline_border_color'])
+                except ValueError as e:
+                    raise StepProcessorError(f"Invalid outline_border_color in {context}: {e}")
+        else:
+            for outline_key in ('outline_border_color', 'outline_border_range'):
+                if outline_key in sheet_config:
+                    raise StepProcessorError(
+                        f"{outline_key} requires outline_border_style in "
+                        f"{context} (e.g. thin, medium, thick)"
+                    )
+
+        if 'outline_border_range' in sheet_config:
+            ranges = sheet_config['outline_border_range']
+            if not isinstance(ranges, (str, list)):
+                raise StepProcessorError(
+                    f"outline_border_range must be a range string like "
+                    f"'B2:F40' or a list of them in {context}, got: "
+                    f"{type(ranges).__name__}"
+                )
         
         # Validate cell_ranges
         if 'cell_ranges' in sheet_config:
@@ -685,6 +760,24 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             applied_operations.append(f"range formatting ({len(cell_ranges)} ranges)")
         
         # STEP 2: Set row heights (might affect auto-fit calculations)
+        header_row_num = formatting.get('header_row', 1)
+
+        if 'header_row_height' in formatting:
+            height = formatting['header_row_height']
+            worksheet.row_dimensions[header_row_num].height = height
+            logger.info(f"📏 [{sheet_name}] Header row height set to {height}")
+            applied_operations.append(f"header row height {height}")
+
+        if 'data_row_height' in formatting:
+            # The sheet DEFAULT row height, not per-row entries: reaches
+            # every row Excel creates later - dynamic-array spill rows
+            # included - the same reasoning as whole_column styles
+            height = formatting['data_row_height']
+            worksheet.sheet_format.defaultRowHeight = height
+            worksheet.sheet_format.customHeight = True
+            logger.info(f"📏 [{sheet_name}] Default data row height set to {height}")
+            applied_operations.append(f"data row height {height}")
+
         row_heights = formatting.get('row_heights', {})
         if row_heights:
             logger.info(f"📏 [{sheet_name}] Setting custom row heights for {len(row_heights)} rows")
@@ -721,6 +814,32 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if descriptions:
                 applied_operations.append(f"column formats ({len(descriptions)} rules)")
+
+        # STEP 2c: Banded rows AFTER column_formats and BEFORE cell_formats,
+        # by design: banding WINS over column tints (the band tracks a ROW
+        # and must be continuous; the tint reads through on off-band rows),
+        # while explicit spot rules still beat everything.
+        if 'banded_row_color' in formatting:
+            band_hex = self._normalize_color(formatting['banded_row_color'])
+            band_style = formatting.get('banded_row_border_style')
+            band_border_color = formatting.get('banded_row_border_color')
+            band_border_hex = (self._normalize_color(band_border_color)
+                               if band_border_color is not None else None)
+            try:
+                banded = apply_banded_rows(
+                    worksheet, band_hex,
+                    header_row=header_row_num,
+                    last_row=sheet_data_extent(worksheet, header_row_num),
+                    border_style=band_style,
+                    border_color=band_border_hex
+                )
+            except SheetFeatureError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+            if banded:
+                logger.info(
+                    f"🦓 [{sheet_name}] Banded {banded} row(s) with #{band_hex}"
+                )
+                applied_operations.append(f"banded rows ({banded})")
 
         # STEP 3: Column sizing (auto-fit or explicit sizing)
         if formatting.get('auto_fit_columns'):
@@ -780,7 +899,38 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if hidden:
                 applied_operations.append(f"hid {len(hidden)} column(s)")
 
+        # STEP 3c: Outline borders LAST among border-touching passes, so
+        # the box lands on top of column ruling, banding and spot rules -
+        # but only on the outward-facing sides; interior sides survive.
+        if 'outline_border_style' in formatting:
+            outline_style = formatting['outline_border_style']
+            outline_color = self._normalize_color(
+                formatting.get('outline_border_color', '000000'))
+            try:
+                boxed = apply_outline_border(
+                    worksheet,
+                    formatting.get('outline_border_range'),
+                    style=outline_style,
+                    color=outline_color,
+                    header_row=header_row_num,
+                    last_row=sheet_data_extent(worksheet, header_row_num)
+                )
+            except SheetFeatureError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+            if boxed:
+                logger.info(
+                    f"🖼️  [{sheet_name}] Outline border ({outline_style}, "
+                    f"#{outline_color}) on: {', '.join(boxed)}"
+                )
+                applied_operations.append(f"outline border ({len(boxed)} range(s))")
+
         # STEP 4: Worksheet-level features
+        if 'show_gridlines' in formatting:
+            show = formatting['show_gridlines']
+            worksheet.sheet_view.showGridLines = show
+            logger.info(f"🗒️  [{sheet_name}] Gridlines {'shown' if show else 'hidden'}")
+            applied_operations.append(f"gridlines {'on' if show else 'off'}")
+
         if formatting.get('freeze_top_row'):
             logger.info(f"🧊 [{sheet_name}] Freezing top row")
             worksheet.freeze_panes = 'A2'

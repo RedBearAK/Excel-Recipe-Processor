@@ -76,6 +76,17 @@ class LookupDataProcessor(BaseStepProcessor):
         # XLOOKUP(TRUE, ISNUMBER(SEARCH(...))) pattern, made data-driven.
         # Built 2026-08-23 for the contract-Notes due-date-indicator decode.
         match_mode = self.get_config_value('match_mode', 'exact_key_equality')
+
+        # Some joins are SUPPOSED to come back mostly empty - carrying
+        # sparse hand-maintained columns forward is the canonical case -
+        # and a warning that fires on the designed shape trains people to
+        # ignore warnings. Explicit opt-out, default on.
+        low_match_warning = self.get_config_value('low_match_warning', True)
+        if not isinstance(low_match_warning, bool):
+            raise StepProcessorError(
+                f"Lookup step '{self.step_name}': low_match_warning must be "
+                f"true or false, got {low_match_warning!r}"
+            )
         if match_mode not in ('exact_key_equality', 'lookup_value_within_main_text'):
             raise StepProcessorError(
                 f"Lookup step '{self.step_name}': invalid match_mode "
@@ -131,7 +142,8 @@ class LookupDataProcessor(BaseStepProcessor):
                 result = self._apply_default_values(result, lookup_columns, default_values, prefix, suffix)
             
             # Enhanced logging with detailed statistics
-            self._log_detailed_results(len(data), len(result), match_stats, default_values)
+            self._log_detailed_results(len(data), len(result), match_stats, default_values,
+                                       low_match_warning)
             
             return result
             
@@ -402,7 +414,8 @@ class LookupDataProcessor(BaseStepProcessor):
         
         return data
     
-    def _log_detailed_results(self, initial_rows: int, final_rows: int, match_stats: dict, default_values: dict) -> None:
+    def _log_detailed_results(self, initial_rows: int, final_rows: int, match_stats: dict, default_values: dict,
+                              low_match_warning: bool = True) -> None:
         """Log detailed results with per-column statistics."""
         
         # Overall summary
@@ -431,6 +444,8 @@ class LookupDataProcessor(BaseStepProcessor):
         # warning stays for columns whose misses end up as real holes.
         problematic_columns = []
         for col, stats in match_stats.items():
+            if not low_match_warning:
+                break
             if col in default_values:
                 continue
             if stats['success_rate'] < 50:  # Less than 50% match rate

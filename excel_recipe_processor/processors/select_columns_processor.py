@@ -69,8 +69,10 @@ class SelectColumnsProcessor(BaseStepProcessor):
                 f"with no columns - nothing to select or drop"
             )
         if data.empty:
-            logger.warning(
-                f"⚠️  '{self.step_name}': input has 0 rows; selecting columns "
+            # INFO, not WARNING (2026-08-23): a diff with no NEW rows lands
+            # here on every quiet day - the good case must not cry wolf
+            logger.info(
+                f"'{self.step_name}': input has 0 rows; selecting columns "
                 f"on the empty frame and passing it through"
             )
         

@@ -1136,6 +1136,10 @@
         "inner",
         "outer"
       ],
+      "match_modes": [
+        "exact_key_equality",
+        "lookup_value_within_main_text"
+      ],
       "key_features": [
         "type_and_format_normalization",
         "whitespace_handling",

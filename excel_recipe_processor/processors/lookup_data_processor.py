@@ -11,6 +11,7 @@ Handles stage-to-stage lookups with focus on solving real matching problems:
 """
 
 import pandas as pd
+import re
 import logging
 
 from typing import Any
@@ -67,6 +68,27 @@ class LookupDataProcessor(BaseStepProcessor):
         default_values = self.get_config_value('default_values', {})
         normalize_keys = self.get_config_value('normalize_keys', True)
         handle_duplicates = self.get_config_value('handle_duplicates', 'first')
+
+        # 'exact_key_equality' (default): the historical merge on equal keys.
+        # 'lookup_value_within_main_text': for each main row, scan the lookup
+        # rows IN THEIR STAGE ORDER and take the first whose key STRING
+        # appears (case-insensitive) inside the main column's text - the
+        # XLOOKUP(TRUE, ISNUMBER(SEARCH(...))) pattern, made data-driven.
+        # Built 2026-08-23 for the contract-Notes due-date-indicator decode.
+        match_mode = self.get_config_value('match_mode', 'exact_key_equality')
+        if match_mode not in ('exact_key_equality', 'lookup_value_within_main_text'):
+            raise StepProcessorError(
+                f"Lookup step '{self.step_name}': invalid match_mode "
+                f"'{match_mode}'. Supported: 'exact_key_equality' (default), "
+                f"'lookup_value_within_main_text' (substring scan in lookup "
+                f"stage order, first match wins)."
+            )
+        if match_mode == 'lookup_value_within_main_text' and 'join_type' in self.step_config:
+            raise StepProcessorError(
+                f"Lookup step '{self.step_name}': 'join_type' does not apply "
+                f"to match_mode 'lookup_value_within_main_text' - every main "
+                f"row is kept and unmatched rows get defaults. Remove the key."
+            )
         
         # Validate configuration
         self._validate_config(data, lookup_stage, match_col_in_lookup_data, match_col_in_main_data, lookup_columns, join_type)
@@ -80,13 +102,22 @@ class LookupDataProcessor(BaseStepProcessor):
             
             # Handle duplicates in lookup data
             lookup_data = self._handle_lookup_duplicates(lookup_data, match_col_in_lookup_data, handle_duplicates)
-            
-            # Normalize keys to handle real matching problems
-            if normalize_keys:
-                data, lookup_data = self._normalize_keys(data, lookup_data, match_col_in_main_data, match_col_in_lookup_data)
-            
-            # Perform the lookup merge
-            result = self._perform_lookup_merge(data, lookup_data, match_col_in_main_data, match_col_in_lookup_data, lookup_columns, join_type)
+
+            if match_mode == 'lookup_value_within_main_text':
+                # No key normalization: the scan is case-insensitive on its
+                # own, and rewriting the main text column to normalize it
+                # would mutate real data (Notes) rather than a join key.
+                result = self._perform_substring_scan(
+                    data, lookup_data, match_col_in_main_data,
+                    match_col_in_lookup_data, lookup_columns
+                )
+            else:
+                # Normalize keys to handle real matching problems
+                if normalize_keys:
+                    data, lookup_data = self._normalize_keys(data, lookup_data, match_col_in_main_data, match_col_in_lookup_data)
+
+                # Perform the lookup merge
+                result = self._perform_lookup_merge(data, lookup_data, match_col_in_main_data, match_col_in_lookup_data, lookup_columns, join_type)
             
             # Apply column naming (prefix/suffix)
             if prefix or suffix:
@@ -229,6 +260,62 @@ class LookupDataProcessor(BaseStepProcessor):
         
         return data, lookup_data
     
+    def _perform_substring_scan(self, data: pd.DataFrame, lookup_data: pd.DataFrame,
+                                match_col_in_main_data: str, match_col_in_lookup_data: str,
+                                lookup_columns: list) -> pd.DataFrame:
+        """
+        Assign lookup columns by scanning for lookup KEY TEXT inside the main
+        column's text. Lookup rows are tried in their stage order and the
+        first hit wins for a given main row, mirroring how
+        XLOOKUP(TRUE, ISNUMBER(SEARCH(range, cell)), range) resolves in a
+        worksheet. Matching is case-insensitive; key text is regex-escaped so
+        keys containing '/', '(', '+' and friends match literally.
+
+        Rows with no hit keep NA in every lookup column, for default_values
+        to fill afterward.
+        """
+        collisions = [col for col in lookup_columns if col in data.columns]
+        if collisions:
+            raise StepProcessorError(
+                f"Lookup step '{self.step_name}': lookup column(s) "
+                f"{collisions} already exist in the main data. Rename them "
+                f"first or pick a prefix/suffix - overwriting silently is "
+                f"not on the menu."
+            )
+
+        result = data.copy()
+        for col in lookup_columns:
+            result[col] = None
+
+        main_text = result[match_col_in_main_data]
+        unassigned = pd.Series(True, index=result.index)
+        scanned_keys = 0
+
+        for _, lookup_row in lookup_data.iterrows():
+            key_text = lookup_row[match_col_in_lookup_data]
+            if not isinstance(key_text, str) or not key_text.strip():
+                continue
+            scanned_keys += 1
+
+            hits = main_text.astype(str).str.contains(
+                re.escape(key_text), case=False, na=False, regex=True
+            ) & unassigned
+
+            if hits.any():
+                for col in lookup_columns:
+                    result.loc[hits, col] = lookup_row[col]
+                unassigned &= ~hits
+
+            if not unassigned.any():
+                break
+
+        logger.info(
+            f"🔎 Substring scan: {scanned_keys} lookup key(s) tried against "
+            f"'{match_col_in_main_data}'; {int((~unassigned).sum())} of "
+            f"{len(result)} row(s) matched"
+        )
+        return result
+
     def _perform_lookup_merge(self, data: pd.DataFrame, lookup_data: pd.DataFrame,
                              match_col_in_main_data: str, match_col_in_lookup_data: str, lookup_columns: list, 
                              join_type: str) -> pd.DataFrame:
@@ -337,9 +424,15 @@ class LookupDataProcessor(BaseStepProcessor):
             logger.info(f"   📈 {col}: {successful:,} matched ({success_rate:.1f}%), "
                         f"{missing:,} missing{default_info}")
         
-        # Summary warnings for problematic columns
+        # Summary warnings for problematic columns. A column WITH a default
+        # is excluded (2026-08-23): when the recipe declares a fallback, a
+        # low raw match rate is the designed shape - most contract Notes
+        # carry no due-date clause on purpose - not a data problem. The
+        # warning stays for columns whose misses end up as real holes.
         problematic_columns = []
         for col, stats in match_stats.items():
+            if col in default_values:
+                continue
             if stats['success_rate'] < 50:  # Less than 50% match rate
                 problematic_columns.append(f"'{col}' ({stats['success_rate']:.1f}%)")
         
@@ -361,6 +454,8 @@ class LookupDataProcessor(BaseStepProcessor):
             'description': 'Stage-to-stage lookups with smart key normalization and detailed logging',
             'data_sources': ['stages'],
             'join_types': ['left', 'right', 'inner', 'outer'],
+            'match_modes': ['exact_key_equality',
+                            'lookup_value_within_main_text'],
             'key_features': [
                 'type_and_format_normalization',
                 'whitespace_handling',

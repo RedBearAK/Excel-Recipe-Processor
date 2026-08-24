@@ -202,6 +202,39 @@ class FillDataProcessor(BaseStepProcessor):
                     raise StepProcessorError("Fill method 'replace' requires 'old_value' parameter")
                 df[col] = df[col].replace(old_value, fill_value)
                 
+            elif fill_method in ('blanks_from_column', 'overwrite_from_column'):
+                # The coalesce pair (2026-08-23). Both take 'source_column':
+                #   blanks_from_column     target kept, its BLANKS filled from
+                #                          the source - coalesce(target, source)
+                #   overwrite_from_column  source WINS wherever it is non-blank,
+                #                          target only fills its gaps -
+                #                          coalesce(source, target). Built for
+                #                          override-beats-derived columns (the
+                #                          DDI Manual Override consuming rule).
+                # Blank means NA, '' or whitespace-only, matching the diff
+                # processor's blank-equivalence doctrine.
+                source_column = self.get_config_value('source_column', None)
+                if not source_column:
+                    raise StepProcessorError(
+                        f"Fill method '{fill_method}' requires 'source_column': "
+                        f"the column supplying the values"
+                    )
+                if source_column not in df.columns:
+                    raise StepProcessorError(
+                        f"Fill method '{fill_method}': source_column "
+                        f"'{source_column}' not found. Available: {list(df.columns)}"
+                    )
+
+                def blank_mask(series):
+                    as_text = series.astype(str)
+                    return series.isna() | (as_text.str.strip() == '')
+
+                if fill_method == 'blanks_from_column':
+                    take_source = blank_mask(df[col]) & ~blank_mask(df[source_column])
+                else:
+                    take_source = ~blank_mask(df[source_column])
+                df.loc[take_source, col] = df.loc[take_source, source_column]
+
             elif fill_method == 'zero':
                 df[col] = df[col].fillna(0)
                 
@@ -482,7 +515,8 @@ class FillDataProcessor(BaseStepProcessor):
         return [
             'constant', 'forward_fill', 'ffill', 'backward_fill', 'bfill',
             'interpolate', 'mean', 'median', 'mode', 'replace',
-            'zero', 'empty_string'
+            'zero', 'empty_string',
+            'blanks_from_column', 'overwrite_from_column'
         ]
     
     def get_supported_condition_types(self) -> list:

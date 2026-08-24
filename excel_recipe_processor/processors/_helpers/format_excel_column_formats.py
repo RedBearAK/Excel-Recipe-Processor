@@ -181,6 +181,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
         font_size = rule.get('font_size')
+        background_color = rule.get('background_color')
         header_font_color = rule.get('header_font_color')
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
@@ -202,14 +203,15 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             continue
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
-                      font_bold, font_italic, font_size, header_font_color,
-                      header_background_color, header_bold, width)
+                      background_color, font_bold, font_italic, font_size,
+                      header_font_color, header_background_color, header_bold, width)
 
         if all(value is None for value in actionable):
             raise ColumnFormatError(
                 f"column_formats rule {index + 1} does nothing: supply number_format, "
                 f"alignment_horizontal, alignment_vertical, wrap_text, font_color, "
-                f"font_bold, font_italic, header_font_color, header_background_color, "
+                f"background_color, font_bold, font_italic, header_font_color, "
+                f"header_background_color, "
                 f"or header_bold"
             )
 
@@ -244,6 +246,11 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         head_color = color_normalizer(header_font_color) if header_font_color is not None else None
         head_fill = (color_normalizer(header_background_color)
                      if header_background_color is not None else None)
+        # Data-cell fill (2026-08-23): tints the DATA rows of the named
+        # columns, leaving the header to header_background_color. Built for
+        # marking hand-maintained columns as more tenuous than lookups.
+        data_fill = (color_normalizer(background_color)
+                     if background_color is not None else None)
 
         if font_size is not None and (
                 not isinstance(font_size, (int, float)) or font_size <= 0):
@@ -261,6 +268,13 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             col_index = column_index_from_string(letter)
 
             if whole_column:
+                if data_fill is not None:
+                    raise ColumnFormatError(
+                        f"column_formats rule {index + 1}: 'background_color' "
+                        f"is per-cell and does not combine with whole_column "
+                        f"(a column-dimension fill would tint a million empty "
+                        f"rows). Remove one of the two."
+                    )
                 dimension = worksheet.column_dimensions[letter]
                 if format_code:
                     dimension.number_format = format_code
@@ -323,6 +337,11 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                         horizontal=horizontal if horizontal is not None else existing.horizontal,
                         vertical=vertical if vertical is not None else existing.vertical,
                         wrap_text=wrap_text if wrap_text is not None else existing.wrap_text
+                    )
+
+                if data_fill is not None:
+                    cell.fill = PatternFill(
+                        start_color=data_fill, end_color=data_fill, fill_type='solid'
                     )
 
         parts = []

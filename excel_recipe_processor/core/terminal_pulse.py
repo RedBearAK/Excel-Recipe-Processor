@@ -5,28 +5,34 @@ excel_recipe_processor/core/terminal_pulse.py
 
 Silence during legitimate long work is indistinguishable from a hang,
 and a timer-driven spinner is worse than silence: it keeps spinning
-over a wedged process. Both tools here are HONEST by construction:
+over a wedged process. The display here is HONEST by construction and
+RIDES BELOW the log stream:
 
-- TerminalPulse.tick() is called FROM the working loop, so its counter
-  advances only because the work advances. A frozen loop freezes the
-  display, which is exactly the truth.
+- pulse_tick() is called FROM working loops, so the counter advances
+  only because the work advances.
+- A refresher thread re-renders the LAST frame's elapsed clock every
+  second: a frozen counter with a running clock is the truthful
+  picture of "process alive, stuck inside one work unit".
 - ByteGrowthPulse watches bytes accumulating during opaque calls
-  (openpyxl's save into a buffer) where no loop is reachable. Bytes
-  growing cannot be faked by a live thread over dead work; the elapsed
-  clock alongside is labeled for what it is - process liveness, not
-  progress.
+  (openpyxl's buffer save): growing bytes cannot be faked.
+- A logging bridge wraps stream handlers: each log record first clears
+  the pulse line, prints normally, then the pulse redraws beneath it -
+  log lines stay pristine, the pulse rides the bottom.
 
-Nothing here touches the logging module: output is stderr with
-carriage-return rewrites, enabled only when stderr is a TTY, so
-file-based logs and redirected runs stay byte-identical to today.
-Set ERP_PULSE=off to silence even on a TTY; ERP_PULSE=force enables
-without a TTY (testing).
+Nothing touches the log FILES: pulse output is stderr with
+carriage-return rewrites, enabled only on a TTY. ERP_PULSE=off
+silences even on a TTY; ERP_PULSE=force enables without one (tests).
 """
 
 import os
 import sys
 import time
+import logging
 import threading
+
+_LOCK = threading.RLock()
+_ACTIVE = None          # the pulse whose frame rides the bottom
+_BRIDGE_INSTALLED = False
 
 
 def _enabled() -> bool:
@@ -39,75 +45,141 @@ def _enabled() -> bool:
     return hasattr(stream, 'isatty') and stream.isatty()
 
 
-class TerminalPulse:
-    """Work-driven progress line: tick() from the loop that does the work."""
+def _clear_line():
+    sys.stderr.write("\r\033[K")
+    sys.stderr.flush()
 
-    def __init__(self, label: str, min_interval: float = 0.25):
+
+def _install_logging_bridge():
+    """Wrap stream handlers so log records clear and redraw the pulse."""
+    global _BRIDGE_INSTALLED
+    if _BRIDGE_INSTALLED:
+        return
+    _BRIDGE_INSTALLED = True
+    for handler in logging.getLogger().handlers:
+        if not isinstance(handler, logging.StreamHandler):
+            continue
+        if getattr(handler.stream, 'name', '') not in ('<stderr>', '<stdout>'):
+            continue  # file handlers stay untouched
+        original_emit = handler.emit
+
+        def bridged_emit(record, _original=original_emit):
+            with _LOCK:
+                active = _ACTIVE
+                if active is not None:
+                    _clear_line()
+                _original(record)
+                if active is not None:
+                    active.redraw()
+        handler.emit = bridged_emit
+
+
+class TerminalPulse:
+    """Work-driven bottom line with a liveness clock between ticks."""
+
+    def __init__(self, label: str, min_interval: float = 0.2):
         self.label = label
         self.min_interval = min_interval
         self.enabled = _enabled()
         self.started = time.perf_counter()
         self._last_write = 0.0
-        self._wrote_anything = False
+        self._detail = ''
+        self._refresher = None
+        self._stop = threading.Event()
+        if self.enabled:
+            global _ACTIVE
+            with _LOCK:
+                _install_logging_bridge()
+                _ACTIVE = self
+            self._refresher = threading.Thread(
+                target=self._refresh_loop, daemon=True)
+            self._refresher.start()
+
+    def _frame(self) -> str:
+        elapsed = time.perf_counter() - self.started
+        return f"⏳ {self.label} {self._detail} ({elapsed:.0f}s)"
+
+    def redraw(self):
+        sys.stderr.write("\r\033[K" + self._frame())
+        sys.stderr.flush()
+
+    def _refresh_loop(self):
+        # The clock alone advances between ticks - liveness, labeled by
+        # the unchanged counter beside it
+        while not self._stop.wait(1.0):
+            with _LOCK:
+                if _ACTIVE is self:
+                    self.redraw()
 
     def tick(self, detail: str = ''):
         if not self.enabled:
             return
         now = time.perf_counter()
         if now - self._last_write < self.min_interval:
+            self._detail = detail
             return
         self._last_write = now
-        elapsed = now - self.started
-        sys.stderr.write(f"\r\033[K⏳ {self.label} {detail} ({elapsed:.0f}s)")
-        sys.stderr.flush()
-        self._wrote_anything = True
+        self._detail = detail
+        with _LOCK:
+            if _ACTIVE is self:
+                self.redraw()
 
     def done(self):
-        if self.enabled and self._wrote_anything:
-            sys.stderr.write("\r\033[K")
-            sys.stderr.flush()
+        if not self.enabled:
+            return
+        global _ACTIVE
+        self._stop.set()
+        with _LOCK:
+            if _ACTIVE is self:
+                _ACTIVE = None
+                _clear_line()
+
+
+def pulse_tick(detail: str = ''):
+    """Tick the active pulse from any depth, no plumbing required."""
+    with _LOCK:
+        active = _ACTIVE
+    if active is not None:
+        active.tick(detail)
 
 
 class ByteGrowthPulse:
-    """Byte-watcher for opaque calls that write somewhere measurable.
-
-    size_fn returns the bytes written so far - a BytesIO's tell during
-    an in-memory save, or a file's on-disk size via for_file(). Bytes
-    growing are unfakeable evidence the opaque call is really working;
-    the elapsed clock beside them is labeled as liveness only. Use as a
-    context manager around the opaque call.
-    """
+    """Byte-watcher for opaque calls; rides the bottom like TerminalPulse."""
 
     def __init__(self, label: str, size_fn, interval: float = 0.5):
         self.label = label
         self.size_fn = size_fn
         self.interval = interval
         self.enabled = _enabled()
+        self.started = time.perf_counter()
+        self._shown = 'starting'
         self._stop = threading.Event()
         self._thread = None
-        self._wrote_anything = False
 
-    @classmethod
-    def for_file(cls, label: str, path, interval: float = 0.5):
-        def size_fn():
-            return os.path.getsize(str(path))
-        return cls(label, size_fn, interval)
+    def _frame(self) -> str:
+        elapsed = time.perf_counter() - self.started
+        return f"⏳ {self.label}: {self._shown}, {elapsed:.0f}s elapsed"
+
+    def redraw(self):
+        sys.stderr.write("\r\033[K" + self._frame())
+        sys.stderr.flush()
 
     def _watch(self):
-        started = time.perf_counter()
         while not self._stop.wait(self.interval):
             try:
-                shown = f"{self.size_fn() / 1_048_576:.1f} MB written"
+                self._shown = f"{self.size_fn() / 1_048_576:.1f} MB written"
             except OSError:
-                shown = "waiting for first bytes"
-            elapsed = time.perf_counter() - started
-            sys.stderr.write(
-                f"\r\033[K⏳ {self.label}: {shown}, {elapsed:.0f}s elapsed")
-            sys.stderr.flush()
-            self._wrote_anything = True
+                self._shown = "waiting for first bytes"
+            with _LOCK:
+                if _ACTIVE is self:
+                    self.redraw()
 
     def __enter__(self):
         if self.enabled:
+            global _ACTIVE
+            with _LOCK:
+                _install_logging_bridge()
+                _ACTIVE = self
             self._thread = threading.Thread(target=self._watch, daemon=True)
             self._thread.start()
         return self
@@ -116,9 +188,12 @@ class ByteGrowthPulse:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=2)
-        if self.enabled and self._wrote_anything:
-            sys.stderr.write("\r\033[K")
-            sys.stderr.flush()
+        if self.enabled:
+            global _ACTIVE
+            with _LOCK:
+                if _ACTIVE is self:
+                    _ACTIVE = None
+                    _clear_line()
         return False
 
 # End of file #

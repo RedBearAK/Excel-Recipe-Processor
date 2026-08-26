@@ -1442,9 +1442,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Calculate total padding
         auto_filter_padding = AUTO_FILTER_EXTRA if has_auto_filter else 0
         
+        from excel_recipe_processor.core.terminal_pulse import pulse_tick
+        column_total = worksheet.max_column
         for column in worksheet.columns:
             max_length = 0
             column_letter = column[0].column_letter
+            pulse_tick(
+                f"auto-fit {worksheet.title}: column "
+                f"{column[0].column + 0}/{column_total} ({column_letter})")
 
             if scan_rows is not None:
                 # header + the first scan_rows data rows

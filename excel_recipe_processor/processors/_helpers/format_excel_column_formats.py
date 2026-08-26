@@ -205,6 +205,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
         font_size = rule.get('font_size')
+        font_name = rule.get('font_name')
         font_underline = rule.get('font_underline')
         font_strikethrough = rule.get('font_strikethrough')
         background_color = rule.get('background_color')
@@ -234,7 +235,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
                       background_color, border_style, font_bold, font_italic,
-                      font_size, font_underline, font_strikethrough,
+                      font_size, font_name, font_underline, font_strikethrough,
                       make_hyperlinks, header_font_color,
                       header_background_color, header_bold, width)
 
@@ -242,7 +243,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             raise ColumnFormatError(
                 f"column_formats rule {index + 1} does nothing: supply number_format, "
                 f"alignment_horizontal, alignment_vertical, wrap_text, font_color, "
-                f"background_color, font_bold, font_italic, font_underline, "
+                f"background_color, font_bold, font_italic, font_name, font_underline, "
                 f"font_strikethrough, make_hyperlinks, header_font_color, "
                 f"header_background_color, "
                 f"or header_bold"
@@ -351,6 +352,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
 
         touches_data_font = (data_color is not None or font_bold is not None
                              or font_italic is not None or font_size is not None
+                             or font_name is not None
                              or underline_value is not None
                              or font_strikethrough is not None)
         touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
@@ -374,6 +376,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                     dimension.number_format = format_code
                 if touches_data_font:
                     dimension.font = Font(
+                        name=font_name,
                         bold=font_bold, italic=font_italic,
                         size=font_size, color=data_color,
                         underline=underline_value, strike=font_strikethrough
@@ -419,7 +422,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                 if touches_data_font:
                     existing = cell.font
                     cell.font = Font(
-                        name=existing.name,
+                        name=font_name if font_name is not None else existing.name,
                         size=font_size if font_size is not None else existing.size,
                         bold=font_bold if font_bold is not None else existing.bold,
                         italic=font_italic if font_italic is not None else existing.italic,

@@ -672,6 +672,24 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         # better - the later short-name pass then matches INSIDE the text
         # just substituted. A single pass over an alternation, longest name
         # first so the regex prefers it, cannot re-enter its own output.
+        # TWO REPAIRS (2026-08-25), both born in production:
+        #
+        # 1. Boundaries are lookarounds, not \b. A name ending in a
+        #    non-word character - "Van Seq #" - can never match under a
+        #    trailing \b (the boundary needs a word character on the far
+        #    side, and ".astype" begins with a dot), so the name was left
+        #    raw in the eval string where the # became a python COMMENT
+        #    and truncated the formula. (?<!\w) and (?!\w) demand only
+        #    that the match not sit inside a longer identifier, which is
+        #    the actual requirement.
+        #
+        # 2. String literals are masked before substitution. Column
+        #    names INSIDE quoted text - 'Paid or No Price' with live
+        #    columns Paid and Price - were being rewritten into
+        #    dataframe references mid-literal, a syntax error at best
+        #    and silent corruption at worst. Literal spans are lifted
+        #    out, the code between them substituted, and the pieces
+        #    rejoined untouched.
         if len(df.columns) == 0:
             return formula
 
@@ -681,12 +699,23 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             reverse=True,
         )
         alternation = '|'.join(re.escape(name) for name in names_longest_first)
-        column_ref_rgx = re.compile(r'\b(?:' + alternation + r')\b')
-
-        safe_formula = column_ref_rgx.sub(
-            lambda match: f"df['{match.group(0)}']",
-            formula,
+        column_ref_rgx = re.compile(r'(?<!\w)(?:' + alternation + r')(?!\w)')
+        literal_rgx = re.compile(
+            r"'[^'\\]*(?:\\.[^'\\]*)*'"
+            r'|"[^"\\]*(?:\\.[^"\\]*)*"'
         )
+
+        pieces = []
+        cursor = 0
+        for literal in literal_rgx.finditer(formula):
+            code_span = formula[cursor:literal.start()]
+            pieces.append(column_ref_rgx.sub(
+                lambda match: f"df['{match.group(0)}']", code_span))
+            pieces.append(literal.group(0))
+            cursor = literal.end()
+        pieces.append(column_ref_rgx.sub(
+            lambda match: f"df['{match.group(0)}']", formula[cursor:]))
+        safe_formula = ''.join(pieces)
 
         logger.debug(f"Formula: {formula} → {safe_formula}")
         return safe_formula

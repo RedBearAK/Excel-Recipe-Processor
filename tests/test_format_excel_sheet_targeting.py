@@ -68,14 +68,14 @@ def test_sheet_name_targeting():
             'active_sheet_name': 'Executive_Summary',
             'formatting': [
                 {
-                    'sheet_name': 'Executive_Summary',
+                    'sheet_names': ['Executive_Summary'],
                     'header_background_color': 'navy',
                     'header_text_color': 'white',
                     'header_bold': True,
                     'auto_fit_columns': True
                 },
                 {
-                    'sheet_name': 'Detailed_Data',
+                    'sheet_names': ['Detailed_Data'],
                     'header_background_color': 'darkgreen',
                     'header_text_color': 'white',
                     'auto_fit_columns': True,
@@ -131,20 +131,20 @@ def test_numeric_sheet_targeting():
             'active_sheet_name': '?sheet_002?',  # Set second sheet as active
             'formatting': [
                 {
-                    'sheet_name': '?sheet_001?',  # First sheet (Executive_Summary)
+                    'sheet_names': ['?sheet_001?'],  # First sheet (Executive_Summary)
                     'header_background_color': 'purple',
                     'header_text_color': 'white',
                     'header_font_size': 16,
                     'row_heights': {1: 30}
                 },
                 {
-                    'sheet_name': '?sheet_002?',  # Second sheet (Detailed_Data)
+                    'sheet_names': ['?sheet_002?'],  # Second sheet (Detailed_Data)
                     'header_background_color': 'orange',
                     'header_text_color': 'black',
                     'auto_fit_columns': True
                 },
                 {
-                    'sheet_name': '?sheet_003?',  # Third sheet (Charts_Analysis)
+                    'sheet_names': ['?sheet_003?'],  # Third sheet (Charts_Analysis)
                     'header_background_color': 'lightblue',
                     'header_text_color': 'darkblue',
                     'freeze_top_row': True
@@ -192,17 +192,17 @@ def test_mixed_sheet_targeting():
             'target_file': test_file,
             'formatting': [
                 {
-                    'sheet_name': 'Executive_Summary',  # By name
+                    'sheet_names': ['Executive_Summary'],  # By name
                     'header_background_color': 'red',
                     'header_text_color': 'white'
                 },
                 {
-                    'sheet_name': '?sheet_002?',  # By index token
+                    'sheet_names': ['?sheet_002?'],  # By index token
                     'header_background_color': 'blue',
                     'header_text_color': 'white'
                 },
                 {
-                    'sheet_name': 'Charts_Analysis',  # By name again
+                    'sheet_names': ['Charts_Analysis'],  # By name again
                     'header_background_color': 'green',
                     'header_text_color': 'white'
                 }
@@ -256,7 +256,7 @@ def test_validation_errors():
                 'target_file': test_file,
                 'formatting': [
                     {
-                        'sheet_name': '?sheet_000?',  # Invalid: index tokens are 1-based
+                        'sheet_names': ['?sheet_000?'],  # Invalid: index tokens are 1-based
                         'header_bold': True
                     }
                 ]
@@ -275,7 +275,7 @@ def test_validation_errors():
                 'target_file': test_file,
                 'formatting': [
                     {
-                        'sheet_name': '',  # Invalid: empty string
+                        'sheet_names': [''],  # Invalid: empty string
                         'header_bold': True
                     }
                 ]
@@ -293,7 +293,7 @@ def test_validation_errors():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': {  # Should be a list, not dict
-                    'sheet_name': 'Summary',
+                    'sheet_names': ['Summary'],
                     'header_bold': True
                 }
             }
@@ -324,15 +324,15 @@ def test_nonexistent_sheets():
             'target_file': test_file,
             'formatting': [
                 {
-                    'sheet_name': 'Executive_Summary',  # Exists
+                    'sheet_names': ['Executive_Summary'],  # Exists
                     'header_background_color': 'blue'
                 },
                 {
-                    'sheet_name': 'NonExistent_Sheet',  # Doesn't exist
+                    'sheet_names': ['NonExistent_Sheet'],  # Doesn't exist
                     'header_background_color': 'red'
                 },
                 {
-                    'sheet_name': '?sheet_010?',  # Out of range
+                    'sheet_names': ['?sheet_010?'],  # Out of range
                     'header_background_color': 'green'
                 }
             ]
@@ -367,7 +367,7 @@ def test_row_heights():
             'target_file': test_file,
             'formatting': [
                 {
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'header_font_size': 18,  # Large font
                     'row_heights': {
                         1: 35,  # Tall header for large font

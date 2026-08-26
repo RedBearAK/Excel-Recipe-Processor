@@ -96,7 +96,7 @@ def test_basic_formatting():
             'step_description': 'Test basic formatting',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'auto_fit_columns': True,
                 'header_bold': True,
                 'header_background': True,
@@ -153,7 +153,7 @@ def test_freeze_panes():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'freeze_top_row': True
             }]
         }
@@ -201,7 +201,7 @@ def test_multiple_sheets():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'auto_fit_columns': True,
                 'header_bold': True,
                 'sheet_specific': {
@@ -253,7 +253,7 @@ def test_column_and_row_sizing():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'auto_fit_columns': True,
                 'max_column_width': 30,
                 'min_column_width': 10,
@@ -303,7 +303,7 @@ def test_auto_filter():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'auto_filter': True,
                 'header_bold': True
             }]
@@ -381,7 +381,7 @@ def test_error_handling():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'max_column_width': -5  # Invalid negative width
                 }]
             }
@@ -416,7 +416,7 @@ def test_variable_substitution():
             'processor_type': 'format_excel',
             'target_file': test_file,  # In real usage this might be "{date}_report.xlsx"
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'auto_fit_columns': True
             }]
         }
@@ -458,7 +458,7 @@ def test_variable_substitution_real():
                 'processor_type': 'format_excel',
                 'target_file': str(temp_path / "{date}_test_report.xlsx"),
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'auto_fit_columns': True,
                     'header_bold': True
                 }]
@@ -507,7 +507,7 @@ def test_data_passthrough():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'auto_fit_columns': True,
                     'header_bold': True
                 }]

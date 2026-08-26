@@ -281,7 +281,7 @@ def test_zoom_and_font_size():
     processor = FormatExcelProcessor(config)
     try:
         processor._validate_sheet_formatting_options(
-            {'sheet_name': 'S', 'zoom_percent': 500}, "test sheet")
+            {'sheet_names': ['S'], 'zoom_percent': 500}, "test sheet")
         print("✗ zoom_percent 500 should have been refused")
         return False
     except Exception as error:
@@ -309,7 +309,7 @@ def test_sheet_state():
 
     try:
         processor._validate_sheet_formatting_options(
-            {'sheet_name': 'S', 'sheet_state': 'invisible'}, "test sheet")
+            {'sheet_names': ['S'], 'sheet_state': 'invisible'}, "test sheet")
         print("✗ bad sheet_state value should have been refused")
         return False
     except Exception as error:

@@ -215,7 +215,7 @@ def test_banding_wins_over_tint():
     # Border-without-band refuses at validation
     try:
         processor._validate_sheet_formatting_options(
-            {'sheet_name': 'x', 'banded_row_border_style': 'thin'}, 'test')
+            {'sheet_names': ['x'], 'banded_row_border_style': 'thin'}, 'test')
         print("  Missed banded_row_border_style without banded_row_color")
         return False
     except StepProcessorError:

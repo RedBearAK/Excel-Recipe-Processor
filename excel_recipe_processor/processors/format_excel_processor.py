@@ -62,7 +62,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             # --list-capabilities, where every processor is instantiated
             # from its minimal config.
             'formatting': [
-                {'sheet_name': 'Data', 'auto_fit_columns': True},
+                {'sheet_names': ['Data'], 'auto_fit_columns': True},
             ],
         }
 
@@ -153,15 +153,30 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if 'sheet' in sheet_config:
                 raise StepProcessorError(
                     f"Formatting entry {i+1}: 'sheet' was replaced by "
-                    f"'sheet_name' (2026-08-14 sheet-addressing doctrine). A "
-                    f"tab name, or '?sheet_001?' to address by position."
+                    f"'sheet_names' (2026-08-14 sheet-addressing doctrine, "
+                    f"pluralized 2026-08-25). A list of tab names and/or "
+                    f"'?sheet_NNN?' position tokens."
                 )
-            if 'sheet_name' not in sheet_config:
-                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet_name' key")
+            if 'sheet_name' in sheet_config:
+                raise StepProcessorError(
+                    f"Formatting entry {i+1}: 'sheet_name' was replaced by "
+                    f"'sheet_names' (2026-08-25): one entry can format many "
+                    f"sheets, so the key is a LIST even for a single sheet. "
+                    f"Wrap the value: sheet_names: [\"Tab\"]"
+                )
+            if 'sheet_names' not in sheet_config:
+                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet_names' key")
 
-            sheet_spec = sheet_config['sheet_name']
-            if isinstance(sheet_spec, str) and not sheet_spec.strip():
-                raise StepProcessorError("Sheet name cannot be empty")
+            sheet_specs = sheet_config['sheet_names']
+            if not isinstance(sheet_specs, list) or not sheet_specs:
+                raise StepProcessorError(
+                    f"Formatting entry {i+1}: 'sheet_names' must be a "
+                    f"non-empty list of tab names or position tokens"
+                )
+            for sheet_spec in sheet_specs:
+                if isinstance(sheet_spec, str) and not sheet_spec.strip():
+                    raise StepProcessorError("Sheet name cannot be empty")
+            sheet_spec = sheet_specs[0]
             
             # Validate apply_templates if present
             if 'apply_templates' in sheet_config:
@@ -636,9 +651,19 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             
         logger.info(f"🎯 Processing {len(sheet_configs)} explicit sheet configuration(s)")
         
-        # Process each sheet configuration
+        # Process each sheet configuration; one entry may name many
+        # sheets (sheet_names, pluralized 2026-08-25) and the whole
+        # config applies to each
+        expanded_configs = []
+        for sheet_config in sheet_configs:
+            for spec in sheet_config['sheet_names']:
+                single = dict(sheet_config)
+                single['_resolved_sheet_spec'] = spec
+                expanded_configs.append(single)
+        sheet_configs = expanded_configs
+
         for i, sheet_config in enumerate(sheet_configs):
-            sheet_spec = sheet_config['sheet_name']
+            sheet_spec = sheet_config['_resolved_sheet_spec']
             # Shared recognizer: real names, ?sheet_NNN? tokens, numbers
             # warned-as-names - and unresolvable sheets FAIL LOUD here. The
             # old path returned None and silently skipped the entry at

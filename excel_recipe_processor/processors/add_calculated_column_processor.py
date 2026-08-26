@@ -170,6 +170,15 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             logger.debug(f"Applied legacy expression formula: {formula}")
             
         except Exception as e:
+            from excel_recipe_processor.core.column_tokens import (
+                name_error_guidance, formula_failure_guidance,
+            )
+            columns = [str(c) for c in df.columns]
+            guidance = (name_error_guidance(e, columns)
+                        or formula_failure_guidance(formula, columns))
+            if guidance:
+                raise StepProcessorError(
+                    f"Error evaluating formula '{formula}': {guidance}")
             raise StepProcessorError(f"Error evaluating formula '{formula}': {e}")
         
         return df

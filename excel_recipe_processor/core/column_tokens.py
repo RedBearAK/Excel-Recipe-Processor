@@ -1,26 +1,28 @@
 """
-Column-name tokenization: names as explicit typed tokens, never guessed.
+Column-name references in text channels: one delimited grammar, no
+recognition, ever.
 
 excel_recipe_processor/core/column_tokens.py
 
-The 2026-08 incident family (hash-truncated formulas, literal
-corruption, a data column formatted as Excel position 3,904, method
-calls rewritten by a column named 'sum') shared one root: column names
-travelled as bare strings through channels carrying OTHER string-typed
-things, and every consumer disambiguated by pattern-matching. This
-module ends the class:
+THE RULING (2026-08-26): raw python with bare column names in recipe
+formula: lines was the original design fault - two namespaces in one
+undelimited string, forcing the engine to GUESS which words are
+columns. Every incident in the family (hash truncation, literal
+corruption, a column formatted as position 3,904, method calls
+rewritten by a column named sum) was interest on that decision.
 
-- A formula is parsed ONCE, left to right, into typed segments:
-  code, string literal, or backticked column token. Nothing is ever
-  "recognized" inside free text.
-- `Column Name` (backticks) is the ONLY way a column enters a formula.
-  The token translates to a dataframe reference at exactly one
-  emission point.
-- A bare occurrence of a known column name inside a code segment is a
-  HARD ERROR with migration guidance - the old ambiguity is not merely
-  handled, it is unrepresentable.
-- Name hygiene is enforced at the boundary: names containing
-  backticks, braces, or newlines are refused loudly, never escaped.
+The grammar now matches the house convention that has a zero-incident
+record in conditional_format and inject_formulas: a column reference
+is ALWAYS {col:Column Name}. Uniform for every column - a column
+named sum is {col:sum} exactly as Price is {col:Price} - so there is
+no collision concept and no disambiguation burden. Bare identifiers
+in code are always python. The engine parses delimiters; it never
+recognizes names in free text. A bare known column name found loose
+in code is refusal-time forensics only: a guided error naming the
+{col:} fix, never a substitution.
+
+Name hygiene at the boundary: names containing braces, backticks, or
+newlines are refused loudly, never escaped.
 """
 
 
@@ -38,7 +40,7 @@ def validate_column_name(name: str, context: str = '') -> str:
             shown = forbidden.replace('\n', '\\n').replace('\r', '\\r')
             raise ColumnTokenError(
                 f"Column name {name!r} contains {shown!r}, which collides "
-                f"with token delimiters and is refused"
+                f"with reference delimiters and is refused"
                 f"{' (' + context + ')' if context else ''}. Rename the "
                 f"column before it enters any formula channel."
             )
@@ -48,11 +50,10 @@ def validate_column_name(name: str, context: str = '') -> str:
 def tokenize_formula(formula: str) -> list:
     """One linear scan into typed segments.
 
-    Returns a list of (kind, text) pairs where kind is 'code',
-    'literal' (raw, quotes included), or 'column' (the bare name,
-    backticks stripped). Unterminated literals or column tokens are
-    hard errors - a formula that cannot be parsed cleanly must not be
-    guessed at.
+    Returns (kind, text) pairs: 'code', 'literal' (raw, quotes
+    included), or 'column' (the name from a {col:Name} placeholder).
+    Unterminated literals or placeholders are hard errors - a formula
+    that cannot be parsed cleanly must not be guessed at.
     """
     segments = []
     code_start = 0
@@ -77,26 +78,26 @@ def tokenize_formula(formula: str) -> list:
                 j += 1
             if j >= n:
                 raise ColumnTokenError(
-                    f"Unterminated string literal starting at position {i}: "
-                    f"{formula[i:i + 30]!r}..."
+                    f"Unterminated string literal starting at position "
+                    f"{i}: {formula[i:i + 30]!r}..."
                 )
             flush_code(i)
             segments.append(('literal', formula[i:j + 1]))
             i = j + 1
             code_start = i
             continue
-        if ch == '`':
-            j = formula.find('`', i + 1)
+        if formula.startswith('{col:', i):
+            j = formula.find('}', i + 5)
             if j < 0:
                 raise ColumnTokenError(
-                    f"Unterminated column token starting at position {i}: "
-                    f"{formula[i:i + 30]!r}... Column names are written "
-                    f"`Like This` with a closing backtick."
+                    f"Unterminated column reference at position {i}: "
+                    f"{formula[i:i + 30]!r}... References are written "
+                    f"{{col:Column Name}} with a closing brace."
                 )
-            name = formula[i + 1:j]
+            name = formula[i + 5:j]
             if not name.strip():
                 raise ColumnTokenError(
-                    f"Empty column token `` at position {i}"
+                    f"Empty column reference {{col:}} at position {i}"
                 )
             flush_code(i)
             segments.append(('column', name))
@@ -108,79 +109,22 @@ def tokenize_formula(formula: str) -> list:
     return segments
 
 
-def bare_name_collisions(code_text: str, column_names) -> list:
-    """Known column names appearing bare inside a code segment.
-
-    Word-boundary containment check per name; the caller turns any hit
-    into a guided error. This scan GUARDS the strict grammar - it is
-    not a recognition mechanism, and nothing is rewritten from it.
-    """
-    import re
-    hits = []
-    for name in column_names:
-        if not name or not str(name).strip():
-            continue
-        # A name immediately after a dot is attribute/method syntax
-        # (.sum() beside a column named sum) - never column intent
-        pattern = r'(?<![\w`.])' + re.escape(str(name)) + r'(?![\w`])'
-        if re.search(pattern, code_text):
-            hits.append(str(name))
-    return hits
-
-
 def build_dataframe_expression(formula: str, column_names,
                                frame_symbol: str = 'df') -> str:
-    """Translate a backtick-grammar formula into an eval-ready string.
+    """Translate {col:Name} references into dataframe accesses.
 
-    - `Name` tokens become df['Name'] (repr-quoted, so quotes inside
-      names are safe).
-    - Literals pass through untouched.
-    - Code segments are checked for bare column names: any hit is a
-      hard error demanding backticks, with the offenders listed.
-    - Unknown column tokens error with the available-name list nearby.
+    Code segments pass through UNTOUCHED except for refusal-time
+    forensics: a bare known column name loose in code is a guided
+    error naming the {col:} form - never a substitution. Literals are
+    structurally separate and never inspected.
     """
+    import re
+
     known = [str(name) for name in column_names]
     known_set = set(known)
-    segments = tokenize_formula(formula)
-
-    # SPLIT-TOKEN DIAGNOSIS (2026-08-26). Backticking only part of a
-    # multi-word name - `Carrier` Echo for the column "Carrier Echo" -
-    # is a foreseeable hand-writing mistake that would otherwise die as
-    # a bare python SyntaxError. Reassemble each token with its
-    # adjacent bare words in both directions; when the reassembly names
-    # a real column, say so and stop.
-    for position, (kind, text) in enumerate(segments):
-        if kind != 'column':
-            continue
-        import re as _re
-        if position + 1 < len(segments) and segments[position + 1][0] == 'code':
-            following = segments[position + 1][1]
-            match = _re.match(r'^((?: +[A-Za-z][\w]*)+)', following)
-            if match:
-                candidate = text + match.group(1)
-                candidate = ' '.join(candidate.split())
-                if candidate in known_set:
-                    raise ColumnTokenError(
-                        f"Split column token: `{text}`{match.group(1)} "
-                        f"reads as a token plus loose words, but "
-                        f"{candidate!r} is a real column - write the "
-                        f"whole name inside one pair: `{candidate}`"
-                    )
-        if position > 0 and segments[position - 1][0] == 'code':
-            preceding = segments[position - 1][1]
-            match = _re.search(r'((?:[A-Za-z][\w]* +)+)$', preceding)
-            if match:
-                candidate = ' '.join((match.group(1) + text).split())
-                if candidate in known_set:
-                    raise ColumnTokenError(
-                        f"Split column token: {match.group(1)}`{text}` "
-                        f"reads as loose words plus a token, but "
-                        f"{candidate!r} is a real column - write the "
-                        f"whole name inside one pair: `{candidate}`"
-                    )
 
     pieces = []
-    for kind, text in segments:
+    for kind, text in tokenize_formula(formula):
         if kind == 'literal':
             pieces.append(text)
         elif kind == 'column':
@@ -190,23 +134,74 @@ def build_dataframe_expression(formula: str, column_names,
                          or k.lower() in text.lower()][:4]
                 hint = f" Near matches: {close}" if close else ''
                 raise ColumnTokenError(
-                    f"Column token `{text}` names no column in the "
-                    f"current data.{hint}"
+                    f"{{col:{text}}} names no column in the current "
+                    f"data.{hint}"
                 )
             pieces.append(f"{frame_symbol}[{text!r}]")
         else:
-            hits = bare_name_collisions(text, known)
-            if hits:
-                shown = ', '.join(f"`{h}`" for h in sorted(hits, key=len,
-                                                           reverse=True)[:5])
-                raise ColumnTokenError(
-                    f"Bare column name(s) in formula code: "
-                    f"{sorted(hits, key=len, reverse=True)[:5]}. Column "
-                    f"names must be backticked ({shown}) so they can "
-                    f"never be misread as code. Offending segment: "
-                    f"{text.strip()[:60]!r}"
-                )
+            # Bare identifiers are ALWAYS python (the 2026-08-26
+            # ruling) - code passes through untouched. Unmigrated
+            # column references surface as eval NameErrors, where
+            # name_error_guidance() turns them into {col:} guidance
+            # with zero false positives.
             pieces.append(text)
     return ''.join(pieces)
+
+
+def name_error_guidance(error, column_names) -> str:
+    """Turn a NameError over a known column into {col:} guidance.
+
+    Returns a guidance string when the missing name matches a column
+    (exactly, or as the first word of a multi-word name - python
+    reads 'Major Species' as the identifier Major), else ''.
+    """
+    message = str(error)
+    import re
+    match = re.search(r"name '([^']+)' is not defined", message)
+    if not match:
+        return ''
+    missing = match.group(1)
+    exact = [c for c in column_names if str(c) == missing]
+    prefixed = [c for c in column_names
+                if str(c).split(' ')[0] == missing and ' ' in str(c)]
+    for candidate in exact + prefixed:
+        return (f"Bare name {missing!r} looks like the column "
+                f"{str(candidate)!r} - column references are written "
+                f"{{col:{candidate}}} so names can never be misread "
+                f"as code.")
+    return ''
+
+
+def formula_failure_guidance(formula: str, column_names) -> str:
+    """Refusal-time forensics for an ALREADY-FAILED formula.
+
+    Scans code segments for bare known-column occurrences and names the
+    {col:} fix. Runs only after eval has failed, so it can never accept
+    or rewrite anything - it only improves the epitaph.
+    """
+    import re
+    try:
+        segments = tokenize_formula(formula)
+    except ColumnTokenError:
+        return ''
+    hits = []
+    for kind, text in segments:
+        if kind != 'code':
+            continue
+        for name in column_names:
+            name = str(name)
+            if not name.strip():
+                continue
+            pattern = r'(?<![\w.])' + re.escape(name) + r'(?![\w])'
+            if re.search(pattern, text):
+                hits.append(name)
+    if not hits:
+        return ''
+    worst = sorted(set(hits), key=len, reverse=True)[0]
+    return (f"Bare column name(s) {sorted(set(hits), key=len, reverse=True)[:4]} "
+            f"in the formula - column references are written "
+            f"{{col:{worst}}} so names can never be misread as code.")
+
+
 
 # End of file #

@@ -132,7 +132,13 @@ class TerminalPulse:
         with _LOCK:
             if _ACTIVE is self:
                 _ACTIVE = None
-                _clear_line()
+                elapsed = time.perf_counter() - self.started
+                # The final frame PERSISTS as a normal line - the record
+                # of what ran and how long, not a vanishing act
+                sys.stderr.write(
+                    f"\r\033[K✅ {self.label} {self._detail} "
+                    f"- {elapsed:.0f}s total\n")
+                sys.stderr.flush()
 
 
 def pulse_tick(detail: str = ''):
@@ -146,7 +152,7 @@ def pulse_tick(detail: str = ''):
 class ByteGrowthPulse:
     """Byte-watcher for opaque calls; rides the bottom like TerminalPulse."""
 
-    def __init__(self, label: str, size_fn, interval: float = 0.5):
+    def __init__(self, label: str, size_fn, interval: float = 0.25):
         self.label = label
         self.size_fn = size_fn
         self.interval = interval
@@ -164,12 +170,24 @@ class ByteGrowthPulse:
         sys.stderr.write("\r\033[K" + self._frame())
         sys.stderr.flush()
 
+    _GLYPHS = '|/-\\'
+
     def _watch(self):
+        beat = 0
         while not self._stop.wait(self.interval):
+            beat += 1
+            glyph = self._GLYPHS[beat % 4]
             try:
-                self._shown = f"{self.size_fn() / 1_048_576:.1f} MB written"
+                size = self.size_fn()
+                if size < 1024:
+                    # openpyxl serializes worksheet XML in memory before
+                    # zip bytes land - a true phase, labeled truthfully,
+                    # with the beating glyph as the liveness signal
+                    self._shown = f"{glyph} serializing (no bytes yet)"
+                else:
+                    self._shown = f"{glyph} {size / 1_048_576:.1f} MB written"
             except OSError:
-                self._shown = "waiting for first bytes"
+                self._shown = f"{glyph} waiting for first bytes"
             with _LOCK:
                 if _ACTIVE is self:
                     self.redraw()
@@ -193,7 +211,11 @@ class ByteGrowthPulse:
             with _LOCK:
                 if _ACTIVE is self:
                     _ACTIVE = None
-                    _clear_line()
+                    elapsed = time.perf_counter() - self.started
+                    sys.stderr.write(
+                        f"\r\033[K✅ {self.label}: {self._shown.lstrip('|/-\\ ')}"
+                        f" - {elapsed:.0f}s total\n")
+                    sys.stderr.flush()
         return False
 
 # End of file #

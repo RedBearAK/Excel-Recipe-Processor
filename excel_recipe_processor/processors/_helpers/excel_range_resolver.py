@@ -128,14 +128,32 @@ def resolve_column_letter(worksheet, column_spec, header_row: int = 1,
     if not spec:
         raise ExcelRangeResolverError("Column specification cannot be empty")
 
-    if not force_column_names and excel_column_ref_rgx.match(spec):
-        logger.debug(f"Column '{spec}' treated as an Excel reference")
-        return spec
-
+    # HEADER NAME WINS (2026-08-26). The old order took any spec that
+    # LOOKED like a column reference as one before consulting headers -
+    # and a data column named "ETD" looks exactly like column letter
+    # ETD, which is column number 3,904. Formatting rules naming that
+    # column materialized phantom cells out to 3,904, inflating
+    # max_column and turning VMS auto-fit into a 162-second scan of
+    # empty space. Header lookup now runs FIRST; the letter reading is
+    # the fallback for header-less sheets (Cust_Summ spill columns
+    # addressed as "A"/"C"/"D"), and a spec matching BOTH gets a
+    # warning naming the collision.
     letter = find_column_letter_by_name(worksheet, spec, header_row)
 
     if letter:
+        if not force_column_names and excel_column_ref_rgx.match(spec):
+            logger.warning(
+                f"⚠️ Column spec '{spec}' matches both a header on "
+                f"'{worksheet.title}' and a bare column letter - the "
+                f"HEADER wins (letter {letter}, not position "
+                f"{spec})"
+            )
         logger.debug(f"Column name '{spec}' resolved to {letter}")
+        return letter
+
+    if not force_column_names and excel_column_ref_rgx.match(spec):
+        logger.debug(f"Column '{spec}' treated as an Excel reference")
+        return spec
 
     return letter
 

@@ -77,10 +77,10 @@ basic_template_example:
 
         # Apply templates to sheets
         formatting:
-          - sheet_name: "Financial Summary"
+          - sheet_names: ["Financial Summary"]
             apply_templates: ["corporate_header_style", "standard_sizing", "financial_data_style"]
 
-          - sheet_name: "Sales Performance"
+          - sheet_names: ["Sales Performance"]
             apply_templates: ["corporate_header_style", "standard_sizing"]
             # Override template for sales data alignment
             general_alignment_horizontal: "left"
@@ -136,21 +136,21 @@ advanced_template_example:
 
         formatting:
           # Executive summary with full branding
-          - sheet_name: 1
+          - sheet_names: ["?sheet_001?"]
             apply_templates: ["base_professional", "executive_branding", "summary_highlights"]
 
           # Financial details with precision formatting
-          - sheet_name: 2
+          - sheet_names: ["?sheet_002?"]
             apply_templates: ["base_professional", "executive_branding", "financial_precision"]
 
           # Data visualization sheet
-          - sheet_name: 3
+          - sheet_names: ["?sheet_003?"]
             apply_templates: ["base_professional", "data_visualization_ready"]
             # Override header color for this sheet
             header_background_color: "forestgreen"
 
           # Raw data sheet with minimal formatting
-          - sheet_name: 4
+          - sheet_names: ["?sheet_004?"]
             apply_templates: ["base_professional"]
             # Completely override header styling for raw data
             header_background_color: "lightgray"
@@ -188,9 +188,9 @@ template_reuse_example:
             auto_filter: true
 
         formatting:
-          - sheet_name: 1
+          - sheet_names: ["?sheet_001?"]
             apply_templates: ["company_standard", "data_presentation"]
-          - sheet_name: 2
+          - sheet_names: ["?sheet_002?"]
             apply_templates: ["company_standard", "data_presentation"]
 
       # Second formatting step - appendix with same templates
@@ -217,7 +217,7 @@ template_reuse_example:
             header_font_size: 12
 
         formatting:
-          - sheet_name: 1
+          - sheet_names: ["?sheet_001?"]
             apply_templates: ["company_standard", "appendix_style"]
 
 # Migration example - before and after templates
@@ -227,7 +227,7 @@ migration_example:
     BEFORE: Repetitive configuration (hard to maintain)
     
     formatting:
-      - sheet_name: 1
+      - sheet_names: ["?sheet_001?"]
         freeze_top_row: true
         header_background_color: "2F5597"
         header_background: true
@@ -240,7 +240,7 @@ migration_example:
         auto_filter: true
         auto_fit_columns: true
       
-      - sheet_name: 2
+      - sheet_names: ["?sheet_002?"]
         freeze_top_row: true
         header_background_color: "2F5597"
         header_background: true
@@ -253,7 +253,7 @@ migration_example:
         auto_filter: true
         auto_fit_columns: true
       
-      - sheet_name: 3
+      - sheet_names: ["?sheet_003?"]
         freeze_top_row: true
         header_background_color: "2F5597"
         header_background: true
@@ -291,11 +291,11 @@ migration_example:
             auto_fit_columns: true
 
         formatting:
-          - sheet_name: 1
+          - sheet_names: ["?sheet_001?"]
             apply_templates: ["standard_professional"]
-          - sheet_name: 2
+          - sheet_names: ["?sheet_002?"]
             apply_templates: ["standard_professional"]
-          - sheet_name: 3
+          - sheet_names: ["?sheet_003?"]
             apply_templates: ["standard_professional"]
 
 # Complex override example
@@ -328,12 +328,12 @@ complex_override_example:
             max_column_width: 50                   # This adds column width limits
 
         formatting:
-          - sheet_name: 1
+          - sheet_names: ["?sheet_001?"]
             # Apply templates in order: base_style, then enhanced_style, then premium_style
             # Final result: gold background, black text, font size 14, frozen row, auto-fit, max width 50
             apply_templates: ["base_style", "enhanced_style", "premium_style"]
 
-          - sheet_name: 2
+          - sheet_names: ["?sheet_002?"]
             # Template + direct overrides
             apply_templates: ["base_style", "enhanced_style"]
             # Direct rules override template rules
@@ -364,15 +364,15 @@ validation_example:
             header_background_color: "notacolor"  # Invalid: unrecognized color
 
         formatting:
-          - sheet_name: 1
+          - sheet_names: ["?sheet_001?"]
             apply_templates: ["valid_template"]
 
-          - sheet_name: 2
+          - sheet_names: ["?sheet_002?"]
             # Reference to non-existent template (will be warned and skipped)
             apply_templates: ["valid_template", "missing_template"]
             header_bold: true  # This will still be applied
 
-          - sheet_name: 3
+          - sheet_names: ["?sheet_003?"]
             # Mix of valid and invalid templates
             apply_templates: ["valid_template", "invalid_template"]
 
@@ -422,7 +422,7 @@ column_formats_example:
         processor_type: "format_excel"
         target_file: "output/report.xlsx"
         formatting:
-          - sheet_name: "Data"
+          - sheet_names: ["Data"]
             header_bold: true
             header_background: true
             header_background_color: "1F4E79"
@@ -547,16 +547,16 @@ tab_color_example:
         # REQ - Existing Excel file to format
         target_file: "reports/monthly_report.xlsx"
         formatting:
-          - sheet_name: "Summary"
+          - sheet_names: ["Summary"]
             # OPT - Tab color. Same vocabulary as every other color option:
             # hex with or without #, CSS names ("lightsteelblue"), rgb().
             # Sheets without the option keep the default (uncolored) tab.
             # Excel washes out INACTIVE tab colors, so shades meant to be
             # told apart should be spaced widely.
             tab_color: "CFE7F7"
-          - sheet_name: "Regional_Summary"
+          - sheet_names: ["Regional_Summary"]
             tab_color: "A6D2EF"
-          - sheet_name: "Exception_Summary"
+          - sheet_names: ["Exception_Summary"]
             tab_color: "79B8E4"
 
 ordering_notes:
@@ -582,7 +582,7 @@ autofit_scan_limit_example:
         processor_type: "format_excel"
         target_file: "big_output.xlsx"
         formatting:
-          - sheet_name: "Data"
+          - sheet_names: ["Data"]
             auto_fit_columns: true
             # OPT - Measure only the first 2000 data rows (default: all)
             autofit_scan_rows: 2000
@@ -617,7 +617,7 @@ pivot_style_example:
         # OPT - Any built-in gallery style name
         default_pivot_style: "PivotStyleMedium19"
         formatting:
-          - sheet_name: "Data"
+          - sheet_names: ["Data"]
             header_bold: true
 
       - step_description: "Define a custom pivot style instead"
@@ -632,7 +632,7 @@ pivot_style_example:
           bold_grand_totals: true
           # set_as_default: false     # register without making it default
         formatting:
-          - sheet_name: "Data"
+          - sheet_names: ["Data"]
             header_bold: true
 
 workbook_theming_example:
@@ -679,7 +679,7 @@ workbook_theming_example:
           # set_as_default: false          # register without making it default
 
         formatting:
-          - sheet_name: "Data"
+          - sheet_names: ["Data"]
             header_bold: true
 
 parameter_details_theming:

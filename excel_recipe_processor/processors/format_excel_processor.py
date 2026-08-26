@@ -318,6 +318,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
+            'copy_widths_from_sheet',
             'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
             'column_widths_from_stage', 'column_widths_source',
             'column_styles_from_stage', 'column_styles_source',
@@ -822,6 +823,20 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             styled = self._apply_styles_from_profile_stage(
                 worksheet, formatting)
             applied_operations.append(f"inherited styles ({styled})")
+
+        # STEP 2a-quater: WIDTH INHERITANCE (2026-08-25). An entry naming
+        # copy_widths_from_sheet takes, for every header this sheet shares
+        # with the named sibling sheet, the sibling's already-set column
+        # width - so report tabs mirror the main tab's auto-fit results
+        # without re-measuring. Runs BEFORE column_formats so an explicit
+        # width rule still wins. Sibling entries earlier in the same
+        # formatting list have already been processed, so their widths
+        # (auto-fit included) are readable here.
+        if 'copy_widths_from_sheet' in formatting:
+            copied = self._copy_widths_from_sheet(
+                worksheet, formatting['copy_widths_from_sheet'],
+                header_row=formatting.get('header_row', 1))
+            applied_operations.append(f"copied widths ({copied})")
 
         # STEP 2b: Column-addressed number formats and alignment. Runs before
         # auto-fit so widths are measured against the formatted text - "1,234"
@@ -1533,6 +1548,37 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             f"📏 [{worksheet.title}] Inherited {inherited} column widths "
             f"from stage '{stage_name}'")
         return inherited
+
+    def _copy_widths_from_sheet(self, worksheet, source_name, header_row=1):
+        """Copy same-named columns' widths from a sibling sheet.
+
+        Matching is by header text: the source sheet's row-1 headers map
+        to their column widths; this sheet's headers (at header_row)
+        that match take that width. Returns the count copied.
+        """
+        workbook = worksheet.parent
+        if source_name not in workbook.sheetnames:
+            raise StepProcessorError(
+                f"copy_widths_from_sheet: no sheet named {source_name!r} "
+                f"in the workbook"
+            )
+        source = workbook[source_name]
+        source_widths = {}
+        for cell in source[1]:
+            if cell.value is None:
+                continue
+            dimension = source.column_dimensions.get(cell.column_letter)
+            if dimension is not None and dimension.width:
+                source_widths[str(cell.value)] = dimension.width
+        copied = 0
+        for cell in worksheet[header_row]:
+            if cell.value is None:
+                continue
+            width = source_widths.get(str(cell.value))
+            if width:
+                worksheet.column_dimensions[cell.column_letter].width = width
+                copied += 1
+        return copied
 
     def _apply_styles_from_profile_stage(self, worksheet, formatting: dict) -> int:
         """

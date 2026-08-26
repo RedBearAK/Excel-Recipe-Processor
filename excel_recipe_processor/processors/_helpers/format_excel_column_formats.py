@@ -386,6 +386,41 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                         horizontal=horizontal, vertical=vertical,
                         wrap_text=wrap_text
                     )
+
+                # SWEEP EXISTING CELLS (2026-08-25). The dimension style
+                # only governs cells with NO explicit cell format - which
+                # covers the cells a spill CREATES, but not cells already
+                # written into the file: a spill ANCHOR carrying its
+                # formula, or any pre-seeded value, wears an explicit
+                # default style that masks the dimension font and number
+                # format. Whole column means the whole column, present
+                # and future: dimension for the future, this sweep for
+                # the present. Only cells that already exist are touched
+                # (via the worksheet cell store) - materializing the
+                # column would stamp explicit styles onto empty cells
+                # and defeat the dimension inheritance being set up.
+                column_index = column_index_from_string(letter)
+                for (cell_row, cell_col), cell in list(worksheet._cells.items()):
+                    if cell_col != column_index or cell_row <= header_row:
+                        continue
+                    if format_code:
+                        cell.number_format = format_code
+                    if touches_data_font:
+                        existing = cell.font
+                        cell.font = Font(
+                            name=font_name if font_name is not None else existing.name,
+                            size=font_size if font_size is not None else existing.size,
+                            bold=font_bold if font_bold is not None else existing.bold,
+                            italic=font_italic if font_italic is not None else existing.italic,
+                            underline=underline_value if underline_value is not None else existing.underline,
+                            strike=font_strikethrough if font_strikethrough is not None else existing.strike,
+                            color=data_color if data_color is not None else existing.color,
+                        )
+                    if touches_alignment:
+                        cell.alignment = Alignment(
+                            horizontal=horizontal, vertical=vertical,
+                            wrap_text=wrap_text
+                        )
                 if width is None:
                     logger.info(
                         f"[{worksheet.title}] whole_column style on {letter} "

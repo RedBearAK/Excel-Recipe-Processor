@@ -163,6 +163,42 @@ def test_unknown_token_guided():
     return False
 
 
+def test_split_token_guided_forward():
+    """`Carrier` Echo for column Carrier Echo names the real fix."""
+    print("\nTesting split-token guidance (token first)...")
+    frame = pd.DataFrame({'Carrier Echo': ['AML']})
+    processor = build_processor()
+    try:
+        processor._apply_expression_calculation(
+            frame.copy(), 'Out', {'formula': '`Carrier` Echo.notna()'})
+    except Exception as error:
+        if 'Split column token' in str(error) and '`Carrier Echo`' in str(error):
+            print("✓ split token diagnosed with the whole-name fix")
+            return True
+        print(f"✗ wrong error: {error}")
+        return False
+    print("✗ split token accepted")
+    return False
+
+
+def test_split_token_guided_backward():
+    """Van `Number` for column Van Number names the real fix."""
+    print("\nTesting split-token guidance (token last)...")
+    frame = pd.DataFrame({'Van Number': ['X']})
+    processor = build_processor()
+    try:
+        processor._apply_expression_calculation(
+            frame.copy(), 'Out', {'formula': 'Van `Number`.str.upper()'})
+    except Exception as error:
+        if 'Split column token' in str(error) and '`Van Number`' in str(error):
+            print("✓ reversed split diagnosed")
+            return True
+        print(f"✗ wrong error: {error}")
+        return False
+    print("✗ reversed split accepted")
+    return False
+
+
 def main():
     tests = [
         test_hash_ending_name,
@@ -174,6 +210,8 @@ def main():
         test_python_identifier_named_column,
         test_bare_name_is_a_hard_error,
         test_unknown_token_guided,
+        test_split_token_guided_forward,
+        test_split_token_guided_backward,
     ]
     passed = sum(1 for test in tests if test())
     print("\n" + "=" * 50)

@@ -141,8 +141,46 @@ def build_dataframe_expression(formula: str, column_names,
     """
     known = [str(name) for name in column_names]
     known_set = set(known)
+    segments = tokenize_formula(formula)
+
+    # SPLIT-TOKEN DIAGNOSIS (2026-08-26). Backticking only part of a
+    # multi-word name - `Carrier` Echo for the column "Carrier Echo" -
+    # is a foreseeable hand-writing mistake that would otherwise die as
+    # a bare python SyntaxError. Reassemble each token with its
+    # adjacent bare words in both directions; when the reassembly names
+    # a real column, say so and stop.
+    for position, (kind, text) in enumerate(segments):
+        if kind != 'column':
+            continue
+        import re as _re
+        if position + 1 < len(segments) and segments[position + 1][0] == 'code':
+            following = segments[position + 1][1]
+            match = _re.match(r'^((?: +[A-Za-z][\w]*)+)', following)
+            if match:
+                candidate = text + match.group(1)
+                candidate = ' '.join(candidate.split())
+                if candidate in known_set:
+                    raise ColumnTokenError(
+                        f"Split column token: `{text}`{match.group(1)} "
+                        f"reads as a token plus loose words, but "
+                        f"{candidate!r} is a real column - write the "
+                        f"whole name inside one pair: `{candidate}`"
+                    )
+        if position > 0 and segments[position - 1][0] == 'code':
+            preceding = segments[position - 1][1]
+            match = _re.search(r'((?:[A-Za-z][\w]* +)+)$', preceding)
+            if match:
+                candidate = ' '.join((match.group(1) + text).split())
+                if candidate in known_set:
+                    raise ColumnTokenError(
+                        f"Split column token: {match.group(1)}`{text}` "
+                        f"reads as loose words plus a token, but "
+                        f"{candidate!r} is a real column - write the "
+                        f"whole name inside one pair: `{candidate}`"
+                    )
+
     pieces = []
-    for kind, text in tokenize_formula(formula):
+    for kind, text in segments:
         if kind == 'literal':
             pieces.append(text)
         elif kind == 'column':

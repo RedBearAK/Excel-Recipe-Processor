@@ -666,8 +666,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 expanded_configs.append(single)
         sheet_configs = expanded_configs
 
+        from excel_recipe_processor.core.terminal_pulse import TerminalPulse
+        pulse = TerminalPulse("Formatting")
         for i, sheet_config in enumerate(sheet_configs):
             sheet_spec = sheet_config['_resolved_sheet_spec']
+            pulse.tick(f"sheet {i + 1}/{len(sheet_configs)}: {sheet_spec}")
             # Shared recognizer: real names, ?sheet_NNN? tokens, numbers
             # warned-as-names - and unresolvable sheets FAIL LOUD here. The
             # old path returned None and silently skipped the entry at
@@ -699,6 +702,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")
         
+        pulse.done()
+
         # ---- Workbook-level settings, applied once, after the sheets -------
         # These act on the WORKBOOK, not on any sheet, and none of them
         # touches the explicit cell formatting applied above - those colours

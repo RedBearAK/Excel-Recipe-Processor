@@ -179,7 +179,11 @@ class WorkbookSession:
         # rewritten to the shared dialect (level-9 packed), and the
         # declaration - when enabled - runs on the consolidated bytes.
         buffer = io.BytesIO()
-        workbook.save(buffer)
+        # Terminal-only liveness during the opaque openpyxl save: the
+        # buffer's write cursor growing is real work made visible
+        from excel_recipe_processor.core.terminal_pulse import ByteGrowthPulse
+        with ByteGrowthPulse(f"Saving {Path(key).name}", buffer.tell):
+            workbook.save(buffer)
         consolidated, stats = consolidate_inline_strings(buffer.getvalue())
         log_consolidation(stats, context)
 

@@ -3,11 +3,11 @@ Tests for expression column-name substitution in add_calculated_column.
 
 tests/test_expression_substitution.py
 
-The 2026-08-25 engine repairs, each born in production: names ending in
-non-word characters (Van Seq #) must substitute, and column names inside
-string literals ('Paid or No Price' beside live Paid and Price columns)
-must NOT. Longest-first one-pass behavior must survive the repair.
-Runnable directly or with pytest.
+The 2026-08-26 grammar: column names enter formulas ONLY as backticked
+tokens, parsed by a typed tokenizer - never recognized in free text.
+Hostile names (python identifiers, hash-enders, letter-shaped) are
+planted to prove the collision class is unrepresentable. Runnable
+directly or with pytest.
 """
 
 import pandas as pd
@@ -30,7 +30,7 @@ def test_hash_ending_name():
     processor = build_processor()
     result = processor._apply_expression_calculation(
         frame.copy(), 'Real',
-        {'formula': 'Van Seq #.astype(str).str.replace(r"[A-Za-z]+$", "", regex=True)'})
+        {'formula': '`Van Seq #`.astype(str).str.replace(r"[A-Za-z]+$", "", regex=True)'})
     if result['Real'].tolist() != ['2603D101', '2610K055']:
         print(f"✗ got {result['Real'].tolist()}")
         return False
@@ -45,7 +45,7 @@ def test_literal_containing_column_names():
     processor = build_processor()
     result = processor._apply_expression_calculation(
         frame.copy(), 'Tag',
-        {'formula': "Price.where(Price > 0, 'Paid or No Price')"})
+        {'formula': "`Price`.where(`Price` > 0, 'Paid or No Price')"})
     got = result['Tag'].tolist()
     if got[0] != 1.0 or got[1] != 'Paid or No Price':
         print(f"✗ got {got}")
@@ -61,7 +61,7 @@ def test_double_quoted_literal():
     processor = build_processor()
     result = processor._apply_expression_calculation(
         frame.copy(), 'Note',
-        {'formula': 'Carrier.where(Carrier == "AML", "no Carrier match")'})
+        {'formula': '`Carrier`.where(`Carrier` == "AML", "no Carrier match")'})
     if result['Note'].tolist() != ['AML', 'no Carrier match']:
         print(f"✗ got {result['Note'].tolist()}")
         return False
@@ -76,7 +76,7 @@ def test_longest_first_overlap():
     processor = build_processor()
     result = processor._apply_expression_calculation(
         frame.copy(), 'Both',
-        {'formula': "Major Species.str.lower() + Species"})
+        {'formula': "`Major Species`.str.lower() + `Species`"})
     if result['Both'].tolist() != ['squida', 'codb']:
         print(f"✗ got {result['Both'].tolist()}")
         return False
@@ -90,7 +90,7 @@ def test_name_adjacent_punctuation():
     frame = pd.DataFrame({'Units': [2, 3], 'Price': [5.0, 7.0]})
     processor = build_processor()
     result = processor._apply_expression_calculation(
-        frame.copy(), 'Total', {'formula': 'Units*Price'})
+        frame.copy(), 'Total', {'formula': '`Units`*`Price`'})
     if result['Total'].tolist() != [10.0, 21.0]:
         print(f"✗ got {result['Total'].tolist()}")
         return False
@@ -104,12 +104,63 @@ def test_partial_identifier_not_matched():
     frame = pd.DataFrame({'Price': [3.0]})
     processor = build_processor()
     result = processor._apply_expression_calculation(
-        frame.copy(), 'Out', {'formula': 'pd.Series([9.0]).rename("Priceless") * Price'})
+        frame.copy(), 'Out', {'formula': 'pd.Series([9.0]).rename("Priceless") * `Price`'})
     if result['Out'].tolist() != [27.0]:
         print(f"✗ got {result['Out'].tolist()}")
         return False
     print("✓ Priceless untouched while Price substituted")
     return True
+
+
+def test_python_identifier_named_column():
+    """A column named sum cannot corrupt method calls."""
+    print("\nTesting a column named like a python identifier...")
+    frame = pd.DataFrame({'sum': [5.0, 7.0], 'Price': [2.0, 3.0]})
+    processor = build_processor()
+    result = processor._apply_expression_calculation(
+        frame.copy(), 'Total',
+        {'formula': 'pd.Series([`Price`.sum(), `sum`.max()], index=`Price`.index)'})
+    if result['Total'].tolist() != [5.0, 7.0]:
+        print(f"✗ got {result['Total'].tolist()}")
+        return False
+    print("✓ .sum() call untouched; `sum` column addressed explicitly")
+    return True
+
+
+def test_bare_name_is_a_hard_error():
+    """A bare column name loose in code is refused with guidance."""
+    print("\nTesting the bare-name guard...")
+    frame = pd.DataFrame({'Price': [2.0]})
+    processor = build_processor()
+    try:
+        processor._apply_expression_calculation(
+            frame.copy(), 'Out', {'formula': 'Price * 2'})
+    except Exception as error:
+        if 'backticked' in str(error):
+            print("✓ bare name refused with backtick guidance")
+            return True
+        print(f"✗ wrong error: {error}")
+        return False
+    print("✗ bare name was accepted")
+    return False
+
+
+def test_unknown_token_guided():
+    """An unknown column token names near matches."""
+    print("\nTesting unknown-token guidance...")
+    frame = pd.DataFrame({'Ship Date': [1]})
+    processor = build_processor()
+    try:
+        processor._apply_expression_calculation(
+            frame.copy(), 'Out', {'formula': '`Ship Dtae` * 2'})
+    except Exception as error:
+        if 'names no column' in str(error):
+            print("✓ unknown token refused with guidance")
+            return True
+        print(f"✗ wrong error: {error}")
+        return False
+    print("✗ unknown token accepted")
+    return False
 
 
 def main():
@@ -120,6 +171,9 @@ def main():
         test_longest_first_overlap,
         test_name_adjacent_punctuation,
         test_partial_identifier_not_matched,
+        test_python_identifier_named_column,
+        test_bare_name_is_a_hard_error,
+        test_unknown_token_guided,
     ]
     passed = sum(1 for test in tests if test())
     print("\n" + "=" * 50)

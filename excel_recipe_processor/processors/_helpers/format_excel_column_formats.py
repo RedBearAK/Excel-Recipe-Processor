@@ -706,6 +706,12 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
         font_size = rule.get('font_size')
         font_underline = rule.get('font_underline')
         font_strikethrough = rule.get('font_strikethrough')
+        # Parity with column_formats (2026-08-25): borders and fills are
+        # legitimate spot styles - the first consumer is the dropdown
+        # pick-block frame on the Van_List report
+        background_color = rule.get('background_color')
+        border_style = rule.get('border_style')
+        border_color = rule.get('border_color')
 
         if font_size is not None and (
                 not isinstance(font_size, (int, float)) or font_size <= 0):
@@ -727,12 +733,14 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
 
         actionable = (number_format, horizontal, vertical, wrap_text,
                       font_color, font_bold, font_italic, font_size,
-                      font_underline, font_strikethrough)
+                      font_underline, font_strikethrough,
+                      background_color, border_style)
         if all(value is None for value in actionable):
             raise ColumnFormatError(
                 f"cell_formats rule {index + 1} does nothing: supply "
                 f"number_format, alignment_horizontal, alignment_vertical, "
-                f"wrap_text, font_color, font_bold, font_italic, font_size, "
+                f"wrap_text, font_color, background_color, border_style, "
+                f"font_bold, font_italic, font_size, "
                 f"font_underline, or font_strikethrough"
             )
 
@@ -749,6 +757,12 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
 
         format_code = resolve_number_format(number_format) if number_format else None
         data_color = color_normalizer(font_color) if font_color is not None else None
+        fill_hex = color_normalizer(background_color) if background_color is not None else None
+        border_obj = None
+        if border_style is not None:
+            border_hex = color_normalizer(border_color) if border_color else 'D9D9D9'
+            edge = Side(style=border_style, color=border_hex)
+            border_obj = Border(left=edge, right=edge, top=edge, bottom=edge)
         touches_font = (data_color is not None or font_bold is not None
                         or font_italic is not None or font_size is not None
                         or underline_value is not None
@@ -786,6 +800,12 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
                             vertical=vertical if vertical is not None else existing.vertical,
                             wrap_text=wrap_text if wrap_text is not None else existing.wrap_text
                         )
+                    if fill_hex is not None:
+                        cell.fill = PatternFill(
+                            start_color=fill_hex, end_color=fill_hex,
+                            fill_type='solid')
+                    if border_obj is not None:
+                        cell.border = border_obj
                     cell_count += 1
 
         parts = []
@@ -798,6 +818,10 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
             parts.append(f"v-align {vertical}")
         if wrap_text is not None:
             parts.append(f"wrap {wrap_text}")
+        if background_color is not None:
+            parts.append("fill")
+        if border_style is not None:
+            parts.append(f"border {border_style}")
         if font_color is not None:
             parts.append(f"font {font_color}")
         if font_bold is not None:

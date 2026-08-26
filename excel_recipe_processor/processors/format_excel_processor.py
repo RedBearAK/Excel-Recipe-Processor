@@ -132,7 +132,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Require sheet_configs to be a list
         if not isinstance(sheet_configs, list):
-            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet_name' key")
+            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet_names' key")
         
         if not sheet_configs:
             logger.warning("Empty formatting list - no sheets will be formatted")
@@ -308,7 +308,10 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # List of known formatting options (this helps catch typos)
         known_options = {
             # Sheet targeting
-            'sheet_name', 'apply_templates', 'template_name',
+            # sheet_names pluralized 2026-08-25; _resolved_sheet_spec is
+            # the expansion loop's internal per-sheet marker
+            'sheet_names', '_resolved_sheet_spec',
+            'apply_templates', 'template_name',
             
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',

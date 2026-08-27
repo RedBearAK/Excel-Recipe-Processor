@@ -13,6 +13,7 @@ import time
 import openpyxl
 import webcolors
 
+from excel_recipe_processor.core.log_format import q, qlist
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 
@@ -630,7 +631,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         Returns:
             Number of sheets processed
         """
-        logger.info(f"📋 Loading Excel file: {Path(filename).name}")
+        logger.info(f"📋 Loading Excel file: {q(Path(filename).name)}")
         
         # Build template lookup
         template_lookup = self._build_template_lookup(templates or [])
@@ -646,7 +647,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         sheets_processed = 0
         total_sheets = len(workbook.worksheets)
         
-        logger.info(f"📊 Found {total_sheets} worksheet(s): {', '.join(workbook.sheetnames)}")
+        logger.info(f"📊 Found {total_sheets} worksheet(s): {qlist(workbook.sheetnames)}")
         
         # Check if we have sheet configurations
         if not sheet_configs:
@@ -670,7 +671,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         pulse = TerminalPulse("Formatting")
         for i, sheet_config in enumerate(sheet_configs):
             sheet_spec = sheet_config['_resolved_sheet_spec']
-            pulse.tick(f"sheet {i + 1}/{len(sheet_configs)}: {sheet_spec}")
+            pulse.tick(f"sheet {i + 1}/{len(sheet_configs)}: {q(sheet_spec)}")
             # Shared recognizer: real names, ?sheet_NNN? tokens, numbers
             # warned-as-names - and unresolvable sheets FAIL LOUD here. The
             # old path returned None and silently skipped the entry at
@@ -749,7 +750,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 raise StepProcessorError(str(error))
             if active_sheet_name:
                 workbook.active = workbook[active_sheet_name]
-                logger.info(f"📌 Set active sheet to '{active_sheet_name}' (specified as: {active_sheet})")
+                logger.info(f"📌 Set active sheet to '{active_sheet_name}' (specified as: {q(active_sheet)})")
             else:
                 logger.warning(f"⚠️ Active sheet '{active_sheet}' not found")
         
@@ -1448,7 +1449,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             max_length = 0
             column_letter = column[0].column_letter
             pulse_tick(
-                f"auto-fit {worksheet.title}: column "
+                f"auto-fit {q(worksheet.title)}: column "
                 f"{column[0].column + 0}/{column_total} ({column_letter})")
 
             if scan_rows is not None:

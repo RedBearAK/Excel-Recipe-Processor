@@ -453,6 +453,7 @@ class LookupDataProcessor(BaseStepProcessor):
         
         if problematic_columns:
             logger.warning(f"⚠️  Low match rates: {', '.join(problematic_columns)}")
+            # members are pre-quoted at the append site
         
         # # Success summary
         # avg_success_rate = sum(stats['success_rate'] for stats in match_stats.values()) / len(match_stats)

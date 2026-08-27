@@ -14,6 +14,7 @@ import openpyxl
 
 from pathlib import Path
 
+from excel_recipe_processor.core.log_format import q, qlist
 from excel_recipe_processor.writers.excel_writer import ExcelWriter, DEFAULT_DELETE_BACKUPS_BEYOND
 
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
@@ -237,7 +238,7 @@ class ExportFileProcessor(ExportBaseProcessor):
                 logger.info(f"📄 Writing {len(sheets_data)} sheets:")
                 for sheet_label, sheet_frame in sheets_data.items():
                     logger.info(
-                        f"   • {sheet_label}: {len(sheet_frame):,} rows × "
+                        f"   • {q(sheet_label)}: {len(sheet_frame):,} rows × "
                         f"{len(sheet_frame.columns)} columns"
                     )
                 FileWriter.write_multi_sheet_excel(

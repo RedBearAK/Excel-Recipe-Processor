@@ -27,6 +27,7 @@ from openpyxl.utils.cell import coordinate_from_string
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
+from excel_recipe_processor.core.log_format import q, qlist
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, BaseStepProcessor, StepProcessorError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
@@ -364,7 +365,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                             f"sheets_to_receive_formulas entry {position} "
                             f"(sheet '{resolved_name}'): {error}"
                         )
-                per_sheet_counts.append(f"{resolved_name}: {sheet_count}")
+                per_sheet_counts.append(f"{q(resolved_name)}: {sheet_count}")
 
         for sheet_name, written_cells in self._written_live_cells.items():
             ranges = self._compress_cells_to_ranges(written_cells)

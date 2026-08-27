@@ -44,6 +44,33 @@ from excel_recipe_processor.processors._helpers.format_excel_sheet_features impo
 logger = logging.getLogger(__name__)
 
 
+def _extent_note(worksheet) -> str:
+    """Worksheet extents for the processing log, with the phantom clue.
+
+    EXTENT DOCTRINE (2026-08-26, born of the ETD-as-3,904 incident):
+    phases that touch worksheets ANNOUNCE their extents, so an
+    absurd dimension is visible in the log the day it appears instead
+    of hiding inside a slow-but-green phase. When claimed width runs
+    past the headered width, the note names the gap - that
+    disagreement IS the phantom-column signature.
+    """
+    max_col = worksheet.max_column
+    max_row = worksheet.max_row
+    headered = 0
+    for cell in worksheet[1]:
+        if cell.value is not None:
+            headered = cell.column
+    note = f"{max_col} column(s) × {max_row:,} row(s)"
+    if headered and max_col > headered + 2:
+        from openpyxl.utils import get_column_letter
+        note += (f" ⚠️ {max_col - headered} column(s) beyond the last "
+                 f"header ({get_column_letter(max_col)} vs header end "
+                 f"{get_column_letter(headered)}) - phantom-cell "
+                 f"signature, see excel_range_resolver")
+    return note
+
+
+
 class FormatExcelProcessor(FileOpsBaseProcessor):
     """
     Processor for formatting existing Excel files.
@@ -686,7 +713,10 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if sheet_name:
                 worksheet = workbook[sheet_name]
-                logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {q(sheet_spec)})")
+                logger.info(
+                    f"🔧 Processing sheet: '{sheet_name}' "
+                    f"(specified as: {q(sheet_spec)}) - "
+                    f"{_extent_note(worksheet)}")
                 
                 # Apply templates to sheet configuration
                 enhanced_config = self._apply_templates_to_sheet_config(sheet_config, template_lookup)

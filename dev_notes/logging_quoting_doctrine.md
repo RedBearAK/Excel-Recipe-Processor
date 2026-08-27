@@ -97,3 +97,15 @@ Run a full recipe, diff the log against the prior run's log with
 names normalized: every changed line must differ only by added
 quotes. The tests that assert on log text (none currently) would
 need updating if introduced.
+
+## Extent doctrine - SHIPPED (erp_log_extents.tgz)
+
+Worksheet-touching phases announce their extents: the format phase's
+per-sheet line now carries "N column(s) × N row(s)". When claimed
+width exceeds headered width by more than two, the line appends a
+warning naming the gap and both column letters - the phantom-cell
+signature that would have exposed the ETD-as-3,904 incident on day
+one. Dataframe-world extents were already covered by stage load/save
+lines; this closes the openpyxl-world gap. The fail-loud
+max_column-vs-headers tripwire in the storage audit remains queued as
+the enforcement layer on top of this visibility layer.

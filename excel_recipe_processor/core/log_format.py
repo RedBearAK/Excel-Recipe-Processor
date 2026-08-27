@@ -51,6 +51,8 @@ def qblock(values, indent: str = '        ', width: int = 96) -> str:
     Usage: logger.info(f"... on 27 column(s):{qblock(names)}")
     """
     members = [q(value) for value in values]
+    if not members:
+        return ' []'
     continuation = indent + ' '
 
     def split_long(member: str, room_first: int) -> list:

@@ -567,9 +567,11 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"width {width}")
 
         mechanism = ' (whole column)' if whole_column else ''
-        description = f"{', '.join(parts)}{mechanism} on {len(letters)} column(s):{qblock(columns)}"
-        if len(columns) > 4:
-            description += ' ...'
+        # Refs-addressed rules have no names - the display list is
+        # names + refs so the block is never a dangling bracket
+        display_members = list(columns) + list(rule.get('column_refs') or [])
+        description = (f"{', '.join(parts)}{mechanism} on {len(letters)} "
+                       f"column(s):{qblock(display_members)}")
 
         applied.append(description)
         logger.info(f"🔢 [{worksheet.title}] {description}")
@@ -635,7 +637,8 @@ def apply_column_widths(worksheet, rules: list, header_row: int = 1,
 
         description = f"width {width} on {len(letters)} column(s)"
         applied.append(description)
-        logger.info(f"📏 [{worksheet.title}] {description}:{qblock(columns)}")
+        width_members = list(columns) + list(rule.get('column_refs') or [])
+        logger.info(f"📏 [{worksheet.title}] {description}:{qblock(width_members)}")
 
     return applied
 

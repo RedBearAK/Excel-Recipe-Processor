@@ -219,7 +219,7 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
         self._reject_keys(entry, BOUND_KEYS, context,
                           "only apply to bounded types (whole_number, decimal, "
                           "date, time, text_length)")
-        self._reject_keys(entry, ('formula',), context,
+        self._reject_keys(entry, ('formula', 'excel_formula'), context,
                           "only applies to validation_type: custom")
 
         source_key = sources_given[0]
@@ -276,7 +276,7 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
         """Bounded types: operator decides which bound keys are required."""
         self._reject_keys(entry, LIST_SOURCE_KEYS, context,
                           "only apply to validation_type: list")
-        self._reject_keys(entry, ('formula',), context,
+        self._reject_keys(entry, ('formula', 'excel_formula'), context,
                           "only applies to validation_type: custom")
 
         operator = entry.get('operator')
@@ -318,11 +318,18 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
                           "only apply to bounded types (whole_number, decimal, "
                           "date, time, text_length)")
 
-        formula = entry.get('formula')
+        if 'formula' in entry:
+            raise StepProcessorError(
+                f"{context}: 'formula' was renamed 'excel_formula' "
+                f"(2026-08-26) - custom validation rules are EXCEL "
+                f"formulas, and the key now says so. Rename the key; the "
+                f"value is unchanged."
+            )
+        formula = entry.get('excel_formula')
         if not isinstance(formula, str) or not formula.strip():
             raise StepProcessorError(
-                f"{context}: validation_type 'custom' needs a 'formula' that "
-                f"evaluates TRUE for acceptable entries"
+                f"{context}: validation_type 'custom' needs an "
+                f"'excel_formula' that evaluates TRUE for acceptable entries"
             )
 
     @staticmethod
@@ -459,7 +466,7 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
                 data_validation.formula1 = self._bound_as_formula(
                     entry['compare_to'], validation_type)
         else:  # custom
-            data_validation.formula1 = str(entry['formula']).strip().lstrip('=')
+            data_validation.formula1 = str(entry['excel_formula']).strip().lstrip('=')
 
         input_prompt = entry.get('input_prompt')
         if isinstance(input_prompt, dict):

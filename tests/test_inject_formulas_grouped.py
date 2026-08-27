@@ -65,10 +65,10 @@ def test_grouped_injects_per_sheet():
         'mode': 'live',
         'sheets_to_receive_formulas': [
             {'sheet_names': ['View_A'],
-             'formulas': [{'cell': 'A2', 'formula': '=1+1'}]},
+             'formulas': [{'cell': 'A2', 'excel_formula': '=1+1'}]},
             {'sheet_names': ['View_B'],
-             'formulas': [{'cell': 'A2', 'formula': '=2+2'},
-                          {'cell': 'B2', 'formula': '=3+3'}]},
+             'formulas': [{'cell': 'A2', 'excel_formula': '=2+2'},
+                          {'cell': 'B2', 'excel_formula': '=3+3'}]},
         ],
     })
     workbook = openpyxl.load_workbook(target)
@@ -92,7 +92,7 @@ def test_broadcast_pair_retired():
         run_step({
             'mode': 'live',
             'sheet_names': ['View_A'],
-            'formulas': [{'cell': 'A2', 'formula': '=1'}],
+            'formulas': [{'cell': 'A2', 'excel_formula': '=1'}],
         })
         print("  ✗ retired broadcast pair accepted")
         return False
@@ -114,7 +114,7 @@ def test_singular_entry_key_guided():
             'mode': 'live',
             'sheets_to_receive_formulas': [
                 {'sheet_name': 'View_A',
-                 'formulas': [{'cell': 'A2', 'formula': '=1'}]}],
+                 'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]}],
         })
         print("  ✗ singular sheet_name accepted")
         return False
@@ -134,7 +134,7 @@ def test_scalar_sheet_names_guided():
             'mode': 'live',
             'sheets_to_receive_formulas': [
                 {'sheet_names': 'View_A',
-                 'formulas': [{'cell': 'A2', 'formula': '=1'}]}],
+                 'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]}],
         })
         print("  ✗ bare-string sheet_names accepted")
         return False
@@ -153,7 +153,7 @@ def test_one_entry_many_sheets():
         'mode': 'live',
         'sheets_to_receive_formulas': [
             {'sheet_names': ['View_A', 'View_B'],
-             'formulas': [{'cell': 'C2', 'formula': '=9'}]}],
+             'formulas': [{'cell': 'C2', 'excel_formula': '=9'}]}],
     })
     workbook = openpyxl.load_workbook(target)
     ok = (workbook['View_A']['C2'].value == '=9'
@@ -171,7 +171,7 @@ def test_entry_validation_names_position():
             'mode': 'live',
             'sheets_to_receive_formulas': [
                 {'sheet_names': ['View_A'],
-                 'formulas': [{'cell': 'A2', 'formula': '=1'}]},
+                 'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]},
                 {'sheet_names': ['View_B']},
             ],
         })
@@ -192,7 +192,7 @@ def test_unknown_entry_key_fails_loud():
             'mode': 'live',
             'sheets_to_receive_formulas': [
                 {'sheet_names': ['View_A'], 'mode': 'dead',
-                 'formulas': [{'cell': 'A2', 'formula': '=1'}]}],
+                 'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]}],
         })
         print("  ✗ stray per-entry key accepted")
         return False
@@ -211,9 +211,9 @@ def test_per_sheet_failure_names_sheet():
             'mode': 'live',
             'sheets_to_receive_formulas': [
                 {'sheet_names': ['View_A'],
-                 'formulas': [{'cell': 'A2', 'formula': '=1'}]},
+                 'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]},
                 {'sheet_names': ['View_B'],
-                 'formulas': [{'cell': 'NOT_A_CELL', 'formula': '=2'}]},
+                 'formulas': [{'cell': 'NOT_A_CELL', 'excel_formula': '=2'}]},
             ],
         })
         print("  ✗ bad cell accepted")

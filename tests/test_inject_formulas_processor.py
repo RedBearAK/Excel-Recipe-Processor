@@ -106,15 +106,15 @@ def test_basic_live_formula_injection():
                 'formulas': [
                     {
                         'cell': 'D2',
-                        'formula': '=B2*C2'
+                        'excel_formula': '=B2*C2'
                     },
                     {
                         'cell': 'D3',
-                        'formula': '=B3*C3'
+                        'excel_formula': '=B3*C3'
                     },
                     {
                         'cell': 'D5',
-                        'formula': '=SUM(D2:D4)'
+                        'excel_formula': '=SUM(D2:D4)'
                     }
                 ]
             }]
@@ -179,11 +179,11 @@ def test_dead_formula_injection():
             'formulas': [
                 {
                     'cell': 'A1',  # Header row, first column
-                    'formula': 'Calculation: =Price * Quantity'
+                    'excel_formula': 'Calculation: =Price * Quantity'
                 },
                 {
                     'cell': 'B2',  # Second row, second column
-                    'formula': '=B2*C2'
+                    'excel_formula': '=B2*C2'
                 }
             ]
         }
@@ -242,7 +242,7 @@ def test_range_formula_injection():
                 'formulas': [
                     {
                         'range': 'D2:D6',
-                        'formula': '=B2*C2'
+                        'excel_formula': '=B2*C2'
                     }
                 ]
             }]

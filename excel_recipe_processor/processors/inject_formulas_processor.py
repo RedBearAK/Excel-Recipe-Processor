@@ -172,7 +172,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             if 'cell' in formula_def:
                 # Handle cell reference like 'A1' -> row 0, col 0
                 cell_ref = formula_def['cell']
-                formula = formula_def['formula']
+                formula = formula_def['excel_formula']
                 
                 # Convert Excel cell reference to pandas coordinates
                 row_idx, col_idx = self._excel_ref_to_pandas(cell_ref, result_df)
@@ -536,7 +536,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         Args:
             worksheet: openpyxl worksheet
-            formula_def: Dictionary with 'cell'/'range' and 'formula' keys.
+            formula_def: Dictionary with 'cell'/'range' and 'excel_formula' keys.
                          The formula may use {col:Header Name} placeholders,
                          resolved against the sheet's header row, and a cell
                          target may set fill_down: true
@@ -548,10 +548,20 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         if not isinstance(formula_def, dict):
             raise StepProcessorError("Formula definition must be a dictionary")
         
-        if 'formula' not in formula_def:
-            raise StepProcessorError("Formula definition must include 'formula' key")
+        if 'formula' in formula_def:
+            raise StepProcessorError(
+                "'formula' was renamed 'excel_formula' (2026-08-26): this "
+                "processor injects EXCEL formulas for Excel to evaluate, "
+                "and the key now says so (pandas_formula is the static "
+                "sibling in add_calculated_column). Rename the key; the "
+                "value is unchanged."
+            )
+        if 'excel_formula' not in formula_def:
+            raise StepProcessorError(
+                "Formula definition must include 'excel_formula' key"
+            )
         
-        formula = formula_def['formula']
+        formula = formula_def['excel_formula']
         
         # Ensure formula starts with = for live mode
         if mode == 'live' and not formula.startswith('='):

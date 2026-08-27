@@ -25,6 +25,24 @@ Helpers:
 """
 
 
+def now_stamp() -> str:
+    """Full wall-clock datetime for run boundaries: 2026-08-26 18:56:08."""
+    from datetime import datetime
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def clock() -> str:
+    """Time-of-day only, for step starts: 18:56:08. TIMESTAMP DOCTRINE
+    (2026-08-26): the log records WHEN at phase boundaries - recipe
+    start/end carry the full datetime, each step-start line carries
+    the clock - and durations everywhere else. Deliberately not a
+    stamp-every-line log; the step clocks bracket everything between
+    them, so any line's moment is recoverable to within its step.
+    """
+    from datetime import datetime
+    return datetime.now().strftime('%H:%M:%S')
+
+
 def q(value) -> str:
     """One user-originated name, quoted for a log line."""
     text = str(value).replace("'", "\\'")

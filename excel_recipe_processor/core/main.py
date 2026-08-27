@@ -17,7 +17,7 @@ from excel_recipe_processor.core.interactive_variables import (
 )
 
 # Set up logging
-from excel_recipe_processor.core.log_format import q
+from excel_recipe_processor.core.log_format import q, now_stamp
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +320,7 @@ def process_recipe(args: Namespace) -> int:
     verbose = getattr(args, 'verbose', False)
     
     if verbose:
-        logger.info(f"Processing recipe: {q(recipe_file)}")
+        logger.info(f"Processing recipe: {q(recipe_file)} - started {now_stamp()}")
     
     try:
         # Parse CLI variable overrides
@@ -396,7 +396,7 @@ def process_recipe(args: Namespace) -> int:
             minutes, seconds = divmod(elapsed, 60)
             elapsed_text = f" in {int(minutes)}m {seconds:.1f}s" if minutes else f" in {seconds:.1f}s"
 
-        mirror_print(f"✓ Recipe completed successfully{elapsed_text}")
+        mirror_print(f"✓ Recipe completed successfully{elapsed_text} - finished {now_stamp()}")
         mirror_print(f"  Steps executed: {steps_executed}")
         stages_freed = completion_report.get('stages_freed', [])
         if stages_freed:

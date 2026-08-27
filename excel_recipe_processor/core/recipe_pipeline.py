@@ -10,6 +10,7 @@ Key changes:
 import logging
 import time
 import pandas as pd
+from excel_recipe_processor.core.log_format import clock, now_stamp
 
 from enum import Enum
 from pathlib import Path
@@ -255,9 +256,9 @@ class RecipePipeline:
             # Log step start with error handling info if non-default
             _step_clock = time.perf_counter()
             if step_on_error != ErrorAction.HALT:
-                logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
+                logger.info(f"📍 [{clock()}] Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
             else:
-                logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}'")
+                logger.info(f"📍 [{clock()}] Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}'")
             
             try:
                 # Create processor with variable injection
@@ -434,7 +435,7 @@ class RecipePipeline:
             from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # separator; buffered for the file's head
             # Load recipe
-            logger.info(f"📖 Loading recipe: '{recipe_path}'")
+            logger.info(f"📖 Loading recipe: '{recipe_path}' - started {now_stamp()}")
             self.load_recipe(recipe_path)
             
             # Collect external variables

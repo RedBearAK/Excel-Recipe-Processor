@@ -42,6 +42,8 @@ from excel_recipe_processor.core.excel_storage_audit import (
 )
 
 
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,7 +98,7 @@ class VerifyExcelStorageProcessor(FileOpsBaseProcessor):
                 all_violations.extend(f"{path} [{provenance}] {item}"
                                       for item in found)
             else:
-                logger.info(f"🔎 Storage audit CLEAN ({provenance}): {path}")
+                logger.info(f"🔎 Storage audit CLEAN ({provenance}): {q(path)}")
 
         if not all_violations:
             return f"audited {len(self.files)} workbook(s): clean"

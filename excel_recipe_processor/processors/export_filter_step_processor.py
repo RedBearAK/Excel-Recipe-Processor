@@ -15,6 +15,8 @@ from pathlib import Path
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
 
 
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,7 +90,7 @@ class ExportFilterStepProcessor(ExportBaseProcessor):
             columns_affected = accepted_terms[self.column_name_field].nunique() if filter_count > 0 else 0
             
             logger.info(f"Generated {self.output_format.upper()} filter step with {filter_count} conditions")
-            logger.info(f"Affects {columns_affected} columns, saved to: {output_path}")
+            logger.info(f"Affects {columns_affected} columns, saved to: {q(output_path)}")
             
             # Log the content for easy copy-paste
             if len(content) < 2000:  # Don't flood logs with huge files

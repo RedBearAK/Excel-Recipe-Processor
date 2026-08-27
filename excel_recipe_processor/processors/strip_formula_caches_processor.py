@@ -79,6 +79,8 @@ from excel_recipe_processor.processors._helpers.strip_formula_caches_rgx import 
     external_workbook_ref_rgx,
 )
 
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 REPORT_NAME_CAP = 10
@@ -255,7 +257,7 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
         # bytes already exist twice.
         if self.create_backup:
             shutil.copy2(path, path + '.stripbak')
-            logger.info(f"Backup written: {path}.stripbak")
+            logger.info(f"Backup written: {q(str(path) + '.stripbak')}")
 
         logger.info(f"Reading '{os.path.basename(path)}' "
                     f"({before_bytes:,} bytes)...")

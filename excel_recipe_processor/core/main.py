@@ -17,6 +17,8 @@ from excel_recipe_processor.core.interactive_variables import (
 )
 
 # Set up logging
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 
@@ -317,7 +319,7 @@ def process_recipe(args: Namespace) -> int:
     verbose = getattr(args, 'verbose', False)
     
     if verbose:
-        logger.info(f"Processing recipe: {recipe_file}")
+        logger.info(f"Processing recipe: {q(recipe_file)}")
     
     try:
         # Parse CLI variable overrides

@@ -19,6 +19,8 @@ from datetime import datetime
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
 
 
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,7 +111,7 @@ class ProfileFilesProcessor(ImportBaseProcessor):
                         f"Step '{self.step_name}': file not found: {path}"
                     )
                 if self.on_missing == 'skip':
-                    logger.warning(f"⚠️  Skipping missing file: {path}")
+                    logger.warning(f"⚠️  Skipping missing file: {q(path)}")
                     continue
                 rows.append({
                     'File': path.name,

@@ -49,6 +49,8 @@ from excel_recipe_processor.processors._helpers.named_objects_patterns import (
 )
 
 
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 
@@ -510,7 +512,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             yaml.dump(objects_dict, f, default_flow_style=False, allow_unicode=True,
                      sort_keys=False, indent=2)
         
-        logger.info(f"Exported {objects_dict['metadata']['total_objects']} objects to {export_path}")
+        logger.info(f"Exported {objects_dict['metadata']['total_objects']} objects to {q(export_path)}")
     
     def export_to_vba_format(self, objects_dict: dict, export_path: str) -> None:
         """Export to VBA-compatible simple text format."""
@@ -573,7 +575,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                         f.write(line)
                 f.write("\n")
         
-        logger.info(f"Exported {objects_dict['metadata']['total_objects']} objects to VBA format: {export_path}")
+        logger.info(f"Exported {objects_dict['metadata']['total_objects']} objects to VBA format: {q(export_path)}")
     
     def import_from_yaml(self, import_path: str) -> dict:
         """Import and validate objects from YAML format."""

@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.format_excel_theme_manager import apply_base_theme
+from excel_recipe_processor.core.log_format import q
 from excel_recipe_processor.writers._helpers.excel_writer_backup_rgx import (
     build_backup_name_rgx,
     legacy_backup_rgx,
@@ -91,7 +92,7 @@ class ExcelWriter:
                 f"Expected one of: {', '.join(valid_extensions)}"
             )
         
-        logger.info(f"Writing DataFrame to Excel: {output_path}")
+        logger.info(f"Writing DataFrame to Excel: {q(output_path)}")
         
         try:
             # Write the DataFrame through an explicit writer, so the
@@ -108,8 +109,7 @@ class ExcelWriter:
             
             logger.info(
                 f"Successfully wrote {len(df)} rows, {len(df.columns)} columns "
-                f"to sheet '{sheet_name}' in ")
-            logger.info(f"{output_path}")
+                f"to sheet '{sheet_name}' in {q(output_path)}")
             
         except PermissionError:
             raise ExcelWriterError(
@@ -342,7 +342,7 @@ class ExcelWriter:
 
         try:
             shutil.copy2(file_path, backup_path)
-            logger.info(f"Created backup: {backup_path.name}")
+            logger.info(f"Created backup: {q(backup_path.name)}")
 
         except Exception as e:
             raise ExcelWriterError(f"Error creating backup: {e}")

@@ -113,7 +113,7 @@ class ExcelWriter:
             
         except PermissionError:
             raise ExcelWriterError(
-                f"Permission denied writing to: {output_path}. "
+                f"Permission denied writing to: {q(output_path)}. "
                 "File may be open in another application."
             )
         except Exception as e:
@@ -212,7 +212,7 @@ class ExcelWriter:
             
         except PermissionError:
             raise ExcelWriterError(
-                f"Permission denied writing to: {output_path}. "
+                f"Permission denied writing to: {q(output_path)}. "
                 "File may be open in another application."
             )
         except Exception as e:
@@ -320,7 +320,7 @@ class ExcelWriter:
         file_path = Path(file_path)
 
         if not file_path.exists():
-            raise ExcelWriterError(f"File not found: {file_path}")
+            raise ExcelWriterError(f"File not found: {q(file_path)}")
 
         if delete_backups_beyond == 0:
             logger.debug(f"delete_backups_beyond is 0 (keep none); no backup made of {file_path.name}")

@@ -12,6 +12,7 @@ Handles grouping individual values into categories with support for:
 
 import pandas as pd
 import logging
+from excel_recipe_processor.core.log_format import q, qlist
 
 from typing import Any
 
@@ -237,7 +238,7 @@ class GroupDataProcessor(BaseStepProcessor):
                     values_series = group_data[values_column]
                     # Explicit check for expected Series type (var replaces group_data[values_column])
                     if not isinstance(values_series, pd.Series):
-                        raise TypeError(f"Expected Series from {values_column}, got {type(values_series)}")
+                        raise TypeError(f"Expected Series from {q(values_column)}, got {type(values_series)}")
 
                     values = values_series.dropna().astype(str).tolist()
                     if values:
@@ -321,7 +322,7 @@ class GroupDataProcessor(BaseStepProcessor):
                         groups[str(group_name)] = values
             
             else:
-                raise StepProcessorError(f"Unsupported file format: {file_format}")
+                raise StepProcessorError(f"Unsupported file format: {q(file_format)}")
             
             logger.debug(f"Loaded {len(groups)} groups from file '{filename}'")
             return groups
@@ -371,7 +372,7 @@ class GroupDataProcessor(BaseStepProcessor):
             if missing_columns:
                 available_columns = list(lookup_data.columns)
                 raise StepProcessorError(
-                    f"Required columns {missing_columns} not found in lookup stage '{lookup_stage}'. "
+                    f"Required columns {qlist(missing_columns)} not found in lookup stage '{lookup_stage}'. "
                     f"Available columns: {available_columns}"
                 )
             

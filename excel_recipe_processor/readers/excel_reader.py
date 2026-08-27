@@ -6,6 +6,7 @@ Handles reading Excel files with various options and error handling.
 
 import logging
 from pathlib import Path
+from excel_recipe_processor.core.log_format import q
 
 import pandas as pd
 
@@ -52,10 +53,10 @@ class ExcelReader:
         file_path = Path(file_path)
         
         if not file_path.exists():
-            raise ExcelReaderError(f"Excel file not found: {file_path}")
+            raise ExcelReaderError(f"Excel file not found: {q(file_path)}")
         
         if not file_path.is_file():
-            raise ExcelReaderError(f"Path is not a file: {file_path}")
+            raise ExcelReaderError(f"Path is not a file: {q(file_path)}")
         
         # Check file extension
         valid_extensions = {'.xlsx', '.xls', '.xlsm', '.xlsb'}
@@ -93,7 +94,7 @@ class ExcelReader:
             return df
 
         except pd.errors.EmptyDataError:
-            raise ExcelReaderError(f"Excel file appears to be empty: {file_path}")
+            raise ExcelReaderError(f"Excel file appears to be empty: {q(file_path)}")
         except pd.errors.ParserError as e:
             raise ExcelReaderError(f"Error parsing Excel file: {e}")
         except PermissionError:
@@ -121,7 +122,7 @@ class ExcelReader:
         file_path = Path(file_path)
         
         if not file_path.exists():
-            raise ExcelReaderError(f"Excel file not found: {file_path}")
+            raise ExcelReaderError(f"Excel file not found: {q(file_path)}")
         
         try:
             # Use pandas ExcelFile to get sheet names
@@ -161,7 +162,7 @@ class ExcelReader:
         file_path = Path(file_path)
         
         if not file_path.exists():
-            raise ExcelReaderError(f"Excel file not found: {file_path}")
+            raise ExcelReaderError(f"Excel file not found: {q(file_path)}")
         
         # If no sheet names specified, get all sheets
         if sheet_names is None:

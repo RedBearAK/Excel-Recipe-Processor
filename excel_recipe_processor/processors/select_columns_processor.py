@@ -252,7 +252,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
         if missing_columns:
             if strict_mode:
                 raise StepProcessorError(
-                    f"Columns not found: {missing_columns}. "
+                    f"Columns not found: {qlist(missing_columns)}. "
                     f"Available columns: {list(df.columns)}. "
                     f"Add missing columns to 'columns_to_create' if you want to create them."
                 )
@@ -333,7 +333,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
         if missing_columns:
             if strict_mode:
                 raise StepProcessorError(
-                    f"Columns to drop not found: {missing_columns}. "
+                    f"Columns to drop not found: {qlist(missing_columns)}. "
                     f"Available columns: {list(df.columns)}"
                 )
             else:

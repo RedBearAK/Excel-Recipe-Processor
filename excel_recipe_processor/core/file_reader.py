@@ -9,6 +9,7 @@ format detection, and consistent error handling.
 
 import logging
 import pandas as pd
+from excel_recipe_processor.core.log_format import q
 
 from pathlib import Path
 from importlib.util import find_spec
@@ -127,7 +128,7 @@ class FileReader:
                     filename, encoding,
                     raw_na=bool(verbatim_text_columns))
             else:
-                raise FileReaderError(f"Unsupported file format: {file_format}")
+                raise FileReaderError(f"Unsupported file format: {q(file_format)}")
 
             if verbatim_text_columns:
                 data = FileReader._apply_na_policy(data, verbatim_text_columns)

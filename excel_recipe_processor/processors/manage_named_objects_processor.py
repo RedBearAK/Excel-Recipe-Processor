@@ -582,13 +582,13 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         
         import_file = Path(import_path)
         if not import_file.exists():
-            raise StepProcessorError(f"Import file not found: {import_path}")
+            raise StepProcessorError(f"Import file not found: {q(import_path)}")
         
         try:
             with open(import_file, 'r', encoding='utf-8') as f:
                 objects_dict = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            raise StepProcessorError(f"Invalid YAML format in {import_path}: {e}")
+            raise StepProcessorError(f"Invalid YAML format in {q(import_path)}: {e}")
         
         # Validate structure
         self._validate_yaml_structure(objects_dict)
@@ -1079,7 +1079,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         # bridge the workbook may not have touched disk yet.
         if not target_path.exists() and not WorkbookSession.is_open(target_path):
             raise StepProcessorError(
-                f"Target file not found: {target_file}. Named objects are written "
+                f"Target file not found: {q(target_file)}. Named objects are written "
                 f"into an existing workbook, so run export_file first."
             )
 

@@ -66,7 +66,17 @@ is explicit, not just each member's. The pulse's live frames carry a
 emitted through the logger, so the log FILE receives the remnant of
 every live line while the live updates themselves stay terminal-only.
 
-## Stage 4 - error messages
+## Stage 4 - error messages - SHIPPED (erp_log_stage4_errors.tgz)
+
+Survey found 45 candidate bare interpolations; triage EXCLUDED by
+design: variable_substitution's placeholder reconstructions (braces
+ARE the delimiter there), numeric interpolations (sheet indexes), and
+add_calculated_column's expression-builder returns (formula TEXT, not
+messages - quoting would corrupt formulas). The ~20 real sites -
+file paths, sheet/column names, missing-column lists - now quote via
+q()/qlist() across writers, readers, and six processors.
+
+## (original stage 4 note follows)
 
 Guided errors interpolate names heavily and are ALREADY mostly
 quoted by house style (`'{spec}'`); sweep for stragglers with the

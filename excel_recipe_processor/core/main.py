@@ -301,7 +301,8 @@ def attach_log_file(file_path, source='cli') -> bool:
     logging.getLogger().addHandler(handler)
     _attached_log_files[source] = str(resolved)
     _attached_log_streams.append(handler.stream)
-    logging.getLogger(__name__).info(f"🪵 Logging to file: {resolved}")
+    from excel_recipe_processor.core.log_format import q
+    logging.getLogger(__name__).info(f"🪵 Logging to file: {q(resolved)}")
     return True
 
 

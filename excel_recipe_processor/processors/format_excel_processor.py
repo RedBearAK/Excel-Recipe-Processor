@@ -686,7 +686,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if sheet_name:
                 worksheet = workbook[sheet_name]
-                logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {sheet_spec})")
+                logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {q(sheet_spec)})")
                 
                 # Apply templates to sheet configuration
                 enhanced_config = self._apply_templates_to_sheet_config(sheet_config, template_lookup)
@@ -758,7 +758,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         WorkbookSession.mark_dirty(filename)
         logger.info(f"💾 Formatting recorded; the workbook saves at run end (session)")
         
-        logger.info(f"✅ Excel formatting completed: {sheets_processed}/{total_sheets} sheets processed")
+        # 19/18 is not a miscount: one worksheet may carry several
+        # formatting entries (Cust_Summ runs twice), so configurations
+        # and worksheets are DIFFERENT units - the message now says so
+        logger.info(
+            f"✅ Excel formatting completed: {sheets_processed} sheet "
+            f"configuration(s) applied across {total_sheets} worksheet(s)")
         return sheets_processed
 
     def _apply_sheet_formatting(self, worksheet, formatting: dict) -> None:

@@ -13,7 +13,7 @@ import time
 import openpyxl
 import webcolors
 
-from excel_recipe_processor.core.log_format import q, qlist
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 
@@ -674,7 +674,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         sheets_processed = 0
         total_sheets = len(workbook.worksheets)
         
-        logger.info(f"📊 Found {total_sheets} worksheet(s): {qlist(workbook.sheetnames)}")
+        logger.info(f"📊 Found {total_sheets} worksheet(s):{qblock(workbook.sheetnames)}")
         
         # Check if we have sheet configurations
         if not sheet_configs:

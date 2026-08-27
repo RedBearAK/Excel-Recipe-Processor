@@ -12,7 +12,7 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.log_format import q, qlist
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
@@ -104,7 +104,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
                 if actually_created:
                     logger.info(
                         f"➕ Created {len(actually_created)} blank column(s): "
-                        f"{qlist(actually_created)}"
+                        f"{qblock(actually_created)}"
                     )
                 operation_desc = f"selected {len(columns_to_keep)} column specifications"
             elif columns_to_drop is not None:

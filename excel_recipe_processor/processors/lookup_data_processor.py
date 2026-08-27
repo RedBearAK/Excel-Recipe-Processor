@@ -13,6 +13,7 @@ Handles stage-to-stage lookups with focus on solving real matching problems:
 import pandas as pd
 import re
 import logging
+from excel_recipe_processor.core.log_format import q
 
 from typing import Any
 
@@ -434,7 +435,7 @@ class LookupDataProcessor(BaseStepProcessor):
             has_default = col in default_values
             default_info = f" → '{default_values[col]}'" if has_default else " (no default)"
             
-            logger.info(f"   📈 {col}: {successful:,} matched ({success_rate:.1f}%), "
+            logger.info(f"   📈 {q(col)}: {successful:,} matched ({success_rate:.1f}%), "
                         f"{missing:,} missing{default_info}")
         
         # Summary warnings for problematic columns. A column WITH a default

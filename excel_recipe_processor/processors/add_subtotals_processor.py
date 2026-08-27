@@ -8,6 +8,7 @@ Handles inserting subtotal rows into grouped data with various aggregation funct
 
 import pandas as pd
 import logging
+from excel_recipe_processor.core.log_format import q
 
 from typing import Any
 
@@ -305,7 +306,7 @@ class AddSubtotalsProcessor(BaseStepProcessor):
                     elif func == 'var':
                         subtotal_row[col] = group_data[col].var()
                 except Exception as e:
-                    logger.warning(f"Could not calculate {func} for column {col}: {e}")
+                    logger.warning(f"Could not calculate {func} for column {q(col)}: {e}")
                     subtotal_row[col] = 0
         
         return subtotal_row

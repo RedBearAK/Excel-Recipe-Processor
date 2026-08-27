@@ -241,7 +241,13 @@ class RecipePipeline:
         # Reset execution state
         self.steps_executed = 0
         skipped_steps = 0
-        
+
+        # TIMESTAMP DOCTRINE: the true processing extents get their own
+        # dedicated lines, stamp-first like the step clocks; durations
+        # live elsewhere
+        from excel_recipe_processor.core.log_format import now_stamp
+        logger.info(f"🕐 [{now_stamp()}] Recipe processing started")
+
         for step_index, step_config in enumerate(recipe_steps):
             step_desc = step_config.get('step_description', f'Step {step_index + 1}')
             # processor_type = step_config.get('processor_type')
@@ -435,7 +441,7 @@ class RecipePipeline:
             from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # separator; buffered for the file's head
             # Load recipe
-            logger.info(f"📖 Loading recipe: '{recipe_path}' - started {now_stamp()}")
+            logger.info(f"📖 Loading recipe: '{recipe_path}'")
             self.load_recipe(recipe_path)
             
             # Collect external variables

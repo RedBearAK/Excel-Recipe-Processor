@@ -37,7 +37,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         """
         return {
             'new_column': 'test_column',
-            'calculation': {'formula': 'test_value'}
+            'calculation': {'pandas_formula': 'test_value'}
         }
     
     def execute(self, data: Any) -> pd.DataFrame:
@@ -151,11 +151,22 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         if 'formula_components' in calculation:
             return self._apply_formula_components(df, new_column, calculation)
         
-        # Fall back to legacy formula syntax
-        if 'formula' not in calculation:
-            raise StepProcessorError("Expression calculation requires either 'formula' or 'formula_components' field")
-        
-        formula = calculation['formula']
+        # The key names its language (2026-08-26): the expression is
+        # pandas syntax with {col:Name} column references
+        if 'formula' in calculation:
+            raise StepProcessorError(
+                "'formula' was renamed 'pandas_formula' (2026-08-26): the "
+                "expression is pandas syntax with {col:Name} column "
+                "references, and the key now says so. Rename the key; the "
+                "value is unchanged."
+            )
+        if 'pandas_formula' not in calculation:
+            raise StepProcessorError(
+                "Expression calculation requires a 'pandas_formula' field "
+                "(or 'formula_components')"
+            )
+
+        formula = calculation['pandas_formula']
         
         # Guard clause: formula must be a string
         if not isinstance(formula, str):

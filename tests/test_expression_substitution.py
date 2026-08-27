@@ -28,7 +28,7 @@ def build_processor():
 def run(frame, formula):
     processor = build_processor()
     return processor._apply_expression_calculation(
-        frame.copy(), 'Out', {'formula': formula})
+        frame.copy(), 'Out', {'pandas_formula': formula})
 
 
 def test_hash_ending_name():

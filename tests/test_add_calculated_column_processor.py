@@ -282,7 +282,7 @@ def test_expression_calculation():
         'new_column': 'Value_Per_Unit',
         'calculation_type': 'expression',
         'calculation': {
-            'formula': '{col:Price} * 1.1'  # Add 10% markup
+            'pandas_formula': '{col:Price} * 1.1'  # Add 10% markup
         }
     }
     

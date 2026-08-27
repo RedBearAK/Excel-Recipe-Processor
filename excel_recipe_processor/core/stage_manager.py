@@ -48,6 +48,8 @@ class StageManager:
     _save_counts: dict      = {}                # dict[str, int]
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
+    _auto_free: bool        = False             # settings: auto_free_stages
+    _expected_uses: dict    = {}                # dict[str, int] from recipe scan
     _max_stages: int        = 100               # Configurable limit
     _declared_stages: dict  = {}
     _protected_stages       = set()
@@ -76,6 +78,59 @@ class StageManager:
                 cls._protected_stages.add(stage_name)
         
         logger.info(f"Declared {len(stages_list)} stages")
+
+        # AUTO-FREE (2026-08-26, designed with Kris): the recipe already
+        # declares every use, so expected consumer counts come from a
+        # structural scan - values exactly matching stage names, with
+        # producer and prose/formula keys excluded. Runtime decrements
+        # on every load; a stage frees the moment its counter reaches
+        # zero. Failure geometry is the safety case: an undercount
+        # fails LOUD at the next load (stage-not-found with
+        # suggestions, never silent wrong data); an overcount only
+        # holds memory longer. Opt-in: settings: auto_free_stages.
+        cls._auto_free = bool(
+            recipe_config.get('settings', {}).get('auto_free_stages', False))
+        cls._expected_uses = {}
+        if cls._auto_free:
+            cls._expected_uses = cls._scan_expected_uses(recipe_config)
+            planned = sum(cls._expected_uses.values())
+            logger.info(
+                f"🍃 Auto-free enabled: {len(cls._expected_uses)} "
+                f"stage(s) tracked, {planned} planned use(s)")
+
+    _NON_REFERENCE_KEYS = frozenset((
+        'save_to_stage', 'stage_name', 'step_description', 'description',
+        'pandas_formula', 'excel_formula', 'when_formula', 'name_mgr_comment',
+    ))
+
+    @classmethod
+    def _scan_expected_uses(cls, recipe_config: dict) -> dict:
+        """Count planned consumer references per stage from the recipe."""
+        names = set(cls._declared_stages)
+        for step in recipe_config.get('recipe', []) or []:
+            saved = step.get('save_to_stage')
+            if saved:
+                names.add(saved)
+        counts = {}
+
+        def walk(node, key=None):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    walk(v, k)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item, key)
+            elif isinstance(node, str):
+                if key in cls._NON_REFERENCE_KEYS:
+                    return
+                if node in names:
+                    counts[node] = counts.get(node, 0) + 1
+
+        for step in recipe_config.get('recipe', []) or []:
+            if step.get('processor_type') == 'free_stages':
+                continue  # deletion is not consumption
+            walk({k: v for k, v in step.items() if k != 'save_to_stage'})
+        return counts
 
     @classmethod
     def validate_recipe_stages(cls, recipe_config: dict) -> dict:
@@ -340,6 +395,22 @@ class StageManager:
         
         # Get stage data
         stage_data = cls._current_stages[stage_name].copy()
+
+        # AUTO-FREE: the copy above is the consumer's own frame, so the
+        # manager's reference can drop the instant the planned final
+        # use happens
+        if cls._auto_free and not cls.is_stage_protected(stage_name):
+            expected = cls._expected_uses.get(stage_name)
+            if expected is not None and cls._stage_usage[stage_name] >= expected:
+                freed_mb = cls._stage_metadata.get(stage_name, {}).get(
+                    'memory_usage_mb', 0.0)
+                cls._mem_current_mb -= freed_mb
+                cls._mem_freed_total_mb += freed_mb
+                del cls._current_stages[stage_name]
+                logger.info(
+                    f"♻️  Auto-freed stage '{stage_name}' after planned "
+                    f"use {expected} (~{freed_mb:.0f} MB returned; "
+                    f"{len(cls._current_stages)} stage(s) in memory)")
         
         # Log with declaration status
         if stage_name in cls._declared_stages:

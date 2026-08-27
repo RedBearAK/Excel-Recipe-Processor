@@ -343,7 +343,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
-            'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
+            'freeze_top_row', 'freeze_panes', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
             'copy_widths_from_sheet',
@@ -1013,7 +1013,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             logger.info(f"🗒️  [{sheet_name}] Gridlines {'shown' if show else 'hidden'}")
             applied_operations.append(f"gridlines {'on' if show else 'off'}")
 
-        if formatting.get('freeze_top_row'):
+        freeze_ref = formatting.get('freeze_panes')
+        if freeze_ref:
+            # General freeze: everything above and left of the given
+            # cell stays pinned (2026-08-26, born of the Van_List
+            # filter band). Wins over freeze_top_row when both appear.
+            worksheet.freeze_panes = str(freeze_ref)
+            applied_operations.append(f"freeze panes at {q(freeze_ref)}")
+        elif formatting.get('freeze_top_row'):
             logger.info(f"🧊 [{sheet_name}] Freezing top row")
             worksheet.freeze_panes = 'A2'
             applied_operations.append("freeze top row")

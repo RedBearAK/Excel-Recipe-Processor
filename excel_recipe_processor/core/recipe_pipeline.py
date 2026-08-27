@@ -297,6 +297,8 @@ class RecipePipeline:
                 
                 self.steps_executed += 1
                 logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.3f}s)")
+                from excel_recipe_processor.core.stage_manager import StageManager
+                StageManager.auto_free_after_step(step_index)
 
                 self._dump_requested_stages()
 

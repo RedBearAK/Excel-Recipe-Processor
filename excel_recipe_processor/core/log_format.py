@@ -32,15 +32,18 @@ def q(value) -> str:
 
 
 def qlist(values, limit: int = 0) -> str:
-    """A list of user-originated names as a quoted comma list.
+    """A list of user-originated names as a BRACKETED quoted list.
 
-    limit > 0 caps the members shown and appends a "+N more" tail so
+    Always bracketed - ['VMS', 'Van_List'] and ['VMS'] alike - so a
+    list of one is visibly a list and the whole collection has an
+    unambiguous boundary, not just each member. limit > 0 caps the
+    members shown and appends a "+N more" tail inside the brackets so
     high-cardinality lists stay readable without hiding their size.
     """
     values = [q(value) for value in values]
     if limit and len(values) > limit:
         shown = values[:limit]
-        return f"{', '.join(shown)} ... +{len(values) - limit} more"
-    return ', '.join(values)
+        return f"[{', '.join(shown)} ... +{len(values) - limit} more]"
+    return f"[{', '.join(values)}]"
 
 # End of file #

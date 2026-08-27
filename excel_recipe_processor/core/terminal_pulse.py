@@ -97,7 +97,7 @@ class TerminalPulse:
 
     def _frame(self) -> str:
         elapsed = time.perf_counter() - self.started
-        return f"⏳ {self.label} {self._detail} ({elapsed:.0f}s)"
+        return f"LIVE: ⏳ {self.label} {self._detail} ({elapsed:.0f}s)"
 
     def redraw(self):
         sys.stderr.write("\r\033[K" + self._frame())
@@ -132,13 +132,15 @@ class TerminalPulse:
         with _LOCK:
             if _ACTIVE is self:
                 _ACTIVE = None
-                elapsed = time.perf_counter() - self.started
-                # The final frame PERSISTS as a normal line - the record
-                # of what ran and how long, not a vanishing act
-                sys.stderr.write(
-                    f"\r\033[K✅ {self.label} {self._detail} "
-                    f"- {elapsed:.0f}s total\n")
-                sys.stderr.flush()
+                _clear_line()
+        # The completed frame goes through the LOGGER: the log FILE
+        # gets the remnant of what the live line showed, and the
+        # terminal keeps it as an ordinary log line. Only the live
+        # updates themselves are terminal-only. Emitted after the
+        # active pulse is unset so the bridge does not redraw over it.
+        elapsed = time.perf_counter() - self.started
+        logging.getLogger(__name__).info(
+            f"✅ {self.label} {self._detail} - {elapsed:.0f}s total")
 
 
 def pulse_tick(detail: str = ''):
@@ -164,7 +166,7 @@ class ByteGrowthPulse:
 
     def _frame(self) -> str:
         elapsed = time.perf_counter() - self.started
-        return f"⏳ {self.label}: {self._shown}, {elapsed:.0f}s elapsed"
+        return f"LIVE: ⏳ {self.label}: {self._shown}, {elapsed:.0f}s elapsed"
 
     def redraw(self):
         sys.stderr.write("\r\033[K" + self._frame())
@@ -211,11 +213,11 @@ class ByteGrowthPulse:
             with _LOCK:
                 if _ACTIVE is self:
                     _ACTIVE = None
-                    elapsed = time.perf_counter() - self.started
-                    sys.stderr.write(
-                        f"\r\033[K✅ {self.label}: {self._shown.lstrip('|/-\\ ')}"
-                        f" - {elapsed:.0f}s total\n")
-                    sys.stderr.flush()
+                    _clear_line()
+            elapsed = time.perf_counter() - self.started
+            logging.getLogger(__name__).info(
+                f"✅ {self.label}: {self._shown.lstrip('|/-\\ ')}"
+                f" - {elapsed:.0f}s total")
         return False
 
 # End of file #

@@ -43,6 +43,15 @@ Grep pattern: `logger.(info|warning)(f"` lines interpolating
 `{sheet_name}`/`{column`/`{stage` without adjacent quotes or
 brackets. Convert to `q()`. The `[{sheet_name}]` prefix form stays.
 
+## List bracketing + LIVE channel - SHIPPED (erp_log_polish.tgz)
+
+qlist output is always bracketed - `['VMS']` and `['VMS', 'Van_List']`
+alike - so a single item is visibly a list and the collection boundary
+is explicit, not just each member's. The pulse's live frames carry a
+`LIVE: ` prefix matching the `INFO: ` column; completed frames are
+emitted through the logger, so the log FILE receives the remnant of
+every live line while the live updates themselves stay terminal-only.
+
 ## Stage 4 - error messages
 
 Guided errors interpolate names heavily and are ALREADY mostly

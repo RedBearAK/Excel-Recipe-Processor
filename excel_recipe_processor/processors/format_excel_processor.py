@@ -663,8 +663,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Build template lookup
         template_lookup = self._build_template_lookup(templates or [])
         if template_lookup:
-            template_names = ', '.join(f"'{name}'" for name in template_lookup.keys())
-            logger.info(f"📝 Available templates: {template_names}")
+            logger.info(f"📝 Available templates:{qblock(template_lookup.keys())}")
         
         # Session-cached: when earlier steps (named ranges, seeding) already
         # opened this file, formatting reuses their live workbook and the
@@ -723,8 +722,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 
                 # Log template application if templates were used
                 if 'apply_templates' in sheet_config and sheet_config['apply_templates']:
-                    applied_template_names = ', '.join(f"'{name}'" for name in sheet_config['apply_templates'])
-                    logger.info(f"📝 Applied templates: {applied_template_names}")
+                    logger.info(f"📝 Applied templates: {qlist(sheet_config['apply_templates'])}")
                 
                 _sheet_clock = time.perf_counter()
                 self._apply_sheet_formatting(worksheet, enhanced_config)

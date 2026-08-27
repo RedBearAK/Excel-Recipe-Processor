@@ -399,6 +399,14 @@ def process_recipe(args: Namespace) -> int:
         logger.info(f"🕐 [{now_stamp()}] Recipe processing finished")
         mirror_print(f"✓ Recipe completed successfully{elapsed_text}")
         mirror_print(f"  Steps executed: {steps_executed}")
+        # The pipeline's report is flattened; derive the survivors
+        alive_at_end = sorted(
+            set(completion_report.get('stages_created', []))
+            - set(completion_report.get('stages_freed', [])))
+        if alive_at_end:
+            from excel_recipe_processor.core.log_format import qblock
+            mirror_print(f"  Stages alive at run end ({len(alive_at_end)}):"
+                         f"{qblock(alive_at_end)}")
         stages_freed = completion_report.get('stages_freed', [])
         if stages_freed:
             mirror_print(f"  Data stages created: {len(stages_created)} ({len(stages_freed)} freed during the run)")

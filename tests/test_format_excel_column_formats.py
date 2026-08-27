@@ -82,8 +82,8 @@ def test_number_formats_applied():
         build_workbook(path)
 
         run_format(path, {'column_formats': [
-            {'columns': ['Cases (24)', 'Gross Wt'], 'number_format': 'thousands'},
-            {'columns': ['Price', 'Total Price'], 'number_format': 'accounting'},
+            {'column_names': ['Cases (24)', 'Gross Wt'], 'number_format': 'thousands'},
+            {'column_names': ['Price', 'Total Price'], 'number_format': 'accounting'},
         ]})
 
         workbook = openpyxl.load_workbook(path)
@@ -121,7 +121,7 @@ def test_header_row_untouched():
         build_workbook(path)
 
         run_format(path, {'column_formats': [
-            {'columns': ['Cases (24)'], 'number_format': 'thousands'},
+            {'column_names': ['Cases (24)'], 'number_format': 'thousands'},
         ]})
 
         workbook = openpyxl.load_workbook(path)
@@ -169,7 +169,7 @@ def test_per_column_alignment():
         build_workbook(path)
 
         run_format(path, {'column_formats': [
-            {'columns': ['Product ID'], 'alignment_horizontal': 'center'},
+            {'column_names': ['Product ID'], 'alignment_horizontal': 'center'},
         ]})
 
         workbook = openpyxl.load_workbook(path)
@@ -197,7 +197,7 @@ def test_missing_column_policy():
 
         try:
             run_format(path, {'column_formats': [
-                {'columns': ['Product ID', 'Nonexistent'], 'number_format': 'thousands'},
+                {'column_names': ['Product ID', 'Nonexistent'], 'number_format': 'thousands'},
             ]})
             print("  ✓ 'warn' default did not halt the run")
         except Exception as error:
@@ -208,7 +208,7 @@ def test_missing_column_policy():
             run_format(path, {
                 'on_missing_column': 'error',
                 'column_formats': [
-                    {'columns': ['Nonexistent'], 'number_format': 'thousands'},
+                    {'column_names': ['Nonexistent'], 'number_format': 'thousands'},
                 ]})
             print("  ✗ 'error' policy did not raise")
             passed = False
@@ -227,7 +227,7 @@ def test_rule_with_no_effect_is_rejected():
         build_workbook(path)
 
         try:
-            run_format(path, {'column_formats': [{'columns': ['Price']}]})
+            run_format(path, {'column_formats': [{'column_names': ['Price']}]})
         except Exception as error:
             if 'does nothing' in str(error):
                 print("  ✓ Rule with no action rejected with a clear message")
@@ -252,7 +252,7 @@ def test_per_column_header_styling():
             'header_background_color': '1F4E79',
             'header_text_color': 'white',
             'column_formats': [
-                {'columns': ['Cases (24)', 'Price'],
+                {'column_names': ['Cases (24)', 'Price'],
                  'font_color': 'red',
                  'header_font_color': 'white',
                  'header_background_color': 'red',
@@ -314,7 +314,7 @@ def test_css_colour_names_resolve():
         build_workbook(path)
 
         run_format(path, {'column_formats': [
-            {'columns': ['Price'], 'font_color': 'forestgreen'},
+            {'column_names': ['Price'], 'font_color': 'forestgreen'},
         ]})
 
         workbook = openpyxl.load_workbook(path)
@@ -339,7 +339,7 @@ def test_number_format_and_font_combine():
         build_workbook(path)
 
         run_format(path, {'column_formats': [
-            {'columns': ['Cases (24)'], 'number_format': 'thousands', 'font_color': 'red'},
+            {'column_names': ['Cases (24)'], 'number_format': 'thousands', 'font_color': 'red'},
         ]})
 
         workbook = openpyxl.load_workbook(path)

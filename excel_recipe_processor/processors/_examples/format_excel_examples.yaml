@@ -433,20 +433,20 @@ column_formats_example:
             on_missing_column: "error"
             column_formats:
               - # Thousands separator, no decimals
-                columns: ["Cases", "Gross Wt", "Packages", "Units"]
+                column_names: ["Cases", "Gross Wt", "Packages", "Units"]
                 number_format: "thousands"
 
               - # Currency pinned left, negatives in parentheses, zero as a dash
-                columns: ["Price", "Total Price"]
+                column_names: ["Price", "Total Price"]
                 number_format: "accounting"
 
-              - columns: ["Product ID"]
+              - column_names: ["Product ID"]
                 alignment_horizontal: "center"
 
               - # Per-column header styling, unlike the sheet-wide header_*
                 # options, so a subset of columns can be marked without
                 # touching the rest
-                columns: ["Region", "Country"]
+                column_names: ["Region", "Country"]
                 font_color: "red"
                 header_font_color: "white"
                 header_background_color: "red"
@@ -456,7 +456,7 @@ column_formats_example:
                 # formula column: auto-fit measures a formula cell's SOURCE
                 # TEXT, not its result, so a column displaying "OK" can end up
                 # sized for a forty character formula.
-                columns: ["Sale Type"]
+                column_names: ["Sale Type"]
                 width: 13
 
             # OPT - Columns to hide. The data stays in the file and stays
@@ -497,7 +497,7 @@ sheet_option_parameter_details:
       workbook must keep at least one visible sheet - Excel enforces it.
 
 column_format_parameter_details:
-  columns:
+  column_names:
     required: true
     description: "Column header names, or Excel column letters. A name that looks like a column reference is read as one unless force_column_names is set."
   number_format:

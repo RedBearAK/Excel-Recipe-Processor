@@ -21,7 +21,8 @@ from openpyxl.utils import get_column_letter, column_index_from_string
 
 from excel_recipe_processor.processors._helpers.range_patterns import cell_ref_rgx, range_ref_rgx
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
-    resolve_column_letters, find_last_data_row, ExcelRangeResolverError
+    resolve_column_letters, resolve_column_refs, find_last_data_row,
+    ExcelRangeResolverError
 )
 from excel_recipe_processor.processors._helpers.format_excel_hyperlink_utils import (
     build_hyperlink_target, HyperlinkTargetError,
@@ -190,12 +191,27 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         if not isinstance(rule, dict):
             raise ColumnFormatError(f"column_formats rule {index + 1} must be a dictionary")
 
-        columns = rule.get('columns')
-
-        if not isinstance(columns, list) or len(columns) == 0:
+        if 'columns' in rule:
             raise ColumnFormatError(
-                f"column_formats rule {index + 1} requires a non-empty 'columns' list"
+                f"column_formats rule {index + 1}: 'columns' was renamed "
+                f"'column_names' (2026-08-26) - the key now states that "
+                f"it accepts header NAME strings only, beside "
+                f"'column_refs' which accepts positional ref strings "
+                f"only. Rename the key; entries may mix by using both "
+                f"keys on one rule."
             )
+        columns = rule.get('column_names')
+        column_refs = rule.get('column_refs')
+
+        has_names = isinstance(columns, list) and len(columns) > 0
+        has_refs = isinstance(column_refs, list) and len(column_refs) > 0
+        if not has_names and not has_refs:
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1} requires 'column_names' "
+                f"(header names) and/or 'column_refs' (positional Excel "
+                f"refs like ['A', 'BQ'])"
+            )
+        columns = columns if has_names else []
 
         number_format = rule.get('number_format')
         horizontal = rule.get('alignment_horizontal')
@@ -264,11 +280,15 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             )
 
         try:
-            letters = resolve_column_letters(
-                worksheet, columns, header_row,
-                force_column_names=rule.get('force_column_names', False),
-                on_missing=on_missing
-            )
+            letters = []
+            if columns:
+                letters += resolve_column_letters(
+                    worksheet, columns, header_row,
+                    force_column_names=True,
+                    on_missing=on_missing
+                )
+            if rule.get('column_refs'):
+                letters += resolve_column_refs(rule['column_refs'])
         except ExcelRangeResolverError as error:
             if on_missing == 'error':
                 raise ColumnFormatError(f"column_formats rule {index + 1}: {error}")
@@ -585,14 +605,24 @@ def apply_column_widths(worksheet, rules: list, header_row: int = 1,
         if width is None:
             continue
 
-        columns = rule.get('columns', [])
+        if 'columns' in rule:
+            raise ColumnFormatError(
+                f"width rule: 'columns' was renamed 'column_names' "
+                f"(2026-08-26); 'column_refs' carries positional refs. "
+                f"Rename the key."
+            )
+        columns = rule.get('column_names', [])
 
         try:
-            letters = resolve_column_letters(
-                worksheet, columns, header_row,
-                force_column_names=rule.get('force_column_names', False),
-                on_missing=on_missing
-            )
+            letters = []
+            if columns:
+                letters += resolve_column_letters(
+                    worksheet, columns, header_row,
+                    force_column_names=True,
+                    on_missing=on_missing
+                )
+            if rule.get('column_refs'):
+                letters += resolve_column_refs(rule['column_refs'])
         except ExcelRangeResolverError as error:
             if on_missing == 'error':
                 raise ColumnFormatError(f"column_formats rule {index + 1} width: {error}")
@@ -631,7 +661,7 @@ def apply_hidden_columns(worksheet, columns: list, header_row: int = 1,
         raise ColumnFormatError("hidden_columns must be a non-empty list")
 
     try:
-        letters = resolve_column_letters(worksheet, columns, header_row, False, on_missing)
+        letters = resolve_column_letters(worksheet, columns, header_row, True, on_missing)
     except ExcelRangeResolverError as error:
         if on_missing == 'error':
             raise ColumnFormatError(f"hidden_columns: {error}")

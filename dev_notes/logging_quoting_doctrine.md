@@ -45,6 +45,20 @@ brackets. Convert to `q()`. The `[{sheet_name}]` prefix form stays.
 
 ## List bracketing + LIVE channel - SHIPPED (erp_log_polish.tgz)
 
+**Over-long single members hard-wrap with ellipsis seams**: a name
+too long for a whole line breaks mid-name with `…` ending the broken
+line and `…` opening its continuation (the keyszer/Toshy keymap-name
+technique, credit Kris). Quotes mark true member boundaries; `…`
+pairs mark artificial ones - the block stays dense at full width and
+a parser removing `…\n…` seams recovers every member byte-exact.
+
+**Truncation is retired** (2026-08-26 ruling): capped log lists
+withhold exactly what troubleshooting needs. Any list that can run
+long is emitted through `qblock()` - the prompting line ends where
+the block begins, and the full membership continues on wrapped,
+indented lines. `qlist` keeps its limit parameter for API stability
+but log sites must not use it.
+
 qlist output is always bracketed - `['VMS']` and `['VMS', 'Van_List']`
 alike - so a single item is visibly a list and the collection boundary
 is explicit, not just each member's. The pulse's live frames carry a

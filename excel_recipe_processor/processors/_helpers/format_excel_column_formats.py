@@ -20,7 +20,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 
 from excel_recipe_processor.processors._helpers.range_patterns import cell_ref_rgx, range_ref_rgx
-from excel_recipe_processor.core.log_format import q, qlist
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
     resolve_column_letters, resolve_column_refs, find_last_data_row,
     ExcelRangeResolverError
@@ -567,7 +567,7 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"width {width}")
 
         mechanism = ' (whole column)' if whole_column else ''
-        description = f"{', '.join(parts)}{mechanism} on {len(letters)} column(s): {qlist(columns, 4)}"
+        description = f"{', '.join(parts)}{mechanism} on {len(letters)} column(s):{qblock(columns)}"
         if len(columns) > 4:
             description += ' ...'
 
@@ -635,7 +635,7 @@ def apply_column_widths(worksheet, rules: list, header_row: int = 1,
 
         description = f"width {width} on {len(letters)} column(s)"
         applied.append(description)
-        logger.info(f"📏 [{worksheet.title}] {description}: {qlist(columns, 4)}")
+        logger.info(f"📏 [{worksheet.title}] {description}:{qblock(columns)}")
 
     return applied
 
@@ -866,7 +866,7 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
         if font_strikethrough is not None:
             parts.append(f"strikethrough {font_strikethrough}")
 
-        description = f"{', '.join(parts)} on {cell_count} cell(s): {qlist(cells, 4)}"
+        description = f"{', '.join(parts)} on {cell_count} cell(s):{qblock(cells)}"
         applied.append(description)
         logger.info(f"🔤 [{worksheet.title}] {description}")
 

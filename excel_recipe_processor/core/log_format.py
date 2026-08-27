@@ -31,14 +31,86 @@ def q(value) -> str:
     return f"'{text}'"
 
 
+def qblock(values, indent: str = '        ', width: int = 96) -> str:
+    """A FULL quoted list as a wrapped block after a prompting line.
+
+    Log output never truncates lists (2026-08-26 ruling): a capped
+    list withholds exactly what a troubleshooting session needs. Long
+    lists instead continue on their own lines - the prompting log line
+    ends where the block begins, members wrap at ~width characters,
+    and every continuation line carries the indent so the block reads
+    as one tidy unit under its header. Bracketed like qlist.
+
+    A single member too long for a whole line is hard-wrapped with
+    paired ellipsis marks - `…` ending the broken line and opening its
+    continuation (the keyszer/Toshy keymap-name technique). Quotes
+    still mark TRUE member boundaries; `…` pairs mark artificial ones,
+    so the block stays dense without a reader (or a parser removing
+    `…\n …` seams) ever mistaking a wrap for a member break.
+
+    Usage: logger.info(f"... on 27 column(s):{qblock(names)}")
+    """
+    members = [q(value) for value in values]
+    continuation = indent + ' '
+
+    def split_long(member: str, room_first: int) -> list:
+        # Chunk one over-long quoted member; each non-final chunk ends
+        # with the ellipsis, each non-first chunk begins with it
+        chunks = []
+        remaining = member
+        room = max(room_first, 12)
+        first = True
+        while remaining:
+            reserve = 0 if len(remaining) <= room else 1  # trailing …
+            take = room - reserve
+            if len(remaining) <= room and (first or True):
+                chunk = ('' if first else '…') + remaining
+                chunks.append(chunk)
+                break
+            chunk = ('' if first else '…') + remaining[:take - (0 if first else 1)]
+            remaining = remaining[take - (0 if first else 1):]
+            chunks.append(chunk + '…')
+            first = False
+            room = width - len(continuation)
+        return chunks
+
+    lines = []
+    current = indent + '['
+    for position, member in enumerate(members):
+        tail = ', ' if position < len(members) - 1 else ']'
+        candidate = current + member + tail
+        if len(candidate) <= width:
+            current = candidate
+            continue
+        # Would a fresh line hold the whole member?
+        if len(continuation + member + tail) <= width:
+            lines.append(current.rstrip())
+            current = continuation + member + tail
+            continue
+        # Hard-wrap the member itself with ellipsis seams
+        room_first = width - len(current)
+        if room_first < 16:
+            lines.append(current.rstrip())
+            current = continuation
+            room_first = width - len(current)
+        chunks = split_long(member, room_first)
+        for chunk in chunks[:-1]:
+            lines.append(current + chunk)
+            current = continuation
+        current = current + chunks[-1] + tail
+    lines.append(current)
+    return '\n' + '\n'.join(lines)
+
+
 def qlist(values, limit: int = 0) -> str:
     """A list of user-originated names as a BRACKETED quoted list.
 
     Always bracketed - ['VMS', 'Van_List'] and ['VMS'] alike - so a
     list of one is visibly a list and the whole collection has an
-    unambiguous boundary, not just each member. limit > 0 caps the
-    members shown and appends a "+N more" tail inside the brackets so
-    high-cardinality lists stay readable without hiding their size.
+    unambiguous boundary, not just each member. The limit parameter
+    survives for API stability but LOG SITES MUST NOT USE IT: capped
+    log lists withhold what troubleshooting needs - use qblock for
+    anything that might run long.
     """
     values = [q(value) for value in values]
     if limit and len(values) > limit:

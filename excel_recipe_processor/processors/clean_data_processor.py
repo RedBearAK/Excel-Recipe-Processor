@@ -9,7 +9,7 @@ Handles various data cleaning operations including conditional replacements.
 import pandas as pd
 import logging
 
-from excel_recipe_processor.core.log_format import q, qlist
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
@@ -398,7 +398,7 @@ class CleanDataProcessor(BaseStepProcessor):
         if skipped_columns:
             logger.info(
                 f"   ↳ skipped {len(skipped_columns)} non-text column(s): "
-                f"{qlist(skipped_columns, 8)}"
+                f"{qblock(skipped_columns)}"
             )
         
         if failed_columns:

@@ -233,7 +233,15 @@ class FillDataProcessor(BaseStepProcessor):
                     take_source = blank_mask(df[col]) & ~blank_mask(df[source_column])
                 else:
                     take_source = ~blank_mask(df[source_column])
-                df.loc[take_source, col] = df.loc[take_source, source_column]
+                # pandas 3 refuses to place text into a float64 / numeric
+                # target (a Product ID column that was all-blank on import is
+                # float64). When the two dtypes disagree, widen the target to
+                # object first; when they agree the assignment is direct.
+                source_values = df.loc[take_source, source_column]
+                if take_source.any() and df[col].dtype != source_values.dtype:
+                    df[col] = df[col].astype(object)
+                    source_values = source_values.astype(object)
+                df.loc[take_source, col] = source_values.to_numpy()
 
             elif fill_method == 'zero':
                 df[col] = df[col].fillna(0)

@@ -16,12 +16,18 @@ is still accepted.
 
 import logging
 
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter, column_index_from_string
 
 from excel_recipe_processor.processors._helpers.range_patterns import cell_ref_rgx, range_ref_rgx
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.processors._helpers.excel_range_resolver import (
-    resolve_column_letters, find_last_data_row, ExcelRangeResolverError
+    resolve_column_letters, resolve_column_refs, find_last_data_row,
+    ExcelRangeResolverError
+)
+from excel_recipe_processor.processors._helpers.format_excel_hyperlink_utils import (
+    build_hyperlink_target, HyperlinkTargetError,
+    HYPERLINK_KINDS, DEFAULT_HYPERLINK_COLOR
 )
 
 
@@ -60,6 +66,26 @@ VALID_HORIZONTAL = (
 )
 
 VALID_VERTICAL = ('top', 'center', 'bottom', 'justify', 'distributed')
+
+VALID_UNDERLINE = ('single', 'double')
+
+
+def _normalize_underline(value, context: str) -> str:
+    """
+    Turn a font_underline spec into an openpyxl underline value.
+
+    true means 'single' (the underline everyone means); 'single' and
+    'double' pass through. Anything else raises with the legal values
+    named, per the guided-error doctrine.
+    """
+    if value is True:
+        return 'single'
+    if value in VALID_UNDERLINE:
+        return value
+    raise ColumnFormatError(
+        f"{context}: 'font_underline' must be true, 'single', or "
+        f"'double', got {value!r}"
+    )
 
 
 def _default_color_normalizer(color) -> str:
@@ -166,12 +192,27 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         if not isinstance(rule, dict):
             raise ColumnFormatError(f"column_formats rule {index + 1} must be a dictionary")
 
-        columns = rule.get('columns')
-
-        if not isinstance(columns, list) or len(columns) == 0:
+        if 'columns' in rule:
             raise ColumnFormatError(
-                f"column_formats rule {index + 1} requires a non-empty 'columns' list"
+                f"column_formats rule {index + 1}: 'columns' was renamed "
+                f"'column_names' (2026-08-26) - the key now states that "
+                f"it accepts header NAME strings only, beside "
+                f"'column_refs' which accepts positional ref strings "
+                f"only. Rename the key; entries may mix by using both "
+                f"keys on one rule."
             )
+        columns = rule.get('column_names')
+        column_refs = rule.get('column_refs')
+
+        has_names = isinstance(columns, list) and len(columns) > 0
+        has_refs = isinstance(column_refs, list) and len(column_refs) > 0
+        if not has_names and not has_refs:
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1} requires 'column_names' "
+                f"(header names) and/or 'column_refs' (positional Excel "
+                f"refs like ['A', 'BQ'])"
+            )
+        columns = columns if has_names else []
 
         number_format = rule.get('number_format')
         horizontal = rule.get('alignment_horizontal')
@@ -181,6 +222,14 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
         font_size = rule.get('font_size')
+        font_name = rule.get('font_name')
+        font_underline = rule.get('font_underline')
+        font_strikethrough = rule.get('font_strikethrough')
+        background_color = rule.get('background_color')
+        border_style = rule.get('border_style')
+        border_color = rule.get('border_color')
+        make_hyperlinks = rule.get('make_hyperlinks')
+        hyperlink_color = rule.get('hyperlink_color')
         header_font_color = rule.get('header_font_color')
         header_background_color = rule.get('header_background_color')
         header_bold = rule.get('header_bold')
@@ -202,14 +251,18 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             continue
 
         actionable = (number_format, horizontal, vertical, wrap_text, font_color,
-                      font_bold, font_italic, font_size, header_font_color,
+                      background_color, border_style, font_bold, font_italic,
+                      font_size, font_name, font_underline, font_strikethrough,
+                      make_hyperlinks, header_font_color,
                       header_background_color, header_bold, width)
 
         if all(value is None for value in actionable):
             raise ColumnFormatError(
                 f"column_formats rule {index + 1} does nothing: supply number_format, "
                 f"alignment_horizontal, alignment_vertical, wrap_text, font_color, "
-                f"font_bold, font_italic, header_font_color, header_background_color, "
+                f"background_color, font_bold, font_italic, font_name, font_underline, "
+                f"font_strikethrough, make_hyperlinks, header_font_color, "
+                f"header_background_color, "
                 f"or header_bold"
             )
 
@@ -228,11 +281,15 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             )
 
         try:
-            letters = resolve_column_letters(
-                worksheet, columns, header_row,
-                force_column_names=rule.get('force_column_names', False),
-                on_missing=on_missing
-            )
+            letters = []
+            if columns:
+                letters += resolve_column_letters(
+                    worksheet, columns, header_row,
+                    force_column_names=True,
+                    on_missing=on_missing
+                )
+            if rule.get('column_refs'):
+                letters += resolve_column_refs(rule['column_refs'])
         except ExcelRangeResolverError as error:
             if on_missing == 'error':
                 raise ColumnFormatError(f"column_formats rule {index + 1}: {error}")
@@ -244,6 +301,28 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
         head_color = color_normalizer(header_font_color) if header_font_color is not None else None
         head_fill = (color_normalizer(header_background_color)
                      if header_background_color is not None else None)
+        # Data-cell fill (2026-08-23): tints the DATA rows of the named
+        # columns, leaving the header to header_background_color. Built for
+        # marking hand-maintained columns as more tenuous than lookups.
+        data_fill = (color_normalizer(background_color)
+                     if background_color is not None else None)
+
+        # Data-cell borders (2026-08-23). A cell FILL suppresses Excel's
+        # gridlines wherever it lands - not a bug of ours, just how Excel
+        # paints - so a tinted column looks like a solid slab. A thin
+        # border in gridline gray (D9D9D9) restores the ruled look. Any
+        # openpyxl border style name works; border_color defaults to the
+        # gridline gray when only border_style is given.
+        data_border = None
+        if border_style is not None:
+            side_color = color_normalizer(border_color) if border_color else 'D9D9D9'
+            edge = Side(style=border_style, color=side_color)
+            data_border = Border(left=edge, right=edge, top=edge, bottom=edge)
+        elif border_color is not None:
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'border_color' requires "
+                f"'border_style' (e.g. thin, hair, medium)."
+            )
 
         if font_size is not None and (
                 not isinstance(font_size, (int, float)) or font_size <= 0):
@@ -252,28 +331,117 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                 f"positive number, got {font_size!r}"
             )
 
+        underline_value = None
+        if font_underline is not None:
+            underline_value = _normalize_underline(
+                font_underline, f"column_formats rule {index + 1}")
+
+        if font_strikethrough is not None and not isinstance(font_strikethrough, bool):
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'font_strikethrough' "
+                f"must be true or false, got {font_strikethrough!r}"
+            )
+
+        # Hyperlinks (2026-08-23): the rule DECLARES what the bare cell
+        # text is - a formatter sniffing content to guess between a path
+        # and a URL would be implicit behavior. Real cell.hyperlink
+        # relationships, not HYPERLINK() formulas: no recalc, no caches,
+        # no dynamic-array machinery for what is static metadata.
+        link_color = None
+        if make_hyperlinks is not None:
+            if make_hyperlinks not in HYPERLINK_KINDS:
+                legal = ', '.join(HYPERLINK_KINDS)
+                raise ColumnFormatError(
+                    f"column_formats rule {index + 1}: 'make_hyperlinks' "
+                    f"must be one of: {legal}. Got: {make_hyperlinks!r}"
+                )
+            if whole_column:
+                raise ColumnFormatError(
+                    f"column_formats rule {index + 1}: 'make_hyperlinks' "
+                    f"writes per-cell link relationships and does not "
+                    f"combine with whole_column. Remove one side."
+                )
+            link_color = (color_normalizer(hyperlink_color)
+                          if hyperlink_color is not None
+                          else DEFAULT_HYPERLINK_COLOR)
+        elif hyperlink_color is not None:
+            raise ColumnFormatError(
+                f"column_formats rule {index + 1}: 'hyperlink_color' "
+                f"requires 'make_hyperlinks' (file_paths, web_urls, or "
+                f"email_addresses)."
+            )
+
         touches_data_font = (data_color is not None or font_bold is not None
-                             or font_italic is not None or font_size is not None)
+                             or font_italic is not None or font_size is not None
+                             or font_name is not None
+                             or underline_value is not None
+                             or font_strikethrough is not None)
         touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
         touches_header = head_color is not None or head_fill is not None or header_bold is not None
+
+        link_count = 0
 
         for letter in letters:
             col_index = column_index_from_string(letter)
 
             if whole_column:
+                if data_fill is not None or data_border is not None:
+                    raise ColumnFormatError(
+                        f"column_formats rule {index + 1}: 'background_color' "
+                        f"and 'border_style' are per-cell and do not combine "
+                        f"with whole_column (a column-dimension fill or border "
+                        f"would paint a million empty rows). Remove one side."
+                    )
                 dimension = worksheet.column_dimensions[letter]
                 if format_code:
                     dimension.number_format = format_code
                 if touches_data_font:
                     dimension.font = Font(
+                        name=font_name,
                         bold=font_bold, italic=font_italic,
-                        size=font_size, color=data_color
+                        size=font_size, color=data_color,
+                        underline=underline_value, strike=font_strikethrough
                     )
                 if touches_alignment:
                     dimension.alignment = Alignment(
                         horizontal=horizontal, vertical=vertical,
                         wrap_text=wrap_text
                     )
+
+                # SWEEP EXISTING CELLS (2026-08-25). The dimension style
+                # only governs cells with NO explicit cell format - which
+                # covers the cells a spill CREATES, but not cells already
+                # written into the file: a spill ANCHOR carrying its
+                # formula, or any pre-seeded value, wears an explicit
+                # default style that masks the dimension font and number
+                # format. Whole column means the whole column, present
+                # and future: dimension for the future, this sweep for
+                # the present. Only cells that already exist are touched
+                # (via the worksheet cell store) - materializing the
+                # column would stamp explicit styles onto empty cells
+                # and defeat the dimension inheritance being set up.
+                column_index = column_index_from_string(letter)
+                for (cell_row, cell_col), cell in list(worksheet._cells.items()):
+                    if cell_col != column_index or cell_row <= header_row:
+                        continue
+                    if format_code:
+                        cell.number_format = format_code
+                    if touches_data_font:
+                        existing = cell.font
+                        cell.font = Font(
+                            name=font_name if font_name is not None else existing.name,
+                            size=font_size if font_size is not None else existing.size,
+                            bold=font_bold if font_bold is not None else existing.bold,
+                            italic=font_italic if font_italic is not None else existing.italic,
+                            underline=underline_value if underline_value is not None else existing.underline,
+                            strike=font_strikethrough if font_strikethrough is not None else existing.strike,
+                            color=data_color if data_color is not None else existing.color,
+                        )
+                    if touches_alignment:
+                        cell.alignment = Alignment(
+                            horizontal=horizontal, vertical=vertical,
+                            wrap_text=wrap_text
+                        )
                 if width is None:
                     logger.info(
                         f"[{worksheet.title}] whole_column style on {letter} "
@@ -310,10 +478,12 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                 if touches_data_font:
                     existing = cell.font
                     cell.font = Font(
-                        name=existing.name,
+                        name=font_name if font_name is not None else existing.name,
                         size=font_size if font_size is not None else existing.size,
                         bold=font_bold if font_bold is not None else existing.bold,
                         italic=font_italic if font_italic is not None else existing.italic,
+                        underline=underline_value if underline_value is not None else existing.underline,
+                        strike=font_strikethrough if font_strikethrough is not None else existing.strike,
                         color=data_color if data_color is not None else existing.color
                     )
 
@@ -324,6 +494,50 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
                         vertical=vertical if vertical is not None else existing.vertical,
                         wrap_text=wrap_text if wrap_text is not None else existing.wrap_text
                     )
+
+                if data_fill is not None:
+                    cell.fill = PatternFill(
+                        start_color=data_fill, end_color=data_fill, fill_type='solid'
+                    )
+
+                if data_border is not None:
+                    cell.border = data_border
+
+                if make_hyperlinks is not None:
+                    raw_value = cell.value
+                    if raw_value is None or (isinstance(raw_value, str)
+                                             and not raw_value.strip()):
+                        # Sparse link columns are a designed shape - same
+                        # reasoning as the low-match warning suppression
+                        continue
+                    if not isinstance(raw_value, str):
+                        raise ColumnFormatError(
+                            f"column_formats rule {index + 1}, cell "
+                            f"{cell.coordinate}: make_hyperlinks needs text "
+                            f"cells, got {type(raw_value).__name__} "
+                            f"{raw_value!r}"
+                        )
+                    try:
+                        target = build_hyperlink_target(make_hyperlinks, raw_value)
+                    except HyperlinkTargetError as error:
+                        raise ColumnFormatError(
+                            f"column_formats rule {index + 1}, cell "
+                            f"{cell.coordinate}: {error}"
+                        )
+                    cell.hyperlink = target
+                    # Excel's own link presentation, on top of whatever
+                    # font the cell already carries
+                    existing = cell.font
+                    cell.font = Font(
+                        name=existing.name,
+                        size=existing.size,
+                        bold=existing.bold,
+                        italic=existing.italic,
+                        underline='single',
+                        strike=existing.strike,
+                        color=link_color
+                    )
+                    link_count += 1
 
         parts = []
         if format_code:
@@ -341,15 +555,23 @@ def apply_column_formats(worksheet, rules: list, header_row: int = 1,
             parts.append(f"bold {font_bold}")
         if font_size is not None:
             parts.append(f"size {font_size}")
+        if font_underline is not None:
+            parts.append(f"underline {underline_value}")
+        if font_strikethrough is not None:
+            parts.append(f"strikethrough {font_strikethrough}")
+        if make_hyperlinks is not None:
+            parts.append(f"hyperlinks {make_hyperlinks} ({link_count} cells)")
         if header_font_color is not None or header_background_color is not None:
             parts.append("header styling")
         if width is not None:
             parts.append(f"width {width}")
 
         mechanism = ' (whole column)' if whole_column else ''
-        description = f"{', '.join(parts)}{mechanism} on {len(letters)} column(s): {', '.join(columns[:4])}"
-        if len(columns) > 4:
-            description += ' ...'
+        # Refs-addressed rules have no names - the display list is
+        # names + refs so the block is never a dangling bracket
+        display_members = list(columns) + list(rule.get('column_refs') or [])
+        description = (f"{', '.join(parts)}{mechanism} on {len(letters)} "
+                       f"column(s):{qblock(display_members)}")
 
         applied.append(description)
         logger.info(f"🔢 [{worksheet.title}] {description}")
@@ -386,14 +608,24 @@ def apply_column_widths(worksheet, rules: list, header_row: int = 1,
         if width is None:
             continue
 
-        columns = rule.get('columns', [])
+        if 'columns' in rule:
+            raise ColumnFormatError(
+                f"width rule: 'columns' was renamed 'column_names' "
+                f"(2026-08-26); 'column_refs' carries positional refs. "
+                f"Rename the key."
+            )
+        columns = rule.get('column_names', [])
 
         try:
-            letters = resolve_column_letters(
-                worksheet, columns, header_row,
-                force_column_names=rule.get('force_column_names', False),
-                on_missing=on_missing
-            )
+            letters = []
+            if columns:
+                letters += resolve_column_letters(
+                    worksheet, columns, header_row,
+                    force_column_names=True,
+                    on_missing=on_missing
+                )
+            if rule.get('column_refs'):
+                letters += resolve_column_refs(rule['column_refs'])
         except ExcelRangeResolverError as error:
             if on_missing == 'error':
                 raise ColumnFormatError(f"column_formats rule {index + 1} width: {error}")
@@ -405,7 +637,8 @@ def apply_column_widths(worksheet, rules: list, header_row: int = 1,
 
         description = f"width {width} on {len(letters)} column(s)"
         applied.append(description)
-        logger.info(f"📏 [{worksheet.title}] {description}: {', '.join(columns[:4])}")
+        width_members = list(columns) + list(rule.get('column_refs') or [])
+        logger.info(f"📏 [{worksheet.title}] {description}:{qblock(width_members)}")
 
     return applied
 
@@ -432,7 +665,7 @@ def apply_hidden_columns(worksheet, columns: list, header_row: int = 1,
         raise ColumnFormatError("hidden_columns must be a non-empty list")
 
     try:
-        letters = resolve_column_letters(worksheet, columns, header_row, False, on_missing)
+        letters = resolve_column_letters(worksheet, columns, header_row, True, on_missing)
     except ExcelRangeResolverError as error:
         if on_missing == 'error':
             raise ColumnFormatError(f"hidden_columns: {error}")
@@ -444,7 +677,7 @@ def apply_hidden_columns(worksheet, columns: list, header_row: int = 1,
 
     logger.info(
         f"🙈 [{worksheet.title}] Hid {len(letters)} column(s): "
-        f"{', '.join(f'{c} ({l})' for c, l in zip(columns, letters))}"
+        f"{', '.join(f'{q(c)} ({l})' for c, l in zip(columns, letters))}"
     )
 
     return letters
@@ -505,6 +738,14 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
         font_bold = rule.get('font_bold')
         font_italic = rule.get('font_italic')
         font_size = rule.get('font_size')
+        font_underline = rule.get('font_underline')
+        font_strikethrough = rule.get('font_strikethrough')
+        # Parity with column_formats (2026-08-25): borders and fills are
+        # legitimate spot styles - the first consumer is the dropdown
+        # pick-block frame on the Van_List report
+        background_color = rule.get('background_color')
+        border_style = rule.get('border_style')
+        border_color = rule.get('border_color')
 
         if font_size is not None and (
                 not isinstance(font_size, (int, float)) or font_size <= 0):
@@ -513,13 +754,28 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
                 f"positive number, got {font_size!r}"
             )
 
+        underline_value = None
+        if font_underline is not None:
+            underline_value = _normalize_underline(
+                font_underline, f"cell_formats rule {index + 1}")
+
+        if font_strikethrough is not None and not isinstance(font_strikethrough, bool):
+            raise ColumnFormatError(
+                f"cell_formats rule {index + 1}: 'font_strikethrough' "
+                f"must be true or false, got {font_strikethrough!r}"
+            )
+
         actionable = (number_format, horizontal, vertical, wrap_text,
-                      font_color, font_bold, font_italic, font_size)
+                      font_color, font_bold, font_italic, font_size,
+                      font_underline, font_strikethrough,
+                      background_color, border_style)
         if all(value is None for value in actionable):
             raise ColumnFormatError(
                 f"cell_formats rule {index + 1} does nothing: supply "
                 f"number_format, alignment_horizontal, alignment_vertical, "
-                f"wrap_text, font_color, font_bold, font_italic, or font_size"
+                f"wrap_text, font_color, background_color, border_style, "
+                f"font_bold, font_italic, font_size, "
+                f"font_underline, or font_strikethrough"
             )
 
         if horizontal is not None and horizontal not in VALID_HORIZONTAL:
@@ -535,8 +791,16 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
 
         format_code = resolve_number_format(number_format) if number_format else None
         data_color = color_normalizer(font_color) if font_color is not None else None
+        fill_hex = color_normalizer(background_color) if background_color is not None else None
+        border_obj = None
+        if border_style is not None:
+            border_hex = color_normalizer(border_color) if border_color else 'D9D9D9'
+            edge = Side(style=border_style, color=border_hex)
+            border_obj = Border(left=edge, right=edge, top=edge, bottom=edge)
         touches_font = (data_color is not None or font_bold is not None
-                        or font_italic is not None or font_size is not None)
+                        or font_italic is not None or font_size is not None
+                        or underline_value is not None
+                        or font_strikethrough is not None)
         touches_alignment = horizontal is not None or vertical is not None or wrap_text is not None
 
         cell_count = 0
@@ -556,6 +820,8 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
                             size=font_size if font_size is not None else existing.size,
                             bold=font_bold if font_bold is not None else existing.bold,
                             italic=font_italic if font_italic is not None else existing.italic,
+                            underline=underline_value if underline_value is not None else existing.underline,
+                            strike=font_strikethrough if font_strikethrough is not None else existing.strike,
                             # Pass the Color OBJECT through when preserving:
                             # .rgb on a theme-based default is an RGB
                             # descriptor, which Font(color=...) rejects.
@@ -568,6 +834,12 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
                             vertical=vertical if vertical is not None else existing.vertical,
                             wrap_text=wrap_text if wrap_text is not None else existing.wrap_text
                         )
+                    if fill_hex is not None:
+                        cell.fill = PatternFill(
+                            start_color=fill_hex, end_color=fill_hex,
+                            fill_type='solid')
+                    if border_obj is not None:
+                        cell.border = border_obj
                     cell_count += 1
 
         parts = []
@@ -580,6 +852,10 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
             parts.append(f"v-align {vertical}")
         if wrap_text is not None:
             parts.append(f"wrap {wrap_text}")
+        if background_color is not None:
+            parts.append("fill")
+        if border_style is not None:
+            parts.append(f"border {border_style}")
         if font_color is not None:
             parts.append(f"font {font_color}")
         if font_bold is not None:
@@ -588,8 +864,12 @@ def apply_cell_formats(worksheet, rules: list, color_normalizer=None) -> list:
             parts.append(f"italic {font_italic}")
         if font_size is not None:
             parts.append(f"size {font_size}")
+        if font_underline is not None:
+            parts.append(f"underline {underline_value}")
+        if font_strikethrough is not None:
+            parts.append(f"strikethrough {font_strikethrough}")
 
-        description = f"{', '.join(parts)} on {cell_count} cell(s): {', '.join(str(c) for c in cells[:4])}"
+        description = f"{', '.join(parts)} on {cell_count} cell(s):{qblock(cells)}"
         applied.append(description)
         logger.info(f"🔤 [{worksheet.title}] {description}")
 

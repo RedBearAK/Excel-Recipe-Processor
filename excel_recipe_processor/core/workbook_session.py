@@ -36,6 +36,7 @@ import openpyxl
 
 from pathlib import Path
 
+from excel_recipe_processor.core.log_format import q, qlist
 from excel_recipe_processor.core.inline_string_consolidation import (
     log_consolidation,
     consolidate_inline_strings,
@@ -179,7 +180,11 @@ class WorkbookSession:
         # rewritten to the shared dialect (level-9 packed), and the
         # declaration - when enabled - runs on the consolidated bytes.
         buffer = io.BytesIO()
-        workbook.save(buffer)
+        # Terminal-only liveness during the opaque openpyxl save: the
+        # buffer's write cursor growing is real work made visible
+        from excel_recipe_processor.core.terminal_pulse import ByteGrowthPulse
+        with ByteGrowthPulse(f"Saving {q(Path(key).name)}", buffer.tell):
+            workbook.save(buffer)
         consolidated, stats = consolidate_inline_strings(buffer.getvalue())
         log_consolidation(stats, context)
 
@@ -203,7 +208,7 @@ class WorkbookSession:
 
         logger.info(
             f"💾 Workbook saved in {time.perf_counter() - started:.3f}s "
-            f"({context}): {Path(key).name}"
+            f"({context}): {q(Path(key).name)}"
         )
 
     @classmethod

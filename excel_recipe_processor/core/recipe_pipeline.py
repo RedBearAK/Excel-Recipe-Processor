@@ -10,6 +10,7 @@ Key changes:
 import logging
 import time
 import pandas as pd
+from excel_recipe_processor.core.log_format import clock, now_stamp
 
 from enum import Enum
 from pathlib import Path
@@ -240,7 +241,13 @@ class RecipePipeline:
         # Reset execution state
         self.steps_executed = 0
         skipped_steps = 0
-        
+
+        # TIMESTAMP DOCTRINE: the true processing extents get their own
+        # dedicated lines, stamp-first like the step clocks; durations
+        # live elsewhere
+        from excel_recipe_processor.core.log_format import now_stamp
+        logger.info(f"🕐 [{now_stamp()}] Recipe processing started")
+
         for step_index, step_config in enumerate(recipe_steps):
             step_desc = step_config.get('step_description', f'Step {step_index + 1}')
             # processor_type = step_config.get('processor_type')
@@ -255,9 +262,9 @@ class RecipePipeline:
             # Log step start with error handling info if non-default
             _step_clock = time.perf_counter()
             if step_on_error != ErrorAction.HALT:
-                logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
+                logger.info(f"📍 [{clock()}] Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}' [on_error: {step_on_error.value}]")
             else:
-                logger.info(f"📍 Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}'")
+                logger.info(f"📍 [{clock()}] Step {step_index + 1}/{recipe_steps_cnt}: '{step_desc}'")
             
             try:
                 # Create processor with variable injection
@@ -290,6 +297,8 @@ class RecipePipeline:
                 
                 self.steps_executed += 1
                 logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.3f}s)")
+                from excel_recipe_processor.core.stage_manager import StageManager
+                StageManager.auto_free_after_step(step_index)
 
                 self._dump_requested_stages()
 

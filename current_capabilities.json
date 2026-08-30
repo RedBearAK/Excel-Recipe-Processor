@@ -1090,7 +1090,8 @@
       ],
       "path_features": [
         "recipe variable substitution"
-      ]
+      ],
+      "missing_file_policy": "on_missing_file: 'error' (default) or 'create_empty' with declared create_empty_columns for fail-safe imports of files that may not exist yet"
     },
     "inject_formulas": {
       "description": "Inject live or dead formulas with name-addressed cells and fill-down",
@@ -1134,6 +1135,10 @@
         "right",
         "inner",
         "outer"
+      ],
+      "match_modes": [
+        "exact_key_equality",
+        "lookup_value_within_main_text"
       ],
       "key_features": [
         "type_and_format_normalization",
@@ -1216,7 +1221,8 @@
         "defined_name_validation",
         "existing_name_policies",
         "global_and_sheet_scope",
-        "lambda_round_trip"
+        "lambda_round_trip",
+        "name_mgr_comments"
       ],
       "existing_name_policies": [
         "error",

@@ -9,6 +9,7 @@ Handles various data cleaning operations including conditional replacements.
 import pandas as pd
 import logging
 
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
@@ -112,7 +113,7 @@ class CleanDataProcessor(BaseStepProcessor):
     ALL_COLUMNS = '*'
 
     TEXT_ONLY_ACTIONS = (
-        'uppercase', 'lowercase', 'title_case', 'strip_whitespace',
+        'uppercase', 'lowercase', 'title_case', 'strip_whitespace', 'coerce_datetime',
         'remove_special_chars', 'remove_invisible_chars', 'normalize_whitespace',
     )
 
@@ -353,6 +354,8 @@ class CleanDataProcessor(BaseStepProcessor):
                     df = self._apply_fix_numeric(df, single_column_rule, column, rule_index)
                 elif action == 'fix_dates':
                     df = self._apply_fix_dates(df, single_column_rule, column, rule_index)
+                elif action == 'coerce_datetime':
+                    df = self._apply_coerce_datetime(df, single_column_rule, column, rule_index)
                 elif action == 'fill_empty':
                     df = self._apply_fill_empty(df, single_column_rule, column, rule_index)
                 elif action == 'remove_duplicates':
@@ -395,8 +398,7 @@ class CleanDataProcessor(BaseStepProcessor):
         if skipped_columns:
             logger.info(
                 f"   ↳ skipped {len(skipped_columns)} non-text column(s): "
-                f"{', '.join(skipped_columns[:8])}"
-                f"{' ...' if len(skipped_columns) > 8 else ''}"
+                f"{qblock(skipped_columns)}"
             )
         
         if failed_columns:
@@ -547,6 +549,39 @@ class CleanDataProcessor(BaseStepProcessor):
         except Exception as e:
             raise StepProcessorError(f"Error fixing numeric data in column '{column}': {e}")
     
+    def _apply_coerce_datetime(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
+        """
+        Coerce a column to REAL datetime64 dtype - the datetime sibling of
+        fix_numeric (2026-08-25).
+
+        This is NOT fix_dates: that action normalizes date STRINGS for
+        display (parsed values come back strftime-formatted, unparseable
+        ones preserved verbatim), so a column passed through it is still
+        object dtype and still breaks date arithmetic and Excel ISNUMBER
+        tests. This action does the dtype job: vectorized pd.to_datetime
+        with errors coerced to NaT, so downstream arithmetic, notna
+        guards, and exported date cells all behave.
+
+        Rule keys:
+            parse_format:  strptime format for the source text
+                           (e.g. %m/%d/%y). Omit to let pandas infer,
+                           at the cost of a per-cell warning on
+                           mixed input.
+        """
+        parse_format = rule.get('parse_format')
+        try:
+            df[column] = pd.to_datetime(
+                df[column], format=parse_format, errors='coerce')
+        except (TypeError, ValueError) as error:
+            raise StepProcessorError(
+                f"Cleaning rule {rule_index + 1}: could not coerce column "
+                f"'{column}' to datetime"
+                f"{' with parse_format ' + parse_format if parse_format else ''}"
+                f": {error}"
+            )
+        logger.debug(f"Coerced column '{column}' to datetime64")
+        return df
+
     def _apply_fix_dates(self, df: pd.DataFrame, rule: dict, column: str, rule_index: int) -> pd.DataFrame:
         """
         Intelligent date parsing with data preservation and Excel compatibility.

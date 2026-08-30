@@ -12,6 +12,7 @@ import logging
 
 from typing import Any
 
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
 
@@ -57,8 +58,24 @@ class SelectColumnsProcessor(BaseStepProcessor):
         # Guard clause: ensure we have a DataFrame
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Select columns step '{self.step_name}' requires a pandas DataFrame")
-        
-        self.validate_data_not_empty(data)
+
+        # Zero ROWS is a valid input here (2026-08-17): column selection is
+        # fully defined on an empty frame, and pipelines routinely produce
+        # legitimately-empty stages (a diff with no NEW rows). Only a frame
+        # with no COLUMNS has nothing to select from. The old
+        # validate_data_not_empty call killed the no-news-is-good-news run.
+        if len(data.columns) == 0:
+            raise StepProcessorError(
+                f"Select columns step '{self.step_name}' received a DataFrame "
+                f"with no columns - nothing to select or drop"
+            )
+        if data.empty:
+            # INFO, not WARNING (2026-08-23): a diff with no NEW rows lands
+            # here on every quiet day - the good case must not cry wolf
+            logger.info(
+                f"'{self.step_name}': input has 0 rows; selecting columns "
+                f"on the empty frame and passing it through"
+            )
         
         # Get configuration parameters
         columns_to_keep = self.get_config_value('columns_to_keep')
@@ -76,13 +93,18 @@ class SelectColumnsProcessor(BaseStepProcessor):
         try:
             # Determine which columns to select
             if columns_to_keep is not None:
+                # Note which create-listed columns are genuinely absent BEFORE
+                # selection, so the log reports what actually happened - a
+                # column that already existed is kept untouched, not created.
+                actually_created = [c for c in (columns_to_create or [])
+                                    if c not in result_data.columns]
                 result_data = self._select_by_inclusion(
                     result_data, columns_to_keep, columns_to_create, allow_duplicates, strict_mode
                 )
-                if columns_to_create:
+                if actually_created:
                     logger.info(
-                        f"➕ Created {len(columns_to_create)} blank column(s): "
-                        f"{', '.join(str(c) for c in columns_to_create)}"
+                        f"➕ Created {len(actually_created)} blank column(s): "
+                        f"{qblock(actually_created)}"
                     )
                 operation_desc = f"selected {len(columns_to_keep)} column specifications"
             elif columns_to_drop is not None:
@@ -230,7 +252,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
         if missing_columns:
             if strict_mode:
                 raise StepProcessorError(
-                    f"Columns not found: {missing_columns}. "
+                    f"Columns not found: {qlist(missing_columns)}. "
                     f"Available columns: {list(df.columns)}. "
                     f"Add missing columns to 'columns_to_create' if you want to create them."
                 )
@@ -311,7 +333,7 @@ class SelectColumnsProcessor(BaseStepProcessor):
         if missing_columns:
             if strict_mode:
                 raise StepProcessorError(
-                    f"Columns to drop not found: {missing_columns}. "
+                    f"Columns to drop not found: {qlist(missing_columns)}. "
                     f"Available columns: {list(df.columns)}"
                 )
             else:

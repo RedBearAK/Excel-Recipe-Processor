@@ -218,7 +218,8 @@ advanced_example:
         source_stage: "stg_source_data"
         # REQ - Column calculation configuration
         new_column: "Profit_Margin"
-        formula: "(Revenue - Cost) / Revenue * 100"
+        calculation:
+          pandas_formula: "({col:Revenue} - {col:Cost}) / {col:Revenue} * 100"
         save_to_stage: "stg_transformed_data"
 
       - # DEBUG: Comprehensive debugging checkpoint

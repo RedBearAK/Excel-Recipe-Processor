@@ -56,7 +56,7 @@ def test_header_text_color():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'header_text_color': color,
                     'header_bold': True,
                     'header_background': True,
@@ -100,7 +100,7 @@ def test_header_font_size():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'header_font_size': size,
                     'header_bold': True
                 }]
@@ -139,7 +139,7 @@ def test_combined_header_formatting():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 # Phase 1 enhancements
                 'header_text_color': 'FFFFFF',      # White text
                 'header_font_size': 14,             # Prominent size
@@ -204,7 +204,7 @@ def test_color_validation():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'header_text_color': invalid_color
                 }]
             }
@@ -243,7 +243,7 @@ def test_dark_theme_scenario():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 # This solves the readability problem!
                 'header_text_color': 'FFFFFF',      # White text for dark backgrounds
                 'header_font_size': 16,             # Larger for prominence

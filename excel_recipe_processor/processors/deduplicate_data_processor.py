@@ -167,23 +167,20 @@ class DeduplicateDataProcessor(BaseStepProcessor):
 
         return pd.concat(conflict_frames, ignore_index=True)
 
-    def _log_conflict_details(self, conflicts: pd.DataFrame, max_keys: int = 10) -> None:
-        """Log each conflicted key with its disputed columns and values."""
-        shown = 0
+    def _log_conflict_details(self, conflicts: pd.DataFrame) -> None:
+        """Log EVERY conflicted key with its disputed columns and values.
 
+        The former 10-key cap is retired (2026-08-26 no-truncation
+        ruling): a capped conflict report withholds exactly what a
+        troubleshooting session needs.
+        """
         for key_vals, group in conflicts.groupby(self.key_columns, dropna=False, sort=False):
-            if shown >= max_keys:
-                remaining = conflicts[self.key_columns].drop_duplicates().shape[0] - shown
-                logger.warning(f"   ... and {remaining} more conflicted key(s)")
-                break
 
             key_text = key_vals if isinstance(key_vals, str) else ', '.join(str(v) for v in key_vals) if isinstance(key_vals, tuple) else str(key_vals)
 
             for col in str(group['Conflicting Columns'].iloc[0]).split(', '):
                 values = group[col].astype(str).tolist()
                 logger.warning(f"   🔀 [{key_text}] '{col}': {values} -> kept '{values[0 if self.keep == 'first' else -1]}'")
-
-            shown += 1
 
     def _emit_conflicts(self, conflicts: pd.DataFrame) -> None:
         """Send conflicts to their stage and/or file, as configured."""

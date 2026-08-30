@@ -11,6 +11,7 @@ original text formatting. Much faster than CSV conversion approaches.
 import pandas as pd
 import logging
 import yaml
+from excel_recipe_processor.core.log_format import q
 
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -151,7 +152,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             if extension not in supported_extensions:
                 raise StepProcessorError(
                     f"Unsupported file format for {file_param}: {extension}. "
-                    f"Got: {file_path} (supported: {', '.join(sorted(supported_extensions))})"
+                    f"Got: {q(file_path)} (supported: {', '.join(sorted(supported_extensions))})"
                     )
 
     def _validate_input_files_exist(self) -> None:
@@ -167,7 +168,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         for label, file_path in [('source_file', self.source_file),
                                  ('template_file', self.template_file)]:
             if not Path(file_path).exists():
-                raise StepProcessorError(f"File not found for {label}: {file_path}")
+                raise StepProcessorError(f"File not found for {label}: {q(file_path)}")
 
     def perform_file_operation(self) -> str:
         """
@@ -257,7 +258,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             return headers
             
         except Exception as e:
-            raise StepProcessorError(f"Failed to read CSV headers from {file_path}: {e}")
+            raise StepProcessorError(f"Failed to read CSV headers from {q(file_path)}: {e}")
 
     def _read_excel_headers_super_fast(self, file_path: str, sheet_name=None) -> list:
         """

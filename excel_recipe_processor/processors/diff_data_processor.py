@@ -311,20 +311,29 @@ class DiffDataProcessor(BaseStepProcessor):
     def _values_different(self, val1, val2) -> bool:
         """
         Check if two values are different, handling NaN/None cases.
-        
+
+        Blank equivalence (2026-08-17): None/NaN, the empty string, and
+        whitespace-only strings all count as the SAME absent value. Excel
+        cannot represent the difference - an empty string written to a
+        cell reads back as NaN - so distinguishing them manufactures a
+        phantom CHANGED row on every run whose baseline round-tripped
+        through a file. Found live: a Notes cell containing one space
+        flagged its contract as changed forever.
+
         Args:
             val1: First value
             val2: Second value
-            
+
         Returns:
             True if values are different
         """
-        # Handle NaN cases
-        if pd.isna(val1) and pd.isna(val2):
+        blank1 = pd.isna(val1) or (isinstance(val1, str) and not val1.strip())
+        blank2 = pd.isna(val2) or (isinstance(val2, str) and not val2.strip())
+        if blank1 and blank2:
             return False
-        if pd.isna(val1) or pd.isna(val2):
+        if blank1 or blank2:
             return True
-        
+
         # Regular comparison
         return val1 != val2
     

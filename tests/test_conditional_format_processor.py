@@ -93,15 +93,15 @@ def test_canonical_conditions_map_to_excel_rules():
 
     with tempfile.TemporaryDirectory() as work_dir:
         xml = run_rules(build_target(work_dir), [
-            {'when_cell': {'columns': ['Test Dest'], 'condition': 'greater_than', 'value': 1},
+            {'when_cell': {'column_names': ['Test Dest'], 'condition': 'greater_than', 'value': 1},
              'style': {'fill': 'FFEB9C'}},
-            {'when_cell': {'columns': ['Contracts'], 'condition': 'equals', 'value': 'C1'},
+            {'when_cell': {'column_names': ['Contracts'], 'condition': 'equals', 'value': 'C1'},
              'style': {'fill': 'EEEEEE'}},
-            {'when_cell': {'columns': ['Price'], 'condition': 'is_empty'},
+            {'when_cell': {'column_names': ['Price'], 'condition': 'is_empty'},
              'style': {'fill': 'FFC7CE'}},
-            {'when_cell': {'columns': ['Booking'], 'condition': 'duplicates'},
+            {'when_cell': {'column_names': ['Booking'], 'condition': 'duplicates'},
              'style': {'fill': 'FFC7CE'}},
-            {'when_cell': {'columns': ['Contracts'], 'condition': 'contains', 'value': 'C'},
+            {'when_cell': {'column_names': ['Contracts'], 'condition': 'contains', 'value': 'C'},
              'style': {'bold': True}},
         ])
 
@@ -141,7 +141,7 @@ def test_alias_warns_once_and_normalizes():
     try:
         with tempfile.TemporaryDirectory() as work_dir:
             xml = run_rules(build_target(work_dir), [
-                {'when_cell': {'columns': ['Test Dest'], 'condition': 'greaterThan', 'value': 1},
+                {'when_cell': {'column_names': ['Test Dest'], 'condition': 'greaterThan', 'value': 1},
                  'style': {'fill': 'FFEB9C'}},
             ])
     finally:
@@ -172,17 +172,17 @@ def test_validation_fails_loud():
 
     cases = [
         ('unknown condition',
-         [{'when_cell': {'columns': ['Price'], 'condition': 'sorta_biggish', 'value': 1}}],
+         [{'when_cell': {'column_names': ['Price'], 'condition': 'sorta_biggish', 'value': 1}}],
          'unknown condition'),
         ('two rule kinds at once',
-         [{'when_formula': '=1', 'when_cell': {'columns': ['Price'], 'condition': 'is_empty'},
+         [{'when_formula': '=1', 'when_cell': {'column_names': ['Price'], 'condition': 'is_empty'},
            'range': 'A2:A3'}],
          'exactly one'),
         ('between without a pair',
-         [{'when_cell': {'columns': ['Price'], 'condition': 'between', 'value': 5}}],
+         [{'when_cell': {'column_names': ['Price'], 'condition': 'between', 'value': 5}}],
          'low, high'),
         ('bad color',
-         [{'when_cell': {'columns': ['Price'], 'condition': 'is_empty'},
+         [{'when_cell': {'column_names': ['Price'], 'condition': 'is_empty'},
            'style': {'fill': 'nope!'}}],
          'invalid fill'),
         ('formula without a target',
@@ -215,9 +215,9 @@ def test_rules_survive_session_round_trip():
     with tempfile.TemporaryDirectory() as work_dir:
         file_path = build_target(work_dir)
         xml = run_rules(file_path, [
-            {'when_cell': {'columns': ['Price'], 'condition': 'is_empty'},
+            {'when_cell': {'column_names': ['Price'], 'condition': 'is_empty'},
              'style': {'fill': 'FFC7CE'}},
-            {'color_scale': {'columns': ['Test Dest'],
+            {'color_scale': {'column_names': ['Test Dest'],
                              'min_color': 'FFFFFF', 'max_color': '63BE7B'}},
         ])
         rules_before = xml.count('<cfRule')

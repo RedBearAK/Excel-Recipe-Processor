@@ -220,7 +220,7 @@ legacy_formula_example:
         calculation:
           # Legacy formula - works only with simple column names (no spaces/special chars)
           # For robust column name handling, use formula_components instead
-          formula: "Price * Quantity"
+          pandas_formula: "{col:Price} * {col:Quantity}"
 
 parameter_details:
   formula_components:
@@ -233,9 +233,14 @@ parameter_details:
       - [{"condition": {...}, "if_true": [...], "if_false": [...]}]
     note: "Recommended over 'formula' for reliability with complex column names"
   
-  formula:
+  pandas_formula:
     type: string  
     required: false (alternative to formula_components)
+    description: >
+      Pandas expression computed statically. Column references are
+      ALWAYS written {col:Column Name} - uniform for every column,
+      including names like sum that shadow python identifiers. Bare
+      identifiers are always python.
     description: "Legacy string-based formula (limited column name support)"
     examples: ["Price * Quantity", "Revenue - Cost"]
     note: "Use formula_components for column names with spaces or special characters"

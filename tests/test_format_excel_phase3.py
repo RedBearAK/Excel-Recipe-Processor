@@ -68,7 +68,7 @@ def test_webcolors_integration():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     **color_config,
                     'header_bold': True,
                     'header_background': True
@@ -112,7 +112,7 @@ def test_basic_cell_range_formatting():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'cell_ranges': {
                     'A1:F1': {                        # Header row
                         'text_color': 'white',
@@ -173,7 +173,7 @@ def test_border_formatting():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'cell_ranges': {
                     'A1:F1': {                        # Header with thick border
                         'border': 'thick'
@@ -225,7 +225,7 @@ def test_single_cell_targeting():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'cell_ranges': {
                     'A1': {                           # Single cell
                         'text_color': 'red',
@@ -338,7 +338,7 @@ def test_comprehensive_integration():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 # Phase 1: Header formatting
                 'header_text_color': 'white',
                 'header_font_size': 16,
@@ -424,7 +424,7 @@ def test_dashboard_scenario():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 # Dashboard-style header
                 'header_text_color': 'white',
                 'header_font_size': 18,

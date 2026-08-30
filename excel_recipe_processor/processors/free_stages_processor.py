@@ -18,6 +18,7 @@ that stage already happened.
 """
 
 import logging
+from excel_recipe_processor.core.log_format import qblock
 
 import pandas as pd
 
@@ -98,7 +99,10 @@ class FreeStagesProcessor(FileOpsBaseProcessor):
             deleted.append(stage_name)
 
         freed_mb = freed_bytes / (1024 * 1024)
-        logger.info(f"🧹 Freed {len(deleted)} stage(s), ~{freed_mb:.0f} MB returned")
+        alive = len(StageManager._current_stages)
+        logger.info(
+            f"🧹 Freed {len(deleted)} stage(s), ~{freed_mb:.0f} MB returned; "
+            f"{alive} stage(s) remain in memory:{qblock(deleted)}")
 
         if skipped:
             logger.info(f"   (skipped {len(skipped)} absent stage(s): {skipped})")

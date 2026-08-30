@@ -27,6 +27,7 @@ from openpyxl.utils.cell import coordinate_from_string
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
+from excel_recipe_processor.core.log_format import q, qlist
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, BaseStepProcessor, StepProcessorError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
@@ -172,7 +173,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             if 'cell' in formula_def:
                 # Handle cell reference like 'A1' -> row 0, col 0
                 cell_ref = formula_def['cell']
-                formula = formula_def['formula']
+                formula = formula_def['excel_formula']
                 
                 # Convert Excel cell reference to pandas coordinates
                 row_idx, col_idx = self._excel_ref_to_pandas(cell_ref, result_df)
@@ -364,7 +365,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                             f"sheets_to_receive_formulas entry {position} "
                             f"(sheet '{resolved_name}'): {error}"
                         )
-                per_sheet_counts.append(f"{resolved_name}: {sheet_count}")
+                per_sheet_counts.append(f"{q(resolved_name)}: {sheet_count}")
 
         for sheet_name, written_cells in self._written_live_cells.items():
             ranges = self._compress_cells_to_ranges(written_cells)
@@ -536,7 +537,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         Args:
             worksheet: openpyxl worksheet
-            formula_def: Dictionary with 'cell'/'range' and 'formula' keys.
+            formula_def: Dictionary with 'cell'/'range' and 'excel_formula' keys.
                          The formula may use {col:Header Name} placeholders,
                          resolved against the sheet's header row, and a cell
                          target may set fill_down: true
@@ -548,10 +549,20 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         if not isinstance(formula_def, dict):
             raise StepProcessorError("Formula definition must be a dictionary")
         
-        if 'formula' not in formula_def:
-            raise StepProcessorError("Formula definition must include 'formula' key")
+        if 'formula' in formula_def:
+            raise StepProcessorError(
+                "'formula' was renamed 'excel_formula' (2026-08-26): this "
+                "processor injects EXCEL formulas for Excel to evaluate, "
+                "and the key now says so (pandas_formula is the static "
+                "sibling in add_calculated_column). Rename the key; the "
+                "value is unchanged."
+            )
+        if 'excel_formula' not in formula_def:
+            raise StepProcessorError(
+                "Formula definition must include 'excel_formula' key"
+            )
         
-        formula = formula_def['formula']
+        formula = formula_def['excel_formula']
         
         # Ensure formula starts with = for live mode
         if mode == 'live' and not formula.startswith('='):

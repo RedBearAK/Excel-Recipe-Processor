@@ -37,7 +37,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         """
         return {
             'new_column': 'test_column',
-            'calculation': {'formula': 'test_value'}
+            'calculation': {'pandas_formula': 'test_value'}
         }
     
     def execute(self, data: Any) -> pd.DataFrame:
@@ -151,11 +151,22 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         if 'formula_components' in calculation:
             return self._apply_formula_components(df, new_column, calculation)
         
-        # Fall back to legacy formula syntax
-        if 'formula' not in calculation:
-            raise StepProcessorError("Expression calculation requires either 'formula' or 'formula_components' field")
-        
-        formula = calculation['formula']
+        # The key names its language (2026-08-26): the expression is
+        # pandas syntax with {col:Name} column references
+        if 'formula' in calculation:
+            raise StepProcessorError(
+                "'formula' was renamed 'pandas_formula' (2026-08-26): the "
+                "expression is pandas syntax with {col:Name} column "
+                "references, and the key now says so. Rename the key; the "
+                "value is unchanged."
+            )
+        if 'pandas_formula' not in calculation:
+            raise StepProcessorError(
+                "Expression calculation requires a 'pandas_formula' field "
+                "(or 'formula_components')"
+            )
+
+        formula = calculation['pandas_formula']
         
         # Guard clause: formula must be a string
         if not isinstance(formula, str):
@@ -170,6 +181,15 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             logger.debug(f"Applied legacy expression formula: {formula}")
             
         except Exception as e:
+            from excel_recipe_processor.core.column_tokens import (
+                name_error_guidance, formula_failure_guidance,
+            )
+            columns = [str(c) for c in df.columns]
+            guidance = (name_error_guidance(e, columns)
+                        or formula_failure_guidance(formula, columns))
+            if guidance:
+                raise StepProcessorError(
+                    f"Error evaluating formula '{formula}': {guidance}")
             raise StepProcessorError(f"Error evaluating formula '{formula}': {e}")
         
         return df
@@ -672,21 +692,25 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         # better - the later short-name pass then matches INSIDE the text
         # just substituted. A single pass over an alternation, longest name
         # first so the regex prefers it, cannot re-enter its own output.
-        if len(df.columns) == 0:
-            return formula
-
-        names_longest_first = sorted(
-            (str(col) for col in df.columns),
-            key=len,
-            reverse=True,
+        # GRAMMAR, NOT RECOGNITION (2026-08-26). The heuristic era -
+        # boundary regexes, literal masking, longest-first alternation -
+        # produced four production incidents (truncation at a # in a
+        # name, literals corrupted, and a column named like a python
+        # identifier rewriting method calls). Column names now enter a
+        # formula ONLY as backticked tokens (`Van Seq #`), parsed by a
+        # single-pass typed tokenizer; a bare column name loose in code
+        # is a HARD guided error, so the old ambiguity is
+        # unrepresentable. See core/column_tokens.py.
+        from excel_recipe_processor.core.column_tokens import (
+            ColumnTokenError, build_dataframe_expression,
         )
-        alternation = '|'.join(re.escape(name) for name in names_longest_first)
-        column_ref_rgx = re.compile(r'\b(?:' + alternation + r')\b')
-
-        safe_formula = column_ref_rgx.sub(
-            lambda match: f"df['{match.group(0)}']",
-            formula,
-        )
+        try:
+            safe_formula = build_dataframe_expression(
+                formula, [str(c) for c in df.columns])
+        except ColumnTokenError as error:
+            raise StepProcessorError(
+                f"Formula rejected by the column-token grammar: {error}"
+            )
 
         logger.debug(f"Formula: {formula} → {safe_formula}")
         return safe_formula

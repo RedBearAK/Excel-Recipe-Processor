@@ -10,6 +10,8 @@ import yaml
 import logging
 import re
 
+from excel_recipe_processor.core.log_format import q
+
 from pathlib import Path
 from collections import OrderedDict
 
@@ -82,7 +84,7 @@ class RecipeLoader:
         if not self.recipe_path.exists():
             raise FileNotFoundError(f"Recipe file not found: {self.recipe_path}")
         
-        logger.info(f"Loading recipe from: {self.recipe_path}")
+        logger.info(f"Loading recipe from: {q(self.recipe_path)}")
         
         # Load based on file extension
         try:

@@ -48,6 +48,8 @@ class StageManager:
     _save_counts: dict      = {}                # dict[str, int]
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
+    _auto_free: bool        = False             # settings: auto_free_stages
+    _expected_uses: dict    = {}                # dict[str, int] from recipe scan
     _max_stages: int        = 100               # Configurable limit
     _declared_stages: dict  = {}
     _protected_stages       = set()
@@ -76,6 +78,93 @@ class StageManager:
                 cls._protected_stages.add(stage_name)
         
         logger.info(f"Declared {len(stages_list)} stages")
+
+        # AUTO-FREE (2026-08-26, designed with Kris): the recipe already
+        # declares every use, so expected consumer counts come from a
+        # structural scan - values exactly matching stage names, with
+        # producer and prose/formula keys excluded. Runtime decrements
+        # on every load; a stage frees the moment its counter reaches
+        # zero. Failure geometry is the safety case: an undercount
+        # fails LOUD at the next load (stage-not-found with
+        # suggestions, never silent wrong data); an overcount only
+        # holds memory longer. Opt-in: settings: auto_free_stages.
+        cls._auto_free = bool(
+            recipe_config.get('settings', {}).get('auto_free_stages', False))
+        cls._expected_uses = {}
+        cls._step_consumers = []
+        if cls._auto_free:
+            cls._step_consumers = cls._scan_step_consumers(recipe_config)
+            for consumed in cls._step_consumers:
+                for name in consumed:
+                    cls._expected_uses[name] = cls._expected_uses.get(name, 0) + 1
+            planned = sum(cls._expected_uses.values())
+            logger.info(
+                f"🍃 Auto-free enabled: {len(cls._expected_uses)} "
+                f"stage(s) tracked across {planned} consuming step(s); "
+                f"each frees when its last consuming step completes")
+
+    _NON_REFERENCE_KEYS = frozenset((
+        'save_to_stage', 'stage_name', 'step_description', 'description',
+        'pandas_formula', 'excel_formula', 'when_formula', 'name_mgr_comment',
+    ))
+
+    @classmethod
+    def _scan_step_consumers(cls, recipe_config: dict) -> list:
+        """Per-step SETS of consumed stage names, in recipe order.
+
+        A step consuming a stage counts ONCE however many loads it
+        performs; the countdown is steps, not loads.
+        """
+        names = set(cls._declared_stages)
+        for step in recipe_config.get('recipe', []) or []:
+            saved = step.get('save_to_stage')
+            if saved:
+                names.add(saved)
+        per_step = []
+
+        for step in recipe_config.get('recipe', []) or []:
+            consumed = set()
+
+            def walk(node, key=None):
+                if isinstance(node, dict):
+                    for k, v in node.items():
+                        walk(v, k)
+                elif isinstance(node, list):
+                    for item in node:
+                        walk(item, key)
+                elif isinstance(node, str):
+                    if key in cls._NON_REFERENCE_KEYS:
+                        return
+                    if node in names:
+                        consumed.add(node)
+
+            if step.get('processor_type') != 'free_stages':
+                walk({k: v for k, v in step.items() if k != 'save_to_stage'})
+            per_step.append(consumed)
+        return per_step
+
+    @classmethod
+    def auto_free_after_step(cls, step_index: int) -> None:
+        """Decrement each stage the completed step consumed; free at zero."""
+        if not cls._auto_free or step_index >= len(cls._step_consumers):
+            return
+        for name in sorted(cls._step_consumers[step_index]):
+            remaining = cls._expected_uses.get(name)
+            if remaining is None:
+                continue
+            remaining -= 1
+            cls._expected_uses[name] = remaining
+            if (remaining <= 0 and name in cls._current_stages
+                    and not cls.is_stage_protected(name)):
+                freed_mb = cls._stage_metadata.get(name, {}).get(
+                    'memory_usage_mb', 0.0)
+                cls._mem_current_mb -= freed_mb
+                cls._mem_freed_total_mb += freed_mb
+                del cls._current_stages[name]
+                logger.info(
+                    f"♻️  Auto-freed stage '{name}' - last consuming "
+                    f"step complete (~{freed_mb:.0f} MB returned; "
+                    f"{len(cls._current_stages)} stage(s) in memory)")
 
     @classmethod
     def validate_recipe_stages(cls, recipe_config: dict) -> dict:
@@ -340,6 +429,11 @@ class StageManager:
         
         # Get stage data
         stage_data = cls._current_stages[stage_name].copy()
+
+        # Auto-free happens at STEP COMPLETION, never at load: a
+        # consuming step may load its source any number of times
+        # (the pipeline peek plus the processor's own load), so
+        # per-load countdown undercounts systemically
         
         # Log with declaration status
         if stage_name in cls._declared_stages:

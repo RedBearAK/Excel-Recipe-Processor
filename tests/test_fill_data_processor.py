@@ -307,6 +307,32 @@ def test_zero_fill():
         return False
 
 
+def test_blanks_from_column_across_dtypes():
+    """blanks_from_column into a float64 target from a text source (pandas 3)."""
+    print("\nTesting blanks_from_column across dtypes...")
+
+    frame = pd.DataFrame({
+        'Product ID': [1001.0, float('nan'), float('nan')],
+        'HIST_Product_Ids': ['9999', '1002', None],
+        'Net Weight': [40000.0, float('nan'), float('nan')],
+        'HIST_Net_Weight': [1.0, 30000, 25000],
+    })
+    for target, source in (('Product ID', 'HIST_Product_Ids'), ('Net Weight', 'HIST_Net_Weight')):
+        processor = FillDataProcessor({
+            'step_description': f'fill {target}', 'processor_type': 'fill_data',
+            'columns': [target], 'fill_method': 'blanks_from_column', 'source_column': source,
+        })
+        frame = processor.execute(frame)
+    got_pid = [str(value) for value in frame['Product ID'].tolist()]
+    got_wt = frame['Net Weight'].tolist()
+    ok = got_pid == ['1001.0', '1002', 'nan'] and got_wt == [40000.0, 30000.0, 25000.0]
+    if ok:
+        print("✓ Text into float64 target widened to object; numeric into float64 stayed numeric")
+        return True
+    print(f"✗ got {got_pid} and {got_wt}")
+    return False
+
+
 def test_conditional_fill():
     """Test conditional filling based on other columns."""
     print("\nTesting conditional fill...")
@@ -458,6 +484,7 @@ if __name__ == '__main__':
     success &= test_mean_fill()
     success &= test_mode_fill()
     success &= test_zero_fill()
+    success &= test_blanks_from_column_across_dtypes()
     success &= test_conditional_fill()
     success &= test_helper_methods()
     

@@ -185,7 +185,7 @@ custom_formula_example:
             sheet_name: "Data_Entry"
             apply_to_ranges: ["B2:B500"]
             validation_type: "custom"
-            formula: "=COUNTIF($B$2:$B$500,B2)=1"
+            excel_formula: "=COUNTIF($B$2:$B$500,B2)=1"
             error_alert:
               style: "stop"
               title: "Duplicate reference"
@@ -248,7 +248,7 @@ parameter_details:
     type: "number, string, or formula"
     required: "comparison operators"
     description: "Single bound; same accepted forms as minimum"
-  formula:
+  excel_formula:
     type: "string"
     required: "custom type only"
     description: "Must evaluate TRUE for acceptable entries; leading '=' optional"

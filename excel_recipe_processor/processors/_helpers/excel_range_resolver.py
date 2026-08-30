@@ -102,42 +102,73 @@ def find_column_letter_by_name(worksheet, column_name: str, header_row: int = 1)
     return get_column_letter(matches[0])
 
 
+class ColumnVocabularyError(Exception):
+    """Vocabulary misuse - fatal regardless of any on_missing policy.
+
+    Deliberately NOT an ExcelRangeResolverError subclass: missing-column
+    policies (warn/skip) must never swallow a names-vs-refs crossover.
+    """
+
+
 def resolve_column_letter(worksheet, column_spec, header_row: int = 1,
                           force_column_names: bool = False) -> str:
     """
-    Resolve one column specification to an Excel column letter.
+    Resolve one column NAME to an Excel column letter.
 
-    A spec that looks like a bare Excel column reference ("A", "AB") is taken
-    as one, unless force_column_names is set. Everything else is looked up as
-    a header name.
+    NAMES ONLY (2026-08-26, chunk two of the encapsulation arc): a spec
+    is ALWAYS a header name. Positional Excel refs ("A", "BQ") travel
+    through the column_refs vocabulary and resolve_column_refs, never
+    here. The old shape-based union - where "ETD" the header could be
+    read as ETD the position 3,904 - and its header-wins shim are gone;
+    the KEY carries the semantics, so no interpretation ever "wins".
+    force_column_names is retained (ignored) for signature stability.
 
-    Args:
-        worksheet:              openpyxl worksheet object
-        column_spec:            Column letter or header name
-        header_row:             Row containing headers, 1-based
-        force_column_names:     Treat every spec as a header name
-
-    Returns:
-        Column letter, or an empty string when a name is not found
-
-    Raises:
-        ExcelRangeResolverError: If the spec is empty or the header is duplicated
+    Returns the letter, or an empty string when the name is not found.
     """
     spec = str(column_spec).strip()
 
     if not spec:
         raise ExcelRangeResolverError("Column specification cannot be empty")
 
-    if not force_column_names and excel_column_ref_rgx.match(spec):
-        logger.debug(f"Column '{spec}' treated as an Excel reference")
-        return spec
-
     letter = find_column_letter_by_name(worksheet, spec, header_row)
 
     if letter:
         logger.debug(f"Column name '{spec}' resolved to {letter}")
+    elif excel_column_ref_rgx.match(spec):
+        raise ColumnVocabularyError(
+            f"'{spec}' names no header on '{worksheet.title}' but is "
+            f"shaped like a positional Excel column ref. Positional "
+            f"addressing uses the column_refs key (columns is names "
+            f"only), so the object being passed is never ambiguous."
+        )
 
     return letter
+
+
+def resolve_column_refs(column_refs: list) -> list:
+    """
+    Validate a list of positional Excel column refs ("A", "BQ", "AAA").
+
+    Shape-validated only - refs address positions and never consult
+    headers, exactly as names never consult positions. Returns the refs
+    uppercased.
+    """
+    if not isinstance(column_refs, list) or len(column_refs) == 0:
+        raise ExcelRangeResolverError(
+            "column_refs must be a non-empty list of Excel column refs "
+            "like ['A', 'BQ']"
+        )
+    refs = []
+    for spec in column_refs:
+        candidate = str(spec).strip().upper()
+        if not excel_column_ref_rgx.match(candidate):
+            raise ExcelRangeResolverError(
+                f"column_refs entry {spec!r} is not an Excel column ref "
+                f"(letters only, like 'A' or 'BQ'). Header names go in "
+                f"'columns'."
+            )
+        refs.append(candidate)
+    return refs
 
 
 def resolve_column_letters(worksheet, column_specs: list, header_row: int = 1,

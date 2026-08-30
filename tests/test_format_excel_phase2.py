@@ -49,7 +49,7 @@ def test_general_text_color():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'general_text_color': '333333',     # Dark gray for data
                 'header_text_color': 'FFFFFF',      # White for headers
                 'header_background': True,
@@ -97,7 +97,7 @@ def test_general_font_settings():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 'general_font_size': 12,           # Larger than default
                 'general_font_name': 'Arial',      # Different from default
                 'general_text_color': '222222'     # Near black
@@ -144,7 +144,7 @@ def test_general_alignment():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'general_alignment_horizontal': h_align,
                     'general_alignment_vertical': v_align
                 }]
@@ -194,7 +194,7 @@ def test_invalid_alignment_values():
                 'processor_type': 'format_excel',
                 'target_file': test_file,
                 'formatting': [{
-                    'sheet_name': '?sheet_001?',
+                    'sheet_names': ['?sheet_001?'],
                     'general_alignment_horizontal': h_align,
                     'general_alignment_vertical': v_align
                 }]
@@ -233,7 +233,7 @@ def test_comprehensive_formatting():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 # Phase 1: Header formatting
                 'header_text_color': 'FFFFFF',
                 'header_font_size': 16,
@@ -295,7 +295,7 @@ def test_corporate_branding_scenario():
             'processor_type': 'format_excel',
             'target_file': test_file,
             'formatting': [{
-                'sheet_name': '?sheet_001?',
+                'sheet_names': ['?sheet_001?'],
                 # Corporate header style
                 'header_text_color': 'FFFFFF',        # White text
                 'header_font_size': 14,               # Prominent

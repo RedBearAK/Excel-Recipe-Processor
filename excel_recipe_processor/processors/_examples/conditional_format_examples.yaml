@@ -43,7 +43,7 @@ basic_example:
 
           - # Canonical condition names, same vocabulary as filter_data.
             when_cell:
-              columns: ["Test Dest"]
+              column_names: ["Test Dest"]
               condition: "greater_than"
               value: 1
             style:

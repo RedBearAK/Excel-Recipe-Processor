@@ -13,6 +13,7 @@ import time
 import openpyxl
 import webcolors
 
+from excel_recipe_processor.core.log_format import q, qlist, qblock
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 
@@ -35,9 +36,39 @@ from excel_recipe_processor.processors._helpers.format_excel_column_formats impo
     apply_cell_formats, apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
 )
+from excel_recipe_processor.processors._helpers.format_excel_sheet_features import (
+    apply_banded_rows, apply_outline_border, sheet_data_extent, SheetFeatureError
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+def _extent_note(worksheet) -> str:
+    """Worksheet extents for the processing log, with the phantom clue.
+
+    EXTENT DOCTRINE (2026-08-26, born of the ETD-as-3,904 incident):
+    phases that touch worksheets ANNOUNCE their extents, so an
+    absurd dimension is visible in the log the day it appears instead
+    of hiding inside a slow-but-green phase. When claimed width runs
+    past the headered width, the note names the gap - that
+    disagreement IS the phantom-column signature.
+    """
+    max_col = worksheet.max_column
+    max_row = worksheet.max_row
+    headered = 0
+    for cell in worksheet[1]:
+        if cell.value is not None:
+            headered = cell.column
+    note = f"{max_col} column(s) × {max_row:,} row(s)"
+    if headered and max_col > headered + 2:
+        from openpyxl.utils import get_column_letter
+        note += (f" ⚠️ {max_col - headered} column(s) beyond the last "
+                 f"header ({get_column_letter(max_col)} vs header end "
+                 f"{get_column_letter(headered)}) - phantom-cell "
+                 f"signature, see excel_range_resolver")
+    return note
+
 
 
 class FormatExcelProcessor(FileOpsBaseProcessor):
@@ -59,7 +90,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             # --list-capabilities, where every processor is instantiated
             # from its minimal config.
             'formatting': [
-                {'sheet_name': 'Data', 'auto_fit_columns': True},
+                {'sheet_names': ['Data'], 'auto_fit_columns': True},
             ],
         }
 
@@ -129,7 +160,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         
         # Require sheet_configs to be a list
         if not isinstance(sheet_configs, list):
-            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet_name' key")
+            raise StepProcessorError("'formatting' must be a list of sheet configurations, each with a 'sheet_names' key")
         
         if not sheet_configs:
             logger.warning("Empty formatting list - no sheets will be formatted")
@@ -150,15 +181,30 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if 'sheet' in sheet_config:
                 raise StepProcessorError(
                     f"Formatting entry {i+1}: 'sheet' was replaced by "
-                    f"'sheet_name' (2026-08-14 sheet-addressing doctrine). A "
-                    f"tab name, or '?sheet_001?' to address by position."
+                    f"'sheet_names' (2026-08-14 sheet-addressing doctrine, "
+                    f"pluralized 2026-08-25). A list of tab names and/or "
+                    f"'?sheet_NNN?' position tokens."
                 )
-            if 'sheet_name' not in sheet_config:
-                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet_name' key")
+            if 'sheet_name' in sheet_config:
+                raise StepProcessorError(
+                    f"Formatting entry {i+1}: 'sheet_name' was replaced by "
+                    f"'sheet_names' (2026-08-25): one entry can format many "
+                    f"sheets, so the key is a LIST even for a single sheet. "
+                    f"Wrap the value: sheet_names: [\"Tab\"]"
+                )
+            if 'sheet_names' not in sheet_config:
+                raise StepProcessorError(f"Formatting entry {i+1} must have a 'sheet_names' key")
 
-            sheet_spec = sheet_config['sheet_name']
-            if isinstance(sheet_spec, str) and not sheet_spec.strip():
-                raise StepProcessorError("Sheet name cannot be empty")
+            sheet_specs = sheet_config['sheet_names']
+            if not isinstance(sheet_specs, list) or not sheet_specs:
+                raise StepProcessorError(
+                    f"Formatting entry {i+1}: 'sheet_names' must be a "
+                    f"non-empty list of tab names or position tokens"
+                )
+            for sheet_spec in sheet_specs:
+                if isinstance(sheet_spec, str) and not sheet_spec.strip():
+                    raise StepProcessorError("Sheet name cannot be empty")
+            sheet_spec = sheet_specs[0]
             
             # Validate apply_templates if present
             if 'apply_templates' in sheet_config:
@@ -290,16 +336,28 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # List of known formatting options (this helps catch typos)
         known_options = {
             # Sheet targeting
-            'sheet_name', 'apply_templates', 'template_name',
+            # sheet_names pluralized 2026-08-25; _resolved_sheet_spec is
+            # the expansion loop's internal per-sheet marker
+            'sheet_names', '_resolved_sheet_spec',
+            'apply_templates', 'template_name',
             
             # Phase 1: Basic formatting
             'auto_fit_columns', 'header_bold', 'header_background', 'header_background_color',
-            'freeze_top_row', 'auto_filter', 'max_column_width', 'min_column_width',
+            'freeze_top_row', 'freeze_panes', 'auto_filter', 'max_column_width', 'min_column_width',
             'autofit_scan_rows',
             'column_formats', 'cell_formats', 'hidden_columns', 'header_row', 'on_missing_column',
+            'copy_widths_from_sheet',
             'row_heights', 'tab_color', 'zoom_percent', 'sheet_state',
             'column_widths_from_stage', 'column_widths_source',
             'column_styles_from_stage', 'column_styles_source',
+
+            # Consolidated formatting cycle (2026-08-23): row height
+            # conveniences, gridline toggle, banded rows, outline borders
+            'header_row_height', 'data_row_height', 'show_gridlines',
+            'banded_row_color', 'banded_row_border_style',
+            'banded_row_border_color',
+            'outline_border_style', 'outline_border_color',
+            'outline_border_range',
             
             # Phase 1 Enhanced: Header text formatting
             'header_text_color', 'header_font_size',
@@ -444,6 +502,70 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 
                 if not isinstance(height, (int, float)) or height <= 0:
                     raise StepProcessorError(f"row_heights values must be positive numbers in {context}, got: {height}")
+
+        # Validate the consolidated-cycle sheet keys (2026-08-23)
+        for height_key in ('header_row_height', 'data_row_height'):
+            if height_key in sheet_config:
+                height = sheet_config[height_key]
+                if not isinstance(height, (int, float)) or height <= 0:
+                    raise StepProcessorError(
+                        f"{height_key} must be a positive number of points "
+                        f"in {context}, got: {height!r}"
+                    )
+
+        if 'show_gridlines' in sheet_config:
+            if not isinstance(sheet_config['show_gridlines'], bool):
+                raise StepProcessorError(
+                    f"show_gridlines must be true or false in {context}, "
+                    f"got: {sheet_config['show_gridlines']!r}"
+                )
+
+        if 'banded_row_color' in sheet_config:
+            try:
+                self._normalize_color(sheet_config['banded_row_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid banded_row_color in {context}: {e}")
+        else:
+            for band_key in ('banded_row_border_style', 'banded_row_border_color'):
+                if band_key in sheet_config:
+                    raise StepProcessorError(
+                        f"{band_key} requires banded_row_color in {context} "
+                        f"(there is nothing to rule without a band)"
+                    )
+
+        if 'banded_row_border_color' in sheet_config:
+            if 'banded_row_border_style' not in sheet_config:
+                raise StepProcessorError(
+                    f"banded_row_border_color requires banded_row_border_style "
+                    f"in {context} (e.g. thin, hair, medium)"
+                )
+            try:
+                self._normalize_color(sheet_config['banded_row_border_color'])
+            except ValueError as e:
+                raise StepProcessorError(f"Invalid banded_row_border_color in {context}: {e}")
+
+        if 'outline_border_style' in sheet_config:
+            if 'outline_border_color' in sheet_config:
+                try:
+                    self._normalize_color(sheet_config['outline_border_color'])
+                except ValueError as e:
+                    raise StepProcessorError(f"Invalid outline_border_color in {context}: {e}")
+        else:
+            for outline_key in ('outline_border_color', 'outline_border_range'):
+                if outline_key in sheet_config:
+                    raise StepProcessorError(
+                        f"{outline_key} requires outline_border_style in "
+                        f"{context} (e.g. thin, medium, thick)"
+                    )
+
+        if 'outline_border_range' in sheet_config:
+            ranges = sheet_config['outline_border_range']
+            if not isinstance(ranges, (str, list)):
+                raise StepProcessorError(
+                    f"outline_border_range must be a range string like "
+                    f"'B2:F40' or a list of them in {context}, got: "
+                    f"{type(ranges).__name__}"
+                )
         
         # Validate cell_ranges
         if 'cell_ranges' in sheet_config:
@@ -536,13 +658,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         Returns:
             Number of sheets processed
         """
-        logger.info(f"📋 Loading Excel file: {Path(filename).name}")
+        logger.info(f"📋 Loading Excel file: {q(Path(filename).name)}")
         
         # Build template lookup
         template_lookup = self._build_template_lookup(templates or [])
         if template_lookup:
-            template_names = ', '.join(f"'{name}'" for name in template_lookup.keys())
-            logger.info(f"📝 Available templates: {template_names}")
+            logger.info(f"📝 Available templates:{qblock(template_lookup.keys())}")
         
         # Session-cached: when earlier steps (named ranges, seeding) already
         # opened this file, formatting reuses their live workbook and the
@@ -552,7 +673,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         sheets_processed = 0
         total_sheets = len(workbook.worksheets)
         
-        logger.info(f"📊 Found {total_sheets} worksheet(s): {', '.join(workbook.sheetnames)}")
+        logger.info(f"📊 Found {total_sheets} worksheet(s):{qblock(workbook.sheetnames)}")
         
         # Check if we have sheet configurations
         if not sheet_configs:
@@ -561,9 +682,22 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             
         logger.info(f"🎯 Processing {len(sheet_configs)} explicit sheet configuration(s)")
         
-        # Process each sheet configuration
+        # Process each sheet configuration; one entry may name many
+        # sheets (sheet_names, pluralized 2026-08-25) and the whole
+        # config applies to each
+        expanded_configs = []
+        for sheet_config in sheet_configs:
+            for spec in sheet_config['sheet_names']:
+                single = dict(sheet_config)
+                single['_resolved_sheet_spec'] = spec
+                expanded_configs.append(single)
+        sheet_configs = expanded_configs
+
+        from excel_recipe_processor.core.terminal_pulse import TerminalPulse
+        pulse = TerminalPulse("Formatting")
         for i, sheet_config in enumerate(sheet_configs):
-            sheet_spec = sheet_config['sheet_name']
+            sheet_spec = sheet_config['_resolved_sheet_spec']
+            pulse.tick(f"sheet {i + 1}/{len(sheet_configs)}: {q(sheet_spec)}")
             # Shared recognizer: real names, ?sheet_NNN? tokens, numbers
             # warned-as-names - and unresolvable sheets FAIL LOUD here. The
             # old path returned None and silently skipped the entry at
@@ -578,15 +712,17 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if sheet_name:
                 worksheet = workbook[sheet_name]
-                logger.info(f"🔧 Processing sheet: '{sheet_name}' (specified as: {sheet_spec})")
+                logger.info(
+                    f"🔧 Processing sheet: '{sheet_name}' "
+                    f"(specified as: {q(sheet_spec)}) - "
+                    f"{_extent_note(worksheet)}")
                 
                 # Apply templates to sheet configuration
                 enhanced_config = self._apply_templates_to_sheet_config(sheet_config, template_lookup)
                 
                 # Log template application if templates were used
                 if 'apply_templates' in sheet_config and sheet_config['apply_templates']:
-                    applied_template_names = ', '.join(f"'{name}'" for name in sheet_config['apply_templates'])
-                    logger.info(f"📝 Applied templates: {applied_template_names}")
+                    logger.info(f"📝 Applied templates: {qlist(sheet_config['apply_templates'])}")
                 
                 _sheet_clock = time.perf_counter()
                 self._apply_sheet_formatting(worksheet, enhanced_config)
@@ -595,6 +731,8 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             else:
                 logger.warning(f"⚠️ Sheet '{sheet_spec}' not found, skipping")
         
+        pulse.done()
+
         # ---- Workbook-level settings, applied once, after the sheets -------
         # These act on the WORKBOOK, not on any sheet, and none of them
         # touches the explicit cell formatting applied above - those colours
@@ -640,7 +778,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 raise StepProcessorError(str(error))
             if active_sheet_name:
                 workbook.active = workbook[active_sheet_name]
-                logger.info(f"📌 Set active sheet to '{active_sheet_name}' (specified as: {active_sheet})")
+                logger.info(f"📌 Set active sheet to '{active_sheet_name}' (specified as: {q(active_sheet)})")
             else:
                 logger.warning(f"⚠️ Active sheet '{active_sheet}' not found")
         
@@ -648,7 +786,12 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         WorkbookSession.mark_dirty(filename)
         logger.info(f"💾 Formatting recorded; the workbook saves at run end (session)")
         
-        logger.info(f"✅ Excel formatting completed: {sheets_processed}/{total_sheets} sheets processed")
+        # 19/18 is not a miscount: one worksheet may carry several
+        # formatting entries (Cust_Summ runs twice), so configurations
+        # and worksheets are DIFFERENT units - the message now says so
+        logger.info(
+            f"✅ Excel formatting completed: {sheets_processed} sheet "
+            f"configuration(s) applied across {total_sheets} worksheet(s)")
         return sheets_processed
 
     def _apply_sheet_formatting(self, worksheet, formatting: dict) -> None:
@@ -685,6 +828,24 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             applied_operations.append(f"range formatting ({len(cell_ranges)} ranges)")
         
         # STEP 2: Set row heights (might affect auto-fit calculations)
+        header_row_num = formatting.get('header_row', 1)
+
+        if 'header_row_height' in formatting:
+            height = formatting['header_row_height']
+            worksheet.row_dimensions[header_row_num].height = height
+            logger.info(f"📏 [{sheet_name}] Header row height set to {height}")
+            applied_operations.append(f"header row height {height}")
+
+        if 'data_row_height' in formatting:
+            # The sheet DEFAULT row height, not per-row entries: reaches
+            # every row Excel creates later - dynamic-array spill rows
+            # included - the same reasoning as whole_column styles
+            height = formatting['data_row_height']
+            worksheet.sheet_format.defaultRowHeight = height
+            worksheet.sheet_format.customHeight = True
+            logger.info(f"📏 [{sheet_name}] Default data row height set to {height}")
+            applied_operations.append(f"data row height {height}")
+
         row_heights = formatting.get('row_heights', {})
         if row_heights:
             logger.info(f"📏 [{sheet_name}] Setting custom row heights for {len(row_heights)} rows")
@@ -701,6 +862,20 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             styled = self._apply_styles_from_profile_stage(
                 worksheet, formatting)
             applied_operations.append(f"inherited styles ({styled})")
+
+        # STEP 2a-quater: WIDTH INHERITANCE (2026-08-25). An entry naming
+        # copy_widths_from_sheet takes, for every header this sheet shares
+        # with the named sibling sheet, the sibling's already-set column
+        # width - so report tabs mirror the main tab's auto-fit results
+        # without re-measuring. Runs BEFORE column_formats so an explicit
+        # width rule still wins. Sibling entries earlier in the same
+        # formatting list have already been processed, so their widths
+        # (auto-fit included) are readable here.
+        if 'copy_widths_from_sheet' in formatting:
+            copied = self._copy_widths_from_sheet(
+                worksheet, formatting['copy_widths_from_sheet'],
+                header_row=formatting.get('header_row', 1))
+            applied_operations.append(f"copied widths ({copied})")
 
         # STEP 2b: Column-addressed number formats and alignment. Runs before
         # auto-fit so widths are measured against the formatted text - "1,234"
@@ -721,6 +896,32 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
             if descriptions:
                 applied_operations.append(f"column formats ({len(descriptions)} rules)")
+
+        # STEP 2c: Banded rows AFTER column_formats and BEFORE cell_formats,
+        # by design: banding WINS over column tints (the band tracks a ROW
+        # and must be continuous; the tint reads through on off-band rows),
+        # while explicit spot rules still beat everything.
+        if 'banded_row_color' in formatting:
+            band_hex = self._normalize_color(formatting['banded_row_color'])
+            band_style = formatting.get('banded_row_border_style')
+            band_border_color = formatting.get('banded_row_border_color')
+            band_border_hex = (self._normalize_color(band_border_color)
+                               if band_border_color is not None else None)
+            try:
+                banded = apply_banded_rows(
+                    worksheet, band_hex,
+                    header_row=header_row_num,
+                    last_row=sheet_data_extent(worksheet, header_row_num),
+                    border_style=band_style,
+                    border_color=band_border_hex
+                )
+            except SheetFeatureError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+            if banded:
+                logger.info(
+                    f"🦓 [{sheet_name}] Banded {banded} row(s) with #{band_hex}"
+                )
+                applied_operations.append(f"banded rows ({banded})")
 
         # STEP 3: Column sizing (auto-fit or explicit sizing)
         if formatting.get('auto_fit_columns'):
@@ -780,8 +981,46 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if hidden:
                 applied_operations.append(f"hid {len(hidden)} column(s)")
 
+        # STEP 3c: Outline borders LAST among border-touching passes, so
+        # the box lands on top of column ruling, banding and spot rules -
+        # but only on the outward-facing sides; interior sides survive.
+        if 'outline_border_style' in formatting:
+            outline_style = formatting['outline_border_style']
+            outline_color = self._normalize_color(
+                formatting.get('outline_border_color', '000000'))
+            try:
+                boxed = apply_outline_border(
+                    worksheet,
+                    formatting.get('outline_border_range'),
+                    style=outline_style,
+                    color=outline_color,
+                    header_row=header_row_num,
+                    last_row=sheet_data_extent(worksheet, header_row_num)
+                )
+            except SheetFeatureError as error:
+                raise StepProcessorError(f"Sheet '{sheet_name}': {error}")
+            if boxed:
+                logger.info(
+                    f"🖼️  [{sheet_name}] Outline border ({outline_style}, "
+                    f"#{outline_color}) on: {', '.join(boxed)}"
+                )
+                applied_operations.append(f"outline border ({len(boxed)} range(s))")
+
         # STEP 4: Worksheet-level features
-        if formatting.get('freeze_top_row'):
+        if 'show_gridlines' in formatting:
+            show = formatting['show_gridlines']
+            worksheet.sheet_view.showGridLines = show
+            logger.info(f"🗒️  [{sheet_name}] Gridlines {'shown' if show else 'hidden'}")
+            applied_operations.append(f"gridlines {'on' if show else 'off'}")
+
+        freeze_ref = formatting.get('freeze_panes')
+        if freeze_ref:
+            # General freeze: everything above and left of the given
+            # cell stays pinned (2026-08-26, born of the Van_List
+            # filter band). Wins over freeze_top_row when both appear.
+            worksheet.freeze_panes = str(freeze_ref)
+            applied_operations.append(f"freeze panes at {q(freeze_ref)}")
+        elif formatting.get('freeze_top_row'):
             logger.info(f"🧊 [{sheet_name}] Freezing top row")
             worksheet.freeze_panes = 'A2'
             applied_operations.append("freeze top row")
@@ -1244,9 +1483,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Calculate total padding
         auto_filter_padding = AUTO_FILTER_EXTRA if has_auto_filter else 0
         
+        from excel_recipe_processor.core.terminal_pulse import pulse_tick
+        column_total = worksheet.max_column
         for column in worksheet.columns:
             max_length = 0
             column_letter = column[0].column_letter
+            pulse_tick(
+                f"auto-fit {q(worksheet.title)}: column "
+                f"{column[0].column + 0}/{column_total} ({column_letter})")
 
             if scan_rows is not None:
                 # header + the first scan_rows data rows
@@ -1355,6 +1599,37 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             f"📏 [{worksheet.title}] Inherited {inherited} column widths "
             f"from stage '{stage_name}'")
         return inherited
+
+    def _copy_widths_from_sheet(self, worksheet, source_name, header_row=1):
+        """Copy same-named columns' widths from a sibling sheet.
+
+        Matching is by header text: the source sheet's row-1 headers map
+        to their column widths; this sheet's headers (at header_row)
+        that match take that width. Returns the count copied.
+        """
+        workbook = worksheet.parent
+        if source_name not in workbook.sheetnames:
+            raise StepProcessorError(
+                f"copy_widths_from_sheet: no sheet named {source_name!r} "
+                f"in the workbook"
+            )
+        source = workbook[source_name]
+        source_widths = {}
+        for cell in source[1]:
+            if cell.value is None:
+                continue
+            dimension = source.column_dimensions.get(cell.column_letter)
+            if dimension is not None and dimension.width:
+                source_widths[str(cell.value)] = dimension.width
+        copied = 0
+        for cell in worksheet[header_row]:
+            if cell.value is None:
+                continue
+            width = source_widths.get(str(cell.value))
+            if width:
+                worksheet.column_dimensions[cell.column_letter].width = width
+                copied += 1
+        return copied
 
     def _apply_styles_from_profile_stage(self, worksheet, formatting: dict) -> int:
         """

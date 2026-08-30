@@ -169,8 +169,14 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             elif condition in CELL_IS_OPERATORS or condition in TEXT_RULE_TYPES:
                 if value is None:
                     raise StepProcessorError(f"{context}: '{condition}' needs a 'value'")
-            if not spec.get('columns'):
-                raise StepProcessorError(f"{context}: when_cell needs 'columns' (list of header names)")
+            if spec.get('columns'):
+                raise StepProcessorError(
+                    f"{context}: 'columns' was renamed 'column_names' "
+                    f"(2026-08-26) - header NAME strings only. Rename "
+                    f"the key."
+                )
+            if not spec.get('column_names'):
+                raise StepProcessorError(f"{context}: when_cell needs 'column_names' (list of header names)")
 
         if kinds[0] == 'when_formula':
             spec = rule['when_formula'] if isinstance(rule['when_formula'], dict) else rule
@@ -179,7 +185,13 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
                 formula = rule['when_formula']
             if not formula:
                 raise StepProcessorError(f"{context}: when_formula needs the formula text")
-            targets = [k for k in ('apply_to', 'columns', 'range') if rule.get(k)]
+            if rule.get('columns'):
+                raise StepProcessorError(
+                    f"{context}: 'columns' was renamed 'column_names' "
+                    f"(2026-08-26) - header NAME strings only. Rename "
+                    f"the key."
+                )
+            targets = [k for k in ('apply_to', 'column_names', 'range') if rule.get(k)]
             if len(targets) != 1:
                 raise StepProcessorError(
                     f"{context}: when_formula needs exactly one target - "
@@ -277,6 +289,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             formula_text = rule['when_formula']
             if isinstance(formula_text, dict):
                 formula_text = formula_text.get('formula')
+
             formula_text = self._prepare_formula(str(formula_text), headers, context)
             target_range = self._build_formula_target(
                 rule, headers, last_row, last_col_letter, context
@@ -409,7 +422,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
                 )
             return f"A2:{last_col_letter}{last_row}"
 
-        if rule.get('columns'):
+        if rule.get('column_names'):
             ranges = [column_range for column_range, _
                       in self._column_ranges(rule, headers, last_row, context)]
             return ' '.join(ranges)
@@ -418,9 +431,9 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
 
     def _column_ranges(self, spec, headers, last_row, context):
         """Yield (range_text, column_letter) for each named column, data rows only."""
-        column_names = spec.get('columns', [])
+        column_names = spec.get('column_names', [])
         if not column_names:
-            raise StepProcessorError(f"{context}: needs 'columns' (list of header names)")
+            raise StepProcessorError(f"{context}: needs 'column_names' (list of header names)")
 
         for column_name in column_names:
             if column_name not in headers:

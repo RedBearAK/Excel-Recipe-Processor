@@ -43,7 +43,7 @@ import logging
 from pathlib import Path
 
 from openpyxl.writer.theme import theme_xml
-from openpyxl.styles import Font, PatternFill
+from openpyxl.styles import Font, PatternFill, Side, Border
 from openpyxl.styles.table import TableStyle, TableStyleElement, TableStyleList
 from openpyxl.styles.differential import DifferentialStyle
 
@@ -406,14 +406,31 @@ def build_pivot_style(workbook, pivot_config, color_normalizer=None):
     bold_grand_totals = pivot_config.get('bold_grand_totals', False)
 
     if bold_subtotals or bold_grand_totals:
-        bold_dxf_id = workbook._differential_styles.add(DifferentialStyle(font=Font(b=True)))
+        # Total rows carry top+bottom borders in the HEADER blue
+        # (2026-08-26): thin for subtotals, medium ("bold") for the
+        # grand total. Border colour follows header_background_color
+        # so the bands read as one family; without a header colour the
+        # rows stay borderless-bold as before.
+        border_hex = (
+            normalize_hex_color(header_color, context='header_background_color',
+                                color_normalizer=color_normalizer)
+            if header_color else None)
+
+        def banded_dxf(weight):
+            if border_hex is None:
+                return DifferentialStyle(font=Font(b=True))
+            edge = Side(style=weight, color=border_hex)
+            return DifferentialStyle(font=Font(b=True),
+                                     border=Border(top=edge, bottom=edge))
 
         if bold_subtotals:
+            subtotal_dxf_id = workbook._differential_styles.add(banded_dxf('thin'))
             for element_type in SUBTOTAL_ELEMENTS:
-                elements.append(TableStyleElement(type=element_type, dxfId=bold_dxf_id))
+                elements.append(TableStyleElement(type=element_type, dxfId=subtotal_dxf_id))
 
         if bold_grand_totals:
-            elements.append(TableStyleElement(type='totalRow', dxfId=bold_dxf_id))
+            grand_dxf_id = workbook._differential_styles.add(banded_dxf('medium'))
+            elements.append(TableStyleElement(type='totalRow', dxfId=grand_dxf_id))
 
     if not elements:
         raise ThemeManagerError(

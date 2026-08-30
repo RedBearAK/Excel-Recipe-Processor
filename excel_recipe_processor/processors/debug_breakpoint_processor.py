@@ -15,6 +15,8 @@ from datetime import datetime
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
 
 
+from excel_recipe_processor.core.log_format import q
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +77,7 @@ class DebugBreakpointProcessor(ExportBaseProcessor):  # ← CHANGE: inherit from
             
             # Log breakpoint information
             logger.info(f"Debug breakpoint reached: {message}")
-            logger.info(f"Current data saved to: {output_file}")
+            logger.info(f"Current data saved to: {q(output_file)}")
             logger.info(f"Data shape: {data.shape[0]} rows, {data.shape[1]} columns")
             
             # Print summary to console

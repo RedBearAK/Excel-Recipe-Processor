@@ -49,13 +49,13 @@ basic_example:
             formulas:
               # Individual cell formula
               - cell: "D2"
-                formula: "=B2*C2"
+                excel_formula: "=B2*C2"
               # Another cell with percentage calculation
               - cell: "E2"
-                formula: "=D2*0.1"
+                excel_formula: "=D2*0.1"
               # Sum formula in total row
               - cell: "D6"
-                formula: "=SUM(D2:D5)"
+                excel_formula: "=SUM(D2:D5)"
 
 range_formulas_example:
   description: "Apply formulas to ranges and multiple sheets"
@@ -98,15 +98,15 @@ range_formulas_example:
             formulas:
               # Apply formula to entire column range
               - range: "D2:D50"
-                formula: "=B2*C2"
+                excel_formula: "=B2*C2"
               # Tax calculation column
               - range: "E2:E50"
-                formula: "=D2*{tax_rate}"
+                excel_formula: "=D2*{tax_rate}"
               # Total formulas
               - cell: "D51"
-                formula: "=SUM(D2:D50)"
+                excel_formula: "=SUM(D2:D50)"
               - cell: "E51"
-                formula: "=SUM(E2:E50)"
+                excel_formula: "=SUM(E2:E50)"
 
 awaken_dead_formulas_example:
   description: "Convert dead formula text to live calculations"
@@ -175,13 +175,13 @@ dead_formula_documentation_example:
         formulas:
           # Documentation formulas show expected calculations
           - cell: "F1"
-            formula: "Revenue Calculation: =Units_Sold * Unit_Price"
+            excel_formula: "Revenue Calculation: =Units_Sold * Unit_Price"
           - cell: "F2"
-            formula: "Tax Calculation: =Revenue * Tax_Rate"
+            excel_formula: "Tax Calculation: =Revenue * Tax_Rate"
           - cell: "F3"
-            formula: "Lookup Example: =VLOOKUP(Product_ID, Product_Table, 3, FALSE)"
+            excel_formula: "Lookup Example: =VLOOKUP(Product_ID, Product_Table, 3, FALSE)"
           - cell: "F4"
-            formula: "Conditional Logic: =IF(Revenue > Target, 'Met', 'Missed')"
+            excel_formula: "Conditional Logic: =IF(Revenue > Target, 'Met', 'Missed')"
 
 comprehensive_dual_mode_example:
   description: "Create both documentation and live calculation versions"
@@ -222,9 +222,9 @@ comprehensive_dual_mode_example:
         mode: "dead"
         formulas:
           - cell: "E1"
-            formula: "Commission Rate: =Sales_Amount * 0.05"
+            excel_formula: "Commission Rate: =Sales_Amount * 0.05"
           - cell: "E2"
-            formula: "Performance Rating: =IF(Sales_Amount > Target, 'Exceeds', 'Below')"
+            excel_formula: "Performance Rating: =IF(Sales_Amount > Target, 'Exceeds', 'Below')"
 
       - # Step 5: Add live formulas to calculation version
         step_description: "Add live formulas for dynamic calculations"
@@ -235,11 +235,11 @@ comprehensive_dual_mode_example:
           - sheet_names: ["Data"]
             formulas:
               - range: "E2:E100"
-                formula: "=D2*0.05"
+                excel_formula: "=D2*0.05"
               - range: "F2:F100"
-                formula: "=IF(D2>C2,'Exceeds','Below')"
+                excel_formula: "=IF(D2>C2,'Exceeds','Below')"
               - cell: "E101"
-                formula: "=SUM(E2:E100)"
+                excel_formula: "=SUM(E2:E100)"
 
 named_columns_fill_down_example:
   description: "Name-addressed cells with fill-down - survives column insertions upstream"
@@ -270,14 +270,14 @@ named_columns_fill_down_example:
                 # translating relative references per row like Excel's fill
                 # handle. Default value: false
                 fill_down: true
-                formula: '={col:Price}2-{col:Cost}2'
+                excel_formula: '={col:Price}2-{col:Cost}2'
               - # Modern function names are stored with the _xlfn. prefix Excel
                 # requires internally; they display without it. With settings
                 # declare_dynamic_formulas: true, injected cells open WITHOUT
                 # the implicit-intersection @ (declared by provenance).
                 cell: "{col:Supplier Region}2"
                 fill_down: true
-                formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
+                excel_formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
 
 parameter_details:
   target_file:
@@ -309,16 +309,16 @@ parameter_details:
     formula_object_structure:
       cell: "Single cell reference: 'A1', 'D5', or name-addressed '{col:Header Name}2'"
       range: "Cell range reference (e.g., 'A1:A10', 'D2:F20')"
-      formula: "Excel formula to inject (with or without leading =); {col:Header Name} placeholders resolve to column letters from the header row"
+      excel_formula: "Excel formula to inject (with or without leading =); {col:Header Name} placeholders resolve to column letters from the header row"
       fill_down: "true fills the formula from its origin cell to the last data row, translating relative references per row (default false)"
       array_formula: "true stores a legacy CSE array formula shown in {braces} - only for formulas that genuinely ARE array formulas; NOT the fix for the @ display (that is the recipe-wide declare_dynamic_formulas setting)"
     examples:
       - - cell: "D2"
-          formula: "=B2*C2"
+          excel_formula: "=B2*C2"
         - range: "E2:E10"
-          formula: "=D2*0.1"
+          excel_formula: "=D2*0.1"
         - cell: "E11"
-          formula: "=SUM(E2:E10)"
+          excel_formula: "=SUM(E2:E10)"
 
   sheet_names:
     type: string or list
@@ -367,16 +367,16 @@ grouped_sheets_example:
           - sheet_names: ["Export_View"]
             formulas:
               - cell: "A2"
-                formula: '=fn_vms_view(rng_saletype="Export")'
+                excel_formula: '=fn_vms_view(rng_saletype="Export")'
           - sheet_names: ["Domestic_View"]
             formulas:
               - cell: "A2"
-                formula: '=fn_vms_view(rng_saletype="Domestic")'
+                excel_formula: '=fn_vms_view(rng_saletype="Domestic")'
           - # One entry, two sheets: the same stamp lands on both
             sheet_names: ["Notes_A", "Notes_B"]
             formulas:
               - cell: "A1"
-                formula: '=TEXT(TODAY(),"yyyy-mm-dd")&" refresh"'
+                excel_formula: '=TEXT(TODAY(),"yyyy-mm-dd")&" refresh"'
 
 formula_features:
   cell_targeting: "Target individual cells with specific formulas"

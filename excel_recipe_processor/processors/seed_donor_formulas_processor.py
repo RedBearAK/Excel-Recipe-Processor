@@ -11,6 +11,7 @@ excel_recipe_processor/processors/seed_donor_formulas_processor.py
 import logging
 import openpyxl
 import pandas as pd
+from excel_recipe_processor.core.log_format import q
 
 from pathlib import Path
 
@@ -379,7 +380,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         """Load workbook and get specified worksheet."""
         # Check file exists
         if not Path(file_path).exists():
-            raise StepProcessorError(f"{context.title()} file not found: {file_path}")
+            raise StepProcessorError(f"{context.title()} file not found: {q(file_path)}")
         
         try:
             # Load workbook (read_only=True for source files for performance)
@@ -390,7 +391,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
                 available_sheets = workbook.sheetnames
                 workbook.close()
                 raise StepProcessorError(
-                    f"{context.title()} sheet '{sheet_name}' not found in {file_path}. "
+                    f"{context.title()} sheet '{sheet_name}' not found in {q(file_path)}. "
                     f"Available sheets: {available_sheets}"
                 )
             
@@ -400,7 +401,7 @@ class SeedDonorFormulasProcessor(FileOpsBaseProcessor):
         except Exception as e:
             if "not found" in str(e) or "Available sheets" in str(e):
                 raise  # Re-raise our custom errors
-            raise StepProcessorError(f"Error loading {context} file {file_path}: {e}")
+            raise StepProcessorError(f"Error loading {context} file {q(file_path)}: {e}")
     
     def _resolve_column_specs(self, source_ws, target_ws):
         """

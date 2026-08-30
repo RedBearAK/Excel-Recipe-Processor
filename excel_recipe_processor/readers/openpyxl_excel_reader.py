@@ -8,6 +8,7 @@ cell access for dramatically faster data checking on large Excel files.
 """
 
 import logging
+from excel_recipe_processor.core.log_format import q
 
 from pathlib import Path
 
@@ -68,10 +69,10 @@ class OpenpyxlExcelReader:
         
         # Validate file
         if not file_path.exists():
-            raise OpenpyxlExcelReaderError(f"Excel file not found: {file_path}")
+            raise OpenpyxlExcelReaderError(f"Excel file not found: {q(file_path)}")
         
         if not file_path.suffix.lower() in {'.xlsx', '.xls', '.xlsm', '.xlsb'}:
-            raise OpenpyxlExcelReaderError(f"Not an Excel file: {file_path}")
+            raise OpenpyxlExcelReaderError(f"Not an Excel file: {q(file_path)}")
         
         try:
             # Load workbook - DON'T use read_only for data checking since we need iter_cols()
@@ -156,7 +157,7 @@ class OpenpyxlExcelReader:
         
         # Validate file
         if not file_path.exists():
-            raise OpenpyxlExcelReaderError(f"Excel file not found: {file_path}")
+            raise OpenpyxlExcelReaderError(f"Excel file not found: {q(file_path)}")
         
         try:
             # Load workbook
@@ -268,7 +269,7 @@ class OpenpyxlExcelReader:
         file_path = Path(file_path)
         
         if not file_path.exists():
-            raise OpenpyxlExcelReaderError(f"Excel file not found: {file_path}")
+            raise OpenpyxlExcelReaderError(f"Excel file not found: {q(file_path)}")
         
         try:
             # workbook = openpyxl.load_workbook(file_path, read_only=True)

@@ -43,6 +43,9 @@ class VariableSubstitution:
     # 'dict' are RETIRED (2026-08-17): every structural reference
     # declares its member/value typing, even when that declaration is
     # "any" - see LIST_MEMBER_TYPES and DICT_VALUE_TYPES.
+    # Namespaces owned by downstream processors, never variables
+    RESERVED_PASSTHROUGH_NAMESPACES = ('col',)
+
     SUPPORTED_TYPES = {
         'str': str,
         'int': int,
@@ -369,6 +372,16 @@ class VariableSubstitution:
                 f"normalized to str), or {{dict_any:{var_name}}} for "
                 f"intentionally mixed, untyped, or nested values."
             )
+
+        # RESERVED DOWNSTREAM NAMESPACES (2026-08-26): {col:Name} is
+        # the uniform column-reference grammar consumed by processors
+        # (expression engine, conditional_format, inject_formulas) -
+        # the variable pass leaves it verbatim for them. Single-word
+        # names ({col:Carrier}) previously matched the typed-variable
+        # pattern here and died as an unsupported type, while
+        # multi-word names slipped through on a space technicality.
+        if type_name in self.RESERVED_PASSTHROUGH_NAMESPACES:
+            return '{' + type_name + ':' + var_name + '}'
 
         # Validate type is supported
         if type_name not in self.SUPPORTED_TYPES:

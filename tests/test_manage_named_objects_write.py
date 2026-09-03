@@ -60,11 +60,11 @@ def test_create_from_columns():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_PID', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product ID'], 'row_mode': 'data'},
+                 'column_names': ['Product ID'], 'row_mode': 'data'},
                 {'name': 'rng_Prod_Form', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product Form'], 'row_mode': 'data'},
+                 'column_names': ['Product Form'], 'row_mode': 'data'},
                 {'name': 'rng_PlantOrig', 'sheet_name': 'Region-Carrier',
-                 'columns': ['Plant Origin'], 'row_mode': 'data'},
+                 'column_names': ['Plant Origin'], 'row_mode': 'data'},
             ]
         })
 
@@ -110,9 +110,9 @@ def test_sparse_column_needs_anchor():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_CanSize_bad', 'sheet_name': 'Product_IDs',
-                 'columns': ['Can Size'], 'row_mode': 'data'},
+                 'column_names': ['Can Size'], 'row_mode': 'data'},
                 {'name': 'rng_CanSize_good', 'sheet_name': 'Product_IDs',
-                 'columns': ['Can Size'], 'row_mode': 'data',
+                 'column_names': ['Can Size'], 'row_mode': 'data',
                  'anchor_columns': ['Product ID']},
             ]
         })
@@ -149,7 +149,7 @@ def test_column_span():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_prodinfo', 'sheet_name': 'Product_IDs',
-                 'columns': ['Species', 'Component'], 'row_mode': 'data'},
+                 'column_names': ['Species', 'Component'], 'row_mode': 'data'},
             ]
         })
 
@@ -181,7 +181,7 @@ def test_house_style_rejected():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_PID2026', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product ID'], 'row_mode': 'data'},
+                 'column_names': ['Product ID'], 'row_mode': 'data'},
             ]
         })
 
@@ -207,7 +207,7 @@ def test_on_existing_policies():
         build_lookup_workbook(target)
 
         base_spec = [{'name': 'rng_PID', 'sheet_name': 'Product_IDs',
-                      'columns': ['Product ID'], 'row_mode': 'data'}]
+                      'column_names': ['Product ID'], 'row_mode': 'data'}]
 
         def run(policy):
             return ManageNamedObjectsProcessor({
@@ -259,9 +259,9 @@ def test_sheet_scoped_names():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_local_pid', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product ID'], 'row_mode': 'data', 'scope': 'local'},
+                 'column_names': ['Product ID'], 'row_mode': 'data', 'scope': 'local'},
                 {'name': 'rng_global_pid', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product ID'], 'row_mode': 'data'},
+                 'column_names': ['Product ID'], 'row_mode': 'data'},
             ]
         }).execute()
 
@@ -297,9 +297,9 @@ def test_export_then_import_round_trip():
             'target_file': source,
             'ranges': [
                 {'name': 'rng_PID', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product ID'], 'row_mode': 'data'},
+                 'column_names': ['Product ID'], 'row_mode': 'data'},
                 {'name': 'rng_region', 'sheet_name': 'Region-Carrier',
-                 'columns': ['Region'], 'row_mode': 'data'},
+                 'column_names': ['Region'], 'row_mode': 'data'},
             ]
         }).execute()
 
@@ -353,9 +353,9 @@ def test_copy_direct():
             'target_file': source,
             'ranges': [
                 {'name': 'rng_PID', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product ID'], 'row_mode': 'data'},
+                 'column_names': ['Product ID'], 'row_mode': 'data'},
                 {'name': 'rng_ProdGrp', 'sheet_name': 'Product_IDs',
-                 'columns': ['Product Group'], 'row_mode': 'data'},
+                 'column_names': ['Product Group'], 'row_mode': 'data'},
             ]
         }).execute()
 

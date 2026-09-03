@@ -19,6 +19,7 @@ from typing import Any
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,40 @@ class AggregateDataProcessor(TransformBaseProcessor):
     - Optional stage saving of aggregation results
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). Each aggregation names its column,
+        function and output_name (the one spelling; new_column_name is
+        gone). aggregation_source describes an external source of
+        aggregation definitions instead of the inline list.
+        """
+        aggregation = Schema([
+            Key('column', 'str', required=True),
+            Key('function', 'str', required=True,
+                choices=['sum', 'count', 'mean', 'median', 'min', 'max', 'std', 'var', 'nunique']),
+            Key('output_name', 'str', description='Default: column_function'),
+        ])
+        source = Schema([
+            Key('type', 'str', required=True, choices=['file', 'stage', 'lookup', 'table']),
+            Key('filename', 'str'), Key('sheet', 'any'), Key('format', 'str'),
+            Key('encoding', 'str'), Key('separator', 'str'),
+            Key('stage_name', 'stage_in'), Key('lookup_stage', 'stage_in'),
+            Key('lookup_key', 'str'), Key('data_key', 'str'),
+            Key('group_by_column', 'str'), Key('aggregations_column', 'str'),
+            Key('filter_condition', 'any'),
+        ])
+        # group_by is required for the inline form; an aggregation_source
+        # supplies both the grouping and the aggregations from its table
+        return Schema([
+            name_list('group_by'),
+            Key('aggregations', 'list_of_mappings', schema=aggregation),
+            Key('aggregation_source', 'mapping', schema=source),
+            Key('keep_group_columns', 'bool', default=True),
+            Key('reset_index', 'bool', default=True),
+            Key('sort_by_groups', 'bool', default=True),
+        ], at_least_one=[['aggregations', 'aggregation_source'], ['group_by', 'aggregation_source']])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
@@ -389,7 +424,7 @@ class AggregateDataProcessor(TransformBaseProcessor):
         for agg_config in aggregations:
             substituted_config = agg_config.copy()
             
-            for key in ['column', 'output_name', 'new_column_name']:
+            for key in ['column', 'output_name']:
                 if key in substituted_config:
                     substituted_config[key] = substitute_variables(substituted_config[key], custom_variables=variables)
             
@@ -508,8 +543,7 @@ class AggregateDataProcessor(TransformBaseProcessor):
         for agg in aggregations:
             column = agg['column']
             function = agg['function']
-            # Support both 'new_column_name' and 'output_name' for backward compatibility
-            new_name = agg.get('new_column_name', agg.get('output_name', f"{column}_{function}"))
+            new_name = agg.get('output_name', f"{column}_{function}")
 
             if column not in agg_dict:
                 agg_dict[column] = []

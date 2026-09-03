@@ -39,9 +39,6 @@ export_example:
         yaml_file: "named_objects.yaml"
         # OPT - Pipe-delimited output for VBA
         vba_file: "named_objects.txt"
-        # OPT - Include sheet-scoped names as well as workbook-scoped
-        # Default value: true
-        include_local: true
 
 
 create_from_columns_example:
@@ -82,7 +79,7 @@ create_from_columns_example:
             # REQ - Sheet holding the column
             sheet_name: "Product_IDs"
             # REQ - Column names, or Excel column letters
-            columns: ["Product ID"]
+            column_names: ["Product ID"]
             # OPT - "data" (default: data rows only), "data_with_header",
             # "full_col", or "full_col_no_header"
             row_mode: "data"
@@ -91,7 +88,7 @@ create_from_columns_example:
             # so this becomes $B$2:$E$854 rather than two separate columns
             name: "rng_payterms"
             sheet_name: "Sales_Orders"
-            columns: ["Payment Terms", "Deposit Application"]
+            column_names: ["Payment Terms", "Deposit Application"]
             row_mode: "data"
             # OPT - Columns used to measure the extent. Defaults to the columns
             # being defined, which truncates a sparse column - anchor on a dense
@@ -102,7 +99,7 @@ create_from_columns_example:
             # validation list someone extends by hand
             name: "rng_carrier"
             sheet_name: "Carriers"
-            columns: ["Carrier"]
+            column_names: ["Carrier"]
             row_mode: "full_col_no_header"
 
 

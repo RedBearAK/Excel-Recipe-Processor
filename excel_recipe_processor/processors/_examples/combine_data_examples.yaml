@@ -352,7 +352,7 @@ complete_workflow_example:
             # REQ - Aggregation function
             function: "sum"
             # OPT - Custom column name
-            new_column_name: "Total_Sales"
+            output_name: "Total_Sales"
       
       # Step 5: Combine enriched data with summary
       - # OPT - Human-readable step description

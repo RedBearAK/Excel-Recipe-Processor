@@ -36,7 +36,7 @@ basic_example:
             function: "sum"
             # OPT - Name for the new aggregated column
             # Default value: "{column}_{function}" (e.g., "Revenue_sum")
-            new_column_name: "Total_Revenue"
+            output_name: "Total_Revenue"
 
 multiple_aggregations_example:
   description: "Multiple grouping columns with different aggregation functions"
@@ -68,34 +68,34 @@ multiple_aggregations_example:
           # Revenue aggregations
           - column: "Total_Spent"
             function: "sum"
-            new_column_name: "Segment_Revenue"
+            output_name: "Segment_Revenue"
           - column: "Total_Spent"
             function: "mean"
-            new_column_name: "Average_Customer_Value"
+            output_name: "Average_Customer_Value"
           
           # Customer count metrics
           - column: "Customer_ID"
             function: "nunique"
-            new_column_name: "Unique_Customers"
+            output_name: "Unique_Customers"
           - column: "Customer_ID"
             function: "count"
-            new_column_name: "Total_Transactions"
+            output_name: "Total_Transactions"
           
           # Order behavior metrics
           - column: "Order_Count"
             function: "sum"
-            new_column_name: "Total_Orders"
+            output_name: "Total_Orders"
           - column: "Order_Count"
             function: "mean"
-            new_column_name: "Avg_Orders_Per_Customer"
+            output_name: "Avg_Orders_Per_Customer"
           
           # Date analysis
           - column: "Last_Order_Date"
             function: "max"
-            new_column_name: "Most_Recent_Order"
+            output_name: "Most_Recent_Order"
           - column: "Last_Order_Date"
             function: "min"
-            new_column_name: "First_Order_Date"
+            output_name: "First_Order_Date"
 
 business_intelligence_example:
   description: "Executive dashboard metrics with advanced aggregations"
@@ -128,40 +128,40 @@ business_intelligence_example:
           # Revenue metrics
           - column: "Revenue"
             function: "sum"
-            new_column_name: "Total_Revenue"
+            output_name: "Total_Revenue"
           - column: "Revenue"
             function: "mean"
-            new_column_name: "Average_Deal_Size"
+            output_name: "Average_Deal_Size"
           - column: "Revenue"
             function: "std"
-            new_column_name: "Revenue_Variability"
+            output_name: "Revenue_Variability"
           
           # Customer metrics
           - column: "Customer_ID"
             function: "nunique"
-            new_column_name: "Unique_Customers"
+            output_name: "Unique_Customers"
           - column: "New_Customer_Flag"
             function: "sum"
-            new_column_name: "New_Customers_Acquired"
+            output_name: "New_Customers_Acquired"
           
           # Operational metrics
           - column: "Days_to_Close"
             function: "mean"
-            new_column_name: "Average_Sales_Cycle"
+            output_name: "Average_Sales_Cycle"
           - column: "Opportunity_Count"
             function: "sum"
-            new_column_name: "Total_Opportunities"
+            output_name: "Total_Opportunities"
           - column: "Win_Rate"
             function: "mean"
-            new_column_name: "Average_Win_Rate"
+            output_name: "Average_Win_Rate"
           
           # Product metrics
           - column: "Product_Line"
             function: "nunique"
-            new_column_name: "Product_Lines_Sold"
+            output_name: "Product_Lines_Sold"
           - column: "Units_Sold"
             function: "sum"
-            new_column_name: "Total_Units_Sold"
+            output_name: "Total_Units_Sold"
 
 parameter_details:
   group_by:
@@ -204,7 +204,7 @@ parameter_details:
       std_var: "Standard deviation/variance - best for measuring spread"
       first_last: "First/last value in group - best for status or dates"
   
-  new_column_name:
+  output_name:
     type: string
     required: false
     context: "Within aggregations list items"

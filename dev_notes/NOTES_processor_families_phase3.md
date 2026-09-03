@@ -148,3 +148,23 @@ should be run serially for a verdict).
   `target_file`, which the processor refuses in dead mode - they had never
   worked. Rewritten as stage -> stage -> export.
 - Test expectations for guidance text now match the schema's wording.
+
+## manage_named_objects, excel_data_validation, aggregate_data (2026-09-04)
+
+- `manage_named_objects`: `operation` is a variant with each operation's
+  files and options. create_from_columns range entries now say
+  `column_names` (names only: the resolver refuses letter shapes there, so
+  the union-era `force_column_names` flag was dead and is gone).
+  `export_formats` is a mapping of the two output paths.
+- `excel_data_validation`: one entry per validation; types and operators
+  are the keys of VALIDATION_TYPES / OPERATORS (openpyxl spellings are
+  storage, never vocabulary).
+- `aggregate_data`: `output_name` is the one spelling (`new_column_name`
+  gone); `group_by` is required unless an `aggregation_source` supplies it.
+- Recipe: 34 `columns:` -> `column_names:` inside the VMS recipe's
+  named-range steps. Examples and tests followed.
+
+The VMS recipe now validates with NO schema-less processor types. Tail
+still without schemas (none used by any recipe): seed_donor_formulas,
+group_data, filter_terms_detector, export_filter_step, profile_sheets,
+flush_workbooks, generate_column_config.

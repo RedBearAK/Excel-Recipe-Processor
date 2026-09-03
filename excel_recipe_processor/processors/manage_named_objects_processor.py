@@ -19,6 +19,7 @@ from datetime import datetime
 from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.processors._helpers.named_objects_extraction import (
     detect_object_type,
@@ -1418,7 +1419,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
                 name = spec.get('name')
                 sheet = spec.get('sheet_name')
-                columns = spec.get('columns')
+                columns = spec.get('column_names')
 
                 if not name:
                     raise StepProcessorError(f"Range entry {index + 1} missing 'name'")
@@ -1441,7 +1442,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
                 if not isinstance(columns, list) or len(columns) == 0:
                     raise StepProcessorError(
-                        f"Range '{name}' requires a non-empty 'columns' list"
+                        f"Range '{name}' requires a non-empty 'column_names' list"
                     )
 
                 try:
@@ -1466,7 +1467,6 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
                         header_row=spec.get('header_row', 1),
                         anchor_columns=spec.get('anchor_columns'),
                         expand_span=spec.get('expand_span', True),
-                        force_column_names=spec.get('force_column_names', False),
                         on_missing=spec.get('on_missing', 'error'),
                         absolute=spec.get('absolute', True),
                         qualify_sheet=True
@@ -1537,6 +1537,57 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             'ranges_written': len(created) + len(replaced)
         }
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). `operation` is a variant: each operation
+        takes exactly the files and options it uses. create_from_columns
+        range entries address columns by HEADER NAME (column_names); the
+        resolver refuses letter shapes there, so no refs and no force flag.
+        """
+        range_entry = Schema([
+            Key('name', 'str', required=True, description='Defined name to create'),
+            Key('sheet_name', 'any', required=True, description='Tab name, number, or ?sheet_NNN? token'),
+            name_list('column_names', required=True, description='Header names spanning the range'),
+            name_list('anchor_columns', description='Columns to measure the row extent from; default the range columns'),
+            Key('row_mode', 'str', default='data_with_header', choices=['data', 'data_with_header', 'full_col', 'full_col_no_header']),
+            Key('header_row', 'int', default=1),
+            Key('expand_span', 'bool', default=True),
+            Key('absolute', 'bool', default=True),
+            Key('on_missing', 'str', default='error', choices=['error', 'warn', 'skip']),
+            Key('scope', 'str', default='global', choices=['global', 'local']),
+            Key('name_mgr_comment', 'str', description='Name Manager comment text'),
+        ])
+        common = [
+            Key('name_validation', 'str', default='excel', choices=cls.NAME_VALIDATION_LEVELS),
+        ]
+        return Schema([
+            Key('operation', 'str', required=True, choices=cls.SUPPORTED_OPERATIONS),
+        ] + common, variants={'operation': {
+            'export_all': Schema([Key('source_file', 'str', required=True), Key('yaml_file', 'str'), Key('vba_file', 'str'),
+                                  Key('export_formats', 'mapping', schema=Schema([Key('yaml_file', 'str'), Key('vba_file', 'str')]),
+                                      description='Alternative grouped form of the two output paths')]),
+            'export_filtered': Schema([Key('source_file', 'str', required=True), Key('yaml_file', 'str'), Key('vba_file', 'str'),
+                                       Key('include_patterns', 'list', item_kind='str'), Key('exclude_patterns', 'list', item_kind='str')]),
+            'import_all': Schema([Key('target_file', 'str', required=True), Key('yaml_file', 'str', required=True),
+                                  Key('on_existing', 'str', default='error', choices=cls.EXISTING_NAME_POLICIES),
+                                  Key('prune_orphans_with_prefix', 'str')]),
+            'import_filtered': Schema([Key('target_file', 'str', required=True), Key('yaml_file', 'str', required=True),
+                                       Key('on_existing', 'str', default='error', choices=cls.EXISTING_NAME_POLICIES),
+                                       Key('include_patterns', 'list', item_kind='str'), Key('exclude_patterns', 'list', item_kind='str'),
+                                       Key('prune_orphans_with_prefix', 'str')]),
+            'list_objects': Schema([Key('source_file', 'str', required=True)]),
+            'validate_yaml': Schema([Key('yaml_file', 'str', required=True)]),
+            'create_from_columns': Schema([Key('target_file', 'str', required=True),
+                                           Key('ranges', 'list_of_mappings', required=True, schema=range_entry),
+                                           Key('on_existing', 'str', default='error', choices=cls.EXISTING_NAME_POLICIES),
+                                           Key('prune_orphans_with_prefix', 'str')]),
+            'copy_direct': Schema([Key('source_file', 'str', required=True), Key('target_file', 'str', required=True),
+                                   Key('include_local', 'bool', default=True),
+                                   Key('include_patterns', 'list', item_kind='str'), Key('exclude_patterns', 'list', item_kind='str'),
+                                   Key('on_existing', 'str', default='error', choices=cls.EXISTING_NAME_POLICIES)]),
+        }})
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         """

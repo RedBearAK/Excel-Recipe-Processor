@@ -196,7 +196,6 @@ parameter_details:
       - 25    # Maximum recommended for large files
     performance_warning: "Values >25 may significantly slow processing on large files"
 
-  check_column_data:
     type: boolean
     required: false
     default: true

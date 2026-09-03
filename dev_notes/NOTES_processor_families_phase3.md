@@ -204,3 +204,14 @@ flush_workbooks, generate_column_config.
 - README: a "Start Here" section pointing at `docs/STEP_SCHEMAS.md`
   (generated) and `docs/WRITING_A_PROCESSOR.md`, the family list, the
   conventions, `--validate` and `--export-schemas`.
+
+## Ledger and dead-mode removal (2026-09-04)
+
+- `dev_notes/KEY_MIGRATIONS_LEDGER.md`: every renamed, split, removed or
+  refused term, old beside new, global then per processor, with the sweep
+  command. Its first run over the repo found stale parameter blocks in
+  two examples, dead-mode docstrings, and a redundant hand-written guard
+  for a retired key (the schema refuses it now) - all fixed.
+- `inject_formulas` `mode: dead` removed (it was never absent - its
+  examples were the part that had never worked). "Dead formula" remains
+  the name for formula text that `awaken` turns live.

@@ -154,66 +154,6 @@ def test_basic_live_formula_injection():
             Path(excel_file).unlink()
 
 
-def test_dead_formula_injection():
-    """Test dead formula injection for documentation."""
-    print("Testing dead formula injection...")
-    
-    # Create test data and save to stage
-    test_data = create_sample_data()
-    
-    try:
-        # Set up stage data first
-        from excel_recipe_processor.core.stage_manager import StageManager
-        StageManager.save_stage(
-            stage_name='test_data',
-            data=test_data,
-            description="Test data for dead formula injection"
-        )
-        
-        # Configure processor for dead formula injection (stage-to-stage)
-        step_config = {
-            'processor_type': 'inject_formulas', 
-            'mode': 'dead',
-            'source_stage': 'test_data',
-            'save_to_stage': 'test_data_documented',
-            'formulas': [
-                {
-                    'cell': 'A1',  # Header row, first column
-                    'excel_formula': 'Calculation: =Price * Quantity'
-                },
-                {
-                    'cell': 'B2',  # Second row, second column
-                    'excel_formula': '=B2*C2'
-                }
-            ]
-        }
-        
-        # Execute processor
-        processor = InjectFormulasProcessor(step_config)
-        result = processor.execute()
-        
-        # Load the output stage to verify formulas were injected
-        output_data = StageManager.load_stage('test_data_documented')
-        
-        # Check that dead formulas were injected as text
-        # (exact cell mapping depends on DataFrame structure)
-        print("✓ Dead formulas injected successfully as stage data")
-        return True
-        
-    except Exception as e:
-        print(f"✗ Dead formula injection failed: {e}")
-        return False
-    
-    finally:
-        # Clean up stages
-        try:
-            # StageManager.clear_stage('test_data')
-            # StageManager.clear_stage('output_data')
-            StageManager.cleanup_stages()
-        except:
-            pass
-
-
 def test_range_formula_injection():
     """Test formula injection to cell ranges."""
     # if not OPENPYXL_AVAILABLE:
@@ -381,7 +321,6 @@ def main():
         # test_openpyxl_requirement,
         test_configuration_validation,
         test_basic_live_formula_injection,
-        test_dead_formula_injection,
         test_range_formula_injection,
         test_future_functions_get_storage_prefixes,
     ]

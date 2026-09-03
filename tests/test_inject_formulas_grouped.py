@@ -191,7 +191,7 @@ def test_unknown_entry_key_fails_loud():
         run_step({
             'mode': 'live',
             'sheets_to_receive_formulas': [
-                {'sheet_names': ['View_A'], 'mode': 'dead',
+                {'sheet_names': ['View_A'], 'mode': 'awaken',
                  'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]}],
         })
         print("  ✗ stray per-entry key accepted")

@@ -134,7 +134,7 @@ categorical_only_example:
         save_to_stage: "stg_detected_terms"
 
 parameter_details:
-  raw_stage:
+  source_stage:
     type: string
     required: true
     description: "Stage containing the original unfiltered dataset"

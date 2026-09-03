@@ -714,51 +714,10 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
 - `step_description`: str - Human-readable step name; apostrophe-free by house style
 - `processor_type`: str; REQUIRED - Registered processor name
 - `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
-- `mode`: str; default "live"; one of live, dead, awaken
-- when `mode` = `live`:
-  - `target_file`: str; REQUIRED
-  - `sheets_to_receive_formulas`: list_of_mappings
-    - `sheet_names`: list of str; REQUIRED - Tab names or ?sheet_NNN? tokens
-    - `formulas`: list_of_mappings; REQUIRED
-      - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
-      - `cell`: str - Target cell like B2
-      - `range`: str - Target range like B2:B100
-      - `fill_down`: bool; default false - Cell target: fill down the data extent
-      - `array_formula`: bool; default false
-      - at least one of: `cell`, `range`
-  - `sheet_names`: any - awaken mode: a list of tabs, "all", or omit for the active sheet
-  - `formulas`: list_of_mappings - awaken / single-sheet form
-    - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
-    - `cell`: str - Target cell like B2
-    - `range`: str - Target range like B2:B100
-    - `fill_down`: bool; default false - Cell target: fill down the data extent
-    - `array_formula`: bool; default false
-    - at least one of: `cell`, `range`
-  - `auto_scan`: bool; default false - awaken: scan every sheet for formula text
-- when `mode` = `awaken`:
-  - `target_file`: str; REQUIRED
-  - `sheets_to_receive_formulas`: list_of_mappings
-    - `sheet_names`: list of str; REQUIRED - Tab names or ?sheet_NNN? tokens
-    - `formulas`: list_of_mappings; REQUIRED
-      - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
-      - `cell`: str - Target cell like B2
-      - `range`: str - Target range like B2:B100
-      - `fill_down`: bool; default false - Cell target: fill down the data extent
-      - `array_formula`: bool; default false
-      - at least one of: `cell`, `range`
-  - `sheet_names`: any - awaken mode: a list of tabs, "all", or omit for the active sheet
-  - `formulas`: list_of_mappings - awaken / single-sheet form
-    - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
-    - `cell`: str - Target cell like B2
-    - `range`: str - Target range like B2:B100
-    - `fill_down`: bool; default false - Cell target: fill down the data extent
-    - `array_formula`: bool; default false
-    - at least one of: `cell`, `range`
-  - `auto_scan`: bool; default false - awaken: scan every sheet for formula text
-- when `mode` = `dead`:
-  - `source_stage`: stage_in; REQUIRED
-  - `save_to_stage`: stage_out; REQUIRED
-  - `confirm_stage_replacement`: bool; default false
+- `mode`: str; default "live"; one of live, awaken
+- `target_file`: str; REQUIRED
+- `sheets_to_receive_formulas`: list_of_mappings
+  - `sheet_names`: list of str; REQUIRED - Tab names or ?sheet_NNN? tokens
   - `formulas`: list_of_mappings; REQUIRED
     - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
     - `cell`: str - Target cell like B2
@@ -766,6 +725,15 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
     - `fill_down`: bool; default false - Cell target: fill down the data extent
     - `array_formula`: bool; default false
     - at least one of: `cell`, `range`
+- `sheet_names`: any - awaken mode: a list of tabs, "all", or omit for the active sheet
+- `formulas`: list_of_mappings - awaken / single-sheet form
+  - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
+  - `cell`: str - Target cell like B2
+  - `range`: str - Target range like B2:B100
+  - `fill_down`: bool; default false - Cell target: fill down the data extent
+  - `array_formula`: bool; default false
+  - at least one of: `cell`, `range`
+- `auto_scan`: bool; default false - awaken: scan every sheet for formula text
 
 ### `lookup_data`  - family `transform`
 

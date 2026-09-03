@@ -39,7 +39,7 @@ basic_example:
         # File path supports variable substitution
         target_file: "reports/sales_report.xlsx"
         # REQ - Formula injection mode
-        # Values: "live" (dynamic formulas), "dead" (text formulas), "awaken" (convert dead to live)
+        # Values: "live" (inject formulas), "awaken" (turn formula text already in cells live)
         # Default value: "live"
         mode: "live"
         # REQ (live) - Entries pairing a sheet_names LIST with formulas
@@ -144,113 +144,6 @@ awaken_dead_formulas_example:
         # OPT - Enable automatic scanning for formula-like text
         # Default value: false (only processes explicit formulas list)
         auto_scan: true
-
-dead_formula_documentation_example:
-  description: "Create dead formulas for documentation and training"
-  yaml: |
-    settings:
-      description: "Create model documentation with formula examples"
-      stages:
-        - stage_name: "stg_model_data"
-          description: "Financial model base data"
-          protected: false
-        - stage_name: "stg_model_documented"
-          description: "Base data with formula text written into cells"
-          protected: false
-
-    recipe:
-      - # Step 1: Import model data
-        step_description: "Import financial model base data"
-        processor_type: "import_file"
-        input_file: "data/model_base.xlsx"
-        save_to_stage: "stg_model_data"
-
-      - # Step 2: Write formula documentation as TEXT into the stage.
-        # mode: dead operates on stages, not files - it reads source_stage
-        # and writes save_to_stage with the formula text placed in cells
-        step_description: "Add formula documentation for training"
-        processor_type: "inject_formulas"
-        mode: "dead"
-        source_stage: "stg_model_data"
-        save_to_stage: "stg_model_documented"
-        formulas:
-          # Documentation formulas show expected calculations
-          - cell: "F1"
-            excel_formula: "Revenue Calculation: =Units_Sold * Unit_Price"
-          - cell: "F2"
-            excel_formula: "Tax Calculation: =Revenue * Tax_Rate"
-          - cell: "F3"
-            excel_formula: "Lookup Example: =VLOOKUP(Product_ID, Product_Table, 3, FALSE)"
-          - cell: "F4"
-            excel_formula: "Conditional Logic: =IF(Revenue > Target, 'Met', 'Missed')"
-
-      - # Step 3: Export the documented stage
-        step_description: "Create model documentation file"
-        processor_type: "export_file"
-        source_stage: "stg_model_documented"
-        output_file: "docs/model_documentation.xlsx"
-
-comprehensive_dual_mode_example:
-  description: "Create both documentation and live calculation versions"
-  yaml: |
-    settings:
-      description: "Comprehensive workflow with documentation and live calculation versions"
-      variables:
-        output_dir: "reports"
-        date_suffix: "{date}"
-      stages:
-        - stage_name: "stg_sales_data"
-          description: "Sales analysis data"
-          protected: false
-        - stage_name: "stg_sales_documented"
-          description: "Sales data with formula text written into cells"
-          protected: false
-
-    recipe:
-      - # Step 1: Import and process data
-        step_description: "Import sales data for analysis"
-        processor_type: "import_file"
-        input_file: "data/sales_data.xlsx"
-        save_to_stage: "stg_sales_data"
-
-      - # Step 3: Export to calculation version
-        step_description: "Create calculation version"
-        processor_type: "export_file"
-        source_stage: "stg_sales_data"
-        output_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
-
-      - # Step 4: Add dead formulas (text) to the documentation stage
-        step_description: "Add formula documentation for training"
-        processor_type: "inject_formulas"
-        mode: "dead"
-        source_stage: "stg_sales_data"
-        save_to_stage: "stg_sales_documented"
-        formulas:
-          - cell: "E1"
-            excel_formula: "Commission Rate: =Sales_Amount * 0.05"
-          - cell: "E2"
-            excel_formula: "Performance Rating: =IF(Sales_Amount > Target, 'Exceeds', 'Below')"
-
-      - # Export the documentation version from the documented stage
-        step_description: "Create documentation version"
-        processor_type: "export_file"
-        source_stage: "stg_sales_documented"
-        output_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
-
-      - # Step 5: Add live formulas to calculation version
-        step_description: "Add live formulas for dynamic calculations"
-        processor_type: "inject_formulas"
-        target_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
-        mode: "live"
-        sheets_to_receive_formulas:
-          - sheet_names: ["Data"]
-            formulas:
-              - range: "E2:E100"
-                excel_formula: "=D2*0.05"
-              - range: "F2:F100"
-                excel_formula: "=IF(D2>C2,'Exceeds','Below')"
-              - cell: "E101"
-                excel_formula: "=SUM(E2:E100)"
 
 named_columns_fill_down_example:
   description: "Name-addressed cells with fill-down - survives column insertions upstream"

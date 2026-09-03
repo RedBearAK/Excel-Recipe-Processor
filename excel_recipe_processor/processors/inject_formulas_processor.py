@@ -4,8 +4,8 @@ Inject formulas step processor for Excel automation recipes.
 excel_recipe_processor/processors/inject_formulas_processor.py
 
 Handles injecting formulas into Excel files with support for both "live" (dynamic) 
-and "dead" (text) formulas. Can work at the cell, range, or auto-scan level.
-Supports both stage-to-stage operations (dead formulas) and file operations (live/dead/awaken).
+and awakens "dead" (text) formulas already in a sheet. Cell, range, or auto-scan targeting.
+A file operation: live injection and awaken both address a target workbook.
 """
 
 import re
@@ -67,7 +67,6 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
     entire sheets for formula-like text to awaken.
     
     Operating Modes:
-    - dead: Stage-to-stage operation injecting formula text into DataFrames
     - live/awaken: File operations manipulating existing Excel files
     """
     
@@ -90,18 +89,11 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         has_target = bool(self.get_config_value('target_file'))
         
         # Validate mode
-        if mode not in ['live', 'dead', 'awaken']:
-            raise StepProcessorError(f"Invalid mode '{mode}'. Must be 'live', 'dead', or 'awaken'")
+        if mode not in ['live', 'awaken']:
+            raise StepProcessorError(f"Invalid mode '{mode}'. Must be 'live' or 'awaken'")
         
         # Mode-specific validation
-        if mode == 'dead':
-            # Dead formulas: must be stage-to-stage
-            if not (has_source and has_save):
-                raise StepProcessorError("Dead mode requires 'source_stage' and 'save_to_stage'")
-            if has_target:
-                raise StepProcessorError("Dead mode cannot use 'target_file' - it operates on stages")
-        
-        elif mode in ['live', 'awaken']:
+        if mode in ['live', 'awaken']:
             # Live/awaken: must have target_file, cannot use save_to_stage
             if not has_target:
                 raise StepProcessorError(f"'{mode}' mode requires 'target_file'")
@@ -135,23 +127,14 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             Key('formulas', 'list_of_mappings', schema=formula, description='awaken / single-sheet form'),
             Key('auto_scan', 'bool', default=False, description='awaken: scan every sheet for formula text'),
         ]
-        # mode: dead writes formula TEXT into a stage (source_stage ->
-        # save_to_stage) and touches no file - a Transform hiding inside a
-        # FileOps processor, declared honestly as a variant (2026-09-04).
-        # SPLIT CANDIDATE: no recipe uses it; if kept, it wants its own
-        # Transform-family processor the way verify_data was split.
+        # The former mode: dead (formula TEXT written into a stage) was a
+        # Transform hiding inside this FileOps processor and duplicated
+        # what add_calculated_column already does; removed 2026-09-04.
+        # "Dead formula" survives only as the name for formula text that
+        # awaken mode turns live.
         return Schema([
-            Key('mode', 'str', default='live', choices=['live', 'dead', 'awaken']),
-        ], variants={'mode': {
-            'live': Schema(file_keys),
-            'awaken': Schema(file_keys),
-            'dead': Schema([
-                Key('source_stage', 'stage_in', required=True),
-                Key('save_to_stage', 'stage_out', required=True),
-                Key('confirm_stage_replacement', 'bool', default=False),
-                Key('formulas', 'list_of_mappings', required=True, schema=formula),
-            ]),
-        }})
+            Key('mode', 'str', default='live', choices=['live', 'awaken']),
+        ] + file_keys)
 
     @classmethod
     def get_minimal_config(cls):
@@ -162,29 +145,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
     
     def execute(self, data=None):
         """Execute the appropriate operation based on mode."""
-        mode = self.get_config_value('mode', 'live')
-        
-        if mode == 'dead':
-            return self._execute_stage_operations()
-        else:
-            return self._execute_file_operations()
-    
-    def _execute_stage_operations(self):
-        """Execute stage-to-stage operations for dead formulas."""
-        self.log_step_start()
-        
-        # Load input data
-        data = self._load_input_data()
-        
-        # Inject dead formulas into DataFrame
-        modified_data = self._inject_dead_formulas_to_dataframe(data)
-        
-        # Save to output stage
-        self._save_output_data(modified_data)
-        
-        formulas = self.get_config_value('formulas', [])
-        self.log_step_complete(f"injected {len(formulas)} dead formulas into stage")
-        return modified_data
+        return self._execute_file_operations()
     
     def _execute_file_operations(self):
         """Execute file operations for live/awaken formulas."""
@@ -206,31 +167,6 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             step_name=self.step_name,
             confirm_replacement=self.confirm_stage_replacement
         )
-    
-    def _inject_dead_formulas_to_dataframe(self, df):
-        """Inject dead formulas as text into DataFrame cells."""
-        import pandas as pd
-        
-        # Create a copy and convert to object dtype to allow mixed types
-        result_df = df.copy().astype('object')
-        formulas = self.get_config_value('formulas', [])
-        
-        for formula_def in formulas:
-            if 'cell' in formula_def:
-                # Handle cell reference like 'A1' -> row 0, col 0
-                cell_ref = formula_def['cell']
-                formula = formula_def['excel_formula']
-                
-                # Convert Excel cell reference to pandas coordinates
-                row_idx, col_idx = self._excel_ref_to_pandas(cell_ref, result_df)
-                
-                # Inject as text with single quote prefix
-                formula_text = f"'{formula}" if not formula.startswith("'") else formula
-                result_df.iloc[row_idx, col_idx] = formula_text
-                
-                logger.debug(f"Injected dead formula in {cell_ref}: {formula}")
-        
-        return result_df
     
     def _excel_ref_to_pandas(self, cell_ref, df):
         """Convert Excel cell reference like 'A1' to pandas row/col indices."""
@@ -419,7 +355,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
 
         WorkbookSession.mark_dirty(filename)
 
-        mode_desc = 'live' if mode == 'live' else 'dead'
+        mode_desc = mode
         detail = '; '.join(per_sheet_counts)
         return (f"injected {mode_desc} formulas across "
                 f"{len(per_sheet_counts)} sheet(s) - {detail} ({filename})")
@@ -430,7 +366,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         Args:
             filename: Excel file to modify
-            mode: 'live' or 'dead'
+            mode: 'live' or 'awaken'
             formulas: List of formula definitions
             sheets: Sheet selection (None, sheet name, or 'all')
             
@@ -470,7 +406,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         # Save the modified workbook
         WorkbookSession.mark_dirty(filename)
         
-        mode_desc = "live" if mode == "live" else "dead"
+        mode_desc = mode
         return f"injected {formulas_injected} {mode_desc} formulas across {sheets_processed} sheets in {filename}"
     
     def _awaken_formulas(self, filename: str, sheets, auto_scan: bool) -> str:
@@ -587,7 +523,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                          The formula may use {col:Header Name} placeholders,
                          resolved against the sheet's header row, and a cell
                          target may set fill_down: true
-            mode: 'live' or 'dead'
+            mode: 'live' or 'awaken'
             
         Returns:
             Number of cells modified
@@ -757,7 +693,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             worksheet:   Target sheet
             target_ref:  Cell to write, e.g. 'AV2'
             formula_text: Formula, already translated for this cell
-            mode:        'live' or 'dead'
+            mode:        'live' or 'awaken'
             as_array:    Store with the array marker
         """
         if mode != 'live':
@@ -792,7 +728,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             worksheet: openpyxl worksheet
             cell_ref:  Where the formula starts, e.g. 'AV2'
             formula:   Formula text, already placeholder-resolved
-            mode:      'live' or 'dead'
+            mode:      'live' or 'awaken'
 
         Returns:
             Number of cells written
@@ -825,7 +761,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             worksheet: openpyxl worksheet
             cell_ref: Cell reference like 'A1', 'B5', etc.
             formula: Formula to inject
-            mode: 'live' or 'dead'
+            mode: 'live' or 'awaken'
             
         Returns:
             Number of cells modified (always 1 for single cell)
@@ -854,7 +790,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             worksheet: openpyxl worksheet
             range_ref: Range reference like 'A1:A10', 'B2:D5', etc.
             formula: Base formula to inject (will be adjusted for each cell)
-            mode: 'live' or 'dead'
+            mode: 'live' or 'awaken'
 
         Returns:
             Number of cells modified
@@ -1013,7 +949,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             'description': 'Inject live or dead formulas with name-addressed cells '
                            'and fill-down',
             'operation_type': 'formula_injection',
-            'supported_modes': ['live', 'dead', 'awaken'],
+            'supported_modes': ['live', 'awaken'],
             'targeting_options': ['single_cell', 'cell_range', 'auto_scan'],
             'column_placeholders': '{col:Header Name} in cell refs and formulas '
                                    'resolves to the column letter from the header '

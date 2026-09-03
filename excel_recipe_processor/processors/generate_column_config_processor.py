@@ -125,14 +125,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         self.source_sheet = self.get_config_value('source_sheet', None)
         self.template_sheet = self.get_config_value('template_sheet', None)
         self.header_row = self.get_config_value('header_row', 1)  # 1-based for Excel
-        # Retired vocabulary fails loud instead of being silently ignored
-        if 'check_column_data' in self.step_config:
-            raise StepProcessorError(
-                f"Step '{self.step_name}': 'check_column_data' is retired "
-                f"(2026-08-16): header analysis is always on - the pandas "
-                f"scan is fast enough that the toggle only created a dead "
-                f"code path."
-            )
+        # Unknown keys (the retired check_column_data among them) are refused by the schema
         self.sample_rows = self.get_config_value('sample_rows', 5)  # Very small sample for speed
 
         # Sampling more than a few rows takes a LOOONG time. We should warn user about that.

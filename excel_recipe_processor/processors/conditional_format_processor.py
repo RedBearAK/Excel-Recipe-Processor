@@ -111,7 +111,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             'target_file': 'output.xlsx',
             'sheet_name': 'Data',
             'rules': [
-                {'when_cell': {'columns': ['Status'], 'condition': 'equals', 'value': 'Bad'},
+                {'when_cell': {'column_names': ['Status'], 'condition': 'equals', 'value': 'Bad'},
                  'style': {'fill': 'FFC7CE'}},
             ],
         }

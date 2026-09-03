@@ -138,7 +138,7 @@ def resolve_column_letter(worksheet, column_spec, header_row: int = 1,
         raise ColumnVocabularyError(
             f"'{spec}' names no header on '{worksheet.title}' but is "
             f"shaped like a positional Excel column ref. Positional "
-            f"addressing uses the column_refs key (columns is names "
+            f"addressing uses the column_refs key (column_names is names "
             f"only), so the object being passed is never ambiguous."
         )
 

@@ -84,3 +84,22 @@ What it caught: both sibling-project contracts recipes still used
 `columns:` inside `column_formats`, a key the helper has refused since the
 2026-08-26 rename - they would have failed at their format step on the
 next real run. One stale `sheet_name` in the profile_sheets example.
+
+## Baseline test failures cleared (2026-09-04)
+
+The "pre-existing failures" were all stale tests, not defects:
+- test_format_excel_consolidated_cycle, test_format_excel_whole_column:
+  `columns:` in column_formats rules (retired 08-26); letter refs moved
+  to `column_refs`. The resolver's own guided error still said
+  "(columns is names only)" - now "(column_names is names only)".
+- test_excel_range_resolver: two tests asserted the pre-08-26 union
+  (bare 'C' read as a position); rewritten to the current contract.
+- test_processor_descriptions: conditional_format's minimal config used
+  the retired `columns` key and could not instantiate; fixed. The two
+  new verify_* descriptions were over the 80-char cap; shortened.
+- test_capabilities_snapshot_drift: intended drift; snapshot refreshed
+  (`current_capabilities.json`).
+- test_new_comprehensive_test_of_processors: `formula` -> `pandas_formula`
+  with {col:} refs; a stage declared for every workflow but written by one
+  (the strict graph caught it).
+Remaining: test_basic needs pytest installed - an environment matter.

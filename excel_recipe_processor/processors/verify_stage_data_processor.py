@@ -73,7 +73,7 @@ class VerifyStageDataProcessor(TransformBaseProcessor):
 
     def get_capabilities(self) -> dict:
         return {
-            'description': 'Check a stage\'s row values against expectations - warn (default) or halt per rule',
+            'description': 'Check a stage row values against rules; warn or halt per rule',
             'vocabulary': 'the full filter_data condition set, borrowed live so the two cannot drift',
             'family': 'transform check: reads source_stage, writes nothing',
         }

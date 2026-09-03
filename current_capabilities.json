@@ -1,7 +1,7 @@
 {
   "system_info": {
     "description": "Excel Recipe Processor - Automated Excel data processing system",
-    "total_processors": 45,
+    "total_processors": 46,
     "processor_types": [
       "add_calculated_column",
       "add_subtotals",
@@ -46,8 +46,9 @@
       "split_column",
       "strip_formula_caches",
       "verify_columns",
-      "verify_data",
-      "verify_excel_storage"
+      "verify_excel_storage",
+      "verify_sheet_data",
+      "verify_stage_data"
     ]
   },
   "processors": {
@@ -57,6 +58,7 @@
         "constant",
         "row_number",
         "expression",
+        "first_match",
         "concat",
         "conditional",
         "math",
@@ -83,6 +85,8 @@
       ],
       "supported_features": [
         "expression_calculations",
+        "first_match_rule_tables",
+        "horizontal_spill",
         "string_concatenation",
         "conditional_logic",
         "mathematical_operations",
@@ -91,6 +95,8 @@
         "multi_column_aggregations",
         "column_overwriting"
       ],
+      "spill_columns": "Extra columns a calculation fills beside new_column, in order; only for expression and first_match; the result width must match",
+      "first_match": "calculation: {pandas_rules: [{when, then: [one slot per column]}], pandas_default: [one slot per column]}; first true 'when' wins the row; \"\" is the typed blank",
       "examples": {
         "simple_math": "Price * Quantity = Total_Value",
         "concatenation": "First_Name + Last_Name = Full_Name",
@@ -338,6 +344,9 @@
         "Modified",
         "Size (KB)"
       ],
+      "optional_columns": {
+        "Path": "include_full_paths: true"
+      },
       "missing_file_handling": [
         "error",
         "note",
@@ -435,13 +444,15 @@
       "order_checking": "deliberately none - downstream steps address columns by name",
       "memory": "reads the stage without re-saving it"
     },
-    "verify_data": {
-      "description": "Check row values against expectations - warn (default) or halt per rule",
-      "vocabulary": "the full filter_data condition set, borrowed live from filter_data itself so the two can never drift: not_empty, equals, in_list, in_stage (referential checks against a lookup stage), and the rest",
-      "severity": "per rule: warn (default) logs count + sample and continues; halt raises naming the rule and sample",
-      "sources": "source_stage (mid-pipeline values) or a file sheet; a session-held file is read live, pre-save",
-      "formula_caveat": "formula cells in files this framework wrote have no cached values, so file-mode rules on injected formula columns see blanks - verify formula INPUTS in stages instead",
-      "run_summary": "every rule outcome lands in the run-end verification summary line"
+    "verify_stage_data": {
+      "description": "Check a stage row values against rules; warn or halt per rule",
+      "vocabulary": "the full filter_data condition set, borrowed live so the two cannot drift",
+      "family": "transform check: reads source_stage, writes nothing"
+    },
+    "verify_sheet_data": {
+      "description": "Check a written sheet row values against rules; warn or halt per rule",
+      "formula_caveat": "written formula cells have no cached values; verify formula inputs in stages",
+      "family": "file_ops: target_file and sheet_name"
     },
     "flush_workbooks": {
       "description": "Write every session-held workbook to disk now, instead of at run end",
@@ -683,7 +694,9 @@
         "mode",
         "replace",
         "zero",
-        "empty_string"
+        "empty_string",
+        "blanks_from_column",
+        "overwrite_from_column"
       ],
       "condition_types": [
         "equals",
@@ -1091,6 +1104,7 @@
       "path_features": [
         "recipe variable substitution"
       ],
+      "header_row": "1-based row holding the column headers (default 1); rows above it are discarded",
       "missing_file_policy": "on_missing_file: 'error' (default) or 'create_empty' with declared create_empty_columns for fail-safe imports of files that may not exist yet"
     },
     "inject_formulas": {
@@ -1480,7 +1494,7 @@
         "missing_column_handling"
       ],
       "configuration_options": {
-        "columns_to_keep": "List of columns to select by name (string) or position (1-based integer)",
+        "columns_to_keep": "List of column names to select, in output order",
         "columns_to_drop": "List of columns to exclude from result",
         "columns_to_create": "List of columns to create if missing (used with columns_to_keep)",
         "allow_duplicates": "Allow same column to appear multiple times (default: true)",
@@ -1498,16 +1512,14 @@
         "column_type_analysis",
         "smart_column_suggestions",
         "dynamic_column_creation",
-        "numeric_position_references",
-        "1_based_indexing"
+        "name_based_selection"
       ],
       "examples": {
         "basic_selection": "Keep only Customer_ID, Product_Name, Price columns",
         "reordering": "Reorder columns by specifying them in desired sequence",
         "duplication": "Duplicate columns by listing them multiple times",
         "exclusion": "Drop unwanted columns while keeping everything else",
-        "column_creation": "Create new empty columns alongside existing ones",
-        "numeric_references": "Select columns by position: [1, 3, 5] (1-based indexing)"
+        "column_creation": "Create new empty columns alongside existing ones"
       }
     },
     "slice_data": {

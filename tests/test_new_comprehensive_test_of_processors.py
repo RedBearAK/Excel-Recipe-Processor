@@ -107,7 +107,6 @@ def get_processor_test_recipes():
         'description': 'Test recipe for processor validation',
         'stages': [
             {'stage_name': 'raw_data', 'description': 'Imported test data', 'protected': False},
-            {'stage_name': 'lookup_data', 'description': 'Lookup reference data', 'protected': False},
             {'stage_name': 'processed_data', 'description': 'Processed results', 'protected': False}
         ]
     }
@@ -178,7 +177,7 @@ def get_processor_test_recipes():
                     'new_column': 'Revenue',
                     'calculation_type': 'expression',
                     'calculation': {
-                        'formula': 'Sales * 10'
+                        'pandas_formula': '{col:Sales} * 10'
                     }
                 },
                 {
@@ -360,7 +359,7 @@ def test_multi_processor_workflow():
                 'new_column': 'Revenue',
                 'calculation_type': 'expression',
                 'calculation': {
-                    'formula': 'Sales * 12.5'
+                    'pandas_formula': '{col:Sales} * 12.5'
                 }
             },
             {

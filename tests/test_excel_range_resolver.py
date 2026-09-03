@@ -9,7 +9,7 @@ Focused on column resolution, span expansion, and extent detection.
 
 from openpyxl import Workbook
 
-from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (resolve_column_refs, ColumnVocabularyError, 
     resolve_range,
     build_range_ref,
     quote_sheet_name,
@@ -46,19 +46,21 @@ def build_product_sheet():
 
 
 def test_column_reference_passthrough():
-    """A bare Excel column reference resolves to itself."""
-    print("\nTesting Excel reference passthrough...")
-
+    """A positional ref travels through resolve_column_refs; the NAME resolver refuses it (2026-08-26)."""
+    print("\nTesting bare column reference handling...")
     worksheet = build_product_sheet()
-    result = resolve_column_letter(worksheet, 'C')
-
-    if result == 'C':
-        print("  ✓ Bare reference 'C' passed through")
+    refs = resolve_column_refs(['C'])
+    try:
+        resolve_column_letter(worksheet, 'C')
+        print("  ✗ Name resolver accepted a bare ref that names no header")
+        return False
+    except ColumnVocabularyError:
+        pass
+    if refs == ['C']:
+        print("  ✓ 'C' passes through column_refs; the name resolver refuses it")
         return True
-
-    print(f"  ✗ Expected 'C', got '{result}'")
+    print(f"  ✗ Expected ['C'] from column_refs, got {refs}")
     return False
-
 
 def test_column_name_lookup():
     """A header name resolves to its column letter."""
@@ -84,16 +86,12 @@ def test_force_column_names():
     worksheet.append(['ID', 'C', 'Value'])
     worksheet.append([1, 'x', 10])
 
-    loose = resolve_column_letter(worksheet, 'C', force_column_names=False)
-    forced = resolve_column_letter(worksheet, 'C', force_column_names=True)
-
-    if loose == 'C' and forced == 'B':
-        print("  ✓ 'C' read as reference by default, as a name when forced")
+    by_name = resolve_column_letter(worksheet, 'C')
+    if by_name == 'B':
+        print("  ✓ A header literally named 'C' resolves by NAME to column B")
         return True
-
-    print(f"  ✗ Expected 'C' then 'B', got '{loose}' then '{forced}'")
+    print(f"  ✗ Expected 'B', got '{by_name}'")
     return False
-
 
 def test_duplicate_header_errors():
     """Duplicate headers are a hard error rather than a first-wins guess."""

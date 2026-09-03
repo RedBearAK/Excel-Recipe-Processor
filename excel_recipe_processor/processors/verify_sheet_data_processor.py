@@ -66,7 +66,7 @@ class VerifySheetDataProcessor(FileOpsBaseProcessor):
 
     def get_capabilities(self) -> dict:
         return {
-            'description': 'Check a written sheet\'s row values against expectations - warn (default) or halt per rule',
+            'description': 'Check a written sheet row values against rules; warn or halt per rule',
             'formula_caveat': 'written formula cells have no cached values; verify formula inputs in stages',
             'family': 'file_ops: target_file and sheet_name',
         }

@@ -366,7 +366,8 @@ def process_recipe(args: Namespace) -> int:
         pipeline.configure_inspection(
             dump_requests=dump_requests,
             stop_after_stage=getattr(args, 'stop_after_stage', None),
-            dump_output_dir=getattr(args, 'dump_dir', '.')
+            dump_output_dir=getattr(args, 'dump_dir', '.'),
+            validate_only=getattr(args, 'validate_only', False),
         )
         
         try:
@@ -384,6 +385,12 @@ def process_recipe(args: Namespace) -> int:
             print(f"Error collecting variables: {e}")
             return 1
         
+        if completion_report.get('validate_only'):
+            mirror_print()
+            mirror_print(f"\u2713 Recipe validated: {completion_report['steps']} step(s), "
+                         f"{completion_report['warnings']} warning(s); not run")
+            return 0
+
         # Report completion with same level of detail as before
         steps_executed = completion_report.get('steps_executed', 0)
         stages_created = completion_report.get('stages_created', [])

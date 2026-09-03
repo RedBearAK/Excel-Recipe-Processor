@@ -210,6 +210,16 @@ For detailed documentation and more examples:
         action='store_true',
         help='Enable verbose output and debug logging'
     )
+
+    parser.add_argument(
+        '--validate',
+        action='store_true',
+        dest='validate_only',
+        help='Load the recipe, resolve variables, validate every step against its '
+             'processor schema and check the stage graph, then stop without running. '
+             'Exit 1 on errors; warnings alone exit 0. The same checks run at the '
+             'start of every real run.'
+    )
     
     # System information commands
     parser.add_argument(

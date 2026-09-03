@@ -96,6 +96,7 @@ class RecipePipeline:
         self._dumped_versions = {}
         self._dump_output_dir = '.'
         self._stop_after_stage = None
+        self._validate_only = False
 
         self.recipe_loader = RecipeLoader()
         self.recipe_data = None
@@ -392,6 +393,7 @@ class RecipePipeline:
 
     def configure_inspection(self, dump_requests: dict = None,
                              stop_after_stage: str = None,
+                             validate_only: bool = False,
                              dump_output_dir: str = '.') -> None:
         """
         Set up development-time stage inspection.
@@ -399,10 +401,12 @@ class RecipePipeline:
         Args:
             dump_requests:    Stage name -> row spec (or None for all rows)
             stop_after_stage: Halt once this stage has been written
+            validate_only:    Stop after the validation phase (--validate)
             dump_output_dir:  Where dumped CSVs go
         """
         self._dump_requests = dump_requests or {}
         self._stop_after_stage = stop_after_stage
+        self._validate_only = validate_only
         self._dump_output_dir = dump_output_dir or '.'
 
     def _dump_requested_stages(self) -> None:
@@ -463,6 +467,30 @@ class RecipePipeline:
             
             # Final validation that all custom variables are fully resolved
             self._validate_all_variables_resolved()
+
+            # VALIDATION PHASE (2026-09-03): every step against its
+            # processor's declared schema, plus the stage graph, on the
+            # variable-resolved configs, before any step touches data.
+            # --validate stops here; a real run continues only if clean.
+            mirror_print()
+            logger.info("\U0001f50d Validating recipe steps and stage graph...")
+            from excel_recipe_processor.core.recipe_validation import validate_recipe
+            report = validate_recipe(
+                self.recipe_data, registry, self._substitute_variables_in_config)
+            report.log()
+            if not report.ok:
+                raise RecipePipelineError(
+                    f"Recipe validation failed with {len(report.errors)} error(s); "
+                    f"nothing was run"
+                )
+            if self._validate_only:
+                logger.info("\U0001f6d1 --validate: stopping before execution")
+                return {
+                    'validate_only': True,
+                    'steps': len(self.recipe_data.get('recipe', [])),
+                    'warnings': len(report.warnings),
+                    'schema_less_types': sorted(report.schema_less_types),
+                }
 
             # Recipe-requested log file: attaches HERE because paths like
             # {output_dir}/{output_basename}_log.txt need the external

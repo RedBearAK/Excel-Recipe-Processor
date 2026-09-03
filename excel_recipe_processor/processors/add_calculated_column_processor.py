@@ -12,13 +12,14 @@ import logging
 import numpy as np
 import pandas as pd
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class AddCalculatedColumnProcessor(BaseStepProcessor):
+class AddCalculatedColumnProcessor(TransformBaseProcessor):
     """
     Processor for adding calculated columns to DataFrames.
     
@@ -41,6 +42,82 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
     may spill.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-03). calculation_type selects which keys
+        are legal inside calculation; a key from another type's shape is
+        unknown. spill_columns is a name_list: this is a transform, so a
+        column is only ever named by its header.
+        """
+        rule = Schema([
+            Key('when', 'str', required=True, description='pandas predicate, one boolean per row'),
+            Key('then', 'list', required=True, item_kind='any',
+                description='One slot per declared column: expression, quoted literal, number, or ""'),
+        ])
+        component_condition = Schema([
+            Key('column', 'str', required=True),
+            Key('operator', 'str', required=True,
+                choices=['equals', 'not_equals', 'greater_than', 'less_than', 'greater_equal',
+                         'less_equal', 'in', 'not_in', 'contains', 'not_contains']),
+            Key('value', 'any'),
+        ])
+        calculation_by_type = {
+            'expression': Schema([
+                Key('pandas_formula', 'str', description='pandas text with {col:Name} references'),
+                Key('formula_components', 'list', item_kind='any',
+                    description='Structured column / operator / value parts'),
+            ], at_least_one=[['pandas_formula', 'formula_components']]),
+            'first_match': Schema([
+                Key('pandas_rules', 'list_of_mappings', required=True, schema=rule),
+                Key('pandas_default', 'list', required=True, item_kind='any',
+                    description='Slots when no rule matches; same shape as a then'),
+            ]),
+            'concat': Schema([
+                name_list('columns', required=True),
+                Key('separator', 'str', default=''),
+            ]),
+            'conditional': Schema([
+                Key('condition_column', 'str', required=True),
+                Key('condition', 'str', required=True,
+                    choices=['equals', 'greater_than', 'less_than', 'contains', 'is_null', 'not_null']),
+                Key('condition_value', 'any'),
+                Key('value_if_true', 'any', required=True),
+                Key('value_if_false', 'any', required=True),
+            ]),
+            'math': Schema([
+                Key('operation', 'str', required=True,
+                    choices=['add', 'subtract', 'multiply', 'divide', 'sum', 'mean', 'min', 'max']),
+                Key('column1', 'str'), Key('column2', 'str'),
+                name_list('columns'),
+            ]),
+            'date': Schema([
+                Key('operation', 'str', required=True, choices=['days_between']),
+                Key('start_date_column', 'str', required=True),
+                Key('end_date_column', 'str', required=True),
+            ]),
+            'text': Schema([
+                Key('operation', 'str', required=True,
+                    choices=['length', 'upper', 'lower', 'extract_numbers', 'substring']),
+                Key('column', 'str', required=True),
+                Key('start', 'int', default=0), Key('length', 'int'),
+            ]),
+            'constant': Schema([Key('value', 'any', required=True)]),
+            'row_number': Schema([Key('start', 'int', default=1)]),
+        }
+        # calculation is validated per type: its Schema is the variant's own
+        return Schema([
+            Key('new_column', 'str', required=True, description='The calculated column'),
+            name_list('spill_columns', description='Further columns the same calculation fills, in order'),
+            Key('calculation_type', 'str', default='expression', choices=list(calculation_by_type)),
+            # 'calculation' itself is declared by each variant below, so its
+            # legal keys are exactly those of the selected calculation_type
+            Key('overwrite', 'bool', default=False),
+        ], variants={'calculation_type': {
+            kind: Schema([Key('calculation', 'mapping', required=True, schema=shape)])
+            for kind, shape in calculation_by_type.items()
+        }})
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         """

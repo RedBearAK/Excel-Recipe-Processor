@@ -4,12 +4,18 @@ Base step processor for Excel automation recipes.
 Defines the interface and common functionality that all step processors must implement.
 """
 
-import pandas as pd
-import logging
 import time
+import logging
+
+import pandas as pd
 
 from abc import ABC, abstractmethod
 from typing import Any
+
+from excel_recipe_processor.core.config_schema import (
+    FAMILY_BASE, FAMILY_EXPORT, FAMILY_FILE_OPS, FAMILY_IMPORT, FAMILY_TRANSFORM,
+    Schema, check_processor_schema,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +46,40 @@ class BaseStepProcessor(ABC):
     # of exceptions that drifts out of step with the processors themselves.
     requires_source_stage = True
     requires_save_to_stage = True
+
+    # FAMILY AND SCHEMA (2026-09-03). Each family class sets `family`; a
+    # processor declares its own keys in config_schema(); full_schema()
+    # merges the family contribution in. The merge is checked when the
+    # class is DEFINED (see __init_subclass__): a processor cannot
+    # redefine a family key or use a column-selector construct its
+    # family does not offer. A processor with no config_schema() is
+    # validated for stage keys only and logged as schema-less at load.
+    family = FAMILY_BASE
+    _full_schema = None
+
+    @classmethod
+    def config_schema(cls):
+        """The processor's own keys, as a Schema; None until declared."""
+        return None
+
+    @classmethod
+    def full_schema(cls):
+        """Family contribution merged with the processor's own schema, or None."""
+        return cls._full_schema
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Only classes that declare their own schema are checked; the
+        # family classes themselves and schema-less processors pass.
+        if 'config_schema' in cls.__dict__:
+            own = cls.config_schema()
+            if own is None:
+                cls._full_schema = None
+                return
+            if not isinstance(own, Schema):
+                from excel_recipe_processor.core.config_schema import SchemaDefinitionError
+                raise SchemaDefinitionError(f"{cls.__name__}.config_schema() must return a Schema")
+            cls._full_schema = check_processor_schema(cls.family, own, cls.__name__)
     
     def __init__(self, step_config: dict):
         """
@@ -378,8 +418,20 @@ class StepProcessorRegistry:
 registry = StepProcessorRegistry()
 
 
+class TransformBaseProcessor(BaseStepProcessor):
+    """
+    Base class for processors that transform in-memory data: read one
+    stage, return one stage. The medium is never a file, so the only way
+    such a processor can name columns is by header string - the family
+    offers the name_list construct and nothing positional (2026-09-03).
+    Execution goes through execute_stage_to_stage(), unchanged.
+    """
+    family = FAMILY_TRANSFORM
+
+
 class ImportBaseProcessor(BaseStepProcessor):
     """Base class for processors that import data (create stages)."""
+    family = FAMILY_IMPORT
     
     def __init__(self, step_config: dict):
         super().__init__(step_config)
@@ -427,6 +479,7 @@ class ImportBaseProcessor(BaseStepProcessor):
 
 class ExportBaseProcessor(BaseStepProcessor):
     """Base class for processors that export data (consume stages)."""
+    family = FAMILY_EXPORT
     
     def __init__(self, step_config: dict):
         super().__init__(step_config)
@@ -476,7 +529,11 @@ class FileOpsBaseProcessor(BaseStepProcessor):
     meaningful stage data - they just perform file operations as side effects.
     
     Examples: format_excel, convert_file_format, backup_files, create_charts
+
+    The only family in which a positional Excel ref is a legal way to
+    name a column (column_names / column_refs pairs, typed item lists).
     """
+    family = FAMILY_FILE_OPS
     
     def __init__(self, step_config: dict):
         super().__init__(step_config)

@@ -7,11 +7,10 @@ Handles creating new columns with calculated values based on existing data.
 """
 
 import re
-import numpy as np
-import pandas as pd
 import logging
 
-from typing import Any
+import numpy as np
+import pandas as pd
 
 from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
 
@@ -25,6 +24,21 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
     
     Supports various calculation types including mathematical operations,
     string manipulations, date calculations, and conditional logic.
+
+    KEY CONVENTION: an evaluated string never sits under a bare key. The
+    key names the dialect (pandas_formula, pandas_rules, pandas_default);
+    plain names (when, then) are structure INSIDE a dialect-declared
+    container. Declarative types (math, text, date, concat, conditional)
+    name columns and operations and evaluate nothing.
+
+    SPILL (2026-09-03): a calculation may produce more than one column,
+    the way an Excel formula spills horizontally. new_column is the
+    calculated column; spill_columns names the rest, in order. The
+    result's shape is checked against the declaration - a spill that
+    was not declared, a declared spill that did not arrive, or a
+    result that is not one value per row (a vertical or 2-D spill)
+    is an error. Only the evaluated types (expression, first_match)
+    may spill.
     """
     
     @classmethod
@@ -40,7 +54,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             'calculation': {'pandas_formula': 'test_value'}
         }
     
-    def execute(self, data: Any) -> pd.DataFrame:
+    def execute(self, data) -> pd.DataFrame:
         """
         Execute the calculated column operation on the provided DataFrame.
         
@@ -68,9 +82,12 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         calculation             = self.get_config_value('calculation')
         calculation_type        = self.get_config_value('calculation_type', 'expression')
         overwrite               = self.get_config_value('overwrite', False)
+        spill_columns           = self.get_config_value('spill_columns', None)
         
         # Validate configuration
         self._validate_calculation_config(data, new_column, calculation, overwrite)
+        spill_columns = self._validate_spill_columns(
+            data, new_column, spill_columns, calculation_type, overwrite)
         
         # Work on a copy
         result_data = data.copy()
@@ -82,7 +99,11 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             elif calculation_type == 'row_number':
                 result_data = self._apply_row_number(result_data, new_column, calculation)
             elif calculation_type == 'expression':
-                result_data = self._apply_expression_calculation(result_data, new_column, calculation)
+                result_data = self._apply_expression_calculation(
+                    result_data, new_column, calculation, spill_columns)
+            elif calculation_type == 'first_match':
+                result_data = self._apply_first_match(
+                    result_data, new_column, calculation, spill_columns)
             elif calculation_type == 'concat':
                 result_data = self._apply_concatenation(result_data, new_column, calculation)
             elif calculation_type == 'conditional':
@@ -94,17 +115,20 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             elif calculation_type == 'text':
                 result_data = self._apply_text_operation(result_data, new_column, calculation)
             else:
-                available_types = ['expression', 'concat', 'conditional', 'math', 'date', 'text']
+                available_types = self.get_supported_calculation_types()
                 raise StepProcessorError(
                     f"Unknown calculation type: '{calculation_type}'. "
                     f"Available types: {', '.join(available_types)}"
                 )
             
-            # Verify the new column was created
-            if new_column not in result_data.columns:
-                raise StepProcessorError(f"Failed to create calculated column '{new_column}'")
+            # Verify every declared column was created
+            for column in [new_column] + spill_columns:
+                if column not in result_data.columns:
+                    raise StepProcessorError(f"Failed to create calculated column '{column}'")
             
             result_info = f"added calculated column '{new_column}'"
+            if spill_columns:
+                result_info += f" spilling into {spill_columns}"
             self.log_step_complete(result_info)
             
             return result_data
@@ -143,12 +167,95 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         if len(calculation) == 0:
             raise StepProcessorError("'calculation' dictionary cannot be empty")
 
-    def _apply_expression_calculation(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
+    SPILLING_CALCULATION_TYPES = ('expression', 'first_match')
+
+    def _validate_spill_columns(self, df: pd.DataFrame, new_column: str, spill_columns,
+                                calculation_type: str, overwrite: bool) -> list:
+        """
+        Validate the optional spill_columns declaration and return it as a list.
+
+        Absent means no spill: an empty list. Only the evaluated calculation
+        types may spill; the declarative ones have nothing to spill from.
+        """
+        if spill_columns is None:
+            return []
+        if calculation_type not in self.SPILLING_CALCULATION_TYPES:
+            raise StepProcessorError(
+                f"'spill_columns' applies only to calculation types "
+                f"{list(self.SPILLING_CALCULATION_TYPES)}, not '{calculation_type}'"
+            )
+        if (not isinstance(spill_columns, list) or len(spill_columns) == 0
+                or not all(isinstance(name, str) and name.strip() for name in spill_columns)):
+            raise StepProcessorError(
+                "'spill_columns' must be a non-empty list of column name strings"
+            )
+        declared = [new_column] + spill_columns
+        if len(set(declared)) != len(declared):
+            raise StepProcessorError(
+                f"'new_column' and 'spill_columns' must all be distinct, got {declared}"
+            )
+        for name in spill_columns:
+            if name in df.columns and not overwrite:
+                raise StepProcessorError(
+                    f"Spill column '{name}' already exists. Set 'overwrite: true' to replace it."
+                )
+        return spill_columns
+
+    def _assign_result(self, df: pd.DataFrame, new_column: str, spill_columns: list,
+                       result, context: str) -> pd.DataFrame:
+        """
+        Place an evaluated result into the declared column(s), checking its shape.
+
+        One value per row is the only shape this processor fills: a Series
+        (or scalar, broadcast) goes to new_column; a DataFrame or a
+        tuple/list of Series spills its columns 2..k into spill_columns.
+        Declared and delivered widths must agree, and every column must
+        be row-length - a vertical or 2-D spill is refused, not coerced.
+        """
+        declared = [new_column] + spill_columns
+        row_count = len(df)
+
+        if isinstance(result, pd.DataFrame):
+            pieces = [result.iloc[:, i] for i in range(result.shape[1])]
+        elif isinstance(result, (tuple, list)) and result and all(
+                isinstance(piece, (pd.Series, np.ndarray)) for piece in result):
+            pieces = list(result)
+        else:
+            pieces = [result]
+
+        if len(pieces) != len(declared):
+            raise StepProcessorError(
+                f"{context}: declared {len(declared)} column(s) {declared} but the "
+                f"calculation returned {len(pieces)} - "
+                + ("declare the extra column(s) in 'spill_columns'"
+                   if len(pieces) > len(declared) else
+                   "the calculation must return one value per declared column")
+            )
+
+        for name, piece in zip(declared, pieces):
+            if isinstance(piece, (pd.Series, np.ndarray, list)):
+                if len(piece) != row_count:
+                    raise StepProcessorError(
+                        f"{context}: result for '{name}' has {len(piece)} values for "
+                        f"{row_count} rows - this processor fills columns, one value "
+                        f"per row; a vertical or 2-D spill is not a column"
+                    )
+                if isinstance(piece, pd.Series):
+                    piece = piece.reset_index(drop=True)
+                    piece.index = df.index
+            df[name] = piece
+        return df
+
+    def _apply_expression_calculation(self, df: pd.DataFrame, new_column: str, calculation: dict,
+                                      spill_columns=None) -> pd.DataFrame:
         """
         Apply expression calculation with support for both legacy formula and new formula_components.
         """
+        spill_columns = spill_columns or []
         # Check for new formula_components syntax first
         if 'formula_components' in calculation:
+            if spill_columns:
+                raise StepProcessorError("'formula_components' cannot spill; use 'pandas_formula'")
             return self._apply_formula_components(df, new_column, calculation)
         
         # The key names its language (2026-08-26): the expression is
@@ -177,7 +284,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         
         try:
             # Evaluate the formula
-            df[new_column] = eval(safe_formula)
+            result = eval(safe_formula)
             logger.debug(f"Applied legacy expression formula: {formula}")
             
         except Exception as e:
@@ -192,7 +299,223 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
                     f"Error evaluating formula '{formula}': {guidance}")
             raise StepProcessorError(f"Error evaluating formula '{formula}': {e}")
         
+        return self._assign_result(df, new_column, spill_columns, result, 'pandas_formula')
+
+    def _apply_first_match(self, df: pd.DataFrame, new_column: str, calculation: dict,
+                           spill_columns: list) -> pd.DataFrame:
+        """
+        First-match rule table: ordered rules, exactly one wins per row, and
+        every declared column takes its value from the WINNING RULE'S ROW.
+
+        calculation:
+          pandas_rules:
+            - when: "<pandas predicate>"
+              then: ["<slot for new_column>", "<slot per spill column>", ...]
+          pandas_default: ["<slot>", ...]
+
+        A slot is pandas text: an expression (Series of row length), a
+        quoted literal or number (broadcast), or "" for the column's typed
+        blank. Every rule and the default must carry exactly one slot per
+        declared column - the Excel HSTACK discipline, where a blank is a
+        visible "" and never an omitted term. Everything is validated and
+        column references compiled BEFORE any evaluation, so a typo in
+        rule 37 is reported by rule number rather than mid-run.
+        """
+        declared = [new_column] + spill_columns
+        rules, default = self._validate_first_match_config(df, calculation, declared)
+
+        # Compile every string against the frame's columns first
+        compiled_rules = []
+        for index, rule in enumerate(rules):
+            context = f"pandas_rules rule {index + 1}"
+            compiled_when = self._compile_slot(df, rule['when'], f"{context} 'when'")
+            compiled_then = [self._compile_slot(df, slot, f"{context} 'then' slot {j + 1}")
+                             for j, slot in enumerate(rule['then'])]
+            compiled_rules.append((compiled_when, compiled_then))
+        compiled_default = [self._compile_slot(df, slot, f"pandas_default slot {j + 1}")
+                            for j, slot in enumerate(default)]
+
+        # Which rule wins each row: first true predicate, -1 for the default
+        winner = pd.Series(-1, index=df.index)
+        undecided = pd.Series(True, index=df.index)
+        hit_counts = []
+        for index, (compiled_when, _) in enumerate(compiled_rules):
+            mask = self._evaluate_predicate(df, compiled_when, rules[index]['when'], index)
+            takes = undecided & mask
+            winner[takes] = index
+            undecided = undecided & ~mask
+            hit_counts.append(int(takes.sum()))
+        default_count = int(undecided.sum())
+
+        # Evaluate slots and place each declared column from its winning row
+        for position, column in enumerate(declared):
+            slot_values = [self._evaluate_slot(df, compiled[position], rules[i]['then'][position],
+                                               f"rule {i + 1}")
+                           for i, (_, compiled) in enumerate(compiled_rules)]
+            default_value = self._evaluate_slot(df, compiled_default[position],
+                                                default[position], 'pandas_default')
+            df[column] = self._select_by_winner(df, winner, slot_values, default_value, column)
+
+        # The census: one line per rule that won rows, never-matched rules
+        # gathered onto one line (a long cascade has many by design)
+        for index, count in enumerate(hit_counts):
+            if count:
+                logger.info(f"   rule {index + 1:>3}: {count:>7,} row(s)")
+        logger.info(f"   default: {default_count:>7,} row(s)")
+        never = [str(index + 1) for index, count in enumerate(hit_counts) if not count]
+        if never:
+            logger.info(f"   never matched ({len(never)} rule(s)): {', '.join(never)}")
         return df
+
+    def _validate_first_match_config(self, df: pd.DataFrame, calculation: dict, declared: list) -> tuple:
+        """Shape-check the rule table before anything is evaluated."""
+        if 'rules' in calculation or 'default' in calculation:
+            raise StepProcessorError(
+                "first_match keys name their dialect: use 'pandas_rules' and "
+                "'pandas_default' (an evaluated string never sits under a bare key)"
+            )
+        unknown = set(calculation.keys()) - {'pandas_rules', 'pandas_default'}
+        if unknown:
+            raise StepProcessorError(
+                f"first_match calculation has unknown key(s) {sorted(unknown)}; "
+                f"supported: pandas_rules, pandas_default"
+            )
+        rules = calculation.get('pandas_rules')
+        default = calculation.get('pandas_default')
+        width = len(declared)
+        if not isinstance(rules, list) or len(rules) == 0:
+            raise StepProcessorError("first_match requires 'pandas_rules': a non-empty list of rules")
+        if default is None:
+            raise StepProcessorError(
+                "first_match requires 'pandas_default': the result when no rule matches, "
+                "stated as one slot per declared column"
+            )
+        if not isinstance(default, list) or len(default) != width:
+            raise StepProcessorError(
+                f"'pandas_default' must be a list of exactly {width} slot(s) for "
+                f"{declared}, got {default!r}"
+            )
+        for index, rule in enumerate(rules):
+            context = f"pandas_rules rule {index + 1}"
+            if not isinstance(rule, dict):
+                raise StepProcessorError(f"{context} must be a mapping with 'when' and 'then'")
+            extra = set(rule.keys()) - {'when', 'then'}
+            if extra:
+                raise StepProcessorError(f"{context} has unknown key(s) {sorted(extra)}; only 'when' and 'then' are allowed")
+            when = rule.get('when')
+            then = rule.get('then')
+            if not isinstance(when, str) or not when.strip():
+                raise StepProcessorError(f"{context} requires a non-empty 'when' predicate string")
+            if not isinstance(then, list) or len(then) != width:
+                raise StepProcessorError(
+                    f"{context} 'then' must be a list of exactly {width} slot(s) for "
+                    f"{declared}, got {len(then) if isinstance(then, list) else then!r}"
+                )
+            for j, slot in enumerate(then):
+                if not isinstance(slot, (str, int, float)):
+                    raise StepProcessorError(
+                        f"{context} 'then' slot {j + 1} must be pandas text, a number, "
+                        f"or \"\" for blank, got {type(slot).__name__}"
+                    )
+        for j, slot in enumerate(default):
+            if not isinstance(slot, (str, int, float)):
+                raise StepProcessorError(
+                    f"'pandas_default' slot {j + 1} must be pandas text, a number, "
+                    f"or \"\" for blank, got {type(slot).__name__}"
+                )
+        return rules, default
+
+    def _compile_slot(self, df: pd.DataFrame, slot, context: str):
+        """Translate column references now, so unknown columns fail by rule number."""
+        if not isinstance(slot, str):
+            return slot
+        if slot == '':
+            return ''
+        try:
+            return self._make_formula_safe(df, slot)
+        except StepProcessorError as error:
+            raise StepProcessorError(f"{context}: {error}")
+
+    def _evaluate_predicate(self, df: pd.DataFrame, compiled: str, original: str, index: int) -> pd.Series:
+        """Evaluate a 'when' to a boolean Series; blanks count as false."""
+        try:
+            result = eval(compiled)
+        except Exception as error:
+            raise StepProcessorError(
+                f"pandas_rules rule {index + 1} 'when' failed: {error} - predicate: {original}"
+            )
+        if isinstance(result, (bool, np.bool_)):
+            return pd.Series(bool(result), index=df.index)
+        if not isinstance(result, pd.Series) or len(result) != len(df):
+            raise StepProcessorError(
+                f"pandas_rules rule {index + 1} 'when' must yield one boolean per row, "
+                f"got {type(result).__name__} - predicate: {original}"
+            )
+        return result.fillna(False).astype(bool)
+
+    def _evaluate_slot(self, df: pd.DataFrame, compiled, original, context: str):
+        """
+        Evaluate a 'then' slot: None for blank, a scalar, or a row-length Series.
+        """
+        if isinstance(compiled, str) and compiled == '':
+            return None
+        if not isinstance(compiled, str):
+            return compiled
+        try:
+            result = eval(compiled)
+        except Exception as error:
+            raise StepProcessorError(f"{context} slot failed: {error} - slot: {original}")
+        if isinstance(result, (pd.Series, np.ndarray, list)):
+            if len(result) != len(df):
+                raise StepProcessorError(
+                    f"{context} slot has {len(result)} values for {len(df)} rows - "
+                    f"one value per row, or a scalar - slot: {original}"
+                )
+            if isinstance(result, pd.Series):
+                result = result.reset_index(drop=True)
+                result.index = df.index
+            return result
+        return result
+
+    def _select_by_winner(self, df: pd.DataFrame, winner: pd.Series, slot_values: list,
+                          default_value, column: str) -> pd.Series:
+        """
+        Assemble one output column from per-rule slot values by winning rule.
+
+        The empty is typed from the populated slots: datetime slots give a
+        NaT column, numeric slots NaN, anything else a missing object - so
+        an output nobody fills still lands with the right dtype.
+        """
+        populated = [value for value in slot_values + [default_value] if value is not None]
+        kinds = set()
+        for value in populated:
+            if isinstance(value, pd.Series):
+                kinds.add('datetime' if pd.api.types.is_datetime64_any_dtype(value)
+                          else 'number' if pd.api.types.is_numeric_dtype(value) else 'object')
+            elif isinstance(value, (pd.Timestamp, np.datetime64)):
+                kinds.add('datetime')
+            elif isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(value, bool):
+                kinds.add('number')
+            else:
+                kinds.add('object')
+        if kinds == {'datetime'}:
+            out = pd.Series(pd.NaT, index=df.index, dtype='datetime64[ns]')
+        elif kinds == {'number'}:
+            out = pd.Series(np.nan, index=df.index, dtype='float64')
+        else:
+            out = pd.Series(np.nan, index=df.index, dtype='object')
+            if len(kinds) > 1:
+                logger.debug(f"Column '{column}': mixed slot kinds {sorted(kinds)}, landing as object")
+
+        for index, value in enumerate(slot_values):
+            mask = winner == index
+            if value is None or not mask.any():
+                continue
+            out[mask] = value[mask] if isinstance(value, pd.Series) else value
+        mask = winner == -1
+        if default_value is not None and mask.any():
+            out[mask] = default_value[mask] if isinstance(default_value, pd.Series) else default_value
+        return out
 
     def _apply_formula_components(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
         """
@@ -779,7 +1102,7 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
         Returns:
             List of supported calculation type strings
         """
-        return ['constant', 'row_number', 'expression', 'concat', 'conditional', 'math', 'date', 'text']
+        return ['constant', 'row_number', 'expression', 'first_match', 'concat', 'conditional', 'math', 'date', 'text']
     
     def get_supported_conditions(self) -> list:
         """
@@ -807,10 +1130,16 @@ class AddCalculatedColumnProcessor(BaseStepProcessor):
             'conditional_operations': self.get_supported_conditions(),
             'math_operations': self.get_supported_math_operations(),
             'supported_features': [
-                'expression_calculations', 'string_concatenation', 'conditional_logic',
+                'expression_calculations', 'first_match_rule_tables', 'horizontal_spill',
+                'string_concatenation', 'conditional_logic',
                 'mathematical_operations', 'date_calculations', 'text_operations',
                 'multi_column_aggregations', 'column_overwriting'
             ],
+            'spill_columns': "Extra columns a calculation fills beside new_column, in order; "
+                             "only for expression and first_match; the result width must match",
+            'first_match': "calculation: {pandas_rules: [{when, then: [one slot per column]}], "
+                           "pandas_default: [one slot per column]}; first true 'when' wins the row; "
+                           "\"\" is the typed blank",
             'examples': {
                 'simple_math': "Price * Quantity = Total_Value",
                 'concatenation': "First_Name + Last_Name = Full_Name",

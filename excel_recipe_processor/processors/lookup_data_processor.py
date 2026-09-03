@@ -18,13 +18,14 @@ from excel_recipe_processor.core.log_format import q
 from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class LookupDataProcessor(BaseStepProcessor):
+class LookupDataProcessor(TransformBaseProcessor):
     """
     Clean processor for enriching data with lookups from stage sources.
     
@@ -38,6 +39,24 @@ class LookupDataProcessor(BaseStepProcessor):
     Uses stage-to-stage workflow only - no file handling complexity.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('lookup_stage', 'stage_in', required=True),
+            Key('match_col_in_main_data', 'str', required=True),
+            Key('match_col_in_lookup_data', 'str', required=True),
+            name_list('lookup_columns', required=True),
+            Key('join_type', 'str', default='left', choices=['left', 'inner']),
+            Key('handle_duplicates', 'str', default='first', choices=['first', 'last', 'error']),
+            Key('default_values', 'open_mapping', description='lookup column -> value when unmatched'),
+            Key('normalize_keys', 'bool', default=True),
+            Key('low_match_warning', 'bool', default=True),
+            Key('match_mode', 'str', default='exact_key_equality',
+                choices=['exact_key_equality', 'lookup_value_within_main_text']),
+            Key('prefix', 'str', default=''), Key('suffix', 'str', default=''),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

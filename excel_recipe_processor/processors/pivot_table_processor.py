@@ -11,13 +11,14 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class PivotTableProcessor(BaseStepProcessor):
+class PivotTableProcessor(TransformBaseProcessor):
     """
     Processor for creating pivot tables from DataFrame data.
     
@@ -25,6 +26,17 @@ class PivotTableProcessor(BaseStepProcessor):
     different aggregation functions, and handling of missing data.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('index', required=True), name_list('columns'), name_list('values', required=True),
+            Key('aggfunc', 'any', default='sum'),
+            Key('fill_value', 'any', default=0), Key('fill_blanks', 'bool', default=False),
+            Key('margins', 'bool', default=False), Key('dropna', 'bool', default=False),
+            Key('sort_by_index', 'bool', default=False),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

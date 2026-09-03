@@ -11,13 +11,14 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class SortDataProcessor(BaseStepProcessor):
+class SortDataProcessor(TransformBaseProcessor):
     """
     Processor for sorting DataFrame rows by specified columns.
     
@@ -25,6 +26,17 @@ class SortDataProcessor(BaseStepProcessor):
     custom sort orders, and null value handling.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('columns', required=True),
+            Key('sort_type', 'str', required=True, choices=['ascending', 'descending', 'custom']),
+            Key('custom_orders', 'open_mapping', description='column -> ordered value list, for sort_type custom'),
+            Key('case_sensitive', 'bool', default=False, description='Excel default: case-insensitive'),
+            Key('na_position', 'str', default='last', choices=['first', 'last']),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         """Updated minimal config for new API."""
@@ -61,8 +73,9 @@ class SortDataProcessor(BaseStepProcessor):
         sort_type = self.get_config_value('sort_type')
         custom_orders = self.get_config_value('custom_orders', {})
         na_position = self.get_config_value('na_position', 'last')
-        # Changed to 'True' to align with default case_sensitive=False in other processors
-        ignore_case = self.get_config_value('ignore_case', True)
+        # One key, one polarity, everywhere (2026-09-03 rulebook): Excel
+        # compares case-insensitively by default, so does this
+        ignore_case = not self.get_config_value('case_sensitive', False)
         
         # Validate configuration
         self._validate_sort_config(data, columns, sort_type, custom_orders, na_position)
@@ -333,7 +346,7 @@ class SortDataProcessor(BaseStepProcessor):
             ascending = criterion.get('ascending', True)
             custom_order = criterion.get('custom_order', None)
             # Changed to 'True' to align with default case_sensitive=False in other processors
-            ignore_case = criterion.get('ignore_case', True)
+            ignore_case = not criterion.get('case_sensitive', False)
             
             if col not in df.columns:
                 raise StepProcessorError(f"Column '{col}' not found in criterion {i+1}")

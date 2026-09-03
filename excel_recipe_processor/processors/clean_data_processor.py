@@ -10,19 +10,43 @@ import pandas as pd
 import logging
 
 from excel_recipe_processor.core.log_format import q, qlist, qblock
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class CleanDataProcessor(BaseStepProcessor):
+class CleanDataProcessor(TransformBaseProcessor):
     """
     Processor for cleaning and transforming DataFrame data.
     
     Supports various cleaning operations like find/replace, case conversion,
     removing special characters, fixing data types, and conditional operations.
     """
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        rule = Schema([
+            Key('columns', 'any', required=True, description='Column name list, or "*" for every column'),
+            Key('action', 'str', required=True, choices=[
+                'replace', 'regex_replace', 'uppercase', 'lowercase', 'title_case', 'strip_whitespace',
+                'remove_special_chars', 'fix_numeric', 'fix_dates', 'coerce_datetime', 'fill_empty',
+                'remove_duplicates', 'standardize_values', 'remove_invisible_chars',
+                'normalize_whitespace', 'blank_repeats']),
+            Key('old_value', 'any'), Key('new_value', 'any'),
+            Key('pattern', 'str'), Key('replacement', 'str', default=''),
+            Key('mapping', 'open_mapping'),
+            Key('case_sensitive', 'bool', default=False),
+            Key('fill_value', 'any'), Key('fill_na', 'any'),
+            Key('parse_format', 'str'), Key('format', 'str'), Key('method', 'str'),
+            Key('preserve_original_on_failure', 'bool'),
+            Key('subset_column', 'bool'),
+            Key('condition_column', 'str'), Key('condition', 'str'), Key('condition_value', 'any'),
+            Key('column', 'str', description='Group column for blank_repeats'),
+        ])
+        return Schema([Key('rules', 'list_of_mappings', required=True, schema=rule)])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

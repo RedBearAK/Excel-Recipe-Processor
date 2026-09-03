@@ -24,13 +24,14 @@ import logging
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager
-from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class VerifyColumnsProcessor(FileOpsBaseProcessor):
+class VerifyColumnsProcessor(TransformBaseProcessor):
     """
     Check a stage's columns against an expected list.
 
@@ -38,6 +39,16 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
     name, so a reordered export is harmless, while a check that failed on
     reorder would train people to ignore it.
     """
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('expected_columns'),
+            Key('expected_from_stage', 'stage_in', description='Take the expected list from another stage'),
+            Key('on_unexpected', 'str', default='warn', choices=['error', 'warn', 'skip']),
+            Key('on_missing_expected', 'str', default='error', choices=['error', 'warn', 'skip']),
+        ], at_least_one=[['expected_columns', 'expected_from_stage']])
 
     @classmethod
     def get_minimal_config(cls) -> dict:
@@ -96,18 +107,20 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
                     f"Invalid {knob} '{value}'. Supported: warn, error"
                 )
 
-    def _validate_file_operation_config(self):
-        """No file target: the operation inspects an in-memory stage."""
-        return
+    # A CHECK: a transform that reads a stage and writes nothing
+    # (2026-09-03). The family contributes no save_to_stage and the
+    # stage graph records a read only.
+    writes_stage = False
+    requires_save_to_stage = False
+    check_summary = ''
 
-    def perform_file_operation(self):
+    def execute(self, data):
         """Compare actual columns to expected and react per the knobs."""
-        if not StageManager.stage_exists(self.stage):
-            raise StepProcessorError(
-                f"Step '{self.step_name}': stage '{self.stage}' does not exist"
-            )
+        self.log_step_start()
+        if not isinstance(data, pd.DataFrame):
+            raise StepProcessorError(f"Step '{self.step_name}' requires a pandas DataFrame")
 
-        actual = list(StageManager.load_stage(self.stage).columns)
+        actual = list(data.columns)
 
         if self.expected_from_stage:
             if not StageManager.stage_exists(self.expected_from_stage):
@@ -127,7 +140,9 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
                 f"✅ Columns verified: all {len(expected)} expected columns "
                 f"present, nothing extra"
             )
-            return f"{len(expected)} columns verified"
+            self.check_summary = f"{len(expected)} columns verified"
+            logger.info(f"   {self.check_summary}")
+            return data
 
         if missing:
             if self.expected_from_stage:
@@ -161,9 +176,9 @@ class VerifyColumnsProcessor(FileOpsBaseProcessor):
                 raise StepProcessorError(f"Step '{self.step_name}': {message}")
             logger.warning(f"⚠️  {message}")
 
-        return (
-            f"column drift: {len(missing)} missing, {len(unexpected)} new"
-        )
+        self.check_summary = f"column drift: {len(missing)} missing, {len(unexpected)} new"
+        logger.info(f"   {self.check_summary}")
+        return data
 
     def get_capabilities(self) -> dict:
         """

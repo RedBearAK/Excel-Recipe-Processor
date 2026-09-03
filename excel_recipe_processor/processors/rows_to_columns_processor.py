@@ -21,14 +21,24 @@ import logging
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class RowsToColumnsProcessor(BaseStepProcessor):
+class RowsToColumnsProcessor(TransformBaseProcessor):
     """Promote a column's values into headers (long to wide), verified lossless."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('id_columns', required=True),
+            Key('labels_from', 'str', required=True), Key('values_from', 'str', required=True),
+            Key('fill_missing_with', 'any'),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

@@ -102,7 +102,7 @@ def test_stage_references_from_schema() -> bool:
         Key('sheets_to_create', 'list_of_mappings',
             schema=Schema([Key('sheet_name', 'str'), Key('data_source', 'stage_in')])),
     ])
-    reads, writes = stage_references({
+    reads, writes, releases = stage_references({
         'source_stage': 'stg_a', 'save_to_stage': 'stg_b',
         'sheets_to_create': [{'sheet_name': 'X', 'data_source': 'stg_c'}]}, schema)
     return report('reads and writes', reads == ['stg_a', 'stg_c'] and writes == ['stg_b'], f'{reads} {writes}')

@@ -24,13 +24,14 @@ from pathlib import Path
 
 from excel_recipe_processor.core.file_writer import FileWriter
 from excel_recipe_processor.core.stage_manager import StageManager
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class DeduplicateDataProcessor(BaseStepProcessor):
+class DeduplicateDataProcessor(TransformBaseProcessor):
     """
     Collapse rows to unique key values, detecting and reporting conflicts.
 
@@ -41,6 +42,16 @@ class DeduplicateDataProcessor(BaseStepProcessor):
     A "conflict" is a key group whose non-key values genuinely differ. Pure
     repetition - the normal residue of a join - collapses without comment.
     """
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('key_columns', required=True),
+            Key('keep', 'str', default='first', choices=['first', 'last', 'none']),
+            Key('conflicts_file', 'str'),
+            Key('save_conflicts_to_stage', 'stage_out'),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

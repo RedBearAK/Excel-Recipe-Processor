@@ -3,7 +3,7 @@ Run-level ledger of verification outcomes.
 
 excel_recipe_processor/core/verification_ledger.py
 
-verify_data records each rule's outcome here; the pipeline logs one
+verify_stage_data / verify_sheet_data record each rule's outcome here; the pipeline logs one
 summary line at run end so the answer to "did anything warn?" never
 requires scrolling the log. Class-level state, reset by the pipeline at
 run start, mirroring how WorkbookSession scopes its lifecycle.

@@ -20,6 +20,7 @@ from excel_recipe_processor.writers.excel_writer import ExcelWriter, DEFAULT_DEL
 from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
 from excel_recipe_processor.processors._helpers.sheet_addressing import reject_token_for_creation
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,24 @@ class ExportFileProcessor(ExportBaseProcessor):
     and multi-sheet Excel export capabilities.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        sheet = Schema([
+            Key('sheet_name', 'str', required=True),
+            Key('data_source', 'stage_in', required=True),
+        ])
+        return Schema([
+            Key('output_file', 'str', required=True),
+            Key('sheet_name', 'str', default='Data'),
+            Key('sheets_to_create', 'list_of_mappings', schema=sheet),
+            Key('template_file', 'str'),
+            Key('format', 'str', choices=['xlsx', 'csv', 'tsv']),
+            Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
+            Key('create_backup', 'bool', default=True),
+            Key('delete_backups_beyond', 'int'),
+        ])
+
     @classmethod
     def get_minimal_config(cls):
         return {

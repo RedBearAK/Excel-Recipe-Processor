@@ -1,0 +1,56 @@
+# Revision date: 2026-09-03
+
+description: >
+  Check a written SHEET's row values against expectations. Same rule
+  vocabulary as verify_stage_data. CAVEAT: formula cells this framework
+  wrote have no cached values - verify formula INPUTS in stages.
+
+
+basic_example:
+  description: "Verify a written sheet's values"
+  yaml: |
+    settings:
+      description: "Verify the output file before hand-off"
+
+    recipe:
+      - # File mode reads the sheet's VALUES. A session-held file is read
+        # live (pre-save). CAVEAT: formula cells in files this framework
+        # wrote have no cached values - openpyxl computes nothing - so
+        # rules aimed at injected formula columns see blanks. Verify
+        # formula INPUTS in stages; verify written VALUE columns in files.
+        step_description: "Verify the written detail sheet"
+        processor_type: "verify_sheet_data"
+        # REQ - Workbook to verify (session-held files are read live, pre-save)
+        target_file: "{output_dir}/{output_basename}.xlsx"
+        # REQ (file mode) - Tab to read
+        # REQ - Tab name, number, or ?sheet_NNN? token
+        sheet_name: "Detail"
+        # REQ - Rules in filter_data condition vocabulary
+        rules:
+          - column: "Invoice No"
+            condition: "not_empty"
+            # OPT - Default value: "warn" (logs count and sample); "halt" raises
+            severity: "halt"
+
+parameter_details:
+  target_file:
+    type: string
+    required: false
+    description: "Workbook to verify (with 'sheet'). Session-held files are read live, pre-save."
+    supports_variables: true
+  sheet_name:
+    type: string
+    required: false
+    description: "Tab to read in file mode"
+  rules:
+    type: list of objects
+    required: true
+    description: "Expectations every row must satisfy. Any filter_data condition works, with that condition's own parameters (value, case_sensitive, stage_name/stage_column for in_stage, ...)."
+    rule_keys:
+      column: "Column the expectation applies to"
+      condition: "Any filter_data condition name"
+      value: "The condition's operand, where it takes one"
+      severity: "warn (default) or halt"
+      description: "The line pass/warn/halt messages lead with"
+
+# End of file #

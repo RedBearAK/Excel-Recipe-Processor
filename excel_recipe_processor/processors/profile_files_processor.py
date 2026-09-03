@@ -17,6 +17,7 @@ from pathlib import Path
 from datetime import datetime
 
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 from excel_recipe_processor.core.log_format import q
@@ -37,6 +38,15 @@ class ProfileFilesProcessor(ImportBaseProcessor):
     Rows appear in the order the files are listed, so the sheet reads the way
     the recipe author arranged it rather than alphabetically.
     """
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('files', 'list', item_kind='str', required=True),
+            Key('include_full_paths', 'bool', default=False),
+            Key('on_missing', 'str', default='error', choices=['error', 'note', 'skip']),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

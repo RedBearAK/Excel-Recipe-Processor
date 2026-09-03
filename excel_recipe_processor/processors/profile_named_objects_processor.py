@@ -38,6 +38,7 @@ import pandas as pd
 from openpyxl import load_workbook
 
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.processors._helpers.named_objects_extraction import (
     detect_object_type,
     translate_lambda_to_human,
@@ -50,6 +51,11 @@ logger = logging.getLogger(__name__)
 
 class ProfileNamedObjectsProcessor(ImportBaseProcessor):
     """Catalog defined names and tables into a Name-keyed metadata stage."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([Key('workbooks', 'list', item_kind='str', required=True)])
 
     @classmethod
     def get_minimal_config(cls):

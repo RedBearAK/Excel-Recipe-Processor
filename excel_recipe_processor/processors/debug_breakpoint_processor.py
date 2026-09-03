@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime
 
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 from excel_recipe_processor.core.log_format import q
@@ -28,6 +29,15 @@ class DebugBreakpointProcessor(ExportBaseProcessor):  # ← CHANGE: inherit from
     processing at any point for testing and troubleshooting.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('message', 'str'), Key('output_path', 'str'), Key('filename_prefix', 'str'),
+            Key('include_timestamp', 'bool', default=True),
+            Key('show_sample', 'bool', default=True), Key('sample_rows', 'int', default=5),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

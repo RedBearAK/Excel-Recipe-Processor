@@ -34,6 +34,7 @@ import io
 import logging
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.dynamic_array_metadata import declare_dynamic_formulas_in_zip
 from excel_recipe_processor.core.excel_storage_audit import (
@@ -49,6 +50,14 @@ logger = logging.getLogger(__name__)
 
 class VerifyExcelStorageProcessor(FileOpsBaseProcessor):
     """Audit workbooks for storage-grammar and declaration violations."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('files', 'list', item_kind='str', required=True),
+            Key('on_violation', 'str', default='error', choices=['error', 'warn']),
+        ])
 
     @classmethod
     def get_minimal_config(cls):

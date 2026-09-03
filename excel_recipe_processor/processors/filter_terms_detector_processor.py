@@ -13,14 +13,14 @@ import logging
 
 from sklearn.feature_extraction.text import CountVectorizer
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
 from excel_recipe_processor.core.stage_manager import StageManager
 
 
 logger = logging.getLogger(__name__)
 
 
-class FilterTermsDetectorProcessor(BaseStepProcessor):
+class FilterTermsDetectorProcessor(TransformBaseProcessor):
     """
     Processor for detecting potential filter terms by comparing raw vs filtered datasets.
     

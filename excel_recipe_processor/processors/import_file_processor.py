@@ -15,6 +15,7 @@ from pathlib import Path
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,22 @@ class ImportFileProcessor(ImportBaseProcessor):
     and variable substitution. Always saves to a declared stage.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('input_file', 'str', required=True),
+            Key('sheet_name', 'any', default='?sheet_001?', description='Tab name, 1-based number, or ?sheet_NNN? token'),
+            Key('header_row', 'int', default=1),
+            Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
+            Key('format', 'str', choices=['xlsx', 'xls', 'csv', 'tsv']),
+            name_list('verbatim_text_columns'),
+            Key('on_missing_file', 'str', default='error', choices=['error', 'create_empty']),
+        ], variants={'on_missing_file': {
+            'error': Schema([]),
+            'create_empty': Schema([name_list('create_empty_columns', required=True)]),
+        }})
+
     @classmethod
     def get_minimal_config(cls):
         return {

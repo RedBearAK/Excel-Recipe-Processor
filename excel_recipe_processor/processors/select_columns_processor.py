@@ -13,13 +13,14 @@ import logging
 from typing import Any
 
 from excel_recipe_processor.core.log_format import q, qlist, qblock
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class SelectColumnsProcessor(BaseStepProcessor):
+class SelectColumnsProcessor(TransformBaseProcessor):
     """
     Processor for selecting and reordering DataFrame columns.
     
@@ -28,6 +29,18 @@ class SelectColumnsProcessor(BaseStepProcessor):
     when the same column name appears multiple times in the selection list.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('columns_to_keep', description='Names, in output order'),
+            name_list('columns_to_drop'),
+            name_list('columns_to_create', description='Created blank when absent from columns_to_keep'),
+            Key('default_value', 'any', description='Fill for created columns'),
+            Key('strict_mode', 'bool', default=True),
+            Key('allow_duplicates', 'bool', default=True),
+        ], at_least_one=[['columns_to_keep', 'columns_to_drop']])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         """

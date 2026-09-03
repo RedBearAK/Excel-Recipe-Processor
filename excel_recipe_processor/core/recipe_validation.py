@@ -142,7 +142,7 @@ def _family_stage_schema(processor_class) -> Schema:
     else:
         if family in ('transform', 'export'):
             keys.append(Key('source_stage', 'stage_in', required=True))
-        if family in ('transform', 'import'):
+        if family == 'import' or (family == 'transform' and getattr(processor_class, 'writes_stage', True)):
             keys.append(Key('save_to_stage', 'stage_out', required=True))
     return Schema(keys)
 
@@ -164,6 +164,7 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
         if isinstance(entry, dict) and isinstance(entry.get('stage_name'), str)
     }
     written = {}       # stage -> step number that wrote it
+    released = {}      # stage -> step number that freed it
     read = set()
     used = set()
 
@@ -192,11 +193,19 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
                     continue
                 report.errors.append(f"{label}: {message}")
             reads, writes = _fallback_stage_references(config, processor_class)
+            releases = []
         else:
             for message in validate_config(config, schema, '', False):
                 report.errors.append(f"{label}: {message}")
-            reads, writes = stage_references(config, schema)
+            reads, writes, releases = stage_references(config, schema)
+        writes = list(writes) + list(processor_class.computed_stage_writes(config))
         report.validated_steps += 1
+
+        for stage in reads:
+            if stage in released:
+                report.errors.append(
+                    f"{label}: reads stage '{stage}' after step {released[stage]} released it"
+                )
 
         for stage in reads:
             used.add(stage)
@@ -213,8 +222,13 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
                     f"without confirm_stage_replacement: true"
                 )
             written[stage] = index
+            released.pop(stage, None)
             if stage not in declared:
                 report.warnings.append(f"{label}: stage '{stage}' is not declared in settings.stages")
+        for stage in releases:
+            if stage not in written:
+                report.errors.append(f"{label}: releases stage '{stage}' that no earlier step wrote")
+            released[stage] = index
 
     for stage in sorted(declared):
         if stage not in written:

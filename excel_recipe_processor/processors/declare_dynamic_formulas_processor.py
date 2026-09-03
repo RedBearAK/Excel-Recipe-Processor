@@ -21,6 +21,7 @@ import logging
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.dynamic_array_metadata import (
     DynamicArrayMetadataError,
@@ -33,6 +34,14 @@ logger = logging.getLogger(__name__)
 
 class DeclareDynamicFormulasProcessor(FileOpsBaseProcessor):
     """Apply the dynamic-array declaration to an xlsx already on disk."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('input_file', 'str', required=True), Key('output_file', 'str'),
+            Key('extra_functions', 'list', item_kind='str'),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

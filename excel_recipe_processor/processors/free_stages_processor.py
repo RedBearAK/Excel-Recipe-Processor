@@ -23,13 +23,14 @@ from excel_recipe_processor.core.log_format import qblock
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class FreeStagesProcessor(FileOpsBaseProcessor):
+class FreeStagesProcessor(BaseStepProcessor):
     """
     Delete listed stages, logging how much memory each release returns.
 
@@ -38,6 +39,14 @@ class FreeStagesProcessor(FileOpsBaseProcessor):
     naming the missing stage, so a misplaced deletion cannot corrupt data,
     only halt the run.
     """
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('stages', 'stage_release', required=True, description='Stages to release from memory'),
+            Key('on_missing', 'str', default='error', choices=['error', 'warn', 'skip']),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:
@@ -67,11 +76,18 @@ class FreeStagesProcessor(FileOpsBaseProcessor):
                 f"Invalid on_missing '{self.on_missing}'. Supported: error, skip"
             )
 
+    requires_source_stage = False
+    requires_save_to_stage = False
+
     def _validate_file_operation_config(self):
         """No file target needed: the operation is on in-memory stages."""
         return
 
-    def perform_file_operation(self):
+    def execute(self, data=None):
+        self.log_step_start()
+        return self._release()
+
+    def _release(self):
         """Delete each listed stage, tallying the memory returned."""
         freed_bytes = 0
         deleted = []

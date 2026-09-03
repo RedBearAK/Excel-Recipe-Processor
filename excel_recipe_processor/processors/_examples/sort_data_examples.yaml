@@ -184,7 +184,7 @@ case_insensitive_example:
         sort_type: "ascending"
         # OPT - Ignore case differences when sorting text columns
         # Default value: false
-        ignore_case: true
+        case_sensitive: false
         save_to_stage: "stg_sorted_catalog"
 
 complex_business_sort_example:
@@ -344,7 +344,7 @@ parameter_details:
       - "first"
     note: "Use 'first' to highlight missing data, 'last' to focus on complete records"
 
-  ignore_case:
+  case_sensitive:
     type: boolean
     required: false
     default: true

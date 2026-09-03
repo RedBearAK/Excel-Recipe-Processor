@@ -92,13 +92,13 @@ def test_undeclared_is_warning_only() -> bool:
 
 def test_schema_less_processor_is_reported_not_failed() -> bool:
     print('\nTesting a schema-less processor passes with a report...')
-    step = {'step_description': 'sort', 'processor_type': 'sort_data', 'source_stage': 'stg_a',
-            'save_to_stage': 'stg_b', 'columns': ['X'], 'sort_type': 'ascending', 'made_up_key': 1}
+    step = {'step_description': 'agg', 'processor_type': 'aggregate_data', 'source_stage': 'stg_a',
+            'save_to_stage': 'stg_b', 'group_by': ['X'], 'aggregations': [], 'made_up_key': 1}
     r = run(recipe([imp('stg_a'), step, exp('stg_b')], ['stg_a', 'stg_b']))
     ok = report('passes', r.ok, str(r.errors))
-    ok &= report('reported as schema-less', 'sort_data' in r.schema_less_types)
-    step2 = {'step_description': 'sort', 'processor_type': 'sort_data', 'save_to_stage': 'stg_b',
-             'columns': ['X'], 'sort_type': 'ascending'}
+    ok &= report('reported as schema-less', 'aggregate_data' in r.schema_less_types)
+    step2 = {'step_description': 'agg', 'processor_type': 'aggregate_data', 'save_to_stage': 'stg_b',
+             'group_by': ['X'], 'aggregations': []}
     r = run(recipe([imp('stg_a'), step2, exp('stg_b')], ['stg_a', 'stg_b']))
     ok &= report('family stage keys still required', any("missing required key 'source_stage'" in e for e in r.errors))
     return ok

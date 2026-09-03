@@ -63,6 +63,15 @@ class BaseStepProcessor(ABC):
         return None
 
     @classmethod
+    def computed_stage_writes(cls, config: dict) -> list:
+        """
+        Stage names a step writes that its schema cannot name statically
+        (built from a prefix at run time). The validation phase adds these
+        to the stage graph. Default: none.
+        """
+        return []
+
+    @classmethod
     def full_schema(cls):
         """Family contribution merged with the processor's own schema, or None."""
         return cls._full_schema
@@ -79,7 +88,8 @@ class BaseStepProcessor(ABC):
             if not isinstance(own, Schema):
                 from excel_recipe_processor.core.config_schema import SchemaDefinitionError
                 raise SchemaDefinitionError(f"{cls.__name__}.config_schema() must return a Schema")
-            cls._full_schema = check_processor_schema(cls.family, own, cls.__name__)
+            cls._full_schema = check_processor_schema(
+                cls.family, own, cls.__name__, getattr(cls, 'writes_stage', True))
     
     def __init__(self, step_config: dict):
         """
@@ -275,10 +285,12 @@ class BaseStepProcessor(ABC):
         # Process
         result = self.execute(input_data)
         
-        # Save output
-        self.save_output_data(result)
-        
-        self.log_step_complete(f"processed {len(result)} rows")
+        # Save output - a CHECK (writes_stage = False) reads and writes nothing
+        if getattr(self, 'writes_stage', True):
+            self.save_output_data(result)
+            self.log_step_complete(f"processed {len(result)} rows")
+        else:
+            self.log_step_complete(f"checked {len(result)} rows")
         return result
     
     def __str__(self) -> str:
@@ -425,8 +437,13 @@ class TransformBaseProcessor(BaseStepProcessor):
     such a processor can name columns is by header string - the family
     offers the name_list construct and nothing positional (2026-09-03).
     Execution goes through execute_stage_to_stage(), unchanged.
+
+    writes_stage = False declares a CHECK: a transform that reads a stage
+    and writes nothing (verify_columns). The family then contributes no
+    save_to_stage and the stage graph records a read only.
     """
     family = FAMILY_TRANSFORM
+    writes_stage = True
 
 
 class ImportBaseProcessor(BaseStepProcessor):

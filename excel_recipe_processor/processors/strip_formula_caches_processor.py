@@ -57,6 +57,7 @@ from excel_recipe_processor.core.base_processor import (
     FileOpsBaseProcessor,
     StepProcessorError,
 )
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.processors._helpers.strip_formula_caches_rgx import (
     calc_pr_rgx,
     cell_ref_attr_rgx,
@@ -212,6 +213,15 @@ class ScopeMatcher:
 
 class StripFormulaCachesProcessor(FileOpsBaseProcessor):
     """Remove cached formula results from closed xlsx files, in place."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('files', 'list', item_kind='str', required=True),
+            Key('create_backup', 'bool', default=True),
+            Key('scope', 'str'),
+        ])
 
     @classmethod
     def get_minimal_config(cls):

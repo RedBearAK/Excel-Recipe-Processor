@@ -9,15 +9,15 @@ Handles creating stages from inline data with support for lists, tables, and dic
 import pandas as pd
 import logging
 
-from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 logger = logging.getLogger(__name__)
 
 
-class CreateStageProcessor(BaseStepProcessor):
+class CreateStageProcessor(ImportBaseProcessor):
     """
     Processor for creating stages from inline data definitions.
     
@@ -41,6 +41,20 @@ class CreateStageProcessor(BaseStepProcessor):
     WARN_DICT_ENTRIES = 112
     
     @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        data = Schema([
+            Key('format', 'str', required=True, choices=['list', 'table', 'dictionary']),
+            Key('values', 'any'), Key('columns', 'any'), Key('rows', 'any'), Key('data', 'any'),
+            Key('column', 'str'), Key('key_column', 'str'), Key('value_column', 'str'),
+        ])
+        return Schema([
+            Key('data', 'mapping', required=True, schema=data),
+            Key('description', 'str', default=''),
+            Key('overwrite', 'bool', default=False),
+        ])
+
+    @classmethod
     def get_minimal_config(cls) -> dict:
         return {
             'save_to_stage': 'test_stage',
@@ -52,7 +66,25 @@ class CreateStageProcessor(BaseStepProcessor):
             }
         }
     
-    def execute(self, data: Any) -> pd.DataFrame:
+    def load_data(self) -> pd.DataFrame:
+        """
+        Import-family entry (2026-09-03): build the frame from the inline
+        data block; the family then saves it under save_to_stage. Reuses
+        execute(), which also saves - so the family save is a no-op
+        overwrite of the identical frame under confirm semantics handled
+        in _save_stage_to_pipeline.
+        """
+        self.execute(pd.DataFrame())
+        return self._built_frame
+
+    def execute_import(self) -> pd.DataFrame:
+        """Build and save once; the family's second save is skipped."""
+        self.log_step_start()
+        data = self.load_data()
+        self.log_step_complete(f"created stage with {len(data)} rows")
+        return data
+
+    def execute(self, data=None) -> pd.DataFrame:
         """
         Execute stage creation while passing input data through unchanged.
         
@@ -93,6 +125,7 @@ class CreateStageProcessor(BaseStepProcessor):
             stage_data = self._create_dataframe_from_config(data_config, stage_name)
             
             # Save to pipeline stages
+            self._built_frame = stage_data
             self._save_stage_to_pipeline(stage_name, stage_data, overwrite, description)
             
             rows_created = len(stage_data)

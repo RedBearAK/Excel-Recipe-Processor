@@ -11,13 +11,14 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class FillDataProcessor(BaseStepProcessor):
+class FillDataProcessor(TransformBaseProcessor):
     """
     Processor for filling missing/null values in DataFrame columns.
     
@@ -25,6 +26,26 @@ class FillDataProcessor(BaseStepProcessor):
     statistical fills, and conditional filling based on other columns.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        condition = Schema([
+            Key('condition_column', 'str', required=True),
+            Key('condition_type', 'str', required=True),
+            Key('condition_value', 'any'),
+            Key('fill_value', 'any'),
+        ])
+        return Schema([
+            name_list('columns', required=True),
+            Key('fill_method', 'str', required=True),
+            Key('fill_value', 'any'),
+            Key('source_column', 'str'),
+            Key('old_value', 'any'),
+            Key('limit', 'int'),
+            Key('inplace', 'bool', default=False),
+            Key('conditions', 'list_of_mappings', schema=condition),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

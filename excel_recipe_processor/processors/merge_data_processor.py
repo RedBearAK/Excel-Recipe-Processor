@@ -12,12 +12,13 @@ import logging
 
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 logger = logging.getLogger(__name__)
 
 
-class MergeDataProcessor(BaseStepProcessor):
+class MergeDataProcessor(TransformBaseProcessor):
     """
     Processor for merging DataFrames with external data sources.
     
@@ -26,6 +27,24 @@ class MergeDataProcessor(BaseStepProcessor):
     and StageManager for stage access.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        source = Schema([
+            Key('type', 'str', required=True, choices=['stage', 'file', 'inline']),
+            Key('stage_name', 'stage_in'), Key('path', 'str'), Key('sheet', 'any'),
+            Key('encoding', 'str'), Key('separator', 'str'), Key('format', 'str'),
+            Key('data', 'any'), Key('columns_to_prefix', 'list', item_kind='str'),
+        ])
+        return Schema([
+            Key('merge_source', 'mapping', required=True, schema=source),
+            Key('left_key', 'any', required=True), Key('right_key', 'any', required=True),
+            Key('join_type', 'str', default='left', choices=['left', 'right', 'inner', 'outer']),
+            Key('column_prefix', 'str', default=''),
+            Key('suffixes', 'list', item_kind='str'),
+            Key('drop_duplicate_keys', 'bool', default=True),
+        ])
+
     @classmethod
     def get_minimal_config(cls):
         return {

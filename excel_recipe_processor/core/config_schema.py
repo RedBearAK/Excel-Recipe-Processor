@@ -45,7 +45,7 @@ import difflib
 
 SCALAR_KINDS = ('str', 'int', 'number', 'bool')
 CONTAINER_KINDS = ('list', 'mapping', 'open_mapping', 'list_of_mappings', 'any')
-STAGE_KINDS = ('stage_in', 'stage_out')
+STAGE_KINDS = ('stage_in', 'stage_out', 'stage_release')
 ALL_KINDS = SCALAR_KINDS + CONTAINER_KINDS + STAGE_KINDS
 
 CONSTRUCT_NAME_LIST = 'name_list'
@@ -194,6 +194,8 @@ def _kind_matches(value, kind: str, item_kind: str = 'str') -> bool:
         return True
     if kind in ('str', 'stage_in', 'stage_out'):
         return isinstance(value, str)
+    if kind == 'stage_release':
+        return isinstance(value, list) and all(isinstance(v, str) for v in value)
     if kind == 'int':
         return isinstance(value, int) and not isinstance(value, bool)
     if kind == 'number':
@@ -216,6 +218,8 @@ def _describe_kind(key: Key) -> str:
         return f"list of {key.item_kind}"
     if key.kind in ('stage_in', 'stage_out'):
         return 'stage name (str)'
+    if key.kind == 'stage_release':
+        return 'list of stage names'
     return key.kind
 
 
@@ -282,7 +286,7 @@ def validate_config(config: dict, schema: Schema, path: str = '', allow_unresolv
         key = legal[name]
         child = f"{path}.{name}" if path else name
         if (allow_unresolved and isinstance(value, str) and '{' in value and '}' in value
-                and key.kind not in ('str', 'stage_in', 'stage_out', 'any')):
+                and key.kind not in ('str', 'stage_in', 'stage_out', 'stage_release', 'any')):
             continue
         if not _kind_matches(value, key.kind, key.item_kind):
             errors.append(f"{child}: expected {_describe_kind(key)}, got {type(value).__name__}")
@@ -301,13 +305,14 @@ def stage_references(config: dict, schema: Schema) -> tuple:
     """
     Read the stage names a step reads and writes, from its schema.
 
-    Returns (reads, writes) as lists of stage-name strings, walking nested
-    mappings and lists so an export's sheets_to_create[].data_source or a
-    combine's data_sources[].stage are found wherever the schema put them.
+    Returns (reads, writes, releases) as lists of stage-name strings,
+    walking nested mappings and lists so an export's
+    sheets_to_create[].data_source or a combine's insert_from_stage are
+    found wherever the schema put them.
     """
-    reads, writes = [], []
+    reads, writes, releases = [], [], []
     if not isinstance(config, dict):
-        return reads, writes
+        return reads, writes, releases
     legal = dict(schema.keys)
     for discriminator, table in schema.variants.items():
         value = config.get(discriminator, legal[discriminator].default)
@@ -321,15 +326,17 @@ def stage_references(config: dict, schema: Schema) -> tuple:
             reads.append(value)
         elif key.kind == 'stage_out' and isinstance(value, str):
             writes.append(value)
+        elif key.kind == 'stage_release' and isinstance(value, list):
+            releases.extend(v for v in value if isinstance(v, str))
         elif key.kind == 'mapping' and isinstance(value, dict):
-            r, w = stage_references(value, key.schema)
-            reads.extend(r); writes.extend(w)
+            r, w, x = stage_references(value, key.schema)
+            reads.extend(r); writes.extend(w); releases.extend(x)
         elif key.kind == 'list_of_mappings' and isinstance(value, list):
             for item in value:
                 if isinstance(item, dict):
-                    r, w = stage_references(item, key.schema)
-                    reads.extend(r); writes.extend(w)
-    return reads, writes
+                    r, w, x = stage_references(item, key.schema)
+                    reads.extend(r); writes.extend(w); releases.extend(x)
+    return reads, writes, releases
 
 
 # --------------------------------------------------------------------------
@@ -356,18 +363,32 @@ STAGE_WRITE_KEYS = [
 class Family:
     """A processor family: its schema contribution and the constructs it offers."""
 
-    def __init__(self, name: str, keys: list, constructs: tuple, description: str):
+    def __init__(self, name: str, keys: list, constructs: tuple, description: str,
+                 optional_write_keys: list = None):
         self.name = name
-        self.schema = Schema(COMMON_STEP_KEYS + keys)
+        self.keys = list(keys)
+        self.optional_write_keys = list(optional_write_keys or [])
+        self.schema = Schema(COMMON_STEP_KEYS + keys + self.optional_write_keys)
         self.constructs = set(constructs)
         self.description = description
+
+    def contribution(self, writes_stage: bool = True) -> Schema:
+        """
+        The family's schema for one processor. A Transform that declares
+        writes_stage = False (a CHECK: reads a stage, writes nothing) gets
+        the contribution without the stage-write keys.
+        """
+        if writes_stage or not self.optional_write_keys:
+            return self.schema
+        return Schema(COMMON_STEP_KEYS + self.keys)
 
 
 FAMILY_TRANSFORM = Family(
     'transform',
-    STAGE_READ_KEYS + STAGE_WRITE_KEYS,
+    STAGE_READ_KEYS,
     (CONSTRUCT_NAME_LIST,),
     'Reads a stage, returns a stage; knows columns only by name',
+    optional_write_keys=STAGE_WRITE_KEYS,
 )
 
 FAMILY_IMPORT = Family(
@@ -399,7 +420,7 @@ FAMILY_BASE = Family(
 )
 
 
-def check_processor_schema(family: Family, own: Schema, label: str) -> Schema:
+def check_processor_schema(family: Family, own: Schema, label: str, writes_stage: bool = True) -> Schema:
     """
     Merge a processor's own schema with its family's and enforce the family
     rules. Raised at class definition so a wrong construct never reaches a
@@ -411,7 +432,7 @@ def check_processor_schema(family: Family, own: Schema, label: str) -> Schema:
             f"{label}: family '{family.name}' does not offer construct(s) {sorted(illegal)}; "
             f"offered: {sorted(family.constructs)}"
         )
-    return family.schema.merged_with(own, label)
+    return family.contribution(writes_stage).merged_with(own, label)
 
 
 # End of file #

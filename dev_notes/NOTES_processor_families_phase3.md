@@ -247,3 +247,14 @@ underscore-named pages. The prose a page shows lives in the processor's
 `get_capabilities()`, its Key descriptions, and its `_examples` file - all
 of which the tests read - so improving a page means improving those, and
 regenerating. The old dash-named hand pages are retired (delete list).
+
+## Doc fragments validated (2026-09-05)
+
+`tests/test_docs_fragments_validate.py` reads every ```yaml block in
+README.md and docs/**/*.md and validates each step in it against its
+processor's schema; a block carrying a `# ...` line is an illustration
+and is skipped. First run found 13 stale steps in
+docs/troubleshooting/common-issues.md (pre-stage clean_data rules,
+`type: expression`); fixed. With the examples test and the
+construction-time check, there is now no place in the repository where a
+recipe step can say a key the processor refuses.

@@ -205,7 +205,7 @@ settings:
 recipe:
   - step_description: "Human readable step description"
     processor_type: "processor_name"
-    # Processor-specific keys: see docs/STEP_SCHEMAS.md
+    # ... processor-specific keys: see docs/STEP_SCHEMAS.md
 ```
 
 ### Step Configuration
@@ -268,9 +268,10 @@ PYTHONPATH=. python3 tests/test_filter_data_processor.py
 ls tests/test_*.py | xargs -P 4 -I{} sh -c 'PYTHONPATH=. python3 {} >/dev/null 2>&1; echo "$? {}"' | grep -v "^0 "
 ```
 
-Two tests guard the vocabulary itself: `test_examples_validate_against_schemas.py`
-(every example step validates against its schema) and `test_schema_export.py`
-(the published schema covers every processor).
+Three tests guard the vocabulary itself: `test_examples_validate_against_schemas.py`
+(every example step validates against its schema), `test_docs_fragments_validate.py`
+(every YAML fragment in the README and docs validates; a `# ...` line marks an
+illustration), and `test_schema_export.py` (the published schema covers every processor).
 
 ### Project Structure
 ```

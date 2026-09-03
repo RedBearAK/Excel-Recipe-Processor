@@ -18,9 +18,9 @@ Quick fixes for the most frequent problems.
 - step_description: "Clean invisible characters"
   processor_type: "clean_data"
   rules:
-    - column: "Product Origin"
+    - columns: ["Product Origin"]
       action: "normalize_whitespace"
-    - column: "Status"
+    - columns: ["Status"]
       action: "normalize_whitespace"
 
 # NOW filtering will work
@@ -102,6 +102,7 @@ Error: could not determine a constructor for the tag
 recipe:
 - step_description: "Bad indent"
   processor_type: "clean_data"
+  # ...
 ```
 
 **Correct**:
@@ -109,6 +110,7 @@ recipe:
 recipe:
   - step_description: "Good indent"    # Note the 2-space indent
     processor_type: "clean_data"
+    # ...
 ```
 
 ### Missing Required Fields
@@ -167,17 +169,16 @@ column: "Product_Name"     # ❌ Wrong separator
 ```yaml
 - processor_type: "clean_data"
   rules:
-    - column: "Price"
+    - columns: ["Price"]
       action: "fix_numeric"    # Removes $, commas, converts to number
-    - column: "Quantity"
+    - columns: ["Quantity"]
       action: "fix_numeric"
 
 # NOW calculations will work
 - processor_type: "add_calculated_column"
   new_column: "Total"
   calculation:
-    type: "expression"
-    expression: "Price * Quantity"
+    pandas_formula: "{col:Price} * {col:Quantity}"
 ```
 
 ---
@@ -285,7 +286,7 @@ recipe:
   # 1. Clean data first
   - processor_type: "clean_data"
     rules:
-      - column: "all_text_columns"
+      - columns: ["all_text_columns"]
         action: "normalize_whitespace"
   
   # 2. Add checkpoint

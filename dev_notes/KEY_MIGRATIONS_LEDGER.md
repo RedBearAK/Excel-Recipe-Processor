@@ -258,9 +258,10 @@ tests automatically; prose and recipes outside this repo need the grep.
 
 ## Documentation that was retired rather than repaired
 
-- `docs/processors/*.md` (15 hand-written pages, 8 carrying retired keys):
-  superseded by the generated `docs/STEP_SCHEMAS.md` and the validated
-  `_examples/*.yaml` (`--get-usage-examples`).
+- `docs/processors/*-*.md` (15 hand-written dash-named pages, 8 carrying
+  retired keys): replaced by GENERATED underscore-named pages
+  (`--export-docs docs/processors`) built from each processor's
+  description, declared schema, and validated examples.
 - `docs/recipes/variables.md` and `docs/recipes/yaml-syntax.md`: pre-stage
   era (`output_filename`, no stages); superseded by `--get-settings-examples`
   and the README Quick Start.

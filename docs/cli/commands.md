@@ -8,8 +8,9 @@ usage: excel-recipe-processor [-h] [--version] [--var NAME=VALUE]
                               [--dump-dir DIR] [--stop-after STAGE]
                               [--list-stages RECIPE] [--log-file PATH]
                               [--verbose] [--validate] [--list-capabilities]
-                              [--detailed] [--json] [--export-schemas FORMAT]
-                              [--yaml] [--detailed-yaml] [--matrix]
+                              [--detailed] [--json] [--export-docs DIR]
+                              [--export-schemas FORMAT] [--yaml]
+                              [--detailed-yaml] [--matrix]
                               [--validate-recipe RECIPE.yaml]
                               [--get-usage-examples [PROCESSOR_NAME]]
                               [--format-examples {yaml,text,json}]
@@ -58,6 +59,9 @@ options:
                         capabilities)
   --json                Output capabilities as JSON (use with --list-
                         capabilities)
+  --export-docs DIR     Write one generated Markdown page per processor
+                        (description, declared keys, validated examples) plus
+                        an index into DIR, e.g. docs/processors
   --export-schemas FORMAT
                         Print every processor's declared step schema
                         (families, keys, kinds, required, defaults, choices,

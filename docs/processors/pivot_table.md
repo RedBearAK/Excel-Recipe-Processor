@@ -1,0 +1,346 @@
+# `pivot_table`
+
+**Family:** `transform`
+
+Create pivot tables with various aggregation functions
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_stage`: stage_in; REQUIRED - Stage to read
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `index`: list of str - Column names
+- `columns`: list of str - Column names
+- `values`: list of str - Column names
+- `aggfunc`: any; default "sum"
+- `fill_value`: any; default 0
+- `fill_blanks`: bool; default false
+- `margins`: bool; default false
+- `dropna`: bool; default false
+- `sort_by_index`: bool; default false
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+Simple sales summary by region and product
+
+```yaml
+settings:
+  description: "Create a sales summary pivot table by region and product"
+  stages:
+    - stage_name: "stg_sales_data"
+      description: "Raw sales transaction data"
+      protected: false
+    - stage_name: "stg_sales_pivot"
+      description: "Sales pivot table summary"
+      protected: false
+
+recipe:
+  - # Step 1: Import sales data
+    step_description: "Import sales transaction data"
+    processor_type: "import_file"
+    input_file: "data/sales_transactions.xlsx"
+    save_to_stage: "stg_sales_data"
+
+  - # Step 2: Create basic pivot table
+    # OPT - Human-readable step description
+    # Default value: "Unnamed pivot_table step"
+    step_description: "Create sales summary by region and product"
+    # REQ - Must be "pivot_table" for this processor type
+    processor_type: "pivot_table"
+    # REQ - Stage to read data from (must be declared in settings.stages)
+    source_stage: "stg_sales_data"
+    # REQ - Field(s) to use as rows (accepts single string or list)
+    index: ["Region"]
+    # OPT - Field(s) to use as columns (accepts single string or list)
+    # Default value: null (no column grouping)
+    columns: ["Product_Category"]
+    # REQ - Field(s) to aggregate (accepts single string or list)
+    values: ["Sales_Amount"]
+    # OPT - Aggregation function
+    # Default value: "sum"
+    # Valid values: "sum", "mean", "count", "min", "max", "std", "var", "first", "last", "nunique"
+    aggfunc: "sum"
+    # REQ - Stage to save pivot results
+    save_to_stage: "stg_sales_pivot"
+```
+
+### shipment report
+
+Classic Van Report matrix: Origin vs Carrier with product counts
+
+```yaml
+settings:
+  description: "Create Origin vs Carrier matrix similar to Van Report format"
+  stages:
+    - stage_name: "stg_filtered_salmon"
+      description: "Filtered salmon product data"
+      protected: false
+    - stage_name: "stg_origin_carrier_matrix"
+      description: "Origin by Carrier pivot table"
+      protected: false
+
+recipe:
+  - # Step 1: Import and filter data
+    step_description: "Import Van Report data"
+    processor_type: "import_file"
+    input_file: "data/shipment_export.xlsx"
+    save_to_stage: "stg_raw_data"
+
+  - # Step 2: Filter for salmon products
+    step_description: "Filter for salmon records, exclude cans"
+    processor_type: "filter_data"
+    source_stage: "stg_raw_data"
+    filters:
+      - column: "Component"
+        condition: "not_equals"
+        value: "CANS"
+      - column: "Major Species"
+        condition: "contains"
+        value: "SALMON"
+    save_to_stage: "stg_filtered_salmon"
+
+  - # Step 3: Create Origin vs Carrier matrix
+    step_description: "Create product origin by carrier matrix"
+    processor_type: "pivot_table"
+    source_stage: "stg_filtered_salmon"
+    # REQ - Product origin locations as rows
+    index: ["Product_Origin"]
+    # OPT - Carriers as columns
+    columns: ["Carrier"]
+    # REQ - Count number of products
+    values: ["Net_Lbs"]
+    # OPT - Sum the net pounds
+    aggfunc: "sum"
+    # OPT - Fill empty cells with zeros
+    # Default value: 0
+    fill_value: 0
+    # OPT - Add row/column totals
+    # Default value: false
+    margins: true
+    save_to_stage: "stg_origin_carrier_matrix"
+```
+
+### multi level
+
+Multi-level pivot with hierarchical grouping and multiple values
+
+```yaml
+settings:
+  description: "Create complex pivot table with multiple index levels and values"
+  stages:
+    - stage_name: "stg_order_data"
+      description: "Order transaction data"
+      protected: false
+    - stage_name: "stg_revenue_analysis"
+      description: "Multi-level revenue analysis pivot"
+      protected: false
+
+recipe:
+  - # Step 1: Import order data
+    step_description: "Import order transaction data"
+    processor_type: "import_file"
+    input_file: "data/orders_{year}.xlsx"
+    save_to_stage: "stg_order_data"
+
+  - # Step 2: Create multi-level pivot table
+    step_description: "Analyze revenue by region, sales rep, and product"
+    processor_type: "pivot_table"
+    source_stage: "stg_order_data"
+    # REQ - Multiple fields for hierarchical rows
+    index: ["Region", "Sales_Rep"]
+    # OPT - Product types as columns
+    columns: ["Product_Type"]
+    # REQ - Multiple values to aggregate
+    values: ["Revenue", "Quantity", "Order_Count"]
+    # OPT - Different aggregation for each value
+    # Can be single function for all values or dictionary mapping
+    aggfunc: "sum"
+    # OPT - Fill empty cells
+    fill_value: 0
+    # OPT - Include grand totals
+    margins: true
+    # OPT - Keep rows with any null values
+    # Default value: true (drops rows with nulls in index/columns)
+    dropna: false
+    save_to_stage: "stg_revenue_analysis"
+```
+
+### cross tabulation
+
+Create a frequency cross-tabulation (count matrix)
+
+```yaml
+settings:
+  description: "Create cross-tabulation for category analysis"
+  stages:
+    - stage_name: "stg_customer_data"
+      description: "Customer demographic data"
+      protected: false
+    - stage_name: "stg_customer_crosstab"
+      description: "Customer segment cross-tabulation"
+      protected: false
+
+recipe:
+  - # Step 1: Import customer data
+    step_description: "Import customer demographic data"
+    processor_type: "import_file"
+    input_file: "data/customer_demographics.xlsx"
+    save_to_stage: "stg_customer_data"
+
+  - # Step 2: Create cross-tabulation
+    step_description: "Create customer segment by region crosstab"
+    processor_type: "pivot_table"
+    source_stage: "stg_customer_data"
+    # REQ - Customer segments as rows
+    index: ["Customer_Segment"]
+    # OPT - Regions as columns
+    columns: ["Region"]
+    # OPT - Empty values list triggers count aggregation
+    # When values is empty/null, counts occurrences
+    values: []
+    # OPT - Count function for frequency table
+    aggfunc: "count"
+    # OPT - Show zeros for missing combinations
+    fill_value: 0
+    # OPT - Add row and column totals
+    margins: true
+    save_to_stage: "stg_customer_crosstab"
+```
+
+### advanced aggregation
+
+Complex pivot with custom aggregations and post-processing
+
+```yaml
+settings:
+  description: "Advanced pivot table with multiple aggregation functions"
+  variables:
+    analysis_year: "2024"
+  stages:
+    - stage_name: "stg_transaction_data"
+      description: "Financial transaction data"
+      protected: false
+    - stage_name: "stg_financial_summary"
+      description: "Financial summary pivot table"
+      protected: false
+    - stage_name: "stg_cleaned_summary"
+      description: "Cleaned and formatted summary"
+      protected: false
+
+recipe:
+  - # Step 1: Import transaction data
+    step_description: "Import financial transactions"
+    processor_type: "import_file"
+    input_file: "data/transactions_{analysis_year}.xlsx"
+    save_to_stage: "stg_transaction_data"
+
+  - # Step 2: Create financial summary pivot
+    step_description: "Summarize financial metrics by department and quarter"
+    processor_type: "pivot_table"
+    source_stage: "stg_transaction_data"
+    # REQ - Department as primary grouping
+    index: ["Department"]
+    # OPT - Quarters as columns
+    columns: ["Quarter"]
+    # REQ - Financial metrics to analyze
+    values: ["Transaction_Amount"]
+    # OPT - Multiple aggregation functions
+    # When aggfunc is a list, applies each function to each value
+    aggfunc: ["sum", "mean", "count"]
+    fill_value: 0
+    margins: true
+    # OPT - Sort results by first column
+    # Default value: false
+    sort_by_index: true
+    # OPT - Fill blank cells in index columns
+    # Default value: false
+    fill_blanks: true
+    save_to_stage: "stg_financial_summary"
+
+  - # Step 3: Clean up column names
+    step_description: "Clean pivot table column names"
+    processor_type: "rename_columns"
+    source_stage: "stg_financial_summary"
+    rename_type: "transform"
+    case_conversion: "title"
+    replace_spaces: "_"
+    replacement: " "
+    save_to_stage: "stg_cleaned_summary"
+```
+
+### time series pivot
+
+Time-based pivot table for trend analysis
+
+```yaml
+settings:
+  description: "Create time series pivot for monthly trend analysis"
+  stages:
+    - stage_name: "stg_sales_history"
+      description: "Historical sales data"
+      protected: false
+    - stage_name: "stg_monthly_trends"
+      description: "Monthly sales trends by category"
+      protected: false
+
+recipe:
+  - # Step 1: Import historical data
+    step_description: "Import sales history"
+    processor_type: "import_file"
+    input_file: "data/sales_history.xlsx"
+    save_to_stage: "stg_sales_history"
+
+  - # Step 2: Add month column for pivoting
+    step_description: "Extract month from date"
+    processor_type: "add_calculated_column"
+    source_stage: "stg_sales_history"
+    new_column: "Month"
+    calculation:
+      pandas_formula: "pd.to_datetime({col:Sale_Date}).dt.month_name()"
+    save_to_stage: "stg_sales_with_month"
+
+  - # Step 3: Create monthly trend pivot
+    step_description: "Create monthly sales trends by product category"
+    processor_type: "pivot_table"
+    source_stage: "stg_sales_with_month"
+    # REQ - Product categories as rows
+    index: ["Product_Category"]
+    # OPT - Months as columns
+    columns: ["Month"]
+    # REQ - Sales metrics
+    values: ["Sales_Amount", "Units_Sold"]
+    # OPT - Sum sales and units
+    aggfunc: "sum"
+    fill_value: 0
+    # OPT - No margins for cleaner time series
+    margins: false
+    # OPT - Keep all months even if no sales
+    dropna: false
+    save_to_stage: "stg_monthly_trends"
+```
+
+## Parameter notes
+
+- `processor_type` (required): Must be 'pivot_table' for this processor type
+- `step_description` (default `Unnamed pivot_table step`): Human-readable description of what this pivot operation does
+- `source_stage` (required): Stage to read data from (must be declared in settings.stages)
+- `save_to_stage` (required): Stage to save pivot results (must be declared in settings.stages)
+- `index` (required): Field(s) to use as pivot table rows. Creates row groupings in the output
+- `columns` (default `None`): Field(s) to use as pivot table columns. Creates column groupings across the top
+- `values` (required): Field(s) to aggregate. Numeric fields for calculations or any field for counting
+- `aggfunc` (default `sum`): Aggregation function(s) to apply to values
+- `fill_value` (default `0`): Value to use for missing data in the pivot table
+- `margins` (default `False`): Add row and column totals (Grand Total)
+- `dropna` (default `True`): Drop rows/columns with all null values
+- `sort_by_index` (default `False`): Sort the pivot table by the index (first column)
+- `fill_blanks` (default `False`): Forward fill blank cells in index columns (like Excel's repeat labels)
+

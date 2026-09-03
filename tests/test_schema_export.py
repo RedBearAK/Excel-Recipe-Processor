@@ -14,7 +14,11 @@ import sys
 import json
 
 from excel_recipe_processor.core.pipeline import registry
-from excel_recipe_processor.core.schema_export import export_schemas, render_markdown
+import tempfile
+
+from pathlib import Path
+
+from excel_recipe_processor.core.schema_export import export_processor_docs, export_schemas, render_markdown
 
 
 def test_every_processor_present() -> bool:
@@ -50,8 +54,21 @@ def test_schema_less_are_marked() -> bool:
     return good
 
 
+def test_processor_pages_render() -> bool:
+    print('\nTesting per-processor page generation...')
+    with tempfile.TemporaryDirectory() as temp_dir:
+        written = export_processor_docs(registry, temp_dir)
+        names = {p.name for p in written}
+        page = (Path(temp_dir) / 'sort_data.md').read_text()
+        good = (len(written) == len(registry._processors) + 1 and 'README.md' in names
+                and '## Keys' in page and '`case_sensitive`' in page and '## Examples' in page)
+        print(f"  {len(written)} files; sort_data page has keys and examples -> {'OK' if good else 'FAIL'}")
+        return good
+
+
 def main() -> int:
-    tests = [test_every_processor_present, test_json_round_trip_and_markdown, test_schema_less_are_marked]
+    tests = [test_every_processor_present, test_json_round_trip_and_markdown, test_schema_less_are_marked,
+             test_processor_pages_render]
     passed = 0
     for test in tests:
         try:

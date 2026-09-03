@@ -236,3 +236,14 @@ apostrophe character), so Excel shows the formula and calculates nothing;
 a later `awaken` step or a person makes them live. Replaces what the
 removed `dead` mode was assumed to do (it wrote text into a stage, which
 came out live on export). Test: `tests/test_inject_formulas_text_mode.py`.
+
+## Per-processor pages, generated (2026-09-05)
+
+`--export-docs DIR` writes one Markdown page per processor plus an index:
+the capability description, longer capability notes, the declared keys
+(from the schema), the examples file's every block with its description,
+and its parameter notes. `docs/processors/` now holds these generated
+underscore-named pages. The prose a page shows lives in the processor's
+`get_capabilities()`, its Key descriptions, and its `_examples` file - all
+of which the tests read - so improving a page means improving those, and
+regenerating. The old dash-named hand pages are retired (delete list).

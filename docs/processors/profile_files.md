@@ -1,0 +1,134 @@
+# `profile_files`
+
+**Family:** `import`
+
+Per-file metadata discovery (e.g., modification times, sizes)
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `files`: list of str; REQUIRED
+- `include_full_paths`: bool; default false
+- `on_missing`: str; default "error"; one of error, note, skip
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+List files with their modification times
+
+```yaml
+# The stage holds one row per file: File, Modified, Size (KB). Modified is
+# a real datetime, so Excel can sort and format it. Rows keep the listed
+# order rather than being sorted.
+
+settings:
+  description: "Collect metadata for the input files"
+  stages:
+    - stage_name: "stg_source_file_info"
+      description: "Name, modified time and size of each input"
+      protected: false
+
+recipe:
+  - step_description: "Collect input file metadata"
+    processor_type: "profile_files"
+    # REQ - Files to describe, in display order
+    files:
+      - "lookup_source_files/product_ids.xlsx"
+      - "lookup_source_files/carriers.xlsx"
+    save_to_stage: "stg_source_file_info"
+```
+
+### provenance
+
+A provenance sheet in a generated workbook
+
+```yaml
+# The motivating case: every generated workbook records which vintage of
+# each input built it. When a number looks wrong a week later, the first
+# question - "was this made from the refreshed lookups?" - is answered on
+# a tab instead of by forensic guesswork.
+
+settings:
+  description: "Report with a source-files tab"
+  variables:
+    lookup_dir: "{recipe_parent_dir}/lookup_source_files"
+  required_external_vars:
+    source_download:
+      description: "Raw download being processed"
+      example: "260809_export.xlsx"
+  stages:
+    - stage_name: "stg_data"
+      description: "Processed data"
+      protected: false
+    - stage_name: "stg_source_file_info"
+      description: "Input file vintages"
+      protected: false
+
+recipe:
+  - step_description: "Import the download"
+    processor_type: "import_file"
+    input_file: "{source_download}"
+    save_to_stage: "stg_data"
+
+  - step_description: "Record the input vintages"
+    processor_type: "profile_files"
+    files:
+      - "{source_download}"
+      - "{lookup_dir}/product_ids.xlsx"
+    save_to_stage: "stg_source_file_info"
+
+  - step_description: "Export data plus the provenance tab"
+    processor_type: "export_file"
+    source_stage: "stg_data"
+    output_file: "output/report.xlsx"
+    sheets_to_create:
+      - sheet_name: "Data"
+        data_source: "stg_data"
+      - sheet_name: "Source_Files"
+        data_source: "stg_source_file_info"
+```
+
+### missing files
+
+Choosing what a missing file does
+
+```yaml
+# A provenance sheet that silently omitted a missing input would hide
+# exactly the problem it exists to surface, so the default is to stop.
+
+settings:
+  description: "Metadata with explicit missing-file handling"
+  stages:
+    - stage_name: "stg_file_info"
+      description: "File metadata including missing markers"
+      protected: false
+
+recipe:
+  - step_description: "Collect metadata, noting absentees"
+    processor_type: "profile_files"
+    files:
+      - "inputs/always_there.xlsx"
+      - "inputs/sometimes_there.xlsx"
+    # OPT - "error" (default), "note", or "skip"
+    #   error  stop and name the missing file
+    #   note   include the row with MISSING in the Modified column
+    #   skip   leave the row out, with a warning in the log
+    on_missing: "note"
+    save_to_stage: "stg_file_info"
+```
+
+## Parameter notes
+
+- `files` (required): List of file paths to describe. Variables substitute as usual. Output rows keep this order.
+- `on_missing` (default `error`): What a listed-but-absent file does: error, note (MISSING row), or skip
+- `save_to_stage` (required): Stage receiving the metadata frame: File, Modified, Size (KB)
+

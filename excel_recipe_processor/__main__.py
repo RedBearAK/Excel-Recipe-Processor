@@ -241,6 +241,13 @@ For detailed documentation and more examples:
     )
 
     parser.add_argument(
+        '--export-docs',
+        metavar='DIR',
+        help='Write one generated Markdown page per processor (description, declared keys, '
+             'validated examples) plus an index into DIR, e.g. docs/processors'
+    )
+
+    parser.add_argument(
         '--export-schemas',
         metavar='FORMAT',
         choices=['json', 'md', 'JSON', 'MD'],

@@ -97,6 +97,13 @@ def run_main(args: Namespace) -> int:
         if getattr(args, 'list_stages_recipe', None):
             return list_recipe_stages(args.list_stages_recipe)
 
+        if getattr(args, 'export_docs', None):
+            from excel_recipe_processor.core.pipeline import registry
+            from excel_recipe_processor.core.schema_export import export_processor_docs
+            written = export_processor_docs(registry, args.export_docs)
+            print(f"Wrote {len(written)} page(s) to {args.export_docs}")
+            return 0
+
         if getattr(args, 'export_schemas', None):
             from excel_recipe_processor.core.pipeline import registry
             from excel_recipe_processor.core.schema_export import export_schemas, render_markdown

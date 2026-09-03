@@ -148,4 +148,126 @@ def render_markdown(exported: dict) -> str:
     return '\n'.join(lines) + '\n'
 
 
+# --------------------------------------------------------------------------
+# Per-processor pages, generated: description + schema + validated examples
+# --------------------------------------------------------------------------
+
+def render_processor_page(name: str, processor_class, exported_entry: dict) -> str:
+    """
+    One Markdown page for a processor, assembled from sources the test
+    suite keeps honest: the capability description, the declared schema,
+    and the examples file (whose every step validates against the schema).
+    Prose belongs in those sources; nothing here is hand-written per page.
+    """
+    lines = [f"# `{name}`", '']
+    description = ''
+    capabilities = {}
+    try:
+        config = dict(processor_class.get_minimal_config())
+        config.setdefault('processor_type', name)
+        config.setdefault('step_description', 'docs')
+        capabilities = processor_class(config).get_capabilities() or {}
+        description = capabilities.get('description', '')
+    except Exception:
+        description = ''
+    family = exported_entry['family']
+    check = ' - a check: reads a stage, writes nothing' if not exported_entry['writes_stage'] else ''
+    lines.append(f"**Family:** `{family}`{check}")
+    lines.append('')
+    if description:
+        lines.append(description)
+        lines.append('')
+    notes = {k: v for k, v in capabilities.items()
+             if k not in ('description',) and isinstance(v, str) and len(v) > 20}
+    if notes:
+        lines.append('## Notes')
+        lines.append('')
+        for key, value in notes.items():
+            lines.append(f"- **{key.replace('_', ' ')}**: {value}")
+        lines.append('')
+    lines.append('## Keys')
+    lines.append('')
+    lines.append('Generated from the declared schema; keys not listed are refused at recipe load.')
+    lines.append('')
+    if exported_entry['schema'] is not None:
+        _render_schema(lines, exported_entry['schema'], 0)
+    lines.append('')
+    try:
+        examples = processor_class.get_usage_examples(processor_class(config)) if False else None
+    except Exception:
+        examples = None
+    try:
+        from excel_recipe_processor.utils.processor_examples_loader import load_processor_examples
+        examples = load_processor_examples(name)
+    except Exception:
+        examples = None
+    if isinstance(examples, dict):
+        blocks = [(k, v) for k, v in examples.items() if isinstance(v, dict) and 'yaml' in v]
+        if blocks:
+            lines.append('## Examples')
+            lines.append('')
+            lines.append('Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).')
+            lines.append('')
+            for key, block in blocks:
+                title = key.replace('_example', '').replace('_', ' ')
+                lines.append(f"### {title}")
+                lines.append('')
+                if block.get('description'):
+                    lines.append(str(block['description']))
+                    lines.append('')
+                lines.append('```yaml')
+                lines.append(str(block['yaml']).rstrip('\n'))
+                lines.append('```')
+                lines.append('')
+        details = examples.get('parameter_details')
+        if isinstance(details, dict) and details:
+            lines.append('## Parameter notes')
+            lines.append('')
+            for key, info in details.items():
+                if isinstance(info, dict):
+                    desc = info.get('description', '')
+                    extra = []
+                    if 'default' in info:
+                        extra.append(f"default `{info['default']}`")
+                    if info.get('required') is True:
+                        extra.append('required')
+                    tail = f" ({', '.join(extra)})" if extra else ''
+                    lines.append(f"- `{key}`{tail}: {desc}")
+                else:
+                    lines.append(f"- `{key}`: {info}")
+            lines.append('')
+    return '\n'.join(lines) + '\n'
+
+
+def export_processor_docs(registry, folder) -> list:
+    """Write one page per processor plus an index; return the paths written."""
+    from pathlib import Path
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    exported = export_schemas(registry)
+    written = []
+    index = ['# Processors', '', 'One generated page per processor: description, declared keys, validated examples.',
+             'Regenerate with `python -m excel_recipe_processor --export-docs docs/processors`.', '']
+    by_family = {}
+    for name, entry in exported['processors'].items():
+        by_family.setdefault(entry['family'], []).append(name)
+    for family in ('import', 'transform', 'export', 'file_ops', 'base'):
+        names = by_family.get(family, [])
+        if not names:
+            continue
+        index.append(f"## {family}")
+        index.append('')
+        for name in names:
+            index.append(f"- [`{name}`]({name}.md)")
+        index.append('')
+    for name, entry in exported['processors'].items():
+        page = render_processor_page(name, registry._processors[name], entry)
+        path = folder / f"{name}.md"
+        path.write_text(page)
+        written.append(path)
+    (folder / 'README.md').write_text('\n'.join(index) + '\n')
+    written.append(folder / 'README.md')
+    return written
+
+
 # End of file #

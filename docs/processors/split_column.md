@@ -1,0 +1,440 @@
+# `split_column`
+
+**Family:** `transform`
+
+Split single columns into multiple columns using various methods
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_stage`: stage_in; REQUIRED - Stage to read
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `source_column`: str; REQUIRED
+- `split_type`: str; REQUIRED; one of delimiter, fixed_width, regex, position
+- `delimiter`: str
+- `pattern`: str
+- `widths`: list of int
+- `positions`: list of int
+- `max_splits`: int
+- `new_column_names`: list of str - Column names
+- `expand_to_columns`: bool; default true
+- `fill_missing`: any; default ""
+- `remove_original`: bool; default false
+- `strip_whitespace`: bool; default true
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+Simple delimiter-based split for comma-separated names
+
+```yaml
+settings:
+  description: "Split customer names into first and last name columns"
+  stages:
+    - stage_name: "stg_customer_data"
+      description: "Customer data with combined names"
+      protected: false
+    - stage_name: "stg_split_names"
+      description: "Customer data with separated name columns"
+      protected: false
+
+recipe:
+  - # Step 1: Import customer data
+    step_description: "Import customer database with full names"
+    processor_type: "import_file"
+    input_file: "data/customers.xlsx"
+    save_to_stage: "stg_customer_data"
+
+  - # Step 2: Split customer names
+    # OPT - Human-readable step description
+    # Default value: "Unnamed split_column step"
+    step_description: "Split customer names into first and last"
+    # REQ - Must be "split_column" for this processor type
+    processor_type: "split_column"
+    # REQ - Stage to read data from (must be declared in settings.stages)
+    source_stage: "stg_customer_data"
+    # REQ - Column containing the data to split
+    source_column: "Customer_Name"
+    # REQ - Method for splitting
+    # Valid values: "delimiter", "fixed_width", "regex", "position"
+    split_type: "delimiter"
+    # REQ - Delimiter character or string (when split_type is "delimiter")
+    delimiter: ", "
+    # OPT - Names for the new columns created by splitting
+    # Default value: [] (auto-generates names like "Customer_Name_part_1", etc.)
+    new_column_names: ["Last_Name", "First_Name"]
+    # REQ - Stage to save split data
+    save_to_stage: "stg_split_names"
+```
+
+### pipe delimiter
+
+Split pipe-delimited product information
+
+```yaml
+settings:
+  description: "Split product data exported from legacy system"
+  stages:
+    - stage_name: "stg_product_export"
+      description: "Legacy system product export"
+      protected: false
+    - stage_name: "stg_normalized_products"
+      description: "Products with separate attribute columns"
+      protected: false
+
+recipe:
+  - # Step 1: Import legacy export
+    step_description: "Import pipe-delimited product data"
+    processor_type: "import_file"
+    input_file: "exports/legacy_products.csv"
+    save_to_stage: "stg_product_export"
+
+  - # Step 2: Split product information
+    step_description: "Split combined product info into separate columns"
+    processor_type: "split_column"
+    source_stage: "stg_product_export"
+    source_column: "Product_Info"
+    split_type: "delimiter"
+    delimiter: "|"
+    new_column_names: ["SKU", "Product_Name", "Category", "Price", "Stock_Level"]
+    # OPT - Maximum number of splits to perform
+    # Default value: null (no limit)
+    max_splits: 4
+    # OPT - Remove the original column after splitting
+    # Default value: false
+    remove_original: true
+    save_to_stage: "stg_normalized_products"
+```
+
+### fixed width
+
+Split fixed-width format data common in mainframe exports
+
+```yaml
+settings:
+  description: "Process fixed-width account codes from mainframe"
+  stages:
+    - stage_name: "stg_mainframe_data"
+      description: "Mainframe export with fixed-width codes"
+      protected: false
+    - stage_name: "stg_parsed_accounts"
+      description: "Accounts with parsed code components"
+      protected: false
+
+recipe:
+  - # Step 1: Import mainframe export
+    step_description: "Import fixed-width format data"
+    processor_type: "import_file"
+    input_file: "mainframe/account_export.txt"
+    save_to_stage: "stg_mainframe_data"
+
+  - # Step 2: Split fixed-width account codes
+    step_description: "Parse account codes: AAABBBBBCC format"
+    processor_type: "split_column"
+    source_stage: "stg_mainframe_data"
+    source_column: "Account_Code"
+    split_type: "fixed_width"
+    # REQ - List of character widths (when split_type is "fixed_width")
+    # This example: 3 chars + 5 chars + 2 chars = "AAA" + "BBBBB" + "CC"
+    widths: [3, 5, 2]
+    new_column_names: ["Region_Code", "Account_Number", "Account_Type"]
+    # OPT - Value to use when split results in empty/missing parts
+    # Default value: ""
+    fill_missing: "N/A"
+    save_to_stage: "stg_parsed_accounts"
+```
+
+### regex split
+
+Use regex patterns to split complex formatted data
+
+```yaml
+settings:
+  description: "Split transaction IDs with multiple delimiters"
+  stages:
+    - stage_name: "stg_transactions"
+      description: "Transaction data with complex IDs"
+      protected: false
+    - stage_name: "stg_parsed_transactions"
+      description: "Transactions with parsed ID components"
+      protected: false
+
+recipe:
+  - # Step 1: Import transaction data
+    step_description: "Import transaction records"
+    processor_type: "import_file"
+    input_file: "data/transactions.xlsx"
+    save_to_stage: "stg_transactions"
+
+  - # Step 2: Split complex transaction IDs
+    step_description: "Split IDs like 'TRX-2024_001#RUSH' using regex"
+    processor_type: "split_column"
+    source_stage: "stg_transactions"
+    source_column: "Transaction_ID"
+    split_type: "regex"
+    # REQ - Regular expression pattern (when split_type is "regex")
+    # This splits on dash, underscore, or hash
+    pattern: "[-_#]"
+    new_column_names: ["Trans_Type", "Year", "Number", "Priority"]
+    save_to_stage: "stg_parsed_transactions"
+```
+
+### position split
+
+Split at exact character positions for precise parsing
+
+```yaml
+settings:
+  description: "Parse timestamp strings at specific positions"
+  stages:
+    - stage_name: "stg_log_data"
+      description: "System logs with timestamp strings"
+      protected: false
+    - stage_name: "stg_parsed_logs"
+      description: "Logs with separated timestamp components"
+      protected: false
+
+recipe:
+  - # Step 1: Import log data
+    step_description: "Import system log file"
+    processor_type: "import_file"
+    input_file: "logs/system_log.csv"
+    save_to_stage: "stg_log_data"
+
+  - # Step 2: Split timestamp at positions
+    step_description: "Split '20240731143052EST' format timestamps"
+    processor_type: "split_column"
+    source_stage: "stg_log_data"
+    source_column: "Timestamp"
+    split_type: "position"
+    # REQ - List of character positions to split at (when split_type is "position")
+    # Positions: 8 (after date), 14 (after time)
+    # Results in: "20240731", "143052", "EST"
+    positions: [8, 14]
+    new_column_names: ["Date", "Time", "Timezone"]
+    save_to_stage: "stg_parsed_logs"
+```
+
+### address parsing
+
+Complex multi-step address parsing workflow
+
+```yaml
+settings:
+  description: "Parse and normalize address data"
+  variables:
+    import_date: "2024-07-31"
+  stages:
+    - stage_name: "stg_raw_addresses"
+      description: "Raw address data"
+      protected: false
+    - stage_name: "stg_street_split"
+      description: "Addresses with street components"
+      protected: false
+    - stage_name: "stg_city_state_split"
+      description: "Complete parsed addresses"
+      protected: false
+
+recipe:
+  - # Step 1: Import address data
+    step_description: "Import customer addresses"
+    processor_type: "import_file"
+    input_file: "data/addresses_{import_date}.xlsx"
+    save_to_stage: "stg_raw_addresses"
+
+  - # Step 2: Split full address into components
+    step_description: "Split address by pipe delimiter"
+    processor_type: "split_column"
+    source_stage: "stg_raw_addresses"
+    source_column: "Full_Address"
+    split_type: "delimiter"
+    delimiter: " | "
+    new_column_names: ["Street_Address", "City_State_Zip"]
+    save_to_stage: "stg_street_split"
+
+  - # Step 3: Further split city, state, zip
+    step_description: "Split city, state, and zip code"
+    processor_type: "split_column"
+    source_stage: "stg_street_split"
+    source_column: "City_State_Zip"
+    split_type: "regex"
+    # Pattern to split "Seattle, WA 98101" format
+    pattern: ",\\s*|\\s+(?=\\d{5})"
+    new_column_names: ["City", "State", "Zip_Code"]
+    max_splits: 2
+    remove_original: true
+    save_to_stage: "stg_city_state_split"
+```
+
+### name variations
+
+Handle different name formats with conditional logic
+
+```yaml
+settings:
+  description: "Process names in various formats"
+  stages:
+    - stage_name: "stg_employee_data"
+      description: "Employee data with mixed name formats"
+      protected: false
+    - stage_name: "stg_standardized_names"
+      description: "Employees with standardized name columns"
+      protected: false
+
+recipe:
+  - # Step 1: Import employee data
+    step_description: "Import employee records"
+    processor_type: "import_file"
+    input_file: "hr/employees.xlsx"
+    save_to_stage: "stg_employee_data"
+
+  - # Step 2: Handle "Last, First Middle" format
+    step_description: "Split formal name format"
+    processor_type: "split_column"
+    source_stage: "stg_employee_data"
+    source_column: "Formal_Name"
+    split_type: "regex"
+    # Split on comma followed by space, then on last space
+    pattern: ",\\s*|\\s+(?!.*\\s)"
+    new_column_names: ["Last_Name", "First_Name", "Middle_Name"]
+    fill_missing: ""
+    save_to_stage: "stg_parsed_formal"
+
+  - # Step 3: Handle "First Last" format
+    step_description: "Split casual name format"
+    processor_type: "split_column"
+    source_stage: "stg_employee_data"
+    source_column: "Display_Name"
+    split_type: "delimiter"
+    delimiter: " "
+    max_splits: 1
+    new_column_names: ["Display_First", "Display_Last"]
+    save_to_stage: "stg_standardized_names"
+```
+
+### auto naming
+
+Let the processor auto-generate column names
+
+```yaml
+settings:
+  description: "Split data without predefined column names"
+  stages:
+    - stage_name: "stg_survey_data"
+      description: "Survey responses with variable fields"
+      protected: false
+    - stage_name: "stg_split_responses"
+      description: "Survey with auto-named response columns"
+      protected: false
+
+recipe:
+  - # Step 1: Import survey data
+    step_description: "Import survey responses"
+    processor_type: "import_file"
+    input_file: "data/survey_responses.csv"
+    save_to_stage: "stg_survey_data"
+
+  - # Step 2: Split responses without naming columns
+    step_description: "Split comma-separated responses"
+    processor_type: "split_column"
+    source_stage: "stg_survey_data"
+    source_column: "Multiple_Choice_Answers"
+    split_type: "delimiter"
+    delimiter: ","
+    # No new_column_names provided - auto-generates:
+    # Multiple_Choice_Answers_part_1, Multiple_Choice_Answers_part_2, etc.
+    # OPT - Strip whitespace from split results
+    # Default value: true
+    strip_whitespace: true
+    fill_missing: "No Response"
+    save_to_stage: "stg_split_responses"
+```
+
+### real world workflow
+
+Complete data normalization workflow with multiple splits
+
+```yaml
+settings:
+  description: "Normalize complex order data from multiple systems"
+  stages:
+    - stage_name: "stg_raw_orders"
+      description: "Combined order data from multiple sources"
+      protected: false
+    - stage_name: "stg_customer_split"
+      description: "Orders with split customer info"
+      protected: false
+    - stage_name: "stg_product_split"
+      description: "Orders with split product details"
+      protected: false
+    - stage_name: "stg_normalized_orders"
+      description: "Fully normalized order data"
+      protected: false
+
+recipe:
+  - # Step 1: Import combined order data
+    step_description: "Import order data export"
+    processor_type: "import_file"
+    input_file: "exports/combined_orders.xlsx"
+    save_to_stage: "stg_raw_orders"
+
+  - # Step 2: Split customer contact info
+    step_description: "Split 'Name|Email|Phone' customer data"
+    processor_type: "split_column"
+    source_stage: "stg_raw_orders"
+    source_column: "Customer_Contact"
+    split_type: "delimiter"
+    delimiter: "|"
+    new_column_names: ["Customer_Name", "Customer_Email", "Customer_Phone"]
+    save_to_stage: "stg_customer_split"
+
+  - # Step 3: Split product details
+    step_description: "Parse product codes 'CAT-12345-SIZE-COLOR'"
+    processor_type: "split_column"
+    source_stage: "stg_customer_split"
+    source_column: "Product_Code"
+    split_type: "delimiter"
+    delimiter: "-"
+    new_column_names: ["Category", "Item_ID", "Size", "Color"]
+    max_splits: 3
+    fill_missing: "Standard"
+    save_to_stage: "stg_product_split"
+
+  - # Step 4: Split order reference
+    step_description: "Parse order IDs 'ORD20240731#12345/A/RUSH'"
+    processor_type: "split_column"
+    source_stage: "stg_product_split"
+    source_column: "Order_Reference"
+    split_type: "regex"
+    pattern: "[#/]"
+    new_column_names: ["Order_Prefix", "Order_Number", "Revision", "Priority"]
+    remove_original: true
+    save_to_stage: "stg_normalized_orders"
+```
+
+## Parameter notes
+
+- `processor_type` (required): Must be 'split_column' for this processor type
+- `step_description` (default `Unnamed split_column step`): Human-readable description of what this split operation does
+- `source_stage` (required): Stage to read data from (must be declared in settings.stages)
+- `save_to_stage` (required): Stage to save split data (must be declared in settings.stages)
+- `source_column` (required): Column containing the data to split
+- `split_type` (required): Method to use for splitting the column
+- `delimiter` (default `None`): Character or string to split on (required when split_type is 'delimiter')
+- `widths` (default `None`): List of character widths for each part (required when split_type is 'fixed_width')
+- `pattern` (default `None`): Regular expression pattern to split on (required when split_type is 'regex')
+- `positions` (default `None`): Character positions where splits occur (required when split_type is 'position')
+- `new_column_names` (default `[]`): Names for the new columns created by splitting
+- `max_splits` (default `None`): Maximum number of splits to perform (limits column creation)
+- `remove_original` (default `False`): Remove the original column after splitting
+- `fill_missing` (default ``): Value to use when a split results in fewer parts than expected
+- `strip_whitespace` (default `True`): Remove leading/trailing whitespace from split values
+

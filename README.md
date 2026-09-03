@@ -155,7 +155,8 @@ committed file is a convenience):
 
 ```bash
 python -m excel_recipe_processor --export-schemas md > docs/STEP_SCHEMAS.md
-python -m excel_recipe_processor --export-schemas json     # machine form
+python -m excel_recipe_processor --export-docs docs/processors   # one page per processor
+python -m excel_recipe_processor --export-schemas json           # machine form
 ```
 
 Check a recipe without running it - the same checks run at the start of every
@@ -217,9 +218,12 @@ Each step must have:
 
 ## 🔍 **Processor Details**
 
-Every processor's keys, kinds, defaults, and allowed values:
-[`docs/STEP_SCHEMAS.md`](docs/STEP_SCHEMAS.md) (generated). Worked examples
-for each: `python -m excel_recipe_processor --get-usage-examples <name>`.
+One generated page per processor - description, declared keys, and its
+validated examples - in [`docs/processors/`](docs/processors/README.md).
+All keys on one page: [`docs/STEP_SCHEMAS.md`](docs/STEP_SCHEMAS.md).
+Both are generated from the code (`--export-docs docs/processors`,
+`--export-schemas md`), so they cannot drift; the prose lives in each
+processor's example file and key descriptions, which the tests validate.
 
 ## 🛠️ **Beyond the Basics**
 
@@ -276,7 +280,7 @@ excel_recipe_processor/
 ├── processors/      # One module per processor; _helpers/ and _examples/ beside them
 ├── readers/         # File reading
 ├── utils/           # Shared utilities
-docs/                # STEP_SCHEMAS.md (generated), WRITING_A_PROCESSOR.md, CAPABILITIES.md, cli/
+docs/                # processors/ and STEP_SCHEMAS.md (generated), CAPABILITIES.md, WRITING_A_PROCESSOR.md, cli/
 dev_notes/           # Design notes and the key-migration ledger
 tests/               # Standalone test modules
 ```

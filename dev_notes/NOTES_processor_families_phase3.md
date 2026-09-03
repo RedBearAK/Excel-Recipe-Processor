@@ -70,3 +70,17 @@ code. The rest were examples teaching keys the processors never supported
 export_file, `entries` on create_stage, `decimal_places` on fix_numeric,
 elided "... rules" steps). All 317 example steps now validate; the
 positional select_columns example was retired with the code path.
+
+## format_excel schema (2026-09-04)
+
+Declared from the module's own option sets: sheet-level options shared by
+`templates` and `formatting` entries; `column_formats` rules carry the
+`column_names` / `column_refs` pair (at least one) plus style keys;
+`cell_formats` rules carry `cells` (a list of A1 refs/ranges) plus style
+keys; `cell_ranges` and `row_heights` are open mappings keyed by range /
+row number; `pivot_style` and `workbook_theme` are closed mappings.
+
+What it caught: both sibling-project contracts recipes still used
+`columns:` inside `column_formats`, a key the helper has refused since the
+2026-08-26 rename - they would have failed at their format step on the
+next real run. One stale `sheet_name` in the profile_sheets example.

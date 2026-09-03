@@ -24,6 +24,9 @@ from openpyxl.utils import get_column_letter
 
 from excel_recipe_processor.core.variable_substitution import VariableSubstitution
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import (
+    Key, Schema, name_list, name_ref_pair,
+)
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.format_excel_theme_manager import (
     resolve_theme,
@@ -81,6 +84,101 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
     NEW: Supports reusable formatting templates to reduce configuration redundancy.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-03), read from the option sets this module
+        and its helpers enforce. Sheet-level options are one vocabulary
+        shared by templates and formatting entries; column_formats and
+        cell_formats carry the name/ref pair and per-cell style keys.
+        """
+        alignment_h = ['left', 'center', 'right', 'justify', 'distributed']
+        alignment_v = ['top', 'center', 'bottom', 'justify', 'distributed']
+
+        def style_keys():
+            return [
+                Key('number_format', 'str'),
+                Key('alignment_horizontal', 'str', choices=alignment_h),
+                Key('alignment_vertical', 'str', choices=alignment_v),
+                Key('wrap_text', 'bool'),
+                Key('font_color', 'str'), Key('font_bold', 'bool'), Key('font_italic', 'bool'),
+                Key('font_size', 'number'), Key('font_name', 'str'),
+                Key('font_underline', 'any'), Key('font_strikethrough', 'bool'),
+                Key('background_color', 'str'),
+                Key('border_style', 'str'), Key('border_color', 'str'),
+            ]
+
+        pair_keys, pair_group = name_ref_pair('Header NAME strings this rule styles')
+        column_rule = Schema(pair_keys + style_keys() + [
+            Key('make_hyperlinks', 'str', description='e.g. file_paths'),
+            Key('hyperlink_color', 'str'),
+            Key('header_font_color', 'str'), Key('header_background_color', 'str'),
+            Key('header_bold', 'bool'),
+            Key('width', 'number', description='Explicit column width'),
+            Key('whole_column', 'bool', default=False,
+                description='Column-dimension style, for cells Excel creates at calculation time'),
+        ], at_least_one=[pair_group])
+        cell_rule = Schema([Key('cells', 'list', item_kind='str', required=True, description='A1-style cells or ranges, e.g. ["B2"] or ["A4:D4"]')]
+                           + style_keys())
+
+        def sheet_option_keys():
+            return [
+                Key('apply_templates', 'list', item_kind='str'),
+                Key('auto_fit_columns', 'bool'), Key('autofit_scan_rows', 'int'),
+                Key('min_column_width', 'number'), Key('max_column_width', 'number'),
+                Key('header_row', 'int', default=1),
+                Key('header_bold', 'bool'), Key('header_background', 'bool'),
+                Key('header_background_color', 'str'), Key('header_text_color', 'str'),
+                Key('header_font_size', 'number'),
+                Key('header_alignment_horizontal', 'str', choices=alignment_h),
+                Key('header_alignment_vertical', 'str', choices=alignment_v),
+                Key('general_text_color', 'str'), Key('general_font_size', 'number'),
+                Key('general_font_name', 'str'),
+                Key('general_alignment_horizontal', 'str', choices=alignment_h),
+                Key('general_alignment_vertical', 'str', choices=alignment_v),
+                Key('freeze_top_row', 'bool'), Key('freeze_panes', 'str'),
+                Key('auto_filter', 'bool'),
+                Key('column_formats', 'list_of_mappings', schema=column_rule),
+                Key('cell_formats', 'list_of_mappings', schema=cell_rule),
+                Key('cell_ranges', 'open_mapping',
+                    description='range string -> style mapping (text_color, background_color, font_size, font_name, bold, italic, alignment_horizontal, alignment_vertical, border)'),
+                name_list('hidden_columns'),
+                Key('on_missing_column', 'str', default='warn', choices=['error', 'warn', 'skip']),
+                Key('copy_widths_from_sheet', 'str'),
+                Key('column_widths_from_stage', 'stage_in'), Key('column_widths_source', 'str'),
+                Key('column_styles_from_stage', 'stage_in'), Key('column_styles_source', 'str'),
+                Key('row_heights', 'open_mapping', description='row number -> height'),
+                Key('header_row_height', 'number'), Key('data_row_height', 'number'),
+                Key('show_gridlines', 'bool'),
+                Key('banded_row_color', 'str'), Key('banded_row_border_style', 'str'),
+                Key('banded_row_border_color', 'str'),
+                Key('outline_border_style', 'str'), Key('outline_border_color', 'str'),
+                Key('outline_border_range', 'str'),
+                Key('tab_color', 'str'), Key('zoom_percent', 'int'),
+                Key('sheet_state', 'str', choices=['visible', 'hidden', 'very_hidden']),
+            ]
+
+        template = Schema([Key('template_name', 'str', required=True)] + sheet_option_keys())
+        sheet_entry = Schema([Key('sheet_names', 'list', item_kind='str', required=True,
+                                  description='Tab names or ?sheet_NNN? tokens')] + sheet_option_keys())
+        pivot_style = Schema([
+            Key('name', 'str', required=True),
+            Key('header_background_color', 'str'), Key('header_font_color', 'str'),
+            Key('header_bold', 'bool'), Key('bold_subtotals', 'bool'), Key('bold_grand_totals', 'bool'),
+        ])
+        workbook_theme = Schema([
+            Key('preset', 'str'), Key('accent_colors', 'any'), Key('apply', 'bool'), Key('from_file', 'str'),
+        ])
+        return Schema([
+            Key('target_file', 'str', required=True),
+            Key('formatting', 'list_of_mappings', required=True, schema=sheet_entry),
+            Key('templates', 'list_of_mappings', schema=template),
+            Key('active_sheet_name', 'str'),
+            Key('pivot_style', 'mapping', schema=pivot_style),
+            Key('default_pivot_style', 'str'),
+            Key('workbook_theme', 'mapping', schema=workbook_theme),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

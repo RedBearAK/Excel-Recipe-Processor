@@ -203,8 +203,17 @@ class LookupDataProcessor(BaseStepProcessor):
     def _validate_lookup_data(self, lookup_data: pd.DataFrame, match_col_in_lookup_data: str, lookup_columns: list) -> None:
         """Validate that lookup data has required columns."""
         
+        # An EMPTY lookup stage that still carries the declared columns is
+        # the import_file create_empty contract arriving here (2026-09-02):
+        # the source file was absent on this machine, so every row comes
+        # back unmatched - loudly, but the run survives. An empty stage
+        # WITHOUT the columns is still a configuration error below.
         if len(lookup_data) == 0:
-            raise StepProcessorError("Lookup stage contains no data")
+            logger.warning(
+                f"\u26a0\ufe0f  '{self.step_name}': lookup stage is EMPTY - every row "
+                f"will be unmatched (blank or default). This is expected only "
+                f"when the source file was absent (on_missing_file: create_empty)."
+            )
         
         # Check lookup key exists
         if match_col_in_lookup_data not in lookup_data.columns:

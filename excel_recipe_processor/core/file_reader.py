@@ -72,7 +72,7 @@ class FileReader:
     
     @staticmethod
     def read_file(filename, sheet=1, encoding='utf-8', separator=',', explicit_format=None,
-                  verbatim_text_columns=None):
+                  verbatim_text_columns=None, header_row=1):
         """
         Read a file with automatic format detection
         
@@ -82,6 +82,10 @@ class FileReader:
             encoding: Text encoding for CSV/TSV files (default: 'utf-8')
             separator: Column separator for CSV files (default: ',')
             explicit_format: Override format detection ('xlsx', 'csv', 'tsv')
+            header_row: 1-based row holding the column headers (default 1).
+                Rows above it are discarded - report exports that lead with
+                title lines (a report export whose headers sit on row 3)
+                import straight to a headed frame with no slice-and-promote.
             
         Returns:
             DataFrame with file contents
@@ -114,19 +118,28 @@ class FileReader:
             else:
                 sheet_for_excel = sheet  # Pass sheet names through unchanged
             
+            if not isinstance(header_row, int) or isinstance(header_row, bool) or header_row < 1:
+                raise FileReaderError(
+                    f"header_row must be a positive integer (1-based), got {header_row!r}"
+                )
+            header_index = header_row - 1
+
             # Delegate to appropriate reader based on logical format
             if file_format in FileReader.EXCEL_FORMATS:
                 data = FileReader._read_excel_file(
                     filename, sheet_for_excel,
-                    raw_na=bool(verbatim_text_columns))
+                    raw_na=bool(verbatim_text_columns),
+                    header_index=header_index)
             elif file_format in FileReader.CSV_FORMATS:
                 data = FileReader._read_csv_file(
                     filename, encoding, separator,
-                    raw_na=bool(verbatim_text_columns))
+                    raw_na=bool(verbatim_text_columns),
+                    header_index=header_index)
             elif file_format in FileReader.TSV_FORMATS:
                 data = FileReader._read_tsv_file(
                     filename, encoding,
-                    raw_na=bool(verbatim_text_columns))
+                    raw_na=bool(verbatim_text_columns),
+                    header_index=header_index)
             else:
                 raise FileReaderError(f"Unsupported file format: {q(file_format)}")
 
@@ -345,8 +358,8 @@ class FileReader:
         return data.infer_objects()
 
     @staticmethod
-    def _read_excel_file(filename, sheet, raw_na=False):
-        """Read Excel file using ExcelReader."""
+    def _read_excel_file(filename, sheet, raw_na=False, header_index=0):
+        """Read Excel file using ExcelReader. header_index is 0-based."""
         try:
             excel_reader = ExcelReader()
             
@@ -367,10 +380,11 @@ class FileReader:
             engine_kwargs = {'engine': 'calamine'} if CALAMINE_AVAILABLE else {}
 
             if raw_na:
-                data = excel_reader.read_file(filename, sheet_name=sheet,
+                data = excel_reader.read_file(filename, sheet_name=sheet, header=header_index,
                                               keep_default_na=False, **engine_kwargs)
             else:
-                data = excel_reader.read_file(filename, sheet_name=sheet, **engine_kwargs)
+                data = excel_reader.read_file(filename, sheet_name=sheet, header=header_index,
+                                              **engine_kwargs)
             
             logger.debug(f"Read Excel file '{filename}', sheet: {sheet}, shape: {data.shape}")
             return data
@@ -379,13 +393,14 @@ class FileReader:
             raise FileReaderError(f"Excel reading error for '{filename}': {e}")
     
     @staticmethod
-    def _read_csv_file(filename, encoding, separator, raw_na=False):
-        """Read CSV file with robust options."""
+    def _read_csv_file(filename, encoding, separator, raw_na=False, header_index=0):
+        """Read CSV file with robust options. header_index is 0-based."""
         try:
             data = pd.read_csv(
                 filename,
                 encoding=encoding,
                 sep=separator,
+                header=header_index,
                 # Robust CSV reading options
                 skipinitialspace=True,
                 na_values=[] if raw_na else ['', 'NULL', 'null', 'N/A', 'n/a', 'NA', 'None'],
@@ -404,13 +419,14 @@ class FileReader:
             raise FileReaderError(f"CSV reading error for '{filename}': {e}")
     
     @staticmethod
-    def _read_tsv_file(filename, encoding, raw_na=False):
-        """Read TSV file with robust options."""
+    def _read_tsv_file(filename, encoding, raw_na=False, header_index=0):
+        """Read TSV file with robust options. header_index is 0-based."""
         try:
             data = pd.read_csv(
                 filename,
                 encoding=encoding,
                 sep='\t',
+                header=header_index,
                 # Robust TSV reading options
                 skipinitialspace=True,
                 na_values=[] if raw_na else ['', 'NULL', 'null', 'N/A', 'n/a', 'NA', 'None'],

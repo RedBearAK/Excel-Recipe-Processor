@@ -529,7 +529,13 @@ class CleanDataProcessor(BaseStepProcessor):
         if not isinstance(pattern, str):
             raise StepProcessorError(f"Cleaning rule {rule_index + 1} 'pattern' must be a string")
         
-        df[column] = df[column].astype(str).str.replace(pattern, replacement, regex=True)
+        # Through the null mask like every other text action: a whole-column
+        # astype(str) stamps the literal text "nan" into blanks under pandas 2
+        # (2026-09-02). Populated non-text values (datetimes in a mixed
+        # export column) still stringify, which is what a first-line cut on
+        # a newline-joined status column needs.
+        df[column] = self._apply_to_text_values(
+            df[column], lambda acc: acc.replace(pattern, replacement, regex=True))
         logger.debug(f"Applied regex replace in column '{column}': {pattern} → {replacement}")
         return df
     

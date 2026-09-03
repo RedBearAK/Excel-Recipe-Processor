@@ -50,6 +50,8 @@ class ImportFileProcessor(ImportBaseProcessor):
             'file_formats': ['xlsx', 'xls', 'xlsm', 'xlsb', 'csv', 'tsv', 'txt (as tsv)'],
             'excel_options': ['sheet selection by name or index'],
             'path_features': ['recipe variable substitution'],
+            'header_row': "1-based row holding the column headers (default 1); "
+                          "rows above it are discarded",
             'missing_file_policy': "on_missing_file: 'error' (default) or "
                                    "'create_empty' with declared "
                                    "create_empty_columns for fail-safe "
@@ -85,6 +87,17 @@ class ImportFileProcessor(ImportBaseProcessor):
         # so every downstream step (keys, filters, exports) stays valid.
         on_missing_file = self.get_config_value('on_missing_file', 'error')
         create_empty_columns = self.get_config_value('create_empty_columns', None)
+
+        # OPT header_row: 1-based row holding the headers (default 1). Report
+        # exports that lead with title lines import directly, without the
+        # import -> slice -> promote dance, and a create_empty fallback can
+        # declare the REAL header names because no promotion step follows.
+        header_row = self.get_config_value('header_row', 1)
+        if not isinstance(header_row, int) or isinstance(header_row, bool) or header_row < 1:
+            raise StepProcessorError(
+                f"Import step '{self.step_name}': header_row must be a positive "
+                f"integer (1-based row of the header line), got {header_row!r}"
+            )
 
         if on_missing_file not in ('error', 'create_empty'):
             raise StepProcessorError(
@@ -200,7 +213,8 @@ class ImportFileProcessor(ImportBaseProcessor):
                 encoding=encoding,
                 separator=separator,
                 explicit_format=explicit_format,
-                verbatim_text_columns=verbatim_text_columns
+                verbatim_text_columns=verbatim_text_columns,
+                header_row=header_row
             )
             
             # Final import summary with comprehensive sheet information

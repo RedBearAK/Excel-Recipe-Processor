@@ -486,7 +486,8 @@ if __name__ == '__main__':
         print("\n✗ Some add calculated column processor tests failed!")
     
     # Show supported features
-    processor = AddCalculatedColumnProcessor({'processor_type': 'add_calculated_column', 'new_column': 'x', 'calculation': {}})
+    processor = AddCalculatedColumnProcessor({'processor_type': 'add_calculated_column', 'new_column': 'x',
+                                              'calculation': {'pandas_formula': '1'}})
     print(f"\nSupported calculation types: {processor.get_supported_calculation_types()}")
     print(f"Supported conditions: {processor.get_supported_conditions()}")
     print(f"Supported math operations: {processor.get_supported_math_operations()}")

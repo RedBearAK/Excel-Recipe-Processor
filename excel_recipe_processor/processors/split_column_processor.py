@@ -48,7 +48,9 @@ class SplitColumnProcessor(TransformBaseProcessor):
         return {
             'source_column': 'test_column',
             'delimiter': ',',
-            'new_columns': ['part1', 'part2']
+            'split_type': 'delimiter',
+            'delimiter': ',',
+            'new_column_names': ['part1', 'part2']
         }
     
     def execute(self, data: Any) -> pd.DataFrame:

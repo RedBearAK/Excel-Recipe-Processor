@@ -38,7 +38,7 @@ class ColumnsToRowsProcessor(TransformBaseProcessor):
     def config_schema(cls) -> Schema:
         """Declared keys (2026-09-03); see core/config_schema.py."""
         return Schema([
-            name_list('id_columns', required=True), name_list('value_columns'),
+            name_list('id_columns'), name_list('value_columns'),
             Key('labels_to', 'str', default='Field'), Key('values_to', 'str', default='Value'),
             Key('drop_empty_values', 'bool', default=False),
         ])

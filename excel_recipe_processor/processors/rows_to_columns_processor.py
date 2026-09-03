@@ -35,7 +35,7 @@ class RowsToColumnsProcessor(TransformBaseProcessor):
     def config_schema(cls) -> Schema:
         """Declared keys (2026-09-03); see core/config_schema.py."""
         return Schema([
-            name_list('id_columns', required=True),
+            name_list('id_columns', description='Omit to imply every column not named by labels_from / values_from'),
             Key('labels_from', 'str', required=True), Key('values_from', 'str', required=True),
             Key('fill_missing_with', 'any'),
         ])

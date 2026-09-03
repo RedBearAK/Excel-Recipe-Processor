@@ -52,6 +52,7 @@ def make_processor():
         'processor_type': 'format_excel',
         'step_description': 'consolidated cycle test',
         'target_file': 'unused.xlsx',
+        'formatting': [],
     }
     return FormatExcelProcessor(step)
 

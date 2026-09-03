@@ -168,8 +168,8 @@ def test_file_mode_and_validation():
             passed = False
 
     cases = [
-        ('bad severity', {'source_stage': 's'}, 'severity must be'),
-        ('legacy bare stage key', {'stage': 's'}, "'source_stage'"),
+        ('bad severity', {'source_stage': 's'}, "severity: 'sorta'"),
+        ('legacy bare stage key', {'stage': 's'}, "unknown key 'stage'"),
         ('stage key inside a stage rule',
          {'source_stage': 's', '_rule_extra': {'condition': 'in_stage', 'stage': 'lk'}},
          'stage_name'),

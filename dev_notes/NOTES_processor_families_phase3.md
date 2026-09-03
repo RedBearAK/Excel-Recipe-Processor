@@ -103,3 +103,27 @@ The "pre-existing failures" were all stale tests, not defects:
   with {col:} refs; a stage declared for every workflow but written by one
   (the strict graph caught it).
 Remaining: test_basic needs pytest installed - an environment matter.
+
+## Construction-time schema check and the test sweep (2026-09-04)
+
+`BaseStepProcessor.__init__` validates the config against
+`construction_schema()` - the full schema with the family's stage keys made
+optional, since a direct caller may hand a processor a frame with no stages
+in play. Unresolved {tokens} are tolerated at construction. This is the
+permanent form of "sweep the tests' recipe fragments": every direct
+instantiation now goes through the check a recipe goes through at load.
+
+First run under the gate: 45 of 129 test modules failed. Sorted:
+- schemas narrower than code (fixed from source): pivot_table index/values
+  optional; columns_to_rows / rows_to_columns id_columns optional;
+  verify_excel_storage on_violation is halt/warn; merge_data suffixes
+  accepts a tuple; split_column and diff_data minimal configs carried
+  stale keys.
+- stale test keys the processors never read (removed): sheet_specific,
+  column_widths mapping, replace_current_data, active in sheets_to_create,
+  ignore_case, string key_columns.
+- guardrail tests asserting error text now get the schema's wording;
+  expectations updated, one construction moved inside its try.
+test_basic was a pytest-style scaffold; rewritten in house style.
+Result: 129/129 (two modules are slow under 4-way parallel load and
+should be run serially for a verdict).

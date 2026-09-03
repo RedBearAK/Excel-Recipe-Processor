@@ -204,15 +204,8 @@ def test_multiple_sheets():
                 'sheet_names': ['?sheet_001?'],
                 'auto_fit_columns': True,
                 'header_bold': True,
-                'sheet_specific': {
-                    'Sheet1': {
-                        'header_background': True,
-                        'header_background_color': 'FFFF00'  # Yellow
-                    },
-                    'Sheet2': {
-                        'freeze_top_row': True
-                    }
-                }
+                'header_background': True,
+                'header_background_color': 'FFFF00'
             }]
         }
         
@@ -257,10 +250,6 @@ def test_column_and_row_sizing():
                 'auto_fit_columns': True,
                 'max_column_width': 30,
                 'min_column_width': 10,
-                'column_widths': {
-                    'A': 15,  # Customer_ID column
-                    'B': 25   # Customer_Name column
-                },
                 'row_heights': {
                     1: 20,  # Header row
                     2: 15   # First data row
@@ -567,7 +556,8 @@ if __name__ == '__main__':
     if OPENPYXL_AVAILABLE:
         processor = FormatExcelProcessor({
             'processor_type': 'format_excel',
-            'target_file': 'test.xlsx'
+            'target_file': 'test.xlsx',
+            'formatting': [],
         })
         print(f"\nSupported features: {processor.get_supported_features()}")
         print(f"Processor capabilities: {list(processor.get_capabilities().keys())}")

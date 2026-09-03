@@ -56,7 +56,7 @@ class VerifyExcelStorageProcessor(FileOpsBaseProcessor):
         """Declared keys (2026-09-03); see core/config_schema.py."""
         return Schema([
             Key('files', 'list', item_kind='str', required=True),
-            Key('on_violation', 'str', default='error', choices=['error', 'warn']),
+            Key('on_violation', 'str', default='halt', choices=['halt', 'warn']),
         ])
 
     @classmethod

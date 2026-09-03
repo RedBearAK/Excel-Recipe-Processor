@@ -66,7 +66,7 @@ class DiffDataProcessor(TransformBaseProcessor):
         """
         return {
             'reference_stage': 'test_baseline',
-            'key_columns': 'test_key',
+            'key_columns': ['test_key'],
             'source_stage': 'test_current',
             'save_to_stage': 'test_diff_results'
         }

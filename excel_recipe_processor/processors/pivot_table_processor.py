@@ -30,7 +30,7 @@ class PivotTableProcessor(TransformBaseProcessor):
     def config_schema(cls) -> Schema:
         """Declared keys (2026-09-03); see core/config_schema.py."""
         return Schema([
-            name_list('index', required=True), name_list('columns'), name_list('values', required=True),
+            name_list('index'), name_list('columns'), name_list('values'),
             Key('aggfunc', 'any', default='sum'),
             Key('fill_value', 'any', default=0), Key('fill_blanks', 'bool', default=False),
             Key('margins', 'bool', default=False), Key('dropna', 'bool', default=False),

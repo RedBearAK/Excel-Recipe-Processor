@@ -22,9 +22,11 @@ def stage_with(columns):
 
 
 def build(expected, **overrides):
-    config = {'processor_type': 'verify_columns', 'source_stage': 'stg_check',
-              'expected_columns': expected}
+    config = {'processor_type': 'verify_columns', 'source_stage': 'stg_check'}
+    if expected is not None:
+        config['expected_columns'] = expected
     config.update(overrides)
+    config = {key: value for key, value in config.items() if value is not None}
     return VerifyColumnsProcessor(config)
 
 

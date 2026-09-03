@@ -76,6 +76,31 @@ class BaseStepProcessor(ABC):
         """Family contribution merged with the processor's own schema, or None."""
         return cls._full_schema
 
+    @classmethod
+    def construction_schema(cls):
+        """
+        The full schema with the family's stage keys made optional: a direct
+        caller may build a processor and hand it a frame with no stages in
+        play, so whether a RECIPE named its stages is the pipeline's check,
+        not the constructor's. Every other key is checked exactly as at load.
+        """
+        schema = cls.full_schema()
+        if schema is None:
+            return None
+        cached = cls.__dict__.get('_construction_schema')
+        if cached is not None:
+            return cached
+        from excel_recipe_processor.core.config_schema import Key, Schema
+        relaxed = []
+        for key in schema.keys.values():
+            if key.kind in ('stage_in', 'stage_out') and key.required:
+                relaxed.append(Key(key.name, key.kind, required=False, default=key.default,
+                                   choices=key.choices, description=key.description))
+            else:
+                relaxed.append(key)
+        cls._construction_schema = Schema(relaxed, schema.variants, schema.at_least_one)
+        return cls._construction_schema
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Only classes that declare their own schema are checked; the
@@ -113,6 +138,23 @@ class BaseStepProcessor(ABC):
         self.step_config = step_config
         self.step_type = step_type
         self.step_name = step_config.get('step_description', f'Unnamed {step_type} step')
+
+        # CONSTRUCTION-TIME SCHEMA CHECK (2026-09-04). The pipeline already
+        # validates every step at load; this repeats the check for direct
+        # callers - tests and tooling - so a config no recipe could carry
+        # is refused wherever it is built, and the tests' own recipe
+        # fragments cannot drift from the vocabulary the way stale keys
+        # did through 2026-08/09. Unresolved {tokens} are tolerated here
+        # because substitution is the pipeline's job, not the caller's.
+        schema = type(self).construction_schema()
+        if schema is not None:
+            from excel_recipe_processor.core.config_schema import validate_config
+            problems = validate_config(step_config, schema, '', True)
+            if problems:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}' ({step_type}) configuration rejected by its "
+                    f"schema: " + '; '.join(problems)
+                )
         
         self.source_stage = step_config.get('source_stage')
         self.save_to_stage = step_config.get('save_to_stage')

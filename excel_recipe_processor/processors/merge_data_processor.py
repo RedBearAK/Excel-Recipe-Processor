@@ -41,7 +41,7 @@ class MergeDataProcessor(TransformBaseProcessor):
             Key('left_key', 'any', required=True), Key('right_key', 'any', required=True),
             Key('join_type', 'str', default='left', choices=['left', 'right', 'inner', 'outer']),
             Key('column_prefix', 'str', default=''),
-            Key('suffixes', 'list', item_kind='str'),
+            Key('suffixes', 'any', description='Two suffixes for overlapping names, list or tuple'),
             Key('drop_duplicate_keys', 'bool', default=True),
         ])
 

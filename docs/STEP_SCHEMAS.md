@@ -659,7 +659,36 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
 
 ### `group_data`  - family `transform`
 
-_No schema declared yet; only stage keys are checked._
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_stage`: stage_in; REQUIRED - Stage to read
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `source_column`: str; REQUIRED
+- `target_column`: str - Default: <source_column>_Group
+- `groups`: open_mapping - group name -> list of values
+- `groups_source`: mapping
+  - `type`: str; REQUIRED; one of stage, lookup, file
+  - `stage_name`: stage_in
+  - `lookup_stage`: stage_in
+  - `lookup_key`: str
+  - `filename`: str
+  - `sheet`: any
+  - `encoding`: str
+  - `separator`: str
+  - `format_type`: str; one of xlsx, csv, tsv
+  - `format`: str; default "wide"; one of wide, long - Shape of the definitions table
+  - `group_column`: str
+  - `group_name_column`: str
+  - `values_column`: str
+  - `filter_condition`: any
+- `groups_file`: str
+- `unmatched_action`: str; default "keep_original"; one of keep_original, set_default, error
+- `unmatched_value`: any; default "Other"
+- `case_sensitive`: bool; default false
+- `replace_source`: bool; default false
+- at least one of: `groups`, `groups_source`, `groups_file`
 
 ### `import_file`  - family `import`
 
@@ -942,7 +971,22 @@ _No schema declared yet; only stage keys are checked._
 
 ### `seed_donor_formulas`  - family `file_ops`
 
-_No schema declared yet; only stage keys are checked._
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_file`: str; REQUIRED
+- `source_sheet`: any; REQUIRED
+- `target_file`: str; REQUIRED
+- `target_sheet`: any; REQUIRED
+- `column_names`: list of str - Header names resolved separately in donor and target
+- `column_refs`: list of str - Positional Excel refs like A or BQ - never header names
+- `start_row`: int; default 2
+- `row_count`: int; default 3
+- `fill_down`: bool; default false
+- `fill_anchor_columns`: list of str - Columns whose extent the fill-down follows
+- `on_existing_cell`: str; default "error"; one of error, skip, overwrite
+- `array_formula_mode`: str; default "preserve"; one of preserve, convert
+- at least one of: `column_names`, `column_refs`
 
 ### `select_columns`  - family `transform`
 

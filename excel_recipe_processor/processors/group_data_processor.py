@@ -14,11 +14,11 @@ import pandas as pd
 import logging
 from excel_recipe_processor.core.log_format import q, qlist
 
-from typing import Any
 
 from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,36 @@ class GroupDataProcessor(TransformBaseProcessor):
     """
     
     @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). Groups come from exactly one of: an inline
+        mapping (group -> values), a groups_source (stage / lookup / file
+        described in a mapping), or a groups_file path. The hardcoded
+        predefined_groups table is gone: group definitions are data, and data
+        with a company's plant names has no place in a generic tool.
+        """
+        source = Schema([
+            Key('type', 'str', required=True, choices=['stage', 'lookup', 'file']),
+            Key('stage_name', 'stage_in'), Key('lookup_stage', 'stage_in'), Key('lookup_key', 'str'),
+            Key('filename', 'str'), Key('sheet', 'any'), Key('encoding', 'str'), Key('separator', 'str'),
+            Key('format_type', 'str', choices=['xlsx', 'csv', 'tsv']),
+            Key('format', 'str', default='wide', choices=['wide', 'long'], description='Shape of the definitions table'),
+            Key('group_column', 'str'), Key('group_name_column', 'str'), Key('values_column', 'str'),
+            Key('filter_condition', 'any'),
+        ])
+        return Schema([
+            Key('source_column', 'str', required=True),
+            Key('target_column', 'str', description='Default: <source_column>_Group'),
+            Key('groups', 'open_mapping', description='group name -> list of values'),
+            Key('groups_source', 'mapping', schema=source),
+            Key('groups_file', 'str'),
+            Key('unmatched_action', 'str', default='keep_original', choices=['keep_original', 'set_default', 'error']),
+            Key('unmatched_value', 'any', default='Other'),
+            Key('case_sensitive', 'bool', default=False),
+            Key('replace_source', 'bool', default=False),
+        ], at_least_one=[['groups', 'groups_source', 'groups_file']])
+
+    @classmethod
     def get_minimal_config(cls) -> dict:
         return {
             'source_column': 'test_column',
@@ -46,7 +76,7 @@ class GroupDataProcessor(TransformBaseProcessor):
             }
         }
     
-    def execute(self, data: Any) -> pd.DataFrame:
+    def execute(self, data) -> pd.DataFrame:
         """
         Execute the data grouping operation on the provided DataFrame.
         
@@ -143,14 +173,10 @@ class GroupDataProcessor(TransformBaseProcessor):
             groups_file = self.get_config_value('groups_file')
             return self._load_groups_from_file(groups_file)
         
-        # 4. Predefined group sets
-        if self.step_config.get('predefined_groups'):
-            predefined_type = self.get_config_value('predefined_groups')
-            return self._load_predefined_groups(predefined_type)
         
         raise StepProcessorError(
             f"No group definitions found in step '{self.step_name}'. "
-            f"Provide one of: 'groups', 'groups_source', 'groups_file', or 'predefined_groups'"
+            f"Provide one of: 'groups', 'groups_source', or 'groups_file'"
         )
     
     def _load_groups_from_source(self, source_config) -> dict:
@@ -389,38 +415,6 @@ class GroupDataProcessor(TransformBaseProcessor):
         except StageError as e:
             raise StepProcessorError(f"Failed to load groups from lookup stage '{lookup_stage}': {e}")
     
-    def _load_predefined_groups(self, predefined_type: str) -> dict:
-        """Load predefined group sets."""
-        
-        predefined_groups = {
-            'van_report_regions': {
-                'Bristol Bay': ['Dillingham', 'False Pass', 'Naknek', 'Naknek West', 'Wood River'],
-                'Kodiak': ['Kodiak', 'Kodiak West'],
-                'PWS': ['Cordova', 'Seward', 'Valdez'],
-                'SE': ['Craig', 'Ketchikan', 'Petersburg', 'Sitka']
-            },
-            'us_regions': {
-                'West': ['CA', 'OR', 'WA', 'NV', 'AZ', 'UT', 'CO', 'NM'],
-                'Midwest': ['IL', 'IN', 'IA', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI'],
-                'South': ['AL', 'AR', 'DE', 'FL', 'GA', 'KY', 'LA', 'MD', 'MS', 'NC', 'OK', 'SC', 'TN', 'TX', 'VA', 'WV'],
-                'Northeast': ['CT', 'ME', 'MA', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT']
-            },
-            'product_categories': {
-                'Electronics': ['laptop', 'phone', 'tablet', 'camera', 'headphones'],
-                'Clothing': ['shirt', 'pants', 'dress', 'shoes', 'jacket'],
-                'Home': ['furniture', 'kitchenware', 'bedding', 'decor', 'appliances']
-            }
-        }
-        
-        if predefined_type not in predefined_groups:
-            available_types = list(predefined_groups.keys())
-            raise StepProcessorError(
-                f"Unknown predefined group type: {predefined_type}. "
-                f"Available types: {available_types}"
-            )
-        
-        return predefined_groups[predefined_type]
-    
     def _validate_grouping_config(self, df: pd.DataFrame, source_column: str, 
                                 groups: dict, target_column: str) -> None:
         """Validate grouping configuration parameters."""
@@ -600,15 +594,11 @@ class GroupDataProcessor(TransformBaseProcessor):
     
     def get_supported_source_types(self) -> list:
         """Get list of supported group source types."""
-        return ['inline', 'stage', 'file', 'lookup', 'predefined']
+        return ['inline', 'stage', 'file', 'lookup']
     
     def get_supported_file_formats(self) -> list:
         """Get list of supported file formats for group definitions."""
         return ['wide', 'long']
-    
-    def get_predefined_group_types(self) -> list:
-        """Get list of available predefined group types."""
-        return ['van_report_regions', 'us_regions', 'product_categories']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities information."""
@@ -617,7 +607,6 @@ class GroupDataProcessor(TransformBaseProcessor):
             'source_types': self.get_supported_source_types(),
             'unmatched_actions': self.get_supported_unmatched_actions(),
             'file_formats': self.get_supported_file_formats(),
-            'predefined_groups': self.get_predefined_group_types(),
             'grouping_features': [
                 'category_mapping', 'regional_grouping', 'case_sensitivity_control',
                 'unmatched_value_handling', 'duplicate_detection', 'source_column_replacement',

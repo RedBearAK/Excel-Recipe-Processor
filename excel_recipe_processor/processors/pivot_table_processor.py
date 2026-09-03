@@ -359,7 +359,7 @@ class PivotTableProcessor(TransformBaseProcessor):
                 'create_summary_pivot', 'create_cross_tab', 'get_pivot_info'
             ],
             'examples': {
-                'van_report': "PRODUCT_ORIGIN vs CARRIER matrix",
+                'origin_by_carrier': "origin vs carrier matrix",
                 'sales_summary': "Sum sales by region and product",
                 'count_matrix': "Count occurrences by category"
             }

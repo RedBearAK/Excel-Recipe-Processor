@@ -114,7 +114,7 @@ custom_order_example:
           Order_Status: ["Urgent", "Rush", "Standard", "Deferred"]
         save_to_stage: "stg_prioritized_orders"
 
-van_report_example:
+shipment_report_example:
   description: "Van Report style regional sorting with custom Alaska regional ordering"
   yaml: |
     settings:
@@ -131,7 +131,7 @@ van_report_example:
       - # Step 1: Import Van Report data
         step_description: "Import Van shipment data"
         processor_type: "import_file"
-        input_file: "data/van_report_export.xlsx"
+        input_file: "data/shipment_export.xlsx"
         save_to_stage: "stg_van_data"
 
       - # Step 2: Sort by Alaska regions in geographic order
@@ -143,8 +143,8 @@ van_report_example:
         # OPT - Custom Alaska regional ordering
         custom_orders:
           Regional_Group: [
-            "Bristol Bay Region",
-            "Kodiak Region", 
+            "Other Region",
+            "North Region", 
             "Prince William Sound",
             "Southeast Alaska",
             "Other Alaska"

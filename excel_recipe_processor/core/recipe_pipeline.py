@@ -489,7 +489,6 @@ class RecipePipeline:
                     'validate_only': True,
                     'steps': len(self.recipe_data.get('recipe', [])),
                     'warnings': len(report.warnings),
-                    'schema_less_types': sorted(report.schema_less_types),
                 }
 
             # Recipe-requested log file: attaches HERE because paths like

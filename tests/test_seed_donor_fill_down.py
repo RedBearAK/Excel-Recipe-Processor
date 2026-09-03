@@ -79,10 +79,9 @@ def run_seed(donor: str, target: str, **overrides):
         'source_sheet': 'Data',
         'target_file': target,
         'target_sheet': 'Data',
-        'columns': ['Plain One', 'Plain Two', 'Array One'],
+        'column_names': ['Plain One', 'Plain Two', 'Array One'],
         'start_row': 2,
         'row_count': 3,
-        'force_column_names': True,
         'fill_down': True,
     }
     config.update(overrides)

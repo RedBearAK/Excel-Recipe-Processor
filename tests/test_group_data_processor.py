@@ -378,14 +378,12 @@ def test_error_handling():
         # Missing groups, groups_source, etc.
     }
     
-    processor_no_groups = GroupDataProcessor(config_no_groups)
-    
     try:
-        processor_no_groups.execute(test_data)
+        GroupDataProcessor(config_no_groups).execute(test_data)
         print("✗ Should have raised error for no group definitions")
         return False
     except StepProcessorError as e:
-        if "group definitions" not in str(e).lower():
+        if "group definitions" not in str(e).lower() and "at least one of" not in str(e):
             print(f"✗ Wrong error message for no groups: {e}")
             return False
     

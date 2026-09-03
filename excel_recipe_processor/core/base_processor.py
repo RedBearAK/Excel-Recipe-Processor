@@ -103,8 +103,8 @@ class BaseStepProcessor(ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # Only classes that declare their own schema are checked; the
-        # family classes themselves and schema-less processors pass.
+        # The family classes themselves carry no schema; every concrete
+        # processor must declare one (2026-09-04) - see below.
         if 'config_schema' in cls.__dict__:
             own = cls.config_schema()
             if own is None:
@@ -399,6 +399,15 @@ class StepProcessorRegistry:
         if not issubclass(processor_class, BaseStepProcessor):
             raise StepProcessorError(
                 f"Processor class {processor_class.__name__} must inherit from BaseStepProcessor"
+            )
+
+        # Every processor declares its step schema (2026-09-04): without one
+        # the validation phase cannot check its steps, so registration is
+        # where the framework enforces the rule. See docs/WRITING_A_PROCESSOR.md.
+        if processor_class.full_schema() is None:
+            raise StepProcessorError(
+                f"Processor class {processor_class.__name__} declares no config_schema(); "
+                f"every processor must declare one (docs/WRITING_A_PROCESSOR.md)"
             )
         
         self._processors[step_type] = processor_class

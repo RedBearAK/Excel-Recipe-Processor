@@ -185,3 +185,22 @@ flush_workbooks, generate_column_config.
   Transform whose source is the raw data compared against
   `filtered_stage`; its examples had never been runnable. Two remain
   schema-less: seed_donor_formulas, group_data.
+
+## Every processor has a schema; scaffolding removed (2026-09-04)
+
+- Last two schemas: `seed_donor_formulas` (its union `columns` list and
+  `force_column_names` flag became the `column_names` / `column_refs`
+  pair, refs literal on both sides, names resolved on each side's own
+  layout) and `group_data`.
+- `group_data` carried a hardcoded `predefined_groups` table with a
+  company's plant names inside the generic tool. Deleted, with its
+  example section; group definitions are data (`groups`, `groups_source`,
+  `groups_file`). Two example files also named those places; replaced
+  with neutral region names.
+- Registration now REFUSES a processor class with no `config_schema()`;
+  the validation phase errors on one; the `FALLBACK_*` stage-key table
+  and the schema-less reporting path are gone. The framework enforces
+  itself from here: a new processor without a schema fails to register.
+- README: a "Start Here" section pointing at `docs/STEP_SCHEMAS.md`
+  (generated) and `docs/WRITING_A_PROCESSOR.md`, the family list, the
+  conventions, `--validate` and `--export-schemas`.

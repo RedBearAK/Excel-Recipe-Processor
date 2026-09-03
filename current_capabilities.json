@@ -1010,8 +1010,7 @@
         "inline",
         "stage",
         "file",
-        "lookup",
-        "predefined"
+        "lookup"
       ],
       "unmatched_actions": [
         "keep_original",
@@ -1021,11 +1020,6 @@
       "file_formats": [
         "wide",
         "long"
-      ],
-      "predefined_groups": [
-        "van_report_regions",
-        "us_regions",
-        "product_categories"
       ],
       "grouping_features": [
         "category_mapping",
@@ -1387,7 +1381,7 @@
         "get_pivot_info"
       ],
       "examples": {
-        "van_report": "PRODUCT_ORIGIN vs CARRIER matrix",
+        "origin_by_carrier": "origin vs carrier matrix",
         "sales_summary": "Sum sales by region and product",
         "count_matrix": "Count occurrences by category"
       }
@@ -1442,10 +1436,9 @@
       "column_matching": [
         "excel_column_references",
         "column_name_matching",
-        "mixed_column_types",
-        "auto_type_detection"
+        "name_and_ref_selection"
       ],
-      "force_column_names": "force_column_names: true treats every configured column as a header NAME, resolved against each file's own header row - donor and recipient may have the column at different letters, and column insertions cannot repoint the transplant",
+      "column_keys": "column_names resolve by header on each side; column_refs are literal letters",
       "formula_handling": [
         "verbatim_copying",
         "live_formula_creation",

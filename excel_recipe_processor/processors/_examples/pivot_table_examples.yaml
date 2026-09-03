@@ -44,7 +44,7 @@ basic_example:
         # REQ - Stage to save pivot results
         save_to_stage: "stg_sales_pivot"
 
-van_report_example:
+shipment_report_example:
   description: "Classic Van Report matrix: Origin vs Carrier with product counts"
   yaml: |
     settings:
@@ -61,7 +61,7 @@ van_report_example:
       - # Step 1: Import and filter data
         step_description: "Import Van Report data"
         processor_type: "import_file"
-        input_file: "data/van_report_export.xlsx"
+        input_file: "data/shipment_export.xlsx"
         save_to_stage: "stg_raw_data"
 
       - # Step 2: Filter for salmon products

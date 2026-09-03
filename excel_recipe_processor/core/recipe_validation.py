@@ -10,11 +10,10 @@ checks (2026-09-03).
 
 Two checks:
 
-1. Step schemas. Every step whose processor declares a schema is validated
-   against it: unknown keys (with a nearest-name suggestion), wrong types,
-   missing required keys, variant mismatches. Processors without a schema
-   are validated for their family's stage keys only and reported once per
-   processor type so the remaining count stays visible.
+1. Step schemas. Every step is validated against its processor's declared
+   schema: unknown keys (with a nearest-name suggestion), wrong types,
+   missing required keys, variant mismatches. Every registered processor
+   declares one; a processor without a schema is a defect and errors.
 
 2. Stage graph, walked in step order. Errors:
    - a stage read before any earlier step wrote it
@@ -24,36 +23,18 @@ Two checks:
    Warnings:
    - a stage used but not declared (allowed, as today)
 
-Stage reads and writes come from the schema (stage_in / stage_out kinds)
-when a processor has one. Until every processor does, a schema-less step
-falls back to a fixed list of stage-bearing keys; that list is temporary
-and shrinks as schemas land.
+Stage reads, writes and releases come from the schema (stage_in /
+stage_out / stage_release kinds) and from computed_stage_writes().
 
 Exit policy: errors fail; warnings do not.
 """
 
 import logging
 
-from excel_recipe_processor.core.config_schema import (
-    Key, Schema, stage_references, validate_config,
-)
+from excel_recipe_processor.core.config_schema import stage_references, validate_config
 
 
 logger = logging.getLogger(__name__)
-
-
-# Stage-bearing keys for processors that have no schema yet. TEMPORARY:
-# every entry here is a processor whose schema has not landed. Nested
-# forms: sheets_to_create[].data_source (export), data_sources[].stage
-# (combine). Delete this table when the last schema lands.
-FALLBACK_STAGE_READ_KEYS = (
-    'source_stage', 'lookup_stage', 'reference_stage', 'merge_source',
-    'aggregation_source', 'raw_stage', 'expected_from_stage', 'target_stage',
-    'output_stage', 'stage', 'expected_stage', 'filtered_stage',
-)
-FALLBACK_NESTED_READ_KEYS = ('data_source', 'stage', 'insert_from_stage')
-FALLBACK_STAGE_WRITE_KEYS = ('save_to_stage', 'save_conflicts_to_stage')
-FALLBACK_STAGE_LIST_KEYS = ('stages',)
 
 
 class RecipeValidationReport:
@@ -62,7 +43,6 @@ class RecipeValidationReport:
     def __init__(self):
         self.errors = []
         self.warnings = []
-        self.schema_less_types = set()
         self.validated_steps = 0
 
     @property
@@ -70,12 +50,6 @@ class RecipeValidationReport:
         return not self.errors
 
     def log(self) -> None:
-        if self.schema_less_types:
-            names = ', '.join(sorted(self.schema_less_types))
-            logger.info(
-                f"   no schema yet ({len(self.schema_less_types)} processor type(s), "
-                f"stage keys checked only): {names}"
-            )
         for warning in self.warnings:
             logger.warning(f"\u26a0\ufe0f  {warning}")
         for error in self.errors:
@@ -86,65 +60,6 @@ class RecipeValidationReport:
         else:
             logger.error(f"Validation failed: {len(self.errors)} error(s), "
                          f"{len(self.warnings)} warning(s)")
-
-
-def _fallback_stage_references(config: dict, processor_class) -> tuple:
-    """
-    Stage reads/writes for a schema-less step, from the temporary key
-    table, walking nested mappings and lists so keys like
-    sheets_to_create[].data_source or insert_from_stage inside a list of
-    parts are found wherever they sit.
-    """
-    reads, writes = [], []
-    if not isinstance(config, dict):
-        return reads, writes
-    if config.get('processor_type') == 'free_stages':
-        return [], []          # releases stages: neither a read nor a write
-
-    def walk(node, top_level: bool):
-        if isinstance(node, dict):
-            for name, value in node.items():
-                if isinstance(value, str):
-                    if name in FALLBACK_STAGE_READ_KEYS or (not top_level and name in FALLBACK_NESTED_READ_KEYS):
-                        reads.append(value)
-                    elif name in FALLBACK_STAGE_WRITE_KEYS:
-                        writes.append(value)
-                    elif top_level and name == 'stage_name' and 'save_to_stage' not in node:
-                        writes.append(value)   # copy_stage / create_stage output
-                elif isinstance(value, list) and name in FALLBACK_STAGE_LIST_KEYS:
-                    reads.extend(v for v in value if isinstance(v, str))
-                else:
-                    walk(value, False)
-        elif isinstance(node, list):
-            for item in node:
-                walk(item, False)
-
-    walk(config, True)
-    return reads, writes
-
-
-def _family_stage_schema(processor_class) -> Schema:
-    """
-    Stage-key-only schema for a schema-less processor.
-
-    Family classes state their stage keys; a processor still on the bare
-    base class (not yet audited into a family) is read through the
-    requires_source_stage / requires_save_to_stage flags the loader has
-    always used, so nothing loosens during the migration.
-    """
-    family = processor_class.family.name
-    keys = []
-    if family == 'base':
-        if getattr(processor_class, 'requires_source_stage', True):
-            keys.append(Key('source_stage', 'stage_in', required=True))
-        if getattr(processor_class, 'requires_save_to_stage', True):
-            keys.append(Key('save_to_stage', 'stage_out', required=True))
-    else:
-        if family in ('transform', 'export'):
-            keys.append(Key('source_stage', 'stage_in', required=True))
-        if family == 'import' or (family == 'transform' and getattr(processor_class, 'writes_stage', True)):
-            keys.append(Key('save_to_stage', 'stage_out', required=True))
-    return Schema(keys)
 
 
 def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidationReport:
@@ -186,18 +101,13 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
 
         schema = processor_class.full_schema()
         if schema is None:
-            report.schema_less_types.add(processor_type)
-            stage_schema = _family_stage_schema(processor_class)
-            for message in validate_config(config, Schema(list(stage_schema.keys.values())), '', True):
-                if 'unknown key' in message:
-                    continue
-                report.errors.append(f"{label}: {message}")
-            reads, writes = _fallback_stage_references(config, processor_class)
-            releases = []
-        else:
-            for message in validate_config(config, schema, '', False):
-                report.errors.append(f"{label}: {message}")
-            reads, writes, releases = stage_references(config, schema)
+            # Every registered processor declares a schema (2026-09-04); a
+            # missing one is a defect in the processor, not a recipe.
+            report.errors.append(f"{label}: processor '{processor_type}' declares no schema")
+            continue
+        for message in validate_config(config, schema, '', False):
+            report.errors.append(f"{label}: {message}")
+        reads, writes, releases = stage_references(config, schema)
         writes = list(writes) + list(processor_class.computed_stage_writes(config))
         report.validated_steps += 1
 

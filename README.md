@@ -181,18 +181,76 @@ recipe:
     replace_spaces: "_"
 ```
 
+## 📐 **Start Here: The Declared Schemas**
+
+Every processor declares exactly which keys its recipe step accepts - kinds,
+required, defaults, allowed values, nested shapes, and which keys go with
+which mode. A recipe is validated against those declarations before any step
+runs, and a key the processor does not declare is refused at load with a
+nearest-name suggestion. There is no vocabulary outside the declarations.
+
+Two documents let a person or a model learn the whole structure quickly:
+
+| Read this | To |
+|---|---|
+| [`docs/STEP_SCHEMAS.md`](docs/STEP_SCHEMAS.md) | write or check a **recipe**: every processor, every key, generated from the live declarations |
+| [`docs/WRITING_A_PROCESSOR.md`](docs/WRITING_A_PROCESSOR.md) | write a **new processor**: pick its family, declare its schema, follow the naming rules |
+
+Regenerate the schema document from the code any time (this is the source; the
+committed file is a convenience):
+
+```bash
+python -m excel_recipe_processor --export-schemas md > docs/STEP_SCHEMAS.md
+python -m excel_recipe_processor --export-schemas json     # machine form
+```
+
+Check a recipe without running it - the same checks run at the start of every
+real run, so a recipe that validates will not fail on vocabulary or stage
+wiring mid-pipeline:
+
+```bash
+python -m excel_recipe_processor recipe.yaml --validate
+```
+
+### Processor families
+
+Each processor belongs to a family, set by the base class it inherits, and the
+family contributes the step keys it needs and decides how columns may be named:
+
+- **transform** - reads a stage, returns a stage; columns by header name only
+  (`source_stage`, `save_to_stage`). A *check* is a transform that writes nothing.
+- **import** - creates a stage from a file, inline data, or a profile (`save_to_stage`)
+- **export** - consumes a stage into a file (`source_stage`)
+- **file_ops** - changes a workbook in place; the only family where a positional
+  column ref is legal (`column_names` / `column_refs` pairs)
+- **base** - stage utilities that touch no data (`free_stages`)
+
+### Conventions the schemas enforce
+
+- One key per concept, no aliases. Renames are breaking and land with the recipes.
+- An evaluated string never sits under a bare key: `pandas_formula`,
+  `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
+- Column-name lists are lists of strings, never positions.
+- Enum values are snake_case ERP vocabulary; a library's own spelling is storage.
+- `case_sensitive: false` by default, everywhere.
+- Stage graph is strict: a stage read before it is written, written twice
+  without `confirm_stage_replacement`, or declared but never used, is an error.
+
 ## 🏗️ **Recipe Structure**
 
 ### Basic Recipe Format
 ```yaml
+settings:
+  description: "What this recipe produces"
+  stages:
+    - stage_name: "stg_raw"
+      description: "Imported rows"
+      protected: false
+
 recipe:
   - step_description: "Human readable step description"
     processor_type: "processor_name"
-    # Processor-specific configuration
-    
-settings:
-  output_filename: "result.xlsx"
-  create_backup: true  # Optional: backup original file
+    # Processor-specific keys: see docs/STEP_SCHEMAS.md
 ```
 
 ### Step Configuration
@@ -200,12 +258,8 @@ settings:
 Each step must have:
 - **`step_description`** - Human-readable description
 - **`processor_type`** - Which processor to use
-- **Processor-specific fields** - Configuration for the chosen processor
-
-### Common Options
-- **`remove_original`** - Remove source columns after transformation
-- **`overwrite`** - Overwrite existing columns  
-- **`fill_missing`** - Value to use for missing data
+- **Family keys** - `source_stage` / `save_to_stage` for transforms, `target_file` for file operations
+- **Processor-specific keys** - exactly those the processor declares
 
 ## 🔍 **Processor Details**
 
@@ -360,14 +414,20 @@ except PipelineError as e:
 ## 🧪 **Development**
 
 ### Running Tests
-```bash
-# Run all tests
-pytest
+Tests are standalone modules (no pytest style): each runs on its own, prints
+what it checked, and exits 0/1.
 
-# Run specific processor tests
-python tests/test_filter_data_processor.py
-python tests/test_aggregate_data_processor.py
+```bash
+# One module
+PYTHONPATH=. python3 tests/test_filter_data_processor.py
+
+# All modules, four at a time (fast map); rerun any non-zero serially for a verdict
+ls tests/test_*.py | xargs -P 4 -I{} sh -c 'PYTHONPATH=. python3 {} >/dev/null 2>&1; echo "$? {}"' | grep -v "^0 "
 ```
+
+Two tests guard the vocabulary itself: `test_examples_validate_against_schemas.py`
+(every example step validates against its schema) and `test_schema_export.py`
+(the published schema covers every processor).
 
 ### Project Structure
 ```
@@ -465,8 +525,8 @@ Contributions welcome! Please:
 
 1. **Fork the repository**
 2. **Create a feature branch** (`git checkout -b feature/amazing-processor`)
-3. **Add tests** for new functionality
-4. **Follow existing code patterns** 
+3. **Add tests** for new functionality (standalone modules, house style)
+4. **Read [`docs/WRITING_A_PROCESSOR.md`](docs/WRITING_A_PROCESSOR.md)** before adding a processor; declare its schema
 5. **Submit a pull request**
 
 ### Code Guidelines

@@ -90,27 +90,20 @@ def test_undeclared_is_warning_only() -> bool:
     return report('warning, ok', r.ok and len(r.warnings) == 2, f'{r.warnings}')
 
 
-def test_schema_less_processor_is_reported_not_failed() -> bool:
-    print('\nTesting a schema-less processor passes with a report...')
-    from excel_recipe_processor.core.base_processor import TransformBaseProcessor
+def test_schema_less_processor_cannot_register() -> bool:
+    print('\nTesting that a processor without a schema cannot register...')
+    from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
 
     class SchemaLessDrill(TransformBaseProcessor):
         def execute(self, data):
             return data
 
-    registry._processors['schema_less_drill'] = SchemaLessDrill
     try:
-        step = {'step_description': 'drill', 'processor_type': 'schema_less_drill', 'source_stage': 'stg_a',
-                'save_to_stage': 'stg_b', 'made_up_key': 1}
-        r = run(recipe([imp('stg_a'), step, exp('stg_b')], ['stg_a', 'stg_b']))
-        ok = report('passes', r.ok, str(r.errors))
-        ok &= report('reported as schema-less', 'schema_less_drill' in r.schema_less_types)
-        step2 = {'step_description': 'drill', 'processor_type': 'schema_less_drill', 'save_to_stage': 'stg_b'}
-        r = run(recipe([imp('stg_a'), step2, exp('stg_b')], ['stg_a', 'stg_b']))
-        ok &= report('family stage keys still required', any("missing required key 'source_stage'" in e for e in r.errors))
-        return ok
-    finally:
+        registry.register('schema_less_drill', SchemaLessDrill)
         registry._processors.pop('schema_less_drill', None)
+        return report('registered', False)
+    except StepProcessorError as error:
+        return report('refused at registration', 'declares no config_schema' in str(error))
 def test_unknown_processor_type() -> bool:
     print('\nTesting unknown processor type...')
     r = run(recipe([{'step_description': 'x', 'processor_type': 'no_such_processor'}], []))
@@ -123,7 +116,7 @@ def main() -> int:
         test_schema_errors_by_step,
         test_stage_graph_errors,
         test_undeclared_is_warning_only,
-        test_schema_less_processor_is_reported_not_failed,
+        test_schema_less_processor_cannot_register,
         test_unknown_processor_type,
     ]
     passed = 0

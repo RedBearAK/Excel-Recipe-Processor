@@ -108,7 +108,7 @@ single_key_example:
         source_stage: "stg_current_products_imported"
         reference_stage: "stg_baseline_products_archived"
         # REQ - Single column name when key is unique
-        key_columns: "product_id"
+        key_columns: ["product_id"]
         save_to_stage: "stg_product_changes_identified"
         # OPT - Exclude timestamp fields from change detection
         exclude_columns: ["last_updated", "sync_timestamp"]

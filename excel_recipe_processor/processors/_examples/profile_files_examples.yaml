@@ -68,7 +68,7 @@ provenance_example:
         processor_type: "export_file"
         source_stage: "stg_data"
         output_file: "output/report.xlsx"
-        sheets:
+        sheets_to_create:
           - sheet_name: "Data"
             data_source: "stg_data"
           - sheet_name: "Source_Files"

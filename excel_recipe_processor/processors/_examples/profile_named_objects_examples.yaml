@@ -91,7 +91,7 @@ name_drift_alarm_example:
         processor_type: "diff_data"
         source_stage: "stg_names_current"
         reference_stage: "stg_names_previous"
-        key_columns: "Name"
+        key_columns: ["Name"]
         save_to_stage: "stg_name_drift"
 
 # End of file #

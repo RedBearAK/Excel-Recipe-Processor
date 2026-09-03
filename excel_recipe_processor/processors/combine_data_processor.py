@@ -42,8 +42,8 @@ class CombineDataProcessor(TransformBaseProcessor):
             Key('retain_column_names', 'bool'),
         ], at_least_one=[['insert_from_stage', 'insert_blank_rows', 'insert_blank_cols']])
         return Schema([
-            Key('combine_type', 'str', required=True, choices=['vertical_stack', 'horizontal_stack']),
-            Key('column_handling', 'str', choices=['require_matching_columns', 'union_columns', 'intersect_columns', 'positional']),
+            Key('combine_type', 'str', required=True, choices=['vertical_stack', 'horizontal_concat']),
+            Key('column_handling', 'str', choices=['require_matching_columns', 'allow_mismatched_columns']),
             Key('data_sources', 'list_of_mappings', required=True, schema=part),
         ])
 

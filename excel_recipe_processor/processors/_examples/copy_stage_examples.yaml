@@ -128,7 +128,9 @@ checkpoint_recovery_example:
         processor_type: "clean_data"
         source_stage: "stg_initial_data"
         save_to_stage: "stg_cleaned"
-        # ... cleaning rules
+        rules:
+          - columns: "*"
+            action: "strip_whitespace"
       
       # Checkpoint 1: Save after cleaning
       - # OPT - Step description
@@ -150,7 +152,9 @@ checkpoint_recovery_example:
         processor_type: "add_calculated_column"
         source_stage: "stg_cleaned"
         save_to_stage: "stg_enriched"
-        # ... calculations
+        new_column: "Total"
+        calculation:
+          pandas_formula: "{col:Price} * {col:Quantity}"
       
       # Checkpoint 2: Save after enrichment
       - step_description: "Checkpoint: Post-enrichment"

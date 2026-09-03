@@ -91,7 +91,7 @@ drift_alarm_example:
         processor_type: "diff_data"
         source_stage: "stg_profile_current"
         reference_stage: "stg_profile_previous"
-        key_columns: "Sheet"
+        key_columns: ["Sheet"]
         save_to_stage: "stg_workbook_drift"
 
 # End of file #

@@ -31,7 +31,7 @@ class MergeDataProcessor(TransformBaseProcessor):
     def config_schema(cls) -> Schema:
         """Declared keys (2026-09-03); see core/config_schema.py."""
         source = Schema([
-            Key('type', 'str', required=True, choices=['stage', 'file', 'inline']),
+            Key('type', 'str', required=True, choices=['excel', 'csv', 'tsv', 'dictionary', 'stage']),
             Key('stage_name', 'stage_in'), Key('path', 'str'), Key('sheet', 'any'),
             Key('encoding', 'str'), Key('separator', 'str'), Key('format', 'str'),
             Key('data', 'any'), Key('columns_to_prefix', 'list', item_kind='str'),

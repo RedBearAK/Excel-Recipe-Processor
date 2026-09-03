@@ -45,7 +45,6 @@ basic_template_example:
         source_stage: "stg_sales_data"
         output_file: "reports/q3_executive_report.xlsx"
         sheet_name: "Sales Performance"
-        mode: "append"
 
       - # NEW: Template-based formatting step
         step_description: "Apply consistent formatting using templates"

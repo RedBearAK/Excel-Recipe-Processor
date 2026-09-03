@@ -220,7 +220,10 @@ class StripFormulaCachesProcessor(FileOpsBaseProcessor):
         return Schema([
             Key('files', 'list', item_kind='str', required=True),
             Key('create_backup', 'bool', default=True),
-            Key('scope', 'str'),
+            Key('scope', 'list_of_mappings', schema=Schema([
+                Key('sheet_names', 'list', item_kind='str', required=True),
+                Key('cells', 'any'), Key('columns', 'any'), Key('rows', 'any'),
+            ]), description='Sheets (and at most one of cells/columns/rows) to strip; absent = whole workbook'),
         ])
 
     @classmethod

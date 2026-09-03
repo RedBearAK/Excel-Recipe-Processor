@@ -231,8 +231,8 @@ advanced_aggregation_example:
         processor_type: "rename_columns"
         source_stage: "stg_financial_summary"
         rename_type: "transform"
-        case_conversion: "title_case"
-        replace_characters: "_"
+        case_conversion: "title"
+        replace_spaces: "_"
         replacement: " "
         save_to_stage: "stg_cleaned_summary"
 
@@ -262,9 +262,7 @@ time_series_pivot_example:
         source_stage: "stg_sales_history"
         new_column: "Month"
         calculation:
-          type: "date_extract"
-          date_column: "Sale_Date"
-          extract: "month_name"
+          pandas_formula: "pd.to_datetime({col:Sale_Date}).dt.month_name()"
         save_to_stage: "stg_sales_with_month"
 
       - # Step 3: Create monthly trend pivot

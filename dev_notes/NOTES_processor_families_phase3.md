@@ -58,3 +58,15 @@ test_processor_descriptions.
     git rm excel_recipe_processor/processors/verify_data_processor.py
     git rm excel_recipe_processor/processors/_examples/verify_data_examples.yaml
     git rm tests/test_verify_data_processor.py
+
+## Examples brought under the schemas (same day)
+
+`tests/test_examples_validate_against_schemas.py` validates every example
+recipe step against its processor's schema. First run: 73 problems. Four
+were schemas narrower than the code (combine_data, merge_data,
+rename_columns case_conversion, strip_formula_caches scope) - widened from
+code. The rest were examples teaching keys the processors never supported
+(`lookup_source`, `ascending` on sort_data, `mode` and `sheets` on
+export_file, `entries` on create_stage, `decimal_places` on fix_numeric,
+elided "... rules" steps). All 317 example steps now validate; the
+positional select_columns example was retired with the code path.

@@ -82,9 +82,11 @@ range_formulas_example:
         processor_type: "export_file"
         source_stage: "stg_financial_data"
         output_file: "reports/financial_model.xlsx"
-        sheet_names:
-          Revenue: "financial_data"
-          Expenses: "financial_data"
+        sheets_to_create:
+          - sheet_name: "Revenue"
+            data_source: "stg_financial_data"
+          - sheet_name: "Expenses"
+            data_source: "stg_financial_data"
 
       - # Step 3: Inject range formulas across multiple sheets
         step_description: "Add calculation formulas to financial model"

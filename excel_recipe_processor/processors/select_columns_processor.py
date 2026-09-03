@@ -50,7 +50,7 @@ class SelectColumnsProcessor(TransformBaseProcessor):
             Dictionary with minimal configuration fields
         """
         return {
-            'columns_to_keep': ['test_column_1', 2, 'test_column_3']  # Mix of names and positions
+            'columns_to_keep': ['test_column_1', 'test_column_3']
         }
     
     def execute(self, data: Any) -> pd.DataFrame:
@@ -166,15 +166,14 @@ class SelectColumnsProcessor(TransformBaseProcessor):
             if len(columns_to_keep) == 0:
                 raise StepProcessorError("'columns_to_keep' cannot be empty")
             
+            # Names are strings, only (2026-09-03 rulebook): a transform has
+            # no positional column concept, and an integer header (a year,
+            # a plant number) would make "2" ambiguous
             for col in columns_to_keep:
-                if isinstance(col, str):
-                    if not col.strip():
-                        raise StepProcessorError(f"Column names must be non-empty strings, got: '{col}'")
-                elif isinstance(col, int):
-                    if col < 1:
-                        raise StepProcessorError(f"Column numbers must be 1-based (1, 2, 3...), got: {col}")
-                else:
-                    raise StepProcessorError(f"Column references must be strings or integers, got: {type(col)}")
+                if not isinstance(col, str) or not col.strip():
+                    raise StepProcessorError(
+                        f"'columns_to_keep' entries must be non-empty column NAME strings, got: {col!r}"
+                    )
         
         # Validate columns_to_drop if specified
         if columns_to_drop is not None:
@@ -240,20 +239,6 @@ class SelectColumnsProcessor(TransformBaseProcessor):
             if isinstance(col, str) and col in available_columns:
                 # String column name exists - use it directly
                 selected_columns.append(col)
-            elif isinstance(col, int):
-                # Numeric reference - convert 1-based to 0-based
-                if col < 1:
-                    raise StepProcessorError(f"Column numbers must be 1-based (1, 2, 3...), got: {col}")
-                
-                pandas_col_idx = col - 1  # Convert to 0-based
-                if pandas_col_idx >= len(df.columns):
-                    raise StepProcessorError(f"Column number {col} exceeds available columns ({len(df.columns)})")
-                
-                # Get the actual column name at this position
-                actual_col_name = df.columns[pandas_col_idx]
-                selected_columns.append(actual_col_name)
-                logger.debug(f"Column {col} (1-based) → '{actual_col_name}' (position {pandas_col_idx})")
-                
             elif isinstance(col, str) and col in columns_to_create_set:
                 # Column should be created - add to selected list
                 selected_columns.append(col)
@@ -424,7 +409,7 @@ class SelectColumnsProcessor(TransformBaseProcessor):
                 'inclusion_filtering', 'exclusion_filtering', 'missing_column_handling'
             ],
             'configuration_options': {
-                'columns_to_keep': 'List of columns to select by name (string) or position (1-based integer)',
+                'columns_to_keep': 'List of column names to select, in output order',
                 'columns_to_drop': 'List of columns to exclude from result',
                 'columns_to_create': 'List of columns to create if missing (used with columns_to_keep)',
                 'allow_duplicates': 'Allow same column to appear multiple times (default: true)',
@@ -437,7 +422,7 @@ class SelectColumnsProcessor(TransformBaseProcessor):
             'features': [
                 'automatic_reordering', 'duplicate_column_support', 'missing_column_handling',
                 'column_type_analysis', 'smart_column_suggestions', 'dynamic_column_creation',
-                'numeric_position_references', '1_based_indexing'
+                'name_based_selection'
             ],
             'examples': {
                 'basic_selection': "Keep only Customer_ID, Product_Name, Price columns",
@@ -445,7 +430,6 @@ class SelectColumnsProcessor(TransformBaseProcessor):
                 'duplication': "Duplicate columns by listing them multiple times",
                 'exclusion': "Drop unwanted columns while keeping everything else",
                 'column_creation': "Create new empty columns alongside existing ones",
-                'numeric_references': "Select columns by position: [1, 3, 5] (1-based indexing)"
             }
         }
     

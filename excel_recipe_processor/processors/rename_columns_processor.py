@@ -38,7 +38,7 @@ class RenameColumnsProcessor(TransformBaseProcessor):
             Key('mapping', 'open_mapping', description='old name -> new name'),
             Key('pattern', 'str'), Key('replacement', 'str', default=''),
             Key('add_prefix', 'str'), Key('add_suffix', 'str'),
-            Key('case_conversion', 'str', choices=['upper', 'lower', 'title', 'snake_case']),
+            Key('case_conversion', 'str', choices=['upper', 'lower', 'title', 'snake_case', 'camel_case']),
             Key('replace_spaces', 'str'), Key('strip_characters', 'str'),
         ])
 

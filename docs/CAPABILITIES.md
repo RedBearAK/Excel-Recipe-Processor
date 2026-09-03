@@ -100,7 +100,7 @@ against its processor's declared schema before anything runs.
 | Processor | Does |
 |---|---|
 | `format_excel` | Presentation on a written workbook: header styles, column formats by header name or letter, widths and auto-fit, freeze panes, filters, banding, outline borders, row heights, hidden columns, tab colour, zoom, sheet state, per-cell formats, reusable templates, pivot styles, workbook themes. |
-| `inject_formulas` | Live formulas into cells or ranges, addressed by header name (`{col:Header}`), with fill-down and array declaration; `awaken` turns formula text already in a sheet into live formulas. |
+| `inject_formulas` | Formulas into cells or ranges, addressed by header name (`{col:Header}`), with fill-down and array declaration - live (`mode: live`) or as inert formula text (`mode: text`) for templates and review copies; `awaken` turns formula text already in a sheet into live formulas. |
 | `manage_named_objects` | Defined names, lambda functions, and tables: create names from columns (by header, resolved on the sheet's own layout), import / export them as YAML or VBA-ready text, copy between workbooks, list, validate. |
 | `conditional_format` | Native Excel conditional formatting that stays live in the file: cell conditions, formula rules, colour scales, data bars, targeted at columns, whole rows, or ranges. |
 | `excel_data_validation` | Native data validation: dropdown lists (literal, from a defined name, or from a spill range), numeric and date bounds, text length, custom formulas, prompts and alerts. |

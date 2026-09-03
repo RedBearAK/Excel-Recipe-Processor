@@ -714,7 +714,7 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
 - `step_description`: str - Human-readable step name; apostrophe-free by house style
 - `processor_type`: str; REQUIRED - Registered processor name
 - `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
-- `mode`: str; default "live"; one of live, awaken
+- `mode`: str; default "live"; one of live, text, awaken - live: formulas calculate; text: same cells, inert formula text; awaken: make existing formula text live
 - `target_file`: str; REQUIRED
 - `sheets_to_receive_formulas`: list_of_mappings
   - `sheet_names`: list of str; REQUIRED - Tab names or ?sheet_NNN? tokens

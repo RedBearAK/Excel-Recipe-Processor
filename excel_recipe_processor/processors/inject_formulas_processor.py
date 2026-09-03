@@ -4,8 +4,8 @@ Inject formulas step processor for Excel automation recipes.
 excel_recipe_processor/processors/inject_formulas_processor.py
 
 Handles injecting formulas into Excel files with support for both "live" (dynamic) 
-and awakens "dead" (text) formulas already in a sheet. Cell, range, or auto-scan targeting.
-A file operation: live injection and awaken both address a target workbook.
+or as inert formula text (mode: text), and awakens formula text already in a sheet.
+Cell, range, or auto-scan targeting. A file operation on a target workbook.
 """
 
 import re
@@ -89,11 +89,11 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         has_target = bool(self.get_config_value('target_file'))
         
         # Validate mode
-        if mode not in ['live', 'awaken']:
-            raise StepProcessorError(f"Invalid mode '{mode}'. Must be 'live' or 'awaken'")
+        if mode not in ['live', 'text', 'awaken']:
+            raise StepProcessorError(f"Invalid mode '{mode}'. Must be 'live', 'text', or 'awaken'")
         
         # Mode-specific validation
-        if mode in ['live', 'awaken']:
+        if mode in ['live', 'text', 'awaken']:
             # Live/awaken: must have target_file, cannot use save_to_stage
             if not has_target:
                 raise StepProcessorError(f"'{mode}' mode requires 'target_file'")
@@ -127,13 +127,15 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             Key('formulas', 'list_of_mappings', schema=formula, description='awaken / single-sheet form'),
             Key('auto_scan', 'bool', default=False, description='awaken: scan every sheet for formula text'),
         ]
-        # The former mode: dead (formula TEXT written into a stage) was a
-        # Transform hiding inside this FileOps processor and duplicated
-        # what add_calculated_column already does; removed 2026-09-04.
-        # "Dead formula" survives only as the name for formula text that
-        # awaken mode turns live.
+        # mode: text (2026-09-05) writes the same formulas into the same
+        # cells as live, but as inert STRING cells - the formula is visible
+        # and copyable, calculates nothing, and a later awaken step (or a
+        # person) can make it live. The switch, not the point, of the
+        # processor. (The former mode: dead, which wrote text into a stage
+        # and came out live on export anyway, was removed 2026-09-04.)
         return Schema([
-            Key('mode', 'str', default='live', choices=['live', 'awaken']),
+            Key('mode', 'str', default='live', choices=['live', 'text', 'awaken'],
+                description='live: formulas calculate; text: same cells, inert formula text; awaken: make existing formula text live'),
         ] + file_keys)
 
     @classmethod
@@ -366,7 +368,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         
         Args:
             filename: Excel file to modify
-            mode: 'live' or 'awaken'
+            mode: 'live' or 'text'
             formulas: List of formula definitions
             sheets: Sheet selection (None, sheet name, or 'all')
             
@@ -523,7 +525,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                          The formula may use {col:Header Name} placeholders,
                          resolved against the sheet's header row, and a cell
                          target may set fill_down: true
-            mode: 'live' or 'awaken'
+            mode: 'live' or 'text'
             
         Returns:
             Number of cells modified
@@ -697,7 +699,14 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             as_array:    Store with the array marker
         """
         if mode != 'live':
-            worksheet[target_ref].value = f"'{formula_text}"
+            # Inert formula text: a true string cell, so Excel neither
+            # calculates it nor shows a stray apostrophe (the apostrophe is
+            # a UI prefix in Excel, not a stored character). Assigning a
+            # string that starts with '=' makes openpyxl call it a formula;
+            # the data_type override puts it back to a string.
+            cell = worksheet[target_ref]
+            cell.value = formula_text
+            cell.data_type = 's'
             return
 
         if as_array:
@@ -761,7 +770,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             worksheet: openpyxl worksheet
             cell_ref: Cell reference like 'A1', 'B5', etc.
             formula: Formula to inject
-            mode: 'live' or 'awaken'
+            mode: 'live' or 'text'
             
         Returns:
             Number of cells modified (always 1 for single cell)
@@ -790,7 +799,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             worksheet: openpyxl worksheet
             range_ref: Range reference like 'A1:A10', 'B2:D5', etc.
             formula: Base formula to inject (will be adjusted for each cell)
-            mode: 'live' or 'awaken'
+            mode: 'live' or 'text'
 
         Returns:
             Number of cells modified
@@ -949,7 +958,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             'description': 'Inject live or dead formulas with name-addressed cells '
                            'and fill-down',
             'operation_type': 'formula_injection',
-            'supported_modes': ['live', 'awaken'],
+            'supported_modes': ['live', 'text', 'awaken'],
             'targeting_options': ['single_cell', 'cell_range', 'auto_scan'],
             'column_placeholders': '{col:Header Name} in cell refs and formulas '
                                    'resolves to the column letter from the header '

@@ -39,7 +39,8 @@ basic_example:
         # File path supports variable substitution
         target_file: "reports/sales_report.xlsx"
         # REQ - Formula injection mode
-        # Values: "live" (inject formulas), "awaken" (turn formula text already in cells live)
+        # Values: "live" (formulas calculate), "text" (same cells, inert formula text a later
+        # awaken step or a person can make live), "awaken" (turn formula text already in cells live)
         # Default value: "live"
         mode: "live"
         # REQ (live) - Entries pairing a sheet_names LIST with formulas
@@ -109,6 +110,43 @@ range_formulas_example:
                 excel_formula: "=SUM(D2:D50)"
               - cell: "E51"
                 excel_formula: "=SUM(E2:E50)"
+
+text_formulas_example:
+  description: "Inject the formulas as inert text - visible, copyable, not calculated - for a template or a review copy"
+  yaml: |
+    # mode: text writes the SAME formulas into the SAME cells as live, but as
+    # string cells: Excel shows the formula text and calculates nothing. A
+    # later inject_formulas step with mode: awaken (or a person editing the
+    # cell) makes them live. The switch, not the point, of the processor.
+
+    settings:
+      description: "Budget template with formulas shown, not run"
+      stages:
+        - stage_name: "stg_budget"
+          description: "Budget lines"
+          protected: false
+
+    recipe:
+      - step_description: "Import budget lines"
+        processor_type: "import_file"
+        input_file: "data/budget.xlsx"
+        save_to_stage: "stg_budget"
+
+      - step_description: "Write the template"
+        processor_type: "export_file"
+        source_stage: "stg_budget"
+        output_file: "reports/budget_template.xlsx"
+
+      - step_description: "Show the formulas without running them"
+        processor_type: "inject_formulas"
+        target_file: "reports/budget_template.xlsx"
+        mode: "text"
+        sheets_to_receive_formulas:
+          - sheet_names: ["?sheet_001?"]
+            formulas:
+              - cell: "E2"
+                excel_formula: "={col:Units}2*{col:Unit Price}2"
+                fill_down: true
 
 awaken_dead_formulas_example:
   description: "Convert dead formula text to live calculations"

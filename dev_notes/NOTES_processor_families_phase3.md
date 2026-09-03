@@ -53,11 +53,7 @@ test_excel_range_resolver, test_format_excel_consolidated_cycle,
 test_format_excel_whole_column, test_new_comprehensive_test_of_processors,
 test_processor_descriptions.
 
-## Delete after extracting (retired by the split; the archive cannot remove files)
-
-    git rm excel_recipe_processor/processors/verify_data_processor.py
-    git rm excel_recipe_processor/processors/_examples/verify_data_examples.yaml
-    git rm tests/test_verify_data_processor.py
+(Files retired by this work are listed in `dev_notes/DELETE_AFTER_EXTRACT.md`.)
 
 ## Examples brought under the schemas (same day)
 
@@ -231,6 +227,12 @@ flush_workbooks, generate_column_config.
   generated schema and the validated examples are the per-processor docs
   now. `docs/cli/commands.md` is generated from `--help`.
 
-Delete after extracting (the archive cannot remove files):
 
-    git rm -r docs/processors docs/recipes
+## inject_formulas mode: text (2026-09-05)
+
+The switch, not the point: the same formulas into the same cells as live,
+stored as true string cells (openpyxl `data_type = 's'`, no stray
+apostrophe character), so Excel shows the formula and calculates nothing;
+a later `awaken` step or a person makes them live. Replaces what the
+removed `dead` mode was assumed to do (it wrote text into a stage, which
+came out live on export). Test: `tests/test_inject_formulas_text_mode.py`.

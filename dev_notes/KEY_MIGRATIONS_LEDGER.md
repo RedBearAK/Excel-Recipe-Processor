@@ -60,7 +60,7 @@ tests automatically; prose and recipes outside this repo need the grep.
 | alias tables (`CONDITION_ALIASES` in conditional_format, camelCase operators in excel_data_validation) | one spelling per concept | the canonical name; the schema lists the set |
 | union lists that auto-detected "name or ref" | ambiguity by design | `column_names` / `column_refs` |
 | positional column selection in transforms | ambiguity with integer headers | names |
-| `mode: dead` in inject_formulas (formula text written into a stage) | a Transform hiding in a FileOps processor, duplicating `add_calculated_column` | `add_calculated_column` with a `constant` or `expression`; "dead formula" survives only as the name for text that `awaken` turns live |
+| `mode: dead` in inject_formulas (formula text written into a STAGE, live on export anyway) | a Transform hiding in a FileOps processor that could not do what its name promised | `mode: text` - the same formulas into the FILE as inert string cells; `awaken` makes them live |
 | `predefined_groups` in group_data (a hardcoded table of one company's place names) | data does not belong in the generic tool | `groups`, `groups_source`, or `groups_file` |
 
 ---
@@ -173,7 +173,7 @@ tests automatically; prose and recipes outside this repo need the grep.
 | top-level `sheet_names` + `formulas` in live mode (broadcast) | `sheets_to_receive_formulas: [{sheet_names: [...], formulas: [...]}]` |
 | `sheet_name:` (singular) inside an entry | `sheet_names: [...]` |
 | `formula:` in a formula entry | `excel_formula:` |
-| `mode: dead` with `source_stage` / `save_to_stage` | removed |
+| `mode: dead` with `source_stage` / `save_to_stage` | `mode: text` with `target_file` (inert formula text in the file) |
 | `array_formula: true` on a scalar per-row formula | omit (a false declaration; the `@` is cosmetic) |
 
 ### lookup_data

@@ -1106,6 +1106,7 @@
       "operation_type": "formula_injection",
       "supported_modes": [
         "live",
+        "text",
         "awaken"
       ],
       "targeting_options": [

@@ -861,7 +861,7 @@
       ],
       "configuration_options": {
         "required": [
-          "raw_stage",
+          "source_stage",
           "filtered_stage",
           "text_columns"
         ],

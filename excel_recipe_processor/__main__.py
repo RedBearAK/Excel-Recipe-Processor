@@ -241,6 +241,15 @@ For detailed documentation and more examples:
     )
 
     parser.add_argument(
+        '--export-schemas',
+        metavar='FORMAT',
+        choices=['json', 'md', 'JSON', 'MD'],
+        help='Print every processor\'s declared step schema (families, keys, kinds, required, '
+             'defaults, choices, variants) as json or md - the reference to read before writing '
+             'a recipe or a new processor'
+    )
+
+    parser.add_argument(
         '--yaml',
         action='store_true',
         help='Output capabilities as YAML (use with --list-capabilities)'

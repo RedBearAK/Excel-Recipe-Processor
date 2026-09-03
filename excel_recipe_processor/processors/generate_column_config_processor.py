@@ -17,6 +17,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema
 from excel_recipe_processor.processors._helpers.column_patterns import empty_or_whitespace_rgx
 
 
@@ -38,6 +39,19 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
     while avoiding pandas auto-conversion issues.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-04). Reads a source and a template workbook, writes a column-config YAML."""
+        return Schema([
+            Key('source_file', 'str', required=True), Key('source_sheet', 'any'),
+            Key('template_file', 'str', required=True), Key('template_sheet', 'any'),
+            Key('output_file', 'str', required=True),
+            Key('header_row', 'int', default=1),
+            Key('max_rows', 'int', default=1000), Key('sample_rows', 'int', default=5),
+            Key('similarity_threshold', 'number', default=0.8),
+            Key('include_recipe_section', 'bool', default=False),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

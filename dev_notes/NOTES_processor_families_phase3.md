@@ -168,3 +168,20 @@ The VMS recipe now validates with NO schema-less processor types. Tail
 still without schemas (none used by any recipe): seed_donor_formulas,
 group_data, filter_terms_detector, export_filter_step, profile_sheets,
 flush_workbooks, generate_column_config.
+
+## Published schema and authoring guide (2026-09-04)
+
+- `--export-schemas json|md` renders every declared schema (families,
+  kinds, per-processor keys with required/default/choices/variants) from
+  the live declarations. `docs/STEP_SCHEMAS.md` is a committed rendering -
+  regenerate it whenever a schema changes (the CLI is the source; the file
+  is for readers and for pasting into a model's context).
+- `docs/WRITING_A_PROCESSOR.md`: the family decision table, a schema
+  template, and the naming rules. Short on purpose; the framework enforces
+  the rest at import.
+- Five more tail schemas: flush_workbooks, profile_sheets,
+  export_filter_step, filter_terms_detector, generate_column_config.
+  filter_terms_detector's `raw_stage` became `source_stage` - it is a
+  Transform whose source is the raw data compared against
+  `filtered_stage`; its examples had never been runnable. Two remain
+  schema-less: seed_donor_formulas, group_data.

@@ -149,7 +149,7 @@ complete_workflow_example:
       # Step 1: Auto-detect filter terms
       - step_description: "Auto-detect potential filter terms"
         processor_type: "filter_terms_detector"
-        raw_stage: "stg_raw_data"
+        source_stage: "stg_raw_data"
         filtered_stage: "stg_filtered_reference"
         auto_detect_columns: true
         save_to_stage: "stg_detected_terms"

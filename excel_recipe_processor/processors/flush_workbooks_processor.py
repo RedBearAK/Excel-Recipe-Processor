@@ -15,6 +15,7 @@ reloads it fresh, which is correct because the disk copy is now the truth.
 import logging
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor
+from excel_recipe_processor.core.config_schema import Schema
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 
 
@@ -23,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 class FlushWorkbooksProcessor(FileOpsBaseProcessor):
     """Save all dirty session workbooks immediately."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-04): none beyond the step keys - it flushes the workbook session."""
+        return Schema([])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

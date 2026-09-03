@@ -97,6 +97,17 @@ def run_main(args: Namespace) -> int:
         if getattr(args, 'list_stages_recipe', None):
             return list_recipe_stages(args.list_stages_recipe)
 
+        if getattr(args, 'export_schemas', None):
+            from excel_recipe_processor.core.pipeline import registry
+            from excel_recipe_processor.core.schema_export import export_schemas, render_markdown
+            exported = export_schemas(registry)
+            if args.export_schemas.lower() == 'md':
+                print(render_markdown(exported), end='')
+            else:
+                import json
+                print(json.dumps(exported, indent=2, default=str))
+            return 0
+
         if hasattr(args, 'list_capabilities') and args.list_capabilities:
             # Check for output format flags
             detailed = getattr(args, 'detailed', False)

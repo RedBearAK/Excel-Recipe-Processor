@@ -92,18 +92,25 @@ def test_undeclared_is_warning_only() -> bool:
 
 def test_schema_less_processor_is_reported_not_failed() -> bool:
     print('\nTesting a schema-less processor passes with a report...')
-    step = {'step_description': 'terms', 'processor_type': 'filter_terms_detector', 'source_stage': 'stg_a',
-            'save_to_stage': 'stg_b', 'raw_stage': 'stg_a', 'made_up_key': 1}
-    r = run(recipe([imp('stg_a'), step, exp('stg_b')], ['stg_a', 'stg_b']))
-    ok = report('passes', r.ok, str(r.errors))
-    ok &= report('reported as schema-less', 'filter_terms_detector' in r.schema_less_types)
-    step2 = {'step_description': 'terms', 'processor_type': 'filter_terms_detector', 'save_to_stage': 'stg_b',
-             'raw_stage': 'stg_a'}
-    r = run(recipe([imp('stg_a'), step2, exp('stg_b')], ['stg_a', 'stg_b']))
-    ok &= report('family stage keys still required', any("missing required key 'source_stage'" in e for e in r.errors))
-    return ok
+    from excel_recipe_processor.core.base_processor import TransformBaseProcessor
 
+    class SchemaLessDrill(TransformBaseProcessor):
+        def execute(self, data):
+            return data
 
+    registry._processors['schema_less_drill'] = SchemaLessDrill
+    try:
+        step = {'step_description': 'drill', 'processor_type': 'schema_less_drill', 'source_stage': 'stg_a',
+                'save_to_stage': 'stg_b', 'made_up_key': 1}
+        r = run(recipe([imp('stg_a'), step, exp('stg_b')], ['stg_a', 'stg_b']))
+        ok = report('passes', r.ok, str(r.errors))
+        ok &= report('reported as schema-less', 'schema_less_drill' in r.schema_less_types)
+        step2 = {'step_description': 'drill', 'processor_type': 'schema_less_drill', 'save_to_stage': 'stg_b'}
+        r = run(recipe([imp('stg_a'), step2, exp('stg_b')], ['stg_a', 'stg_b']))
+        ok &= report('family stage keys still required', any("missing required key 'source_stage'" in e for e in r.errors))
+        return ok
+    finally:
+        registry._processors.pop('schema_less_drill', None)
 def test_unknown_processor_type() -> bool:
     print('\nTesting unknown processor type...')
     r = run(recipe([{'step_description': 'x', 'processor_type': 'no_such_processor'}], []))

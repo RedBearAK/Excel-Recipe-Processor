@@ -14,6 +14,7 @@ import logging
 from sklearn.feature_extraction.text import CountVectorizer
 
 from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.core.stage_manager import StageManager
 
 
@@ -30,6 +31,20 @@ class FilterTermsDetectorProcessor(TransformBaseProcessor):
     """
     
     @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-04). source_stage is the RAW data; filtered_stage the hand-filtered result to learn from."""
+        return Schema([
+            Key('filtered_stage', 'stage_in', required=True),
+            name_list('text_columns'), name_list('categorical_columns'), name_list('exclude_columns'),
+            Key('auto_detect_columns', 'bool', default=False),
+            Key('min_frequency', 'int', default=2),
+            Key('max_features', 'int', default=10000),
+            Key('ngram_range', 'any', default=[1, 4], description='[min_n, max_n]'),
+            Key('score_threshold', 'number', default=0.1),
+            Key('custom_stop_words', 'list', item_kind='str'),
+        ])
+
+    @classmethod
     def get_minimal_config(cls):
         """
         Get the minimal configuration required to instantiate this processor.
@@ -38,7 +53,7 @@ class FilterTermsDetectorProcessor(TransformBaseProcessor):
             Dictionary with minimal configuration fields
         """
         return {
-            'raw_stage': 'stg_raw_data_imported',
+            'source_stage': 'stg_raw_data_imported',
             'filtered_stage': 'stg_filtered_data_final',
             'text_columns': ['notes', 'description']
         }
@@ -48,11 +63,11 @@ class FilterTermsDetectorProcessor(TransformBaseProcessor):
         super().__init__(step_config)
         
         # Validate required fields - text_columns is conditional
-        required_fields = ['raw_stage', 'filtered_stage']
+        required_fields = ['filtered_stage']
         self.validate_required_fields(required_fields)
         
         # Get configuration values
-        self.raw_stage = self.get_config_value('raw_stage')
+        self.raw_stage = self.get_config_value('source_stage')
         self.filtered_stage = self.get_config_value('filtered_stage')
         self.text_columns = self._normalize_text_columns(self.get_config_value('text_columns', []))
         
@@ -291,7 +306,7 @@ class FilterTermsDetectorProcessor(TransformBaseProcessor):
             self.log_step_start()
             
             # Load datasets
-            raw_data = StageManager.load_stage(self.raw_stage)
+            raw_data = source_stage_data if isinstance(source_stage_data, pd.DataFrame) and len(source_stage_data.columns) else StageManager.load_stage(self.raw_stage)
             filtered_data = StageManager.load_stage(self.filtered_stage)
             
             logger.info(f"Loaded raw data: {len(raw_data)} rows, {len(raw_data.columns)} columns")
@@ -1051,7 +1066,7 @@ class FilterTermsDetectorProcessor(TransformBaseProcessor):
                 'Create reusable filter configurations'
             ],
             'configuration_options': {
-                'required': ['raw_stage', 'filtered_stage', 'text_columns'],
+                'required': ['source_stage', 'filtered_stage', 'text_columns'],
                 'optional': ['categorical_columns', 'ngram_range', 'min_frequency', 'max_features', 'score_threshold', 'custom_stop_words']
             }
         }

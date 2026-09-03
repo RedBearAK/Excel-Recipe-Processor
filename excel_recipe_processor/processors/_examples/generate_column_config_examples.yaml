@@ -73,8 +73,6 @@ advanced_configuration_example:
         # Default value: 5 (keep low for performance)
         sample_rows: 10
         # OPT - Whether to check for empty columns in data
-        # Default value: true
-        check_column_data: true
         # OPT - Include recipe for immediate use
         include_recipe_section: true
 

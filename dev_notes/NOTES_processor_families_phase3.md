@@ -127,3 +127,24 @@ First run under the gate: 45 of 129 test modules failed. Sorted:
 test_basic was a pytest-style scaffold; rewritten in house style.
 Result: 129/129 (two modules are slow under 4-way parallel load and
 should be run serially for a verdict).
+
+## inject_formulas and conditional_format schemas (2026-09-04)
+
+- `inject_formulas`: `sheets_to_receive_formulas` entries (sheet_names list
+  + formulas), formula entries keyed `excel_formula` with `cell` or `range`,
+  `fill_down`, `array_formula`; `mode` is a variant - live/awaken take the
+  file keys, `dead` takes `source_stage` / `save_to_stage` (it writes
+  formula TEXT into a stage). SPLIT CANDIDATE: dead mode is a Transform
+  hiding in a FileOps processor, unused by any recipe; if kept, split it
+  the way verify_data was.
+- `conditional_format`: rule kinds when_cell / when_formula (a string) /
+  color_scale / data_bar, one target (apply_to: entire_row, column_names,
+  or range), style keys, stop_if_true; `CONDITION_NAMES` is the canonical
+  list. The Excel-native ALIASES (greaterThan, containsText, ...) are gone
+  per the rulebook - one spelling per condition; the schema refuses the
+  rest naming the canonical set.
+- Both examples files had stale shapes: `columns` in when_cell (retired
+  08-26), the alias example, and BOTH dead-mode examples used
+  `target_file`, which the processor refuses in dead mode - they had never
+  worked. Rewritten as stage -> stage -> export.
+- Test expectations for guidance text now match the schema's wording.

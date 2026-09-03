@@ -29,6 +29,7 @@ from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
 
 from excel_recipe_processor.core.log_format import q, qlist
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
     column_placeholder_rgx,
@@ -107,6 +108,51 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             if has_save:
                 raise StepProcessorError(f"'{mode}' mode cannot use 'save_to_stage' - it operates on files")
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). Live injection: sheets_to_receive_formulas
+        entries pair a sheet_names list with their own formula list. Awaken
+        (rewrite formula TEXT already in the sheet as live formulas)
+        addresses sheets with the top-level sheet_names. Formula entries are
+        keyed by dialect: excel_formula, targeted at a cell or a range.
+        """
+        formula = Schema([
+            Key('excel_formula', 'str', required=True, description='Excel formula text; {col:Header} resolves to that column letter on the sheet'),
+            Key('cell', 'str', description='Target cell like B2'),
+            Key('range', 'str', description='Target range like B2:B100'),
+            Key('fill_down', 'bool', default=False, description='Cell target: fill down the data extent'),
+            Key('array_formula', 'bool', default=False),
+        ], at_least_one=[['cell', 'range']])
+        entry = Schema([
+            Key('sheet_names', 'list', item_kind='str', required=True, description='Tab names or ?sheet_NNN? tokens'),
+            Key('formulas', 'list_of_mappings', required=True, schema=formula),
+        ])
+        file_keys = [
+            Key('target_file', 'str', required=True),
+            Key('sheets_to_receive_formulas', 'list_of_mappings', schema=entry),
+            Key('sheet_names', 'any', description='awaken mode: a list of tabs, "all", or omit for the active sheet'),
+            Key('formulas', 'list_of_mappings', schema=formula, description='awaken / single-sheet form'),
+            Key('auto_scan', 'bool', default=False, description='awaken: scan every sheet for formula text'),
+        ]
+        # mode: dead writes formula TEXT into a stage (source_stage ->
+        # save_to_stage) and touches no file - a Transform hiding inside a
+        # FileOps processor, declared honestly as a variant (2026-09-04).
+        # SPLIT CANDIDATE: no recipe uses it; if kept, it wants its own
+        # Transform-family processor the way verify_data was split.
+        return Schema([
+            Key('mode', 'str', default='live', choices=['live', 'dead', 'awaken']),
+        ], variants={'mode': {
+            'live': Schema(file_keys),
+            'awaken': Schema(file_keys),
+            'dead': Schema([
+                Key('source_stage', 'stage_in', required=True),
+                Key('save_to_stage', 'stage_out', required=True),
+                Key('confirm_stage_replacement', 'bool', default=False),
+                Key('formulas', 'list_of_mappings', required=True, schema=formula),
+            ]),
+        }})
+
     @classmethod
     def get_minimal_config(cls):
         return {

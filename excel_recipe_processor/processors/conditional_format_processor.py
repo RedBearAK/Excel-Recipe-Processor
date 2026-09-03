@@ -7,9 +7,8 @@ Writes native Excel conditional-formatting rules - the live kind that keep
 re-evaluating as the human edits the file - using the same condition names
 the rest of the framework speaks (filter_data's vocabulary: equals,
 greater_than, is_empty, ...) plus a few Excel-only concepts extended in the
-same style (between, duplicates, unique). Excel's own operator spellings
-(greaterThan, containsText, ...) are accepted as aliases but draw a
-warning naming the canonical form, so recipes converge on one language.
+same style (between, duplicates, unique). One spelling per condition;
+Excel's own dialog spellings are refused by the schema (2026-09-04).
 
 Formula rules use the SAME authoring convention as inject_formulas: write
 the formula as if for data row 2, with {col:Header Name} placeholders. Two
@@ -35,6 +34,7 @@ from openpyxl.formatting.rule import Rule, CellIsRule, FormulaRule, DataBarRule,
 
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import column_placeholder_rgx
@@ -75,34 +75,55 @@ VALUE_SET_RULE_TYPES = {
     'unique':     'uniqueValues',
 }
 
-# Excel's own spellings, accepted with a warning naming the canonical form.
-CONDITION_ALIASES = {
-    'equal':              'equals',
-    'notEqual':           'not_equals',
-    'greaterThan':        'greater_than',
-    'greaterThanOrEqual': 'greater_equal',
-    'lessThan':           'less_than',
-    'lessThanOrEqual':    'less_equal',
-    'notBetween':         'not_between',
-    'containsText':       'contains',
-    'notContainsText':    'not_contains',
-    'notContains':        'not_contains',
-    'beginsWith':         'starts_with',
-    'endsWith':           'ends_with',
-    'containsBlanks':     'is_empty',
-    'notContainsBlanks':  'not_empty',
-    'duplicateValues':    'duplicates',
-    'uniqueValues':       'unique',
-}
 
 ALL_CANONICAL_CONDITIONS = sorted(
     set(CELL_IS_OPERATORS) | set(TEXT_RULE_TYPES)
     | set(BLANK_RULE_TYPES) | set(VALUE_SET_RULE_TYPES)
 )
+# The schema's choices: one spelling per condition, no Excel-native aliases (2026-09-04)
+CONDITION_NAMES = ALL_CANONICAL_CONDITIONS
 
 
 class ConditionalFormatProcessor(FileOpsBaseProcessor):
     """Write native conditional-formatting rules using canonical ERP vocabulary."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). Each rule is one kind - when_cell,
+        when_formula, color_scale, data_bar - with exactly one target:
+        apply_to: entire_row, column_names, or a literal range.
+        """
+        when_cell = Schema([
+            name_list('column_names', required=True),
+            Key('condition', 'str', required=True, choices=CONDITION_NAMES),
+            Key('value', 'any', description='Operand; a two-item list for between / not_between'),
+        ])
+        style = Schema([
+            Key('fill', 'str'), Key('font_color', 'str'),
+            Key('bold', 'bool'), Key('italic', 'bool'),
+        ])
+        scale = Schema([
+            Key('min_color', 'str'), Key('mid_color', 'str'), Key('max_color', 'str'),
+            name_list('column_names'), Key('range', 'str'),
+        ])
+        bar = Schema([Key('color', 'str'), name_list('column_names'), Key('range', 'str')])
+        rule = Schema([
+            Key('when_cell', 'mapping', schema=when_cell),
+            Key('when_formula', 'str', description='Excel formula written for the top-left cell of the target'),
+            Key('color_scale', 'mapping', schema=scale),
+            Key('data_bar', 'mapping', schema=bar),
+            Key('style', 'mapping', schema=style),
+            Key('apply_to', 'str', choices=['entire_row']),
+            name_list('column_names', description='Target columns for when_* rules'),
+            Key('range', 'str', description='Literal target range like A2:B99'),
+            Key('stop_if_true', 'bool', default=False),
+        ], at_least_one=[['when_cell', 'when_formula', 'color_scale', 'data_bar']])
+        return Schema([
+            Key('target_file', 'str', required=True),
+            Key('sheet_name', 'any', required=True, description='Tab name, number, or ?sheet_NNN? token'),
+            Key('rules', 'list_of_mappings', required=True, schema=rule),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:
@@ -117,7 +138,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
         }
 
     def _validate_file_operation_config(self):
-        """Validate structure, conditions (normalizing aliases), and colors up front."""
+        """Validate structure, conditions, and colors up front."""
         if not self.get_config_value('target_file'):
             raise StepProcessorError(
                 f"Conditional format step '{self.step_name}' requires 'target_file'"
@@ -216,7 +237,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
                         raise StepProcessorError(f"{context}: invalid {scale_key}: {error}")
 
     def _canonical_condition(self, condition, context: str, warn: bool = True) -> str:
-        """Normalize a condition name, warning on Excel-native aliases (once, at validation)."""
+        """Check a condition name against the canonical set."""
         if condition is None:
             raise StepProcessorError(f"{context}: when_cell needs a 'condition'")
 
@@ -224,16 +245,6 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
 
         if name in ALL_CANONICAL_CONDITIONS:
             return name
-
-        if name in CONDITION_ALIASES:
-            canonical = CONDITION_ALIASES[name]
-            if not warn:
-                return canonical
-            logger.warning(
-                f"⚠️ {context}: '{name}' accepted, but the canonical ERP "
-                f"condition name is '{canonical}' - consider updating the recipe"
-            )
-            return canonical
 
         raise StepProcessorError(
             f"{context}: unknown condition '{name}'. Canonical conditions: "
@@ -521,9 +532,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
                            'stay live in the file',
             'vocabulary': 'canonical ERP condition names (filter_data\'s equals, '
                           'greater_than, is_empty, ... plus between, duplicates, '
-                          'unique in the same style); Excel-native spellings '
-                          '(greaterThan, containsText, ...) accepted as aliases '
-                          'with a warning naming the canonical form',
+                          'unique in the same style); one spelling per condition',
             'rule_kinds': ['when_formula', 'when_cell', 'color_scale', 'data_bar'],
             'formula_convention': 'same as inject_formulas - write for data row 2 '
                                   'with {col:Header Name} placeholders - except '

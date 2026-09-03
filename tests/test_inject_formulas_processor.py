@@ -172,10 +172,10 @@ def test_dead_formula_injection():
         
         # Configure processor for dead formula injection (stage-to-stage)
         step_config = {
-            'processor_type': 'inject_formulas',
-            'source_stage': 'test_data',
-            'save_to_stage': 'output_data', 
+            'processor_type': 'inject_formulas', 
             'mode': 'dead',
+            'source_stage': 'test_data',
+            'save_to_stage': 'test_data_documented',
             'formulas': [
                 {
                     'cell': 'A1',  # Header row, first column
@@ -193,7 +193,7 @@ def test_dead_formula_injection():
         result = processor.execute()
         
         # Load the output stage to verify formulas were injected
-        output_data = StageManager.load_stage('output_data')
+        output_data = StageManager.load_stage('test_data_documented')
         
         # Check that dead formulas were injected as text
         # (exact cell mapping depends on DataFrame structure)
@@ -301,7 +301,7 @@ def test_configuration_validation():
         print("✗ Should have failed with missing target_file")
         return False
     except StepProcessorError as e:
-        if "requires 'target_file'" in str(e):
+        if "requires 'target_file'" in str(e) or "missing required key 'target_file'" in str(e):
             print("✓ Correctly caught missing target_file")
         else:
             print(f"✗ Wrong error for missing target_file: {e}")
@@ -318,7 +318,7 @@ def test_configuration_validation():
         print("✗ Should have failed with invalid mode")
         return False
     except StepProcessorError as e:
-        if "Invalid mode" in str(e):
+        if "Invalid mode" in str(e) or "is not one of ['live'" in str(e):
             print("✓ Correctly caught invalid mode")
         else:
             print(f"✗ Wrong error for invalid mode: {e}")

@@ -154,6 +154,9 @@ dead_formula_documentation_example:
         - stage_name: "stg_model_data"
           description: "Financial model base data"
           protected: false
+        - stage_name: "stg_model_documented"
+          description: "Base data with formula text written into cells"
+          protected: false
 
     recipe:
       - # Step 1: Import model data
@@ -162,18 +165,14 @@ dead_formula_documentation_example:
         input_file: "data/model_base.xlsx"
         save_to_stage: "stg_model_data"
 
-      - # Step 2: Export to documentation file
-        step_description: "Create model documentation file"
-        processor_type: "export_file"
-        source_stage: "stg_model_data"
-        output_file: "docs/model_documentation.xlsx"
-
-      - # Step 3: Add formula documentation as text
+      - # Step 2: Write formula documentation as TEXT into the stage.
+        # mode: dead operates on stages, not files - it reads source_stage
+        # and writes save_to_stage with the formula text placed in cells
         step_description: "Add formula documentation for training"
         processor_type: "inject_formulas"
-        target_file: "docs/model_documentation.xlsx"
-        # Mode: "dead" creates text formulas for documentation
         mode: "dead"
+        source_stage: "stg_model_data"
+        save_to_stage: "stg_model_documented"
         formulas:
           # Documentation formulas show expected calculations
           - cell: "F1"
@@ -184,6 +183,12 @@ dead_formula_documentation_example:
             excel_formula: "Lookup Example: =VLOOKUP(Product_ID, Product_Table, 3, FALSE)"
           - cell: "F4"
             excel_formula: "Conditional Logic: =IF(Revenue > Target, 'Met', 'Missed')"
+
+      - # Step 3: Export the documented stage
+        step_description: "Create model documentation file"
+        processor_type: "export_file"
+        source_stage: "stg_model_documented"
+        output_file: "docs/model_documentation.xlsx"
 
 comprehensive_dual_mode_example:
   description: "Create both documentation and live calculation versions"
@@ -197,6 +202,9 @@ comprehensive_dual_mode_example:
         - stage_name: "stg_sales_data"
           description: "Sales analysis data"
           protected: false
+        - stage_name: "stg_sales_documented"
+          description: "Sales data with formula text written into cells"
+          protected: false
 
     recipe:
       - # Step 1: Import and process data
@@ -205,28 +213,29 @@ comprehensive_dual_mode_example:
         input_file: "data/sales_data.xlsx"
         save_to_stage: "stg_sales_data"
 
-      - # Step 2: Export to documentation version
-        step_description: "Create documentation version"
-        processor_type: "export_file"
-        source_stage: "stg_sales_data"
-        output_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
-
       - # Step 3: Export to calculation version
         step_description: "Create calculation version"
         processor_type: "export_file"
         source_stage: "stg_sales_data"
         output_file: "{output_dir}/sales_calculations_{date_suffix}.xlsx"
 
-      - # Step 4: Add dead formulas to documentation version
+      - # Step 4: Add dead formulas (text) to the documentation stage
         step_description: "Add formula documentation for training"
         processor_type: "inject_formulas"
-        target_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
         mode: "dead"
+        source_stage: "stg_sales_data"
+        save_to_stage: "stg_sales_documented"
         formulas:
           - cell: "E1"
             excel_formula: "Commission Rate: =Sales_Amount * 0.05"
           - cell: "E2"
             excel_formula: "Performance Rating: =IF(Sales_Amount > Target, 'Exceeds', 'Below')"
+
+      - # Export the documentation version from the documented stage
+        step_description: "Create documentation version"
+        processor_type: "export_file"
+        source_stage: "stg_sales_documented"
+        output_file: "{output_dir}/sales_documentation_{date_suffix}.xlsx"
 
       - # Step 5: Add live formulas to calculation version
         step_description: "Add live formulas for dynamic calculations"

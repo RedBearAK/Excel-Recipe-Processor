@@ -311,7 +311,7 @@
     },
     "conditional_format": {
       "description": "Write native Excel conditional-formatting rules that stay live in the file",
-      "vocabulary": "canonical ERP condition names (filter_data's equals, greater_than, is_empty, ... plus between, duplicates, unique in the same style); Excel-native spellings (greaterThan, containsText, ...) accepted as aliases with a warning naming the canonical form",
+      "vocabulary": "canonical ERP condition names (filter_data's equals, greater_than, is_empty, ... plus between, duplicates, unique in the same style); one spelling per condition",
       "rule_kinds": [
         "when_formula",
         "when_cell",

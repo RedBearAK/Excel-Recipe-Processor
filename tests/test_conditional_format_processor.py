@@ -126,44 +126,22 @@ def test_canonical_conditions_map_to_excel_rules():
     return passed
 
 
-def test_alias_warns_once_and_normalizes():
-    """Excel-native spelling works, warns exactly once, stores the same rule."""
-    print("\nTesting alias acceptance with a single warning...")
-
-    passed = True
-
-    records = []
-    handler = logging.Handler()
-    handler.emit = lambda record: records.append(record.getMessage())
-    cf_logger = logging.getLogger('excel_recipe_processor.processors.conditional_format_processor')
-    cf_logger.addHandler(handler)
-
+def test_excel_native_spelling_refused():
+    """Excel's own spellings are not aliases here (2026-09-04): one spelling per condition."""
+    print("\nTesting that an Excel-native condition spelling is refused...")
     try:
-        with tempfile.TemporaryDirectory() as work_dir:
-            xml = run_rules(build_target(work_dir), [
-                {'when_cell': {'column_names': ['Test Dest'], 'condition': 'greaterThan', 'value': 1},
-                 'style': {'fill': 'FFEB9C'}},
-            ])
-    finally:
-        cf_logger.removeHandler(handler)
-
-    warnings = [message for message in records if 'canonical ERP condition' in message]
-
-    if len(warnings) == 1 and "'greater_than'" in warnings[0]:
-        print("  ✓ Exactly one warning, naming the canonical form")
-    else:
-        print(f"  ✗ Warnings: {warnings}")
-        passed = False
-
-    if 'operator="greaterThan"' in xml:
-        print("  ✓ Rule stored identically to the canonical spelling")
-    else:
-        print("  ✗ Aliased rule not stored")
-        passed = False
-
-    return passed
-
-
+        ConditionalFormatProcessor({
+            'processor_type': 'conditional_format', 'step_description': 'cf test',
+            'target_file': 'x.xlsx', 'sheet_name': '?sheet_001?',
+            'rules': [{'when_cell': {'column_names': ['Test Dest'], 'condition': 'greaterThan', 'value': 1},
+                       'style': {'fill': 'FFC7CE'}}],
+        })
+        print("  ✗ 'greaterThan' accepted")
+        return False
+    except StepProcessorError as error:
+        ok = "'greaterThan' is not one of" in str(error) and 'greater_than' in str(error)
+        print(f"  {'✓' if ok else '✗'} refused naming the canonical set: {str(error)[:100]}")
+        return ok
 def test_validation_fails_loud():
     """Unknown conditions, missing pieces, and bad colors raise clearly."""
     print("\nTesting validation failures...")
@@ -173,7 +151,7 @@ def test_validation_fails_loud():
     cases = [
         ('unknown condition',
          [{'when_cell': {'column_names': ['Price'], 'condition': 'sorta_biggish', 'value': 1}}],
-         'unknown condition'),
+         "'sorta_biggish' is not one of"),
         ('two rule kinds at once',
          [{'when_formula': '=1', 'when_cell': {'column_names': ['Price'], 'condition': 'is_empty'},
            'range': 'A2:A3'}],
@@ -242,7 +220,7 @@ def main():
     tests = [
         test_formula_rule_locked_and_prefixed,
         test_canonical_conditions_map_to_excel_rules,
-        test_alias_warns_once_and_normalizes,
+        test_excel_native_spelling_refused,
         test_validation_fails_loud,
         test_rules_survive_session_round_trip,
     ]

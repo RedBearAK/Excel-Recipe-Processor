@@ -32,7 +32,7 @@ basic_example:
             # storage prefix automatically.
             when_formula: '=AND({col:Contracts}2<>"", {col:Price}2="")'
             # REQ (formula rules) - exactly one target: apply_to:
-            # "entire_row", columns: [names], or range: "F2:F500"
+            # "entire_row", column_names: [names], or range: "F2:F500"
             apply_to: "entire_row"
             style:
               fill: "FFC7CE"
@@ -64,41 +64,39 @@ conditions_tour_example:
           - # Comparisons: equals, not_equals, greater_than, greater_equal,
             # less_than, less_equal - plus between / not_between which take
             # value: [low, high]
-            when_cell: { columns: ["Weight"], condition: "between", value: [500, 40000] }
+            when_cell: { column_names: ["Weight"], condition: "between", value: [500, 40000] }
             style: { fill: "C6EFCE" }
           - # Text: contains, not_contains, starts_with, ends_with.
             # Excel's SEARCH semantics: case-insensitive.
-            when_cell: { columns: ["Product Name"], condition: "contains", value: "Canned" }
+            when_cell: { column_names: ["Product Name"], condition: "contains", value: "Canned" }
             style: { font_color: "9C5700", bold: true }
           - # Emptiness: is_empty / not_empty (whitespace-only counts empty)
-            when_cell: { columns: ["Price"], condition: "is_empty" }
+            when_cell: { column_names: ["Price"], condition: "is_empty" }
             style: { fill: "FFC7CE" }
           - # Value sets: duplicates / unique. One rule PER COLUMN, so each
             # column is its own duplicate domain; use range: for a joint one.
-            when_cell: { columns: ["Booking"], condition: "duplicates" }
+            when_cell: { column_names: ["Booking"], condition: "duplicates" }
             style: { fill: "FFC7CE", font_color: "9C0006" }
           - # Gradient kinds take colors instead of a style
-            color_scale: { columns: ["Weight"], min_color: "FFFFFF", max_color: "63BE7B" }
-          - data_bar: { columns: ["Van Count"], color: "638EC6" }
+            color_scale: { column_names: ["Weight"], min_color: "FFFFFF", max_color: "63BE7B" }
+          - data_bar: { column_names: ["Van Count"], color: "638EC6" }
 
-alias_example:
-  description: "Excel-native spellings work, but warn toward the canonical names"
+canonical_spelling_example:
+  description: "One spelling per condition: the canonical snake_case names, never Excel dialog spellings"
   yaml: |
     settings:
-      description: "Alias acceptance for rules transcribed from Excel's dialog"
+      description: "Rules transcribed from Excel's dialog, written in the canonical names"
 
     recipe:
-      - # 'greaterThan' (Excel's spelling) is accepted and stored
-        # identically, but the log warns:
-        #   'greaterThan' accepted, but the canonical ERP condition name
-        #   is 'greater_than' - consider updating the recipe
-        # so recipes converge on one readable vocabulary.
+      - # Excel's dialog says greaterThan; the recipe says greater_than.
+        # There is one spelling per condition, so a dialog spelling is
+        # refused at load with the canonical set named.
         step_description: "Rule transcribed straight from Manage Rules"
         processor_type: "conditional_format"
         target_file: "reports/output.xlsx"
         sheet_name: "Data"
         rules:
-          - when_cell: { columns: ["Test Dest"], condition: "greaterThan", value: 1 }
+          - when_cell: { column_names: ["Test Dest"], condition: "greater_than", value: 1 }
             style: { fill: "FFEB9C" }
 
 parameter_details:

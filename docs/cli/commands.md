@@ -1,280 +1,173 @@
-# CLI Commands Reference
+# Command line
 
-Complete command-line interface guide.
+Generated from `python -m excel_recipe_processor --help`. Regenerate after any CLI change.
 
-## Basic Usage
-
-```bash
-python -m excel_recipe_processor [input_file] --config [recipe.yaml] [options]
 ```
+usage: excel-recipe-processor [-h] [--version] [--var NAME=VALUE]
+                              [--set NAME VALUE] [--dump-stage NAME[:SPEC]]
+                              [--dump-dir DIR] [--stop-after STAGE]
+                              [--list-stages RECIPE] [--log-file PATH]
+                              [--verbose] [--validate] [--list-capabilities]
+                              [--detailed] [--json] [--export-schemas FORMAT]
+                              [--yaml] [--detailed-yaml] [--matrix]
+                              [--validate-recipe RECIPE.yaml]
+                              [--get-usage-examples [PROCESSOR_NAME]]
+                              [--format-examples {yaml,text,json}]
+                              [--get-settings-examples]
+                              [RECIPE.yaml]
 
-## Process Files
+Automate complex manual Excel workflows as YAML-configured recipes: import, clean, enrich, verify, and export with live formulas, named ranges, and professional formatting
 
-### Simple Processing
-```bash
-# Basic file processing
-python -m excel_recipe_processor data.xlsx --config recipe.yaml
+Process data using YAML recipes with dynamic variables and stage-based architecture.
 
-# Specify output file
-python -m excel_recipe_processor data.xlsx --config recipe.yaml --output results.xlsx
+positional arguments:
+  RECIPE.yaml           YAML recipe file defining processing steps with
+                        import_file and export_file processors
 
-# Process specific sheet
-python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet "Sheet2"
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --var NAME=VALUE      Override external variable (repeatable). Example:
+                        --var batch_id=A47 --var region=west
+  --set NAME VALUE      Override external variable, value as a separate
+                        argument so paths tab-complete. Example: --set
+                        source_download downloads/latest.xlsx
+  --dump-stage NAME[:SPEC]
+                        Write a stage to CSV as it is produced, then carry on
+                        (repeatable). SPEC selects rows: 20 first, -20 last,
+                        100-150 a range, 20,-20 both ends. Omit SPEC for every
+                        row. Example: --dump-stage stg_enriched:20
+  --dump-dir DIR        Where --dump-stage writes its CSVs (default: current
+                        directory)
+  --stop-after STAGE    Halt once this stage has been written. Pairs with
+                        --dump-stage to avoid running the rest of a pipeline
+                        you are not inspecting yet.
+  --list-stages RECIPE  Print the stages a recipe declares, with descriptions,
+                        and exit. Tells you what to ask --dump-stage for
+                        without reading the YAML.
+  --log-file PATH       Mirror the run log to this file (same content as the
+                        terminal, UTF-8)
+  --verbose, -v         Enable verbose output and debug logging
+  --validate            Load the recipe, resolve variables, validate every
+                        step against its processor schema and check the stage
+                        graph, then stop without running. Exit 1 on errors;
+                        warnings alone exit 0. The same checks run at the
+                        start of every real run.
+  --list-capabilities   List all available processors and their capabilities
+  --detailed            Show detailed capabilities (use with --list-
+                        capabilities)
+  --json                Output capabilities as JSON (use with --list-
+                        capabilities)
+  --export-schemas FORMAT
+                        Print every processor's declared step schema
+                        (families, keys, kinds, required, defaults, choices,
+                        variants) as json or md - the reference to read before
+                        writing a recipe or a new processor
+  --yaml                Output capabilities as YAML (use with --list-
+                        capabilities)
+  --detailed-yaml       Show detailed capabilities with YAML listings (use
+                        with --list-capabilities)
+  --matrix              Show feature matrix (use with --list-capabilities)
+  --validate-recipe RECIPE.yaml
+                        Validate recipe file syntax and processor availability
+  --get-usage-examples [PROCESSOR_NAME]
+                        Show usage examples for specific processor or all
+                        processors. Use "settings" as the name for recipe
+                        settings examples
+  --format-examples {yaml,text,json}
+                        Format for usage examples output (default: yaml)
+  --get-settings-examples
+                        Show recipe settings configuration examples
 
-# Verbose output for debugging
-python -m excel_recipe_processor data.xlsx --config recipe.yaml --verbose
-```
-
-### Advanced Options
-```bash
-# Custom output sheet name
-python -m excel_recipe_processor data.xlsx \
-  --config recipe.yaml \
-  --output results.xlsx \
-  --output-sheet "Processed Data"
-
-# Process by sheet index (1-based)
-python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet 1
-
-# Process by sheet name
-python -m excel_recipe_processor data.xlsx --config recipe.yaml --sheet "Raw Data"
-```
-
-## System Information
-
-### List Available Processors
-```bash
-# Basic list
-python -m excel_recipe_processor --list-capabilities
-
-# Detailed information
-python -m excel_recipe_processor --list-capabilities --detailed
-
-# JSON output (for scripts/automation)
-python -m excel_recipe_processor --list-capabilities --json
-
-# YAML output (cleaner than JSON)
-python -m excel_recipe_processor --list-capabilities --yaml
-
-# Detailed with YAML capability listings
-python -m excel_recipe_processor --list-capabilities --detailed-yaml
-
-# Feature comparison matrix
-python -m excel_recipe_processor --list-capabilities --matrix
-```
-
-### Save Capabilities to File
-```bash
-# Save JSON for documentation or automation
-python -m excel_recipe_processor --list-capabilities --json > capabilities.json
-
-# Save YAML for cleaner documentation
-python -m excel_recipe_processor --list-capabilities --yaml > capabilities.yaml
-
-# Save detailed report
-python -m excel_recipe_processor --list-capabilities --detailed > system-info.txt
-
-# Save detailed YAML report (hybrid format)
-python -m excel_recipe_processor --list-capabilities --detailed-yaml > detailed-capabilities.yaml
-```
-
-## Recipe Validation
-
-### Validate Recipe Files
-```bash
-# Check recipe syntax and processor availability
-python -m excel_recipe_processor --validate-recipe recipe.yaml
-
-# Validate multiple recipes
-python -m excel_recipe_processor --validate-recipe sales-report.yaml
-python -m excel_recipe_processor --validate-recipe van-report.yaml
-```
-
-## Help and Version
-
-```bash
-# Show help
-python -m excel_recipe_processor --help
-
-# Show version
-python -m excel_recipe_processor --version
-```
-
-## Command Reference
-
-### Required Arguments
-
-| Argument | Description | Example |
-|----------|-------------|---------|
-| `input_file` | Excel file to process | `data.xlsx` |
-
-### Core Options
-
-| Option | Short | Description | Example |
-|--------|-------|-------------|---------|
-| `--config` | `-c` | Recipe YAML file | `--config recipe.yaml` |
-| `--output` | `-o` | Output Excel file | `--output results.xlsx` |
-| `--sheet` | `-s` | Input sheet name/index | `--sheet "Raw Data"` |
-| `--verbose` | `-v` | Detailed logging | `--verbose` |
-
-### System Commands
-
-| Option | Description | Output |
-|--------|-------------|--------|
-| `--list-capabilities` | Show available processors | Text list |
-| `--list-capabilities --detailed` | Detailed processor info | Formatted report |
-| `--list-capabilities --json` | Machine-readable capabilities | JSON object |
-| `--list-capabilities --yaml` | Clean machine-readable capabilities | YAML format |
-| `--list-capabilities --detailed-yaml` | Detailed with YAML capability listings | Hybrid format |
-| `--list-capabilities --matrix` | Feature comparison | Table format |
-| `--validate-recipe` | Check recipe syntax | Validation report |
-
-### Additional Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--output-sheet` | Output sheet name | `ProcessedData` |
-| `--help` | Show help message | - |
-| `--version` | Show version info | - |
-
-## Exit Codes
-
-| Code | Meaning | Common Causes |
-|------|---------|---------------|
-| `0` | Success | Processing completed normally |
-| `1` | Error | File not found, recipe error, processing failure |
-| `2` | Validation Warning | Recipe valid but has warnings |
-
-## Examples by Use Case
-
-### Development Workflow
-```bash
-# 1. Check system capabilities with clean YAML output
-python -m excel_recipe_processor --list-capabilities --yaml
-
-# 2. Get detailed view with structured YAML listings
-python -m excel_recipe_processor --list-capabilities --detailed-yaml
-
-# 3. Validate recipe during development
-python -m excel_recipe_processor --validate-recipe recipe.yaml
-
-# 4. Test with verbose output
-python -m excel_recipe_processor test-data.xlsx --config recipe.yaml --verbose
-
-# 5. Production run
-python -m excel_recipe_processor data.xlsx --config recipe.yaml
-```
-
-### Automation Scripts
-```bash
-#!/bin/bash
-# Automated processing script
-
-# Get system info for logging (YAML is cleaner for parsing)
-python -m excel_recipe_processor --list-capabilities --yaml > system-info.yaml
-
-# Validate recipe
-if python -m excel_recipe_processor --validate-recipe monthly-report.yaml; then
-    echo "Recipe is valid, processing..."
+examples:
+  BASIC RECIPE PROCESSING:
+    # Process recipe with external variables from CLI
+    excel-recipe-processor recipe.yaml --var batch_id=A47 --var region=west
     
-    # Process all files in directory
-    for file in *.xlsx; do
-        python -m excel_recipe_processor "$file" --config monthly-report.yaml
-    done
-else
-    echo "Recipe validation failed!"
-    exit 1
-fi
+    # Process recipe with interactive prompting for missing variables
+    excel-recipe-processor daily_report.yaml
+    
+    # Combine CLI variables with interactive prompting for others
+    excel-recipe-processor report.yaml --var batch_id=A47
+    
+    # Complex variables with spaces and special characters
+    excel-recipe-processor recipe.yaml --var "description=Q4 Sales Report" --var dept=FINANCE
+
+  DEBUGGING AND DEVELOPMENT:
+    # Verbose output for debugging recipe execution
+    excel-recipe-processor recipe.yaml --var date=20250729 --verbose
+    
+    # Validate recipe syntax before processing
+    excel-recipe-processor --validate-recipe recipe.yaml
+    
+    # Validate multiple recipes
+    excel-recipe-processor --validate-recipe sales.yaml
+    excel-recipe-processor --validate-recipe finance.yaml
+
+  SYSTEM INFORMATION:
+    # List all available processors
+    excel-recipe-processor --list-capabilities
+    
+    # Detailed processor information
+    excel-recipe-processor --list-capabilities --detailed
+    
+    # Output capabilities in different formats
+    excel-recipe-processor --list-capabilities --json
+    excel-recipe-processor --list-capabilities --yaml
+    excel-recipe-processor --list-capabilities --detailed-yaml
+    
+    # Feature comparison matrix
+    excel-recipe-processor --list-capabilities --matrix
+    
+    # Save capabilities to files for documentation
+    excel-recipe-processor --list-capabilities --json > capabilities.json
+    excel-recipe-processor --list-capabilities --yaml > capabilities.yaml
+
+  USAGE EXAMPLES AND HELP:
+    # Get examples for specific processor
+    excel-recipe-processor --get-usage-examples import_file
+    excel-recipe-processor --get-usage-examples export_file
+    excel-recipe-processor --get-usage-examples filter_data
+    
+    # Get examples for all processors
+    excel-recipe-processor --get-usage-examples
+    
+    # Get examples in different formats
+    excel-recipe-processor --get-usage-examples import_file --format-examples yaml
+    excel-recipe-processor --get-usage-examples export_file --format-examples text
+    excel-recipe-processor --get-usage-examples --format-examples json
+    
+    # Get recipe settings examples (both forms below are equivalent)
+    excel-recipe-processor --get-usage-examples settings
+    excel-recipe-processor --get-settings-examples
+
+  ADVANCED SCENARIOS:
+    # Process recipe with date-based variables
+    excel-recipe-processor monthly.yaml --var month=12 --var year=2024
+    
+    # Process with multiple batch identifiers
+    excel-recipe-processor batch.yaml --var batch_id=A47 --var sub_batch=001
+    
+    # Process with region-specific settings
+    excel-recipe-processor regional.yaml --var region=west --var timezone=PST
+    
+    # Debug complex recipes with verbose output
+    excel-recipe-processor complex.yaml --var env=prod --verbose
+
+  RECIPE EXAMPLES:
+    # Simple data processing recipe
+    excel-recipe-processor simple_filter.yaml --var input_date=20250729
+    
+    # Multi-file processing with lookups
+    excel-recipe-processor lookup_report.yaml --var quarter=Q4 --var dept=sales
+    
+    # Automated daily report generation
+    excel-recipe-processor daily_report.yaml --var region=west --var format=xlsx
+
+note: External variables can be defined in recipes with validation, defaults, and choices.
+      If required variables are missing from CLI, you'll be prompted interactively.
+      Use --validate-recipe to check recipe syntax before processing.
+
+For detailed documentation and more examples:
+  https://github.com/yourusername/excel-recipe-processor
 ```
-
-### Documentation Generation
-```bash
-# Generate comprehensive capability documentation
-python -m excel_recipe_processor --list-capabilities --detailed-yaml > docs/system-capabilities.md
-
-# Generate machine-readable capability index
-python -m excel_recipe_processor --list-capabilities --yaml > config/system-capabilities.yaml
-
-# Generate feature compatibility matrix
-python -m excel_recipe_processor --list-capabilities --matrix > docs/feature-matrix.txt
-```
-
-### Troubleshooting
-```bash
-# Debug a failing recipe
-python -m excel_recipe_processor data.xlsx \
-  --config recipe.yaml \
-  --verbose \
-  --output debug-output.xlsx
-
-# Check if specific processor is available (YAML is easier to parse)
-python -m excel_recipe_processor --list-capabilities --yaml | grep "pivot_table"
-
-# Get detailed capability info for debugging
-python -m excel_recipe_processor --list-capabilities --detailed-yaml | grep -A 20 "PIVOT"
-
-# Validate recipe step by step
-python -m excel_recipe_processor --validate-recipe recipe.yaml
-```
-
-## Integration with Other Tools
-
-### PowerShell (Windows)
-```powershell
-# Process multiple files
-Get-ChildItem *.xlsx | ForEach-Object {
-    python -m excel_recipe_processor $_.Name --config recipe.yaml
-}
-
-# Export system capabilities for documentation
-python -m excel_recipe_processor --list-capabilities --yaml | Out-File -Encoding UTF8 capabilities.yaml
-```
-
-### Bash Scripting
-```bash
-# Check if processing succeeded
-if python -m excel_recipe_processor data.xlsx --config recipe.yaml; then
-    echo "Processing successful"
-    # Move processed file
-    mv processed_data.xlsx /output/directory/
-else
-    echo "Processing failed"
-    exit 1
-fi
-
-# Parse YAML capabilities in scripts (requires yq)
-TOTAL_PROCESSORS=$(python -m excel_recipe_processor --list-capabilities --yaml | yq '.system_info.total_processors')
-echo "System has $TOTAL_PROCESSORS processors available"
-```
-
-### Scheduled Tasks
-```bash
-# Cron job for daily processing with capability check
-# 0 6 * * * /usr/bin/python -m excel_recipe_processor --list-capabilities --yaml > /logs/capabilities.yaml && /usr/bin/python -m excel_recipe_processor /data/daily.xlsx --config /scripts/daily-recipe.yaml
-```
-
-## Output Format Comparison
-
-| Format | Use Case | Pros | Cons |
-|--------|----------|------|------|
-| Basic (`--list-capabilities`) | Quick overview | Fast, human-readable | Limited detail |
-| Detailed (`--detailed`) | Manual inspection | Rich formatting, examples | Not machine-parseable |
-| JSON (`--json`) | Automation/scripts | Standard format, all data | Verbose, harder to read |
-| **YAML (`--yaml`)** | Clean automation | Less cluttered than JSON, human-readable | Requires PyYAML |
-| **Detailed YAML (`--detailed-yaml`)** | Documentation | Structured + complete listings | Longer output |
-| Matrix (`--matrix`) | Feature comparison | Visual compatibility | Limited to features only |
-
-## Performance Tips
-
-- Use `--verbose` only during development/debugging
-- Validate recipes before running in production
-- Process smaller files first to test recipes
-- Use specific sheet names rather than indexes when possible
-- Use YAML output for cleaner automation scripts
-- Use detailed-yaml for comprehensive documentation
-
-## See Also
-
-- [System Capabilities](capabilities.md) - Understanding `--list-capabilities`
-- [Recipe Validation](../recipes/debugging.md) - Using `--validate-recipe`
-- [Troubleshooting](../troubleshooting/common-issues.md) - Solving common problems

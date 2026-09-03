@@ -215,3 +215,22 @@ flush_workbooks, generate_column_config.
 - `inject_formulas` `mode: dead` removed (it was never absent - its
   examples were the part that had never worked). "Dead formula" remains
   the name for formula text that `awaken` turns live.
+
+## README and docs brought current (2026-09-04)
+
+- README: Quick Start is a stage-era recipe that validates (the old one
+  used `output_filename`, `ascending: false`, and an `ExcelPipeline` class
+  that does not exist); "What It Can Do" lists all 46 processors by
+  purpose; "Beyond the Basics" names the real CLI flags and entry point
+  (`RecipePipeline().run_complete_recipe`); "Adding New Processors" points
+  at the guide.
+- `docs/CAPABILITIES.md`: prose reference - the run-level features and
+  every processor by purpose.
+- Retired: `docs/processors/*.md`, `docs/recipes/*.md`, the old
+  `docs/README.md` - all pre-stage era, several with retired keys. The
+  generated schema and the validated examples are the per-processor docs
+  now. `docs/cli/commands.md` is generated from `--help`.
+
+Delete after extracting (the archive cannot remove files):
+
+    git rm -r docs/processors docs/recipes

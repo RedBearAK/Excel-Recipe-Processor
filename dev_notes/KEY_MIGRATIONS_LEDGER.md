@@ -256,6 +256,20 @@ tests automatically; prose and recipes outside this repo need the grep.
 
 ---
 
+## Documentation that was retired rather than repaired
+
+- `docs/processors/*.md` (15 hand-written pages, 8 carrying retired keys):
+  superseded by the generated `docs/STEP_SCHEMAS.md` and the validated
+  `_examples/*.yaml` (`--get-usage-examples`).
+- `docs/recipes/variables.md` and `docs/recipes/yaml-syntax.md`: pre-stage
+  era (`output_filename`, no stages); superseded by `--get-settings-examples`
+  and the README Quick Start.
+- `docs/cli/commands.md`: now generated from `--help`.
+- README sections "Available Processors", "Processor Details", "Advanced
+  Features", "Recipe Examples", "Recipe Library", "Adding New Processors":
+  rewritten 2026-09-04; they named classes that do not exist
+  (`ExcelPipeline`, `RecipeValidator`, `PipelineError`) and pre-stage recipes.
+
 ## Dates
 
 - 2026-08-13 - `stage_name` -> `save_to_stage` on copy_stage / create_stage

@@ -398,6 +398,78 @@ def test_configuration_validation():
     return True
 
 
+def _diff_step_config() -> dict:
+    """Shared config for the key integrity tests."""
+    return {
+        'processor_type': 'diff_data',
+        'step_description': 'Key integrity test',
+        'source_stage': 'current_customers',
+        'reference_stage': 'baseline_customers',
+        'key_columns': ['customer_id'],
+        'save_to_stage': 'diff_results',
+    }
+
+
+def test_duplicate_keys_halt():
+    """Duplicate key values on either side must stop the run, not warn and overwrite."""
+    print("\nTesting duplicate keys halt...")
+
+    setup_test_stages()
+
+    baseline_data = create_baseline_test_data()
+    current_data = create_current_test_data()
+    current_data.loc[len(current_data)] = current_data.iloc[0]
+    current_data.loc[len(current_data)] = current_data.iloc[0]
+
+    StageManager.save_stage('baseline_customers', baseline_data, 'Baseline customer data')
+    StageManager.save_stage('current_customers', current_data, 'Current with a tripled key')
+
+    processor = DiffDataProcessor(_diff_step_config())
+    try:
+        processor.execute(current_data)
+        print("✗ Duplicate keys did not raise")
+        return False
+    except StepProcessorError as error:
+        message = str(error)
+        if 'current data' not in message or 'C001' not in message or '3' not in message:
+            print(f"✗ Duplicate-key message missing side, key, or count: {message}")
+            return False
+        print(f"   ✓ Raised: {message}")
+
+    print("✓ Duplicate keys halt passed")
+    return True
+
+
+def test_blank_keys_halt():
+    """Blank or NaN key values on either side must stop the run."""
+    print("\nTesting blank keys halt...")
+
+    setup_test_stages()
+
+    baseline_data = create_baseline_test_data()
+    baseline_data.loc[2, 'customer_id'] = None
+    baseline_data.loc[3, 'customer_id'] = '   '
+    current_data = create_current_test_data()
+
+    StageManager.save_stage('baseline_customers', baseline_data, 'Baseline with blank keys')
+    StageManager.save_stage('current_customers', current_data, 'Current customer data')
+
+    processor = DiffDataProcessor(_diff_step_config())
+    try:
+        processor.execute(current_data)
+        print("✗ Blank keys did not raise")
+        return False
+    except StepProcessorError as error:
+        message = str(error)
+        if 'reference data' not in message or '2 row(s)' not in message:
+            print(f"✗ Blank-key message missing side or count: {message}")
+            return False
+        print(f"   ✓ Raised: {message}")
+
+    print("✓ Blank keys halt passed")
+    return True
+
+
 def main():
     """Run all tests and report results."""
     print("🧪 Testing DiffDataProcessor functionality...")
@@ -409,7 +481,9 @@ def main():
         test_filtered_stages_creation,
         test_json_details_option,
         test_handle_deleted_rows_options,
-        test_configuration_validation
+        test_configuration_validation,
+        test_duplicate_keys_halt,
+        test_blank_keys_halt,
     ]
     
     passed = 0

@@ -238,7 +238,56 @@ class DiffDataProcessor(TransformBaseProcessor):
                 raise StepProcessorError(f"Key column '{key_col}' not found in current data")
             if key_col not in reference_data.columns:
                 raise StepProcessorError(f"Key column '{key_col}' not found in reference data")
-    
+
+        self._check_key_integrity(current_data, 'current')
+        self._check_key_integrity(reference_data, 'reference')
+
+    def _check_key_integrity(self, data: pd.DataFrame, data_type: str) -> None:
+        """
+        Halt on blank or duplicate keys (2026-09-04).
+
+        A blank key cannot match anything, and NaN keys each hash apart, so
+        every blank row would surface as its own phantom NEW or DELETED row.
+        A duplicate key used to warn and overwrite, so all but the last row
+        with that key vanished before comparison began - silent wrong data.
+        Both are configuration problems (wrong key column, or a key that
+        needs a second column to be unique), so both stop the run.
+        """
+        key_frame = data[self.key_columns]
+
+        blank_mask = key_frame.isna()
+        for key_col in self.key_columns:
+            column = key_frame[key_col]
+            blank_mask[key_col] = blank_mask[key_col] | (column.astype(str).str.strip() == '')
+        blank_rows = blank_mask.any(axis=1)
+        blank_count = int(blank_rows.sum())
+        if blank_count:
+            sample_rows = [int(pos) + 2 for pos in blank_rows.to_numpy().nonzero()[0][:5]]
+            raise StepProcessorError(
+                f"{blank_count} row(s) in {data_type} data have a blank key in "
+                f"{self.key_columns}; first Excel row numbers: {sample_rows}. "
+                f"Every row needs a key value to be matched."
+            )
+
+        duplicate_rows = key_frame.duplicated(keep=False)
+        duplicate_count = int(duplicate_rows.sum())
+        if duplicate_count:
+            counts = key_frame[duplicate_rows].value_counts(dropna=False).head(5)
+            sample = [(self._format_key(key), int(count)) for key, count in counts.items()]
+            distinct_count = int(key_frame[duplicate_rows].drop_duplicates().shape[0])
+            raise StepProcessorError(
+                f"{duplicate_count} row(s) in {data_type} data share a key with another "
+                f"row ({distinct_count} distinct key value(s) repeat). Keys must be unique "
+                f"per row for a diff - add a column to key_columns or choose another key. "
+                f"Most repeated (key, rows): {sample}"
+            )
+
+    def _format_key(self, key) -> str:
+        """Render a value_counts key (always a tuple) as a single value when one column."""
+        if isinstance(key, tuple) and len(key) == 1:
+            return str(key[0])
+        return str(key)
+
     def _prepare_data_for_comparison(self, data: pd.DataFrame, data_type: str) -> dict:
         """
         Prepare data for comparison by creating a key-indexed dictionary.
@@ -259,9 +308,11 @@ class DiffDataProcessor(TransformBaseProcessor):
             else:
                 key = tuple(row[col] for col in self.key_columns)
             
-            # Check for duplicate keys
+            # Unreachable after _check_key_integrity; a bare guard, not a warning
             if key in indexed_data:
-                logger.warning(f"Duplicate key {key} found in {data_type} data")
+                raise StepProcessorError(
+                    f"Duplicate key {key} in {data_type} data slipped past the integrity check"
+                )
             
             # Store row as single-row DataFrame to preserve column structure
             indexed_data[key] = pd.DataFrame([row])

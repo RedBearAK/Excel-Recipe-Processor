@@ -79,7 +79,11 @@ recipe:
   - step_description: "Write the report"
     processor_type: "export_file"
     source_stage: "stg_sorted"
-    output_file: "electronics_report.xlsx"
+    # Stamped, so every run is a new file: Excel keeps showing a workbook
+    # it already has open, and a same-named rewrite looks like nothing
+    # changed. {timestamp} here; {hour}{minute}{second} is enough when the
+    # name already carries a date.
+    output_file: "electronics_report_{timestamp}.xlsx"
 ```
 
 Check it, then run it:

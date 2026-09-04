@@ -128,11 +128,16 @@ create_backup: true
 Use multiple comment lines for complex parameters:
 ```yaml
 # REQ - Output file path with variable substitution support
-# Built-in variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}
+# Built-in variables: {date}, {time}, {timestamp}, {YYYY}, {MM}, {DD}
 # Custom variables: {department}, {batch_id} - defined in recipe settings
 # Variable examples: department="sales", batch_id="B001"
-output_file: "reports/{department}_{date}.xlsx"
+# Stamped with the run time so each run is a new file (Excel keeps
+# showing an open workbook; a same-named rewrite looks unchanged)
+output_file: "reports/{department}_{date}_{time}.xlsx"
 ```
+
+Examples that write files should carry a run stamp in the name, and say
+why in a comment, so the habit propagates into every recipe built from them.
 
 ## Parameter Details Section
 

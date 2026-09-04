@@ -41,7 +41,12 @@ class ExportFileProcessor(ExportBaseProcessor):
             Key('data_source', 'stage_in', required=True),
         ])
         return Schema([
-            Key('output_file', 'str', required=True),
+            Key('output_file', 'str', required=True,
+                description='Output path; a template with variable substitution. Put a run '
+                            'stamp in the name - {hour}{minute}{second} at least, {timestamp} '
+                            'when the name carries no date - so each run writes a NEW file: '
+                            'Excel holds an open workbook, and a same-named rewrite is not '
+                            'what the open window shows'),
             Key('sheet_name', 'str', default='Data'),
             Key('sheets_to_create', 'list_of_mappings', schema=sheet),
             Key('template_file', 'str'),

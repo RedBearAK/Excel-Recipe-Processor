@@ -491,22 +491,29 @@ class RecipePipeline:
                     'warnings': len(report.warnings),
                 }
 
-            # Recipe-requested log file: attaches HERE because paths like
+            # The log-file decision (2026-09-04): every run writes a log.
+            # A recipe log_file template attaches HERE because paths like
             # {output_dir}/{output_basename}_log.txt need the external
-            # variables just resolved above. Lines before this point live
-            # only in the terminal; --log-file captures those too, and
-            # wins outright when both are given.
+            # variables just resolved above; no directive means the
+            # platform default location (core/default_log_path.py); false
+            # opts out. The buffered startup lines become the file's head.
+            # --log-file on the CLI captured those live and outranks all.
             settings = self.recipe_data.get('settings', {}) \
                 if isinstance(self.recipe_data, dict) else {}
-            log_file_template = settings.get('log_file')
-            if log_file_template:
+            from excel_recipe_processor.core.default_log_path import resolve_log_file_setting
+            substitute = (self.substitute_template if self.variable_substitution
+                          else (lambda text: text))
+            try:
+                resolved_log_path = resolve_log_file_setting(
+                    settings.get('log_file'), self._recipe_path, substitute)
+            except ValueError as error:
+                raise RecipePipelineError(str(error))
+            if resolved_log_path is not None:
                 from excel_recipe_processor.core.main import attach_log_file
-                resolved_log_path = self.substitute_template(str(log_file_template)) \
-                    if self.variable_substitution else str(log_file_template)
-                attach_log_file(resolved_log_path, source='recipe')
+                attach_log_file(str(resolved_log_path), source='recipe')
             else:
-                # The decision point: no recipe directive, and any CLI
-                # attach already consumed the buffer - drop what remains
+                # Opted out, and any CLI attach already consumed the
+                # buffer - drop what remains
                 from excel_recipe_processor.core.main import discard_early_log_buffer
                 discard_early_log_buffer()
 

@@ -119,6 +119,46 @@ def test_stage_frees_after_last_consuming_step_by_default():
     return True
 
 
+def test_rule_level_stage_name_counts_as_a_consumer():
+    """A stage named only in a filter rule's stage_name is a consumer (2026-09-04).
+
+    The declaration key and the rule-reference key are spelled the same;
+    inside a step it is always a reference, and missing it freed the
+    stage before the filter that needed it.
+    """
+    print("\nTesting rule-level stage_name is counted...")
+
+    recipe = {
+        'settings': {'stages': [
+            {'stage_name': 'stg_free_test_main', 'description': 'm', 'protected': False},
+            {'stage_name': 'stg_free_test_lookup', 'description': 'l', 'protected': False},
+            {'stage_name': 'stg_free_test_out', 'description': 'o', 'protected': False},
+        ]},
+        'recipe': [
+            {'processor_type': 'export_file', 'source_stage': 'stg_free_test_lookup',
+             'output_file': 'l.xlsx'},
+            {'processor_type': 'filter_data', 'source_stage': 'stg_free_test_main',
+             'save_to_stage': 'stg_free_test_out',
+             'filters': [{'column': 'k', 'condition': 'in_stage',
+                          'stage_name': 'stg_free_test_lookup', 'stage_column': 'k'}]},
+        ],
+    }
+    _fresh(recipe)
+
+    if StageManager._expected_uses.get('stg_free_test_lookup') != 2:
+        print(f"  ✗ lookup counted {StageManager._expected_uses.get('stg_free_test_lookup')} use(s), expected 2")
+        return False
+    print("  ✓ lookup counted twice: the export and the filter rule")
+
+    StageManager.save_stage('stg_free_test_lookup', pd.DataFrame({'k': [1]}), description='l')
+    StageManager.auto_free_after_step(0)
+    if not StageManager.stage_exists('stg_free_test_lookup'):
+        print("  ✗ lookup freed before the filter that references it")
+        return False
+    print("  ✓ lookup alive for the filter step")
+    return True
+
+
 def main():
     """Run every test and report a final score."""
     print("=== auto_free_stages default tests ===")
@@ -127,6 +167,7 @@ def main():
         test_default_is_on,
         test_false_opts_out_and_true_still_works,
         test_stage_frees_after_last_consuming_step_by_default,
+        test_rule_level_stage_name_counts_as_a_consumer,
     ]
 
     passed = 0

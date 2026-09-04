@@ -106,8 +106,17 @@ class StageManager:
                 f"stage(s) tracked across {planned} consuming step(s); "
                 f"each frees when its last consuming step completes")
 
+    # Keys whose string values are never a stage the step CONSUMES. The
+    # scan walks recipe steps only, never settings.stages, so the
+    # declaration key stage_name is not here: inside a step it is always
+    # a reference - filter_data in_stage / not_in_stage, verify_stage_data
+    # rules, aggregate/group/merge sources (the 2026-08-13 standardization:
+    # "stage_name is for declarations and rule references, never
+    # step-level flow"). Excluding it undercounted every stage referenced
+    # only through a rule, which auto-free then freed too early; found
+    # 2026-09-04 when the VMS merge halted at its in_stage filter.
     _NON_REFERENCE_KEYS = frozenset((
-        'save_to_stage', 'stage_name', 'step_description', 'description',
+        'save_to_stage', 'step_description', 'description',
         'pandas_formula', 'excel_formula', 'when_formula', 'name_mgr_comment',
     ))
 

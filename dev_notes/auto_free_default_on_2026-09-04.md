@@ -15,3 +15,16 @@ consumer already ran will not find it, as it never did under opt-in.
 step-completion trigger. `current_capabilities.json` is refreshed for the
 combine_data and deduplicate_data capability text changed by this same
 patch; the drift test confirms it.
+
+## Scan fix found by the flip (same day)
+
+`_NON_REFERENCE_KEYS` excluded `stage_name` - correct for the declaration
+key under `settings.stages`, which the scan never walks, and wrong for
+the identically spelled rule-reference key inside steps (`filter_data`
+`in_stage` / `not_in_stage`, `verify_stage_data` rules, aggregate/group/
+merge sources). Stages referenced only that way were undercounted and
+freed early; the VMS merge halted at its second `in_stage` filter with
+the loud stage-not-found the design promises. `stage_name` is no longer
+excluded. The change can only raise a count, so the only failure mode it
+can add is the harmless overcount. Regression test:
+`test_rule_level_stage_name_counts_as_a_consumer`.

@@ -103,7 +103,9 @@ class FreeStagesProcessor(BaseStepProcessor):
                     f"If this stage is legitimately absent in some runs, set on_missing: skip"
                 )
 
-            frame = StageManager.load_stage(stage_name)
+            # peek, not load: releasing is not consuming, and this step
+            # declares its stages as stage_release, not stage_in
+            frame = StageManager.peek_stage(stage_name)
             if isinstance(frame, pd.DataFrame):
                 freed_bytes += int(frame.memory_usage(deep=True).sum())
 

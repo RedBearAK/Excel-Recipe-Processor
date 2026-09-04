@@ -166,6 +166,80 @@ def test_rule_level_stage_name_counts_as_a_consumer():
     return True
 
 
+def test_contract_refuses_undeclared_use_inside_a_step():
+    """Inside a step window, an undeclared read or write halts by name;
+    peek is exempt; outside the window nothing is constrained (2026-09-04)."""
+    print("\nTesting the stage contract window...")
+
+    recipe = {
+        'settings': {'stages': [
+            {'stage_name': 'stg_free_test_a', 'description': 'a', 'protected': False},
+            {'stage_name': 'stg_free_test_b', 'description': 'b', 'protected': False},
+            {'stage_name': 'stg_free_test_c', 'description': 'c', 'protected': False},
+        ]},
+        'recipe': [
+            {'processor_type': 'filter_data', 'source_stage': 'stg_free_test_a',
+             'save_to_stage': 'stg_free_test_b', 'filters': []},
+        ],
+    }
+    _fresh(recipe)
+    frame = pd.DataFrame({'x': [1]})
+    StageManager.save_stage('stg_free_test_a', frame, description='a')
+    StageManager.save_stage('stg_free_test_c', frame, description='c')
+    passed = True
+
+    StageManager.begin_step(0, 'the filter')
+    try:
+        StageManager.load_stage('stg_free_test_a')
+        print("  ✓ declared read allowed")
+    except Exception as error:
+        print(f"  ✗ declared read refused: {error}")
+        passed = False
+
+    try:
+        StageManager.load_stage('stg_free_test_c')
+        print("  ✗ undeclared read allowed")
+        passed = False
+    except Exception as error:
+        text = str(error)
+        if 'without declaring' in text and 'stage_in' in text and 'the filter' in text:
+            print("  ✓ undeclared read refused, naming the step and the key kind")
+        else:
+            print(f"  ✗ wrong refusal: {text}")
+            passed = False
+
+    try:
+        StageManager.save_stage('stg_free_test_c', frame, description='c', overwrite=True)
+        print("  ✗ undeclared write allowed")
+        passed = False
+    except Exception as error:
+        if 'without declaring' in str(error) and 'stage_out' in str(error):
+            print("  ✓ undeclared write refused")
+        else:
+            print(f"  ✗ wrong refusal: {error}")
+            passed = False
+
+    try:
+        StageManager.peek_stage('stg_free_test_c')
+        print("  ✓ peek exempt inside the window")
+    except Exception as error:
+        print(f"  ✗ peek refused: {error}")
+        passed = False
+    if StageManager._active_step != 0:
+        print("  ✗ peek did not restore the window")
+        passed = False
+
+    StageManager.end_step()
+    try:
+        StageManager.load_stage('stg_free_test_c')
+        print("  ✓ unconstrained outside the window")
+    except Exception as error:
+        print(f"  ✗ refused outside the window: {error}")
+        passed = False
+
+    return passed
+
+
 def _stage_in_paths(schema, prefix: tuple = ()) -> list:
     """Every (path, discriminator settings) at which the schema types a stage_in.
 
@@ -259,6 +333,7 @@ def main():
         test_stage_frees_after_last_consuming_step_by_default,
         test_rule_level_stage_name_counts_as_a_consumer,
         test_every_declared_stage_in_key_is_counted,
+        test_contract_refuses_undeclared_use_inside_a_step,
     ]
 
     passed = 0

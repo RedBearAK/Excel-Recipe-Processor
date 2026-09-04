@@ -49,7 +49,11 @@ class StageManager:
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
     _auto_free: bool        = True              # settings: auto_free_stages (default on, 2026-09-04)
-    _expected_uses: dict    = {}                # dict[str, int] from recipe scan
+    _expected_uses: dict    = {}                # dict[str, int] from the plan
+    _step_consumers: list   = []                # per-step SETS of declared reads
+    _step_writers: list     = []                # per-step SETS of declared writes
+    _active_step: int | None = None             # index while a step executes
+    _active_step_label: str = ''
     _max_stages: int        = 100               # Configurable limit
     _declared_stages: dict  = {}
     _protected_stages       = set()
@@ -124,17 +128,26 @@ class StageManager:
 
         cls._expected_uses = {}
         cls._step_consumers = []
-        if not cls._auto_free:
-            return
+        cls._step_writers = []
 
         for step in recipe_config.get('recipe', []) or []:
-            consumed = set()
+            consumed, written = set(), set()
             processor_class = registry._processors.get(step.get('processor_type'))
             schema = processor_class.full_schema() if processor_class else None
             if schema is not None:
-                reads, _writes, _releases = stage_references(substitute(step), schema)
+                resolved = substitute(step)
+                reads, writes, _releases = stage_references(resolved, schema)
                 consumed.update(reads)
+                written.update(writes)
+                written.update(processor_class.computed_stage_writes(resolved))
             cls._step_consumers.append(consumed)
+            cls._step_writers.append(written)
+
+        # The declaration tables above also drive the runtime contract
+        # (begin_step / load_stage / save_stage); only the freeing is
+        # optional.
+        if not cls._auto_free:
+            return
 
         for consumed in cls._step_consumers:
             for name in consumed:
@@ -145,6 +158,64 @@ class StageManager:
             f"🍃 Auto-free enabled: {len(cls._expected_uses)} "
             f"stage(s) tracked across {planned} consuming step(s); "
             f"each frees when its last consuming step completes")
+
+    @classmethod
+    def begin_step(cls, step_index: int, label: str = '') -> None:
+        """
+        Open the runtime contract window for a step (2026-09-04).
+
+        While a step is active, load_stage() accepts only stages the
+        step's processor DECLARED it reads (a stage_in key naming them)
+        and save_stage() only stages it declared it writes (a stage_out
+        key, or computed_stage_writes()). The declaration is the one
+        source the validator and the auto-free plan are built from, so a
+        use without a declaration would leave both wrong; it is refused
+        at the use, naming the processor, instead of surfacing later as
+        a stage freed too early. Outside a step window nothing changes,
+        so direct calls from tests and tooling are unaffected.
+        """
+        cls._active_step = step_index
+        cls._active_step_label = label
+
+    @classmethod
+    def end_step(cls) -> None:
+        """Close the contract window; peeks and dumps run outside it."""
+        cls._active_step = None
+        cls._active_step_label = ''
+
+    @classmethod
+    def _check_declared(cls, stage_name: str, tables: list, verb: str, key_kind: str) -> None:
+        """Refuse an undeclared use inside an active step window."""
+        index = cls._active_step
+        if index is None or index >= len(tables):
+            return
+        if stage_name in tables[index]:
+            return
+        declared = sorted(tables[index]) or ['(none)']
+        raise StageError(
+            f"Step {index + 1} ('{cls._active_step_label}') {verb} stage "
+            f"'{stage_name}' without declaring it: no {key_kind} key in the "
+            f"processor's config_schema() names that stage (declared: "
+            f"{declared}). The validator and the auto-free plan are built "
+            f"from those declarations, so an undeclared use cannot be "
+            f"counted, checked, or freed correctly. Declare the key."
+        )
+
+    @classmethod
+    def peek_stage(cls, stage_name: str) -> pd.DataFrame:
+        """
+        Read a stage WITHOUT consuming it: inspection, dumps, free_stages.
+
+        Exempt from the declared-reads check by construction rather than by
+        exempting callers by name; a processor that transforms data must
+        use load_stage() and declare.
+        """
+        saved_index, saved_label = cls._active_step, cls._active_step_label
+        cls._active_step, cls._active_step_label = None, ''
+        try:
+            return cls.load_stage(stage_name)
+        finally:
+            cls._active_step, cls._active_step_label = saved_index, saved_label
 
     @classmethod
     def auto_free_after_step(cls, step_index: int) -> None:
@@ -285,6 +356,8 @@ class StageManager:
         Raises:
             StageError: If stage saving fails due to protection or other issues
         """
+        cls._check_declared(stage_name, cls._step_writers, 'wrote', 'stage_out')
+
         # Validate stage name
         cls._validate_stage_name(stage_name)
         
@@ -409,6 +482,8 @@ class StageManager:
         Raises:
             StageError: If stage not found with helpful suggestions
         """
+        cls._check_declared(stage_name, cls._step_consumers, 'read', 'stage_in')
+
         # Check if stage exists
         if stage_name not in cls._current_stages:
             available_stages = list(cls._current_stages.keys())
@@ -583,6 +658,14 @@ class StageManager:
         cls._save_counts.clear()
         cls._stage_metadata.clear()
         cls._stage_usage.clear()
+        # The plan and the contract window belong to a run; a fresh start
+        # has neither, so tests and tooling calling load/save directly
+        # are unconstrained until a pipeline builds a plan.
+        cls._expected_uses = {}
+        cls._step_consumers = []
+        cls._step_writers = []
+        cls._active_step = None
+        cls._active_step_label = ''
         
         if stage_count > 0:
             logger.info(f"Cleaned up {stage_count} stages, freed ~{memory_freed:.1f}MB memory")

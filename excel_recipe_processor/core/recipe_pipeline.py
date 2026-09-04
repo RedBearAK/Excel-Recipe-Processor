@@ -270,8 +270,13 @@ class RecipePipeline:
             try:
                 # Create processor with variable injection
                 processor = self._create_processor(step_config)
-                
-                
+
+                # The stage contract window (2026-09-04): inside it the
+                # processor may read only the stages its schema declares
+                # it reads and write only those it declares it writes.
+                # Closed in the finally below so dumps and peeks run outside.
+                StageManager.begin_step(step_index, step_desc)
+
                 # Execute based on processor type
                 if isinstance(processor, ImportBaseProcessor):
                     processor.execute_import()
@@ -296,9 +301,9 @@ class RecipePipeline:
                     # DO NOT USE isinstance(processor, BaseStepProcessor) to fix this!!!!!!
                     processor.execute_stage_to_stage()
                 
+                StageManager.end_step()
                 self.steps_executed += 1
                 logger.info(f"✅ Step {step_index + 1} completed successfully ({time.perf_counter() - _step_clock:.3f}s)")
-                from excel_recipe_processor.core.stage_manager import StageManager
                 StageManager.auto_free_after_step(step_index)
 
                 self._dump_requested_stages()
@@ -312,6 +317,7 @@ class RecipePipeline:
                     break
                 
             except (StageError, StepProcessorError, Exception) as e:
+                StageManager.end_step()
                 # Handle error according to configured action
                 should_continue = self._handle_step_error(step_index, step_desc, e, step_on_error)
                 

@@ -157,6 +157,39 @@ def test_report_file_only_written_when_dirty():
         return passed
 
 
+def test_keep_none_drops_every_repeated_key():
+    """keep: none leaves only rows whose key appeared exactly once."""
+    print("\nTesting keep: none...")
+
+    result = build(keep='none').execute(sample_frame())
+
+    passed = True
+
+    if list(result['Order ID']) == ['A3']:
+        print("  ✓ A1 and A2 dropped entirely, A3 alone survives")
+    else:
+        print(f"  ✗ Keys: {list(result['Order ID'])}")
+        passed = False
+
+    # The symmetric-difference use: key on EVERY column, so exact twins
+    # cancel and only unmatched rows remain, with their source tag intact.
+    left = pd.DataFrame({'Van': ['V1', 'V1', 'V2'], 'Product': [10, 11, 20], 'Src': 'left'})
+    right = pd.DataFrame({'Van': ['V1', 'V1', 'V2'], 'Product': [10, 12, 20], 'Src': 'right'})
+    stacked = pd.concat([left, right], ignore_index=True)
+
+    diff = build(key_columns=['Van', 'Product'], keep='none').execute(stacked)
+    expected = [('V1', 11, 'left'), ('V1', 12, 'right')]
+    actual = list(diff[['Van', 'Product', 'Src']].itertuples(index=False, name=None))
+
+    if actual == expected:
+        print("  ✓ Symmetric difference: one unmatched row per side, source preserved")
+    else:
+        print(f"  ✗ Symmetric difference gave {actual}")
+        passed = False
+
+    return passed
+
+
 def test_empty_input_and_bad_config():
     """Empty in means empty out; bad keys and modes fail loudly."""
     print("\nTesting empty input and validation...")
@@ -198,6 +231,7 @@ def main():
     tests = [
         test_collapse_keeps_first_values,
         test_keep_last_flips_the_winner,
+        test_keep_none_drops_every_repeated_key,
         test_all_columns_survive_unenumerated,
         test_conflicts_annotated_and_repetition_ignored,
         test_report_file_only_written_when_dirty,

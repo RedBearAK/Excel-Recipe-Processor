@@ -26,7 +26,7 @@ basic_example:
         source_stage: "stg_line_items"
         # REQ - Columns that define uniqueness
         key_columns: ["Order ID"]
-        # OPT - Which duplicate survives: "first" (default) or "last"
+        # OPT - Which duplicate survives: "first" (default), "last", or "none"
         keep: "first"
         save_to_stage: "stg_orders"
 
@@ -104,7 +104,7 @@ parameter_details:
   keep:
     required: false
     default: "first"
-    description: "Which duplicate row survives: first or last, in input order"
+    description: "Which duplicate row survives: first or last, in input order. none drops every row of a repeated key, leaving only rows whose key appeared once - keyed on every column, that is a symmetric difference of stacked frames (conflict reporting is skipped, since no winner is picked)"
   save_conflicts_to_stage:
     required: false
     description: "Stage receiving all rows of conflicted keys, annotated with Dedupe Status (kept/discarded) and Conflicting Columns"

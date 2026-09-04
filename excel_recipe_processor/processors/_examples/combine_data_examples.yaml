@@ -27,7 +27,8 @@ basic_example:
         step_description: "Combine title and data sections"
         # REQ - Must be "combine_data" for this processor type
         processor_type: "combine_data"
-        # REQ - Stage to read base data from (will be combined with other sources)
+        # REQ - Stage to read base data from: ALWAYS the first part of the
+        # result (2026-09-04), so it is never listed under data_sources
         source_stage: "stg_title_section"
         # REQ - Stage to save combined results
         save_to_stage: "stg_complete_report"
@@ -35,7 +36,11 @@ basic_example:
         combine_type: "vertical_stack"
         # REQ - Column handling policy
         column_handling: "allow_mismatched_columns"
-        # REQ - Additional data sources to combine
+        # OPT - Insert the source stage's column names as its first data row
+        # Default value: same smart default as retain_column_names below
+        # (true under allow_mismatched_columns, false under require_matching_columns)
+        retain_source_column_names: true
+        # REQ - Parts stacked AFTER the source stage, in order
         data_sources:
           - # Add blank rows for spacing
             insert_blank_rows: 1
@@ -400,7 +405,15 @@ parameter_details:
       - "title_section"
       - "main_data"
       - "primary_dataset"
-    note: "This stage provides the foundation data that other sources are combined with"
+    note: "Always the first part of the result (2026-09-04). Listing it again under data_sources - or the retired 'current_dataframe' token - is an error, since it would appear twice."
+
+  retain_source_column_names:
+    type: boolean
+    required: false
+    description: "Insert the source stage's column names as its first data row; the source-part twin of the per-source retain_column_names"
+    default_behavior:
+      allow_mismatched_columns: "Defaults to true"
+      require_matching_columns: "Defaults to false"
 
   save_to_stage:
     type: string
@@ -436,7 +449,7 @@ parameter_details:
   data_sources:
     type: list
     required: true
-    description: "Sequential list of data sources and formatting operations to combine with source_stage"
+    description: "Sequential list of data sources and formatting operations appended after source_stage, in order"
     minimum_items: 1
     operations:
       insert_from_stage: "Load data from saved stage"

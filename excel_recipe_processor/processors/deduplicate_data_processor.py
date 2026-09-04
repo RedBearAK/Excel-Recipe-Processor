@@ -66,7 +66,11 @@ class DeduplicateDataProcessor(TransformBaseProcessor):
 
         self.key_columns = self.get_config_value('key_columns', None)
 
-        # Which duplicate row survives: the first seen (default) or the last.
+        # Which duplicate row survives: the first seen (default), the last,
+        # or none - every row of a repeated key is dropped, leaving only the
+        # rows whose key appeared exactly once. With the key set to every
+        # column that is a symmetric difference: stack two frames and only
+        # the rows without an exact twin remain (2026-09-04).
         self.keep = self.get_config_value('keep', 'first')
 
         # Optional stage receiving every row of every CONFLICTED key group -
@@ -85,10 +89,16 @@ class DeduplicateDataProcessor(TransformBaseProcessor):
                 f"Step '{self.step_name}' requires 'key_columns': a list of column names"
             )
 
-        if self.keep not in ('first', 'last'):
+        if self.keep not in ('first', 'last', 'none'):
             raise StepProcessorError(
-                f"Invalid keep '{self.keep}'. Supported: first, last"
+                f"Invalid keep '{self.keep}'. Supported: first, last, none"
             )
+
+    def _pandas_keep(self) -> str | bool:
+        """drop_duplicates spells 'drop them all' as keep=False."""
+        if self.keep == 'none':
+            return False
+        return self.keep
 
     def execute(self, data):
         """Deduplicate by key, detect conflicts, and report them."""
@@ -113,23 +123,38 @@ class DeduplicateDataProcessor(TransformBaseProcessor):
             self.log_step_complete("0 rows in, 0 rows out")
             return data.copy()
 
-        result = data.drop_duplicates(subset=self.key_columns, keep=self.keep)
+        result = data.drop_duplicates(subset=self.key_columns, keep=self._pandas_keep())
 
-        conflicts = self._find_conflicts(data)
+        # Conflict reporting exists to expose a silently picked winner. With
+        # keep none nothing is picked, and in the symmetric-difference use the
+        # non-key columns are source tags that differ on every twin - so the
+        # report would flag exactly the rows that matched. Skip it.
+        if self.keep == 'none':
+            conflicts = data.head(0)
+        else:
+            conflicts = self._find_conflicts(data)
         self._emit_conflicts(conflicts)
 
         removed = len(data) - len(result)
         conflicted_keys = conflicts[self.key_columns].drop_duplicates() if len(conflicts) else conflicts
 
-        logger.info(
-            f"🔑 Deduplicated on {self.key_columns}: {len(data)} rows -> "
-            f"{len(result)} unique key(s), {removed} duplicate row(s) removed"
-        )
+        if self.keep == 'none':
+            logger.info(
+                f"🔑 Deduplicated on {self.key_columns} with keep none: {len(data)} rows -> "
+                f"{len(result)} row(s) whose key appeared once, {removed} row(s) of "
+                f"repeated keys removed"
+            )
+        else:
+            logger.info(
+                f"🔑 Deduplicated on {self.key_columns}: {len(data)} rows -> "
+                f"{len(result)} unique key(s), {removed} duplicate row(s) removed"
+            )
 
         if len(conflicts):
+            winner = 'none survived' if self.keep == 'none' else f"'{self.keep}' won"
             logger.warning(
                 f"⚠️  {len(conflicted_keys)} key(s) had CONFLICTING values across their "
-                f"duplicate rows; '{self.keep}' won. Details follow."
+                f"duplicate rows; {winner}. Details follow."
             )
             self._log_conflict_details(conflicts)
         elif removed:
@@ -156,7 +181,7 @@ class DeduplicateDataProcessor(TransformBaseProcessor):
             return data.head(0)
 
         conflict_frames = []
-        kept_index = data.drop_duplicates(subset=self.key_columns, keep=self.keep).index
+        kept_index = data.drop_duplicates(subset=self.key_columns, keep=self._pandas_keep()).index
 
         for _, group in candidates.groupby(self.key_columns, dropna=False, sort=False):
             disputed = [
@@ -191,6 +216,9 @@ class DeduplicateDataProcessor(TransformBaseProcessor):
 
             for col in str(group['Conflicting Columns'].iloc[0]).split(', '):
                 values = group[col].astype(str).tolist()
+                if self.keep == 'none':
+                    logger.warning(f"   🔀 [{key_text}] '{col}': {values} -> none kept")
+                    continue
                 logger.warning(f"   🔀 [{key_text}] '{col}': {values} -> kept '{values[0 if self.keep == 'first' else -1]}'")
 
     def _emit_conflicts(self, conflicts: pd.DataFrame) -> None:
@@ -221,7 +249,7 @@ class DeduplicateDataProcessor(TransformBaseProcessor):
         """
         return {
             'description': 'Collapse rows to one per key, keeping all columns, reporting value conflicts',
-            'keep_options': ['first', 'last'],
+            'keep_options': ['first', 'last', 'none'],
             'conflict_outputs': [
                 'per-key warning log with disputed columns and values',
                 'optional stage of conflicted rows (kept and discarded, annotated)',

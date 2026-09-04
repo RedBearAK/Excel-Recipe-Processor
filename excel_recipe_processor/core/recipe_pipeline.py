@@ -483,6 +483,11 @@ class RecipePipeline:
                     f"Recipe validation failed with {len(report.errors)} error(s); "
                     f"nothing was run"
                 )
+
+            # Auto-free plan from the same schema-derived reads validation
+            # just checked, on the same resolved configs (2026-09-04).
+            StageManager.plan_auto_free(
+                self.recipe_data, registry, self._substitute_variables_in_config)
             if self._validate_only:
                 logger.info("\U0001f6d1 --validate: stopping before execution")
                 return {

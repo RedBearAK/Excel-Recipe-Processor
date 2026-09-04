@@ -93,67 +93,58 @@ class StageManager:
         # auto_free_stages: false is the opt-out.
         cls._auto_free = bool(
             recipe_config.get('settings', {}).get('auto_free_stages', True))
+        # The consumer plan is built later, by plan_auto_free(), once the
+        # pipeline has variables resolved and the registry at hand.
         cls._expected_uses = {}
         cls._step_consumers = []
-        if cls._auto_free:
-            cls._step_consumers = cls._scan_step_consumers(recipe_config)
-            for consumed in cls._step_consumers:
-                for name in consumed:
-                    cls._expected_uses[name] = cls._expected_uses.get(name, 0) + 1
-            planned = sum(cls._expected_uses.values())
-            logger.info(
-                f"🍃 Auto-free enabled: {len(cls._expected_uses)} "
-                f"stage(s) tracked across {planned} consuming step(s); "
-                f"each frees when its last consuming step completes")
-
-    # Keys whose string values are never a stage the step CONSUMES. The
-    # scan walks recipe steps only, never settings.stages, so the
-    # declaration key stage_name is not here: inside a step it is always
-    # a reference - filter_data in_stage / not_in_stage, verify_stage_data
-    # rules, aggregate/group/merge sources (the 2026-08-13 standardization:
-    # "stage_name is for declarations and rule references, never
-    # step-level flow"). Excluding it undercounted every stage referenced
-    # only through a rule, which auto-free then freed too early; found
-    # 2026-09-04 when the VMS merge halted at its in_stage filter.
-    _NON_REFERENCE_KEYS = frozenset((
-        'save_to_stage', 'step_description', 'description',
-        'pandas_formula', 'excel_formula', 'when_formula', 'name_mgr_comment',
-    ))
 
     @classmethod
-    def _scan_step_consumers(cls, recipe_config: dict) -> list:
-        """Per-step SETS of consumed stage names, in recipe order.
+    def plan_auto_free(cls, recipe_config: dict, registry, substitute) -> None:
+        """
+        Build the per-step consumer plan from the processors' declared schemas.
+
+        Reads are whatever config_schema.stage_references() finds at the
+        keys each processor types as stage_in - top level, nested rule
+        lists, variants - on the SAME variable-resolved configs recipe
+        validation checks, so the plan and the validated stage graph are
+        one derivation and cannot disagree (2026-09-04). This replaces a
+        string-matching scan with its own exclusion list, which missed the
+        rule-level stage_name key and freed a stage a step early.
 
         A step consuming a stage counts ONCE however many loads it
-        performs; the countdown is steps, not loads.
+        performs; the countdown is steps, not loads. free_stages steps
+        release rather than read and count nothing.
+
+        Args:
+            recipe_config: loaded recipe (settings + recipe)
+            registry:      processor registry, for class lookup
+            substitute:    callable resolving variables in a step config
         """
-        names = set(cls._declared_stages)
-        for step in recipe_config.get('recipe', []) or []:
-            saved = step.get('save_to_stage')
-            if saved:
-                names.add(saved)
-        per_step = []
+        from excel_recipe_processor.core.config_schema import stage_references
+
+        cls._expected_uses = {}
+        cls._step_consumers = []
+        if not cls._auto_free:
+            return
 
         for step in recipe_config.get('recipe', []) or []:
             consumed = set()
+            processor_class = registry._processors.get(step.get('processor_type'))
+            schema = processor_class.full_schema() if processor_class else None
+            if schema is not None:
+                reads, _writes, _releases = stage_references(substitute(step), schema)
+                consumed.update(reads)
+            cls._step_consumers.append(consumed)
 
-            def walk(node, key=None):
-                if isinstance(node, dict):
-                    for k, v in node.items():
-                        walk(v, k)
-                elif isinstance(node, list):
-                    for item in node:
-                        walk(item, key)
-                elif isinstance(node, str):
-                    if key in cls._NON_REFERENCE_KEYS:
-                        return
-                    if node in names:
-                        consumed.add(node)
+        for consumed in cls._step_consumers:
+            for name in consumed:
+                cls._expected_uses[name] = cls._expected_uses.get(name, 0) + 1
 
-            if step.get('processor_type') != 'free_stages':
-                walk({k: v for k, v in step.items() if k != 'save_to_stage'})
-            per_step.append(consumed)
-        return per_step
+        planned = sum(cls._expected_uses.values())
+        logger.info(
+            f"🍃 Auto-free enabled: {len(cls._expected_uses)} "
+            f"stage(s) tracked across {planned} consuming step(s); "
+            f"each frees when its last consuming step completes")
 
     @classmethod
     def auto_free_after_step(cls, step_index: int) -> None:

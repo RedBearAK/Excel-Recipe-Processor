@@ -1,12 +1,14 @@
 """
-Tests for the auto_free_stages default (2026-09-04).
+Tests for the auto_free_stages default and its schema-derived plan (2026-09-04).
 
 tests/test_auto_free_default.py
 
 Runnable with pytest, but written to run standalone and report a score.
 A recipe that says nothing gets auto-free; false opts out; true still
-works; and under the default a stage actually frees after its last
-consuming load.
+works; a stage frees when its last consuming STEP completes; a stage
+referenced only through a rule-level stage_name is counted; and - the
+audit - every stage_in key every registered processor declares, at any
+nesting, is counted exactly once by the plan.
 """
 
 import os
@@ -16,7 +18,11 @@ import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import excel_recipe_processor.core.pipeline  # registers processors
+
+from excel_recipe_processor.core.base_processor import registry
 from excel_recipe_processor.core.stage_manager import StageManager
+from excel_recipe_processor.core.config_schema import stage_references
 
 
 def _recipe(extra_settings: dict | None = None) -> dict:
@@ -45,6 +51,7 @@ def _fresh(recipe: dict) -> None:
     StageManager.cleanup_stages()
     StageManager.initialize_stages(max_stages=20)
     StageManager.declare_recipe_stages(recipe)
+    StageManager.plan_auto_free(recipe, registry, lambda config: config)
 
 
 def test_default_is_on():
@@ -159,6 +166,89 @@ def test_rule_level_stage_name_counts_as_a_consumer():
     return True
 
 
+def _stage_in_paths(schema, prefix: tuple = ()) -> list:
+    """Every (path, discriminator settings) at which the schema types a stage_in.
+
+    A path is a tuple of key names with '[]' marking a list_of_mappings
+    item; the settings are the discriminator values needed to make a
+    variant's keys legal.
+    """
+    found = []
+    tables = [({}, list(schema.keys.values()))]
+    for discriminator, table in schema.variants.items():
+        for value, variant in table.items():
+            tables.append(({discriminator: value}, list(variant.keys.values())))
+    for settings, keys in tables:
+        for key in keys:
+            if key.kind == 'stage_in':
+                found.append((prefix + (key.name,), settings))
+            elif key.kind == 'mapping' and key.schema is not None:
+                found.extend((path, {**settings, **inner}) for path, inner
+                             in _stage_in_paths(key.schema, prefix + (key.name,)))
+            elif key.kind == 'list_of_mappings' and key.schema is not None:
+                found.extend((path, {**settings, **inner}) for path, inner
+                             in _stage_in_paths(key.schema, prefix + (key.name, '[]')))
+    return found
+
+
+def _place(config: dict, path: tuple, value) -> None:
+    """Set value at path, creating mappings and single-item lists on the way."""
+    node = config
+    for index, part in enumerate(path[:-1]):
+        if part == '[]':
+            continue
+        following_is_list = index + 1 < len(path) - 1 and path[index + 1] == '[]'
+        if following_is_list:
+            node = node.setdefault(part, [{}])[0]
+        else:
+            node = node.setdefault(part, {})
+    node[path[-1]] = value
+
+
+def test_every_declared_stage_in_key_is_counted():
+    """The audit: one synthetic step per processor, a sentinel at every
+    stage_in key its schema declares, each counted exactly once."""
+    print("\nAuditing every processor's stage_in keys against the plan...")
+
+    passed = True
+    audited = 0
+    for processor_type, processor_class in sorted(registry._processors.items()):
+        schema = processor_class.full_schema()
+        if schema is None:
+            print(f"  ✗ {processor_type}: no schema")
+            passed = False
+            continue
+        paths = _stage_in_paths(schema)
+        if not paths:
+            continue
+
+        # One step per distinct discriminator setting, so variant keys are legal
+        groups = {}
+        for path, settings in paths:
+            groups.setdefault(tuple(sorted(settings.items())), []).append(path)
+
+        for settings_items, group_paths in groups.items():
+            step = {'processor_type': processor_type, **dict(settings_items)}
+            sentinels = {}
+            for path in group_paths:
+                sentinel = f"stg_audit_{processor_type}_{'_'.join(p for p in path if p != '[]')}"
+                _place(step, path, sentinel)
+                sentinels[sentinel] = path
+            recipe = {'settings': {'stages': []}, 'recipe': [step]}
+            _fresh(recipe)
+            counted = StageManager._expected_uses
+            for sentinel, path in sentinels.items():
+                if counted.get(sentinel) != 1:
+                    print(f"  ✗ {processor_type}: {'/'.join(path)} counted "
+                          f"{counted.get(sentinel, 0)} time(s), expected 1")
+                    passed = False
+            audited += len(sentinels)
+
+    print(f"  {'✓' if passed else '✗'} {audited} stage_in key path(s) across "
+          f"{len(registry._processors)} processors")
+    return passed
+
+
 def main():
     """Run every test and report a final score."""
     print("=== auto_free_stages default tests ===")
@@ -168,6 +258,7 @@ def main():
         test_false_opts_out_and_true_still_works,
         test_stage_frees_after_last_consuming_step_by_default,
         test_rule_level_stage_name_counts_as_a_consumer,
+        test_every_declared_stage_in_key_is_counted,
     ]
 
     passed = 0

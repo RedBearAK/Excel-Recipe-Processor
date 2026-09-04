@@ -26,173 +26,186 @@ pip install excel-recipe-processor
 
 ### Your First Recipe
 
-Create a recipe file `my_recipe.yaml`:
+Data flows between steps through named **stages**. A recipe imports into a
+stage, transforms stage to stage, and exports a stage. Create `my_recipe.yaml`:
 
 ```yaml
+settings:
+  description: "Electronics report"
+  stages:
+    - stage_name: "stg_raw"
+      description: "Everything in the download"
+      protected: false
+    - stage_name: "stg_electronics"
+      description: "Electronics rows only"
+      protected: false
+    - stage_name: "stg_valued"
+      description: "With a total value per row"
+      protected: false
+    - stage_name: "stg_sorted"
+      description: "Highest value first"
+      protected: false
+
 recipe:
-  - step_description: "Filter for electronics products"
+  - step_description: "Import the download"
+    processor_type: "import_file"
+    input_file: "raw_data.xlsx"
+    save_to_stage: "stg_raw"
+
+  - step_description: "Keep electronics"
     processor_type: "filter_data"
+    source_stage: "stg_raw"
     filters:
       - column: "Category"
-        condition: "equals" 
+        condition: "equals"
         value: "Electronics"
-        
-  - step_description: "Calculate total value"
-    processor_type: "add_calculated_column"
-    new_column: "Total_Value"
-    calculation_type: "math"
-    calculation:
-      operation: "multiply"
-      column1: "Quantity"
-      column2: "Price"
-      
-  - step_description: "Sort by total value"
-    processor_type: "sort_data"
-    columns: ["Total_Value"]
-    ascending: false
+    save_to_stage: "stg_electronics"
 
-settings:
-  output_filename: "electronics_report.xlsx"
+  - step_description: "Total value per row"
+    processor_type: "add_calculated_column"
+    source_stage: "stg_electronics"
+    new_column: "Total_Value"
+    calculation:
+      pandas_formula: "{col:Quantity} * {col:Price}"
+    save_to_stage: "stg_valued"
+
+  - step_description: "Highest value first"
+    processor_type: "sort_data"
+    source_stage: "stg_valued"
+    columns: ["Total_Value"]
+    sort_type: "descending"
+    save_to_stage: "stg_sorted"
+
+  - step_description: "Write the report"
+    processor_type: "export_file"
+    source_stage: "stg_sorted"
+    output_file: "electronics_report.xlsx"
 ```
 
-Run your recipe:
+Check it, then run it:
+
+```bash
+python -m excel_recipe_processor my_recipe.yaml --validate
+python -m excel_recipe_processor my_recipe.yaml
+```
+
+Or from Python:
 
 ```python
-from excel_recipe_processor import ExcelPipeline
+from excel_recipe_processor.core.recipe_pipeline import RecipePipeline
 
-pipeline = ExcelPipeline()
-result = pipeline.run_complete_pipeline(
-    recipe_path="my_recipe.yaml",
-    input_path="raw_data.xlsx", 
-    output_path="electronics_report.xlsx"
-)
+report = RecipePipeline().run_complete_recipe("my_recipe.yaml")
 ```
 
-## 🔧 **Available Processors**
+## 🔧 **What It Can Do**
 
-### Data Filtering & Selection
-- **`filter_data`** - Filter rows by conditions (equals, contains, greater than, etc.)
-- **`group_data`** - Group individual values into categories
+46 processors in five families. The one-line version is here; the prose
+description of each, with the run-level features (stages, validation,
+auto-free, variables, the workbook session, audits), is in
+[`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 
-### Data Transformation
-- **`add_calculated_column`** - Create new columns with formulas and calculations
-- **`clean_data`** - Clean and standardize data (replace values, fix formatting, etc.)
-- **`split_column`** - Split single columns into multiple columns
-- **`rename_columns`** - Rename columns with mapping, patterns, or transformations
+| Purpose | Processors |
+|---|---|
+| Bring data in | `import_file`, `create_stage`, `profile_files`, `profile_workbooks`, `profile_sheets`, `profile_named_objects` |
+| Shape tables | `select_columns`, `rename_columns`, `filter_data`, `sort_data`, `deduplicate_data`, `slice_data`, `split_column`, `fill_data`, `clean_data`, `columns_to_rows`, `rows_to_columns`, `copy_stage` |
+| Enrich and combine | `add_calculated_column` (expressions and first-match rule tables), `lookup_data`, `merge_data`, `combine_data`, `group_data`, `diff_data` |
+| Summarise | `aggregate_data`, `pivot_table`, `add_subtotals` |
+| Check | `verify_columns`, `verify_stage_data` (stages); `verify_sheet_data`, `verify_excel_storage` (files) |
+| Write files | `export_file`, `debug_breakpoint`, `export_filter_step` |
+| Work on the workbook | `format_excel`, `inject_formulas`, `manage_named_objects`, `conditional_format`, `excel_data_validation`, `seed_donor_formulas`, `declare_dynamic_formulas`, `strip_formula_caches`, `generate_column_config`, `flush_workbooks` |
+| Stage utilities | `free_stages`, `filter_terms_detector` |
 
-### Data Analysis & Aggregation  
-- **`aggregate_data`** - Group by columns and apply aggregation functions
-- **`pivot_table`** - Create pivot tables with various aggregation options
-- **`sort_data`** - Sort by single or multiple columns with custom orders
-- **`lookup_data`** - VLOOKUP/XLOOKUP style data enrichment
+The workbook row is what makes the output a real Excel deliverable rather
+than a data dump: live formulas addressed by header name, defined names and
+lambdas, native conditional formatting and data validation, formats and
+templates - all written into the file the export produced.
 
 ## 📋 **Recipe Examples**
 
-### Sales Report Automation
-```yaml
-recipe:
-  # Clean and standardize data
-  - step_description: "Clean product names"
-    processor_type: "clean_data"
-    rules:
-      - column: "Product_Name"
-        action: "uppercase"
-      - column: "Price"
-        action: "fix_numeric"
-        
-  # Filter for active products only
-  - step_description: "Filter active products"
-    processor_type: "filter_data"
-    filters:
-      - column: "Status"
-        condition: "equals"
-        value: "Active"
-        
-  # Enrich with category data
-  - step_description: "Add product categories"
-    processor_type: "lookup_data"
-    lookup_source: "product_catalog.xlsx"
-    lookup_key: "Product_Code"
-    source_key: "Product_Code"
-    lookup_columns: ["Category", "Margin"]
-    
-  # Calculate metrics
-  - step_description: "Calculate revenue"
-    processor_type: "add_calculated_column"
-    new_column: "Revenue"
-    calculation_type: "math"
-    calculation:
-      operation: "multiply"
-      column1: "Quantity"
-      column2: "Price"
-      
-  # Create summary by region and category
-  - step_description: "Summarize by region and category"
-    processor_type: "aggregate_data"
-    group_by: ["Region", "Category"]
-    aggregations:
-      - column: "Revenue"
-        function: "sum"
-        new_column_name: "Total_Revenue"
-      - column: "Quantity"
-        function: "sum"
-        new_column_name: "Total_Units"
-      - column: "Order_ID"
-        function: "nunique"
-        new_column_name: "Unique_Orders"
+Every processor ships worked examples that are validated against its schema
+in the test suite, so they cannot drift from the code:
+
+```bash
+python -m excel_recipe_processor --get-usage-examples filter_data
+python -m excel_recipe_processor --get-usage-examples            # every processor
+python -m excel_recipe_processor --get-settings-examples         # the settings block
 ```
 
-### Data Cleaning Pipeline
-```yaml
-recipe:
-  # Split customer names
-  - step_description: "Split customer names"
-    processor_type: "split_column"
-    source_column: "Customer_Name"
-    split_type: "delimiter"
-    delimiter: ","
-    new_column_names: ["Last_Name", "First_Name"]
-    remove_original: true
-    
-  # Standardize phone numbers
-  - step_description: "Clean phone numbers"
-    processor_type: "clean_data"
-    rules:
-      - column: "Phone"
-        action: "regex_replace"
-        pattern: "[^0-9]"
-        replacement: ""
-        
-  # Group states into regions
-  - step_description: "Group states into regions"
-    processor_type: "group_data"
-    source_column: "State"
-    target_column: "Region"
-    groups:
-      West: ["CA", "OR", "WA", "NV"]
-      East: ["NY", "MA", "CT", "NJ"]
-      South: ["TX", "FL", "GA", "NC"]
-      
-  # Rename columns for consistency
-  - step_description: "Standardize column names"
-    processor_type: "rename_columns"
-    rename_type: "transform"
-    case_conversion: "snake_case"
-    replace_spaces: "_"
+The Quick Start above is a complete, runnable recipe. Settings-block
+features (variables, external variables, stages, error policy) are documented
+by `--get-settings-examples`; the CLI in [`docs/cli/commands.md`](docs/cli/commands.md).
+
+## 📐 **Start Here: The Declared Schemas**
+
+Every processor declares exactly which keys its recipe step accepts - kinds,
+required, defaults, allowed values, nested shapes, and which keys go with
+which mode. A recipe is validated against those declarations before any step
+runs, and a key the processor does not declare is refused at load with a
+nearest-name suggestion. There is no vocabulary outside the declarations.
+
+Two documents let a person or a model learn the whole structure quickly:
+
+| Read this | To |
+|---|---|
+| [`docs/STEP_SCHEMAS.md`](docs/STEP_SCHEMAS.md) | write or check a **recipe**: every processor, every key, generated from the live declarations |
+| [`docs/WRITING_A_PROCESSOR.md`](docs/WRITING_A_PROCESSOR.md) | write a **new processor**: pick its family, declare its schema, follow the naming rules |
+
+Regenerate the schema document from the code any time (this is the source; the
+committed file is a convenience):
+
+```bash
+python -m excel_recipe_processor --export-schemas md > docs/STEP_SCHEMAS.md
+python -m excel_recipe_processor --export-docs docs/processors   # one page per processor
+python -m excel_recipe_processor --export-schemas json           # machine form
 ```
+
+Check a recipe without running it - the same checks run at the start of every
+real run, so a recipe that validates will not fail on vocabulary or stage
+wiring mid-pipeline:
+
+```bash
+python -m excel_recipe_processor recipe.yaml --validate
+```
+
+### Processor families
+
+Each processor belongs to a family, set by the base class it inherits, and the
+family contributes the step keys it needs and decides how columns may be named:
+
+- **transform** - reads a stage, returns a stage; columns by header name only
+  (`source_stage`, `save_to_stage`). A *check* is a transform that writes nothing.
+- **import** - creates a stage from a file, inline data, or a profile (`save_to_stage`)
+- **export** - consumes a stage into a file (`source_stage`)
+- **file_ops** - changes a workbook in place; the only family where a positional
+  column ref is legal (`column_names` / `column_refs` pairs)
+- **base** - stage utilities that touch no data (`free_stages`)
+
+### Conventions the schemas enforce
+
+- One key per concept, no aliases. Renames are breaking and land with the recipes.
+- An evaluated string never sits under a bare key: `pandas_formula`,
+  `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
+- Column-name lists are lists of strings, never positions.
+- Enum values are snake_case ERP vocabulary; a library's own spelling is storage.
+- `case_sensitive: false` by default, everywhere.
+- Stage graph is strict: a stage read before it is written, written twice
+  without `confirm_stage_replacement`, or declared but never used, is an error.
 
 ## 🏗️ **Recipe Structure**
 
 ### Basic Recipe Format
 ```yaml
+settings:
+  description: "What this recipe produces"
+  stages:
+    - stage_name: "stg_raw"
+      description: "Imported rows"
+      protected: false
+
 recipe:
   - step_description: "Human readable step description"
     processor_type: "processor_name"
-    # Processor-specific configuration
-    
-settings:
-  output_filename: "result.xlsx"
-  create_backup: true  # Optional: backup original file
+    # ... processor-specific keys: see docs/STEP_SCHEMAS.md
 ```
 
 ### Step Configuration
@@ -200,145 +213,29 @@ settings:
 Each step must have:
 - **`step_description`** - Human-readable description
 - **`processor_type`** - Which processor to use
-- **Processor-specific fields** - Configuration for the chosen processor
-
-### Common Options
-- **`remove_original`** - Remove source columns after transformation
-- **`overwrite`** - Overwrite existing columns  
-- **`fill_missing`** - Value to use for missing data
+- **Family keys** - `source_stage` / `save_to_stage` for transforms, `target_file` for file operations
+- **Processor-specific keys** - exactly those the processor declares
 
 ## 🔍 **Processor Details**
 
-<details>
-<summary><strong>filter_data</strong> - Filter rows based on conditions</summary>
+One generated page per processor - description, declared keys, and its
+validated examples - in [`docs/processors/`](docs/processors/README.md).
+All keys on one page: [`docs/STEP_SCHEMAS.md`](docs/STEP_SCHEMAS.md).
+Both are generated from the code (`--export-docs docs/processors`,
+`--export-schemas md`), so they cannot drift; the prose lives in each
+processor's example file and key descriptions, which the tests validate.
 
-```yaml
-processor_type: "filter_data"
-filters:
-  - column: "Price"
-    condition: "greater_than"
-    value: 100
-  - column: "Category"
-    condition: "in_list"
-    value: ["Electronics", "Tools"]
-```
+## 🛠️ **Beyond the Basics**
 
-**Supported conditions:** `equals`, `not_equals`, `contains`, `not_contains`, `greater_than`, `less_than`, `greater_equal`, `less_equal`, `in_list`, `not_in_list`, `is_empty`, `not_empty`
-</details>
-
-<details>
-<summary><strong>add_calculated_column</strong> - Create new columns with calculations</summary>
-
-```yaml
-processor_type: "add_calculated_column"
-new_column: "Profit_Margin"
-calculation_type: "math"
-calculation:
-  operation: "subtract"
-  column1: "Revenue"
-  column2: "Cost"
-```
-
-**Calculation types:** `math`, `conditional`, `concat`, `date`, `text`, `expression`  
-**Math operations:** `add`, `subtract`, `multiply`, `divide`, `sum`, `mean`, `min`, `max`
-</details>
-
-<details>
-<summary><strong>aggregate_data</strong> - Group and summarize data</summary>
-
-```yaml
-processor_type: "aggregate_data"
-group_by: ["Region", "Product_Type"]
-aggregations:
-  - column: "Sales"
-    function: "sum"
-    new_column_name: "Total_Sales"
-  - column: "Orders"
-    function: "count"
-    new_column_name: "Order_Count"
-```
-
-**Functions:** `sum`, `mean`, `median`, `min`, `max`, `count`, `nunique`, `std`, `var`, `first`, `last`
-</details>
-
-<details>
-<summary><strong>split_column</strong> - Split columns into multiple columns</summary>
-
-```yaml
-processor_type: "split_column"
-source_column: "Full_Name"
-split_type: "delimiter"
-delimiter: ","
-new_column_names: ["Last_Name", "First_Name"]
-max_splits: 1
-```
-
-**Split types:** `delimiter`, `fixed_width`, `regex`, `position`
-</details>
-
-<details>
-<summary><strong>lookup_data</strong> - Enrich data with lookups</summary>
-
-```yaml
-processor_type: "lookup_data"
-lookup_source: "products.xlsx"
-lookup_key: "Product_Code"
-source_key: "Product_ID"
-lookup_columns: ["Product_Name", "Category", "Price"]
-join_type: "left"
-```
-
-**Join types:** `left`, `inner`, `outer`  
-**Data sources:** Excel files, CSV files, dictionaries, DataFrames
-</details>
-
-## 🛠️ **Advanced Features**
-
-### Recipe Validation
-```python
-from excel_recipe_processor.validation import RecipeValidator
-
-validator = RecipeValidator()
-result = validator.validate_recipe_file("my_recipe.yaml")
-validator.print_validation_report(result)
-```
-
-### System Capabilities
-```python
-from excel_recipe_processor import get_system_capabilities
-
-capabilities = get_system_capabilities()
-print(f"Available processors: {capabilities['system_info']['total_processors']}")
-```
-
-### Programmatic Usage
-```python
-from excel_recipe_processor import ExcelPipeline
-
-# Step-by-step execution
-pipeline = ExcelPipeline()
-pipeline.load_recipe("recipe.yaml")
-pipeline.load_input_file("data.xlsx")
-result = pipeline.execute_recipe()
-pipeline.save_result("output.xlsx")
-
-# Pipeline summary
-summary = pipeline.get_pipeline_summary()
-```
-
-### Error Handling
-```python
-from excel_recipe_processor import PipelineError
-
-try:
-    result = pipeline.run_complete_pipeline(
-        recipe_path="recipe.yaml",
-        input_path="data.xlsx", 
-        output_path="result.xlsx"
-    )
-except PipelineError as e:
-    print(f"Pipeline failed: {e}")
-```
+- **External variables** - a recipe declares `required_external_vars`; supply
+  them with `--set NAME VALUE` (repeatable) or answer the prompt.
+- **Inspection** - `--list-stages RECIPE`, `--dump-stage NAME` (to CSV),
+  `--stop-after STAGE`, `--log-file PATH`.
+- **The workbook layer** - after `export_file`, file-operation steps act on the
+  written workbook: `format_excel`, `inject_formulas`, `manage_named_objects`,
+  `conditional_format`, `excel_data_validation`. See `docs/CAPABILITIES.md`.
+- **Programmatic use** - `RecipePipeline().run_complete_recipe(path, cli_variables)`
+  returns a completion report; `RecipePipelineError` is the failure type.
 
 ## 📊 **Use Cases**
 
@@ -360,104 +257,49 @@ except PipelineError as e:
 ## 🧪 **Development**
 
 ### Running Tests
-```bash
-# Run all tests
-pytest
+Tests are standalone modules (no pytest style): each runs on its own, prints
+what it checked, and exits 0/1.
 
-# Run specific processor tests
-python tests/test_filter_data_processor.py
-python tests/test_aggregate_data_processor.py
+```bash
+# One module
+PYTHONPATH=. python3 tests/test_filter_data_processor.py
+
+# All modules, four at a time (fast map); rerun any non-zero serially for a verdict
+ls tests/test_*.py | xargs -P 4 -I{} sh -c 'PYTHONPATH=. python3 {} >/dev/null 2>&1; echo "$? {}"' | grep -v "^0 "
 ```
+
+Three tests guard the vocabulary itself: `test_examples_validate_against_schemas.py`
+(every example step validates against its schema), `test_docs_fragments_validate.py`
+(every YAML fragment in the README and docs validates; a `# ...` line marks an
+illustration), and `test_schema_export.py` (the published schema covers every processor).
 
 ### Project Structure
 ```
 excel_recipe_processor/
-├── config/          # Recipe loading and validation
-├── core/           # Pipeline orchestration
-├── processors/     # Data processing modules
-├── readers/        # Excel file reading
-├── writers/        # Excel file writing
-└── tests/          # Comprehensive test suite
+├── config/          # Recipe loading, settings examples
+├── core/            # Pipeline, stages, schema vocabulary, validation phase, export
+├── processors/      # One module per processor; _helpers/ and _examples/ beside them
+├── readers/         # File reading
+├── utils/           # Shared utilities
+docs/                # processors/ and STEP_SCHEMAS.md (generated), CAPABILITIES.md, WRITING_A_PROCESSOR.md, cli/
+dev_notes/           # Design notes and the key-migration ledger
+tests/               # Standalone test modules
 ```
 
 ### Adding New Processors
 
-1. **Create processor class** inheriting from `BaseStepProcessor`
-2. **Implement `execute()` method** with your processing logic  
-3. **Add validation** and error handling
-4. **Register processor** in pipeline
-5. **Write comprehensive tests**
+Read [`docs/WRITING_A_PROCESSOR.md`](docs/WRITING_A_PROCESSOR.md) first: it
+has the family decision table, a schema template, and the naming rules. The
+short version:
 
-Example processor skeleton:
-```python
-from excel_recipe_processor.processors.base_processor import BaseStepProcessor
-
-class MyProcessor(BaseStepProcessor):
-    def execute(self, data):
-        self.log_step_start()
-        self.validate_data_not_empty(data)
-        self.validate_required_fields(['required_field'])
-        
-        # Your processing logic here
-        result = process_data(data)
-        
-        self.log_step_complete("processing info")
-        return result
-```
-
-## 📝 **Recipe Library**
-
-### Common Patterns
-
-**Clean Survey Data:**
-```yaml
-recipe:
-  - processor_type: "clean_data"
-    rules:
-      - column: "Response"
-        action: "strip_whitespace"
-      - column: "Age"
-        action: "fix_numeric"
-        
-  - processor_type: "filter_data"
-    filters:
-      - column: "Age"
-        condition: "greater_than"
-        value: 0
-```
-
-**Sales Territory Analysis:**
-```yaml
-recipe:
-  - processor_type: "group_data"
-    source_column: "State"
-    target_column: "Territory" 
-    groups:
-      Northeast: ["NY", "MA", "CT"]
-      Southeast: ["FL", "GA", "NC"]
-      
-  - processor_type: "aggregate_data"
-    group_by: "Territory"
-    aggregations:
-      - column: "Revenue"
-        function: "sum"
-```
-
-**Customer Data Enrichment:**
-```yaml
-recipe:
-  - processor_type: "split_column"
-    source_column: "Customer_Name"
-    split_type: "delimiter"
-    delimiter: ", "
-    new_column_names: ["Last_Name", "First_Name"]
-    
-  - processor_type: "lookup_data"
-    lookup_source: "customer_segments.xlsx"
-    lookup_key: "Customer_ID"
-    source_key: "Customer_ID"
-    lookup_columns: ["Segment", "Tier"]
-```
+1. Inherit the family base (`TransformBaseProcessor`, `ImportBaseProcessor`,
+   `ExportBaseProcessor`, `FileOpsBaseProcessor`) by what the step addresses.
+2. Declare `config_schema()` - a processor without one cannot register.
+3. Implement `execute()` (transforms), `load_data()` (imports), or
+   `perform_file_operation()` (file operations).
+4. Add `get_minimal_config()`, an `_examples/<name>_examples.yaml`, and a
+   standalone test module.
+5. Register it in `core/pipeline.py`.
 
 ## 🤝 **Contributing**
 
@@ -465,8 +307,8 @@ Contributions welcome! Please:
 
 1. **Fork the repository**
 2. **Create a feature branch** (`git checkout -b feature/amazing-processor`)
-3. **Add tests** for new functionality
-4. **Follow existing code patterns** 
+3. **Add tests** for new functionality (standalone modules, house style)
+4. **Read [`docs/WRITING_A_PROCESSOR.md`](docs/WRITING_A_PROCESSOR.md)** before adding a processor; declare its schema
 5. **Submit a pull request**
 
 ### Code Guidelines

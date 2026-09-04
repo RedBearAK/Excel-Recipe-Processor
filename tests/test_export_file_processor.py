@@ -163,8 +163,7 @@ def test_multi_sheet_export():
                 'sheets_to_create': [
                     {
                         'sheet_name': 'All_Data',
-                        'data_source': 'stg_test_export_multi_shared_source',
-                        'active': True
+                        'data_source': 'stg_test_export_multi_shared_source'
                     },
                     {
                         'sheet_name': 'Summary',
@@ -245,8 +244,7 @@ def test_multi_sheet_export_with_stages():
                     },
                     {
                         'sheet_name': 'Products',
-                        'data_source': 'stg_test_export_mixed_products',
-                        'active': True
+                        'data_source': 'stg_test_export_mixed_products'
                     }
                 ]
             }
@@ -495,7 +493,7 @@ def test_error_handling():
             print("✗ Should have failed with retired sheets key")
             return False
         except StepProcessorError as e:
-            if "sheets_to_create" in str(e):
+            if "sheets_to_create" in str(e) or "unknown key 'sheets'" in str(e):
                 print(f"✓ Caught expected error for retired sheets key: {e}")
             else:
                 print(f"✗ Wrong error for retired sheets key: {e}")

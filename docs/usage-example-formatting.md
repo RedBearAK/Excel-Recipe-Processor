@@ -8,6 +8,7 @@
 - Leave blank line between comment groups for readability
 
 ```yaml
+# ... (formatting illustration, not a complete step)
 # ✅ GOOD
 # REQ - Processor type identifier
 processor_type: "export_file"
@@ -26,6 +27,7 @@ create_backup: true                              # optional: backup file
 - Be generous with helpful details across multiple comment lines
 
 ```yaml
+# ... (formatting illustration, not a complete step)
 # REQ - Must be "processor_name" for this processor type
 processor_type: "processor_name"
 # OPT - Human-readable step description
@@ -44,6 +46,7 @@ input_file: "data/monthly_sales.xlsx"
 - Group related information together for clarity
 
 ```yaml
+# ... (formatting illustration, not a complete step)
 # REQ - Output file path with variable substitution support
 # Built-in variables: {date}, {timestamp}, {company}, {batch_id}
 # Valid extensions: .xlsx, .csv, .tsv
@@ -61,6 +64,7 @@ encoding: "utf-8"
 - Explain each nested parameter with OPT/REQ marking
 
 ```yaml
+# ... (formatting illustration, not a complete step)
 # OPT - List of sheet configurations for multi-sheet export
 # If omitted, exports current pipeline data to single sheet
 sheets:
@@ -85,6 +89,7 @@ sheets:
 Each example should follow this pattern:
 
 ```yaml
+# ... (formatting illustration, not a complete step)
 'example_name': {
     'description': 'Brief description of what this example demonstrates',
     'yaml': '''# Context comment explaining the overall purpose

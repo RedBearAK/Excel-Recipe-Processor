@@ -143,7 +143,7 @@ def test_name_drift_alarm():
             'processor_type': 'diff_data',
             'reference_stage': 'stg_t_names_baseline',
             'source_stage': 'stg_t_names_current',
-            'key_columns': 'Name',
+            'key_columns': ['Name'],
             'save_to_stage': 'stg_t_names_drift',
         }).execute(current)
 

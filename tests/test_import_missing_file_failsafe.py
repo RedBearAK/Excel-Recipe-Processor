@@ -126,14 +126,13 @@ def test_config_guardrails():
 
     reset_stages()
     declare('stg_guard')
-    no_columns = ImportFileProcessor({
-        'processor_type': 'import_file',
-        'input_file': '/nonexistent/x.xlsx',
-        'on_missing_file': 'create_empty',
-        'save_to_stage': 'stg_guard',
-    })
     try:
-        no_columns.execute()
+        ImportFileProcessor({
+            'processor_type': 'import_file',
+            'input_file': '/nonexistent/x.xlsx',
+            'on_missing_file': 'create_empty',
+            'save_to_stage': 'stg_guard',
+        }).execute()
         print("  ✗ create_empty without create_empty_columns was accepted")
         passed = False
     except StepProcessorError as error:
@@ -145,18 +144,17 @@ def test_config_guardrails():
 
     reset_stages()
     declare('stg_guard')
-    stray_columns = ImportFileProcessor({
-        'processor_type': 'import_file',
-        'input_file': '/nonexistent/x.xlsx',
-        'create_empty_columns': ['Order ID'],
-        'save_to_stage': 'stg_guard',
-    })
     try:
-        stray_columns.execute()
+        ImportFileProcessor({
+            'processor_type': 'import_file',
+            'input_file': '/nonexistent/x.xlsx',
+            'create_empty_columns': ['Order ID'],
+            'save_to_stage': 'stg_guard',
+        }).execute()
         print("  ✗ stray create_empty_columns under 'error' policy accepted")
         passed = False
     except StepProcessorError as error:
-        if 'on_missing_file' in str(error):
+        if 'on_missing_file' in str(error) or "unknown key 'create_empty_columns'" in str(error):
             print("  ✓ stray create_empty_columns refused with guidance")
         else:
             print(f"  ✗ guidance lacks the policy key: {error}")

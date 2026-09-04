@@ -13,13 +13,14 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class DiffDataProcessor(BaseStepProcessor):
+class DiffDataProcessor(TransformBaseProcessor):
     """
     Processor for comparing two datasets and identifying changes.
     
@@ -30,6 +31,32 @@ class DiffDataProcessor(BaseStepProcessor):
     """
     
     @classmethod
+    def computed_stage_writes(cls, config: dict) -> list:
+        """The filtered subset stages, named from the prefix (2026-09-03)."""
+        if not config.get('create_filtered_stages'):
+            return []
+        prefix = config.get('filtered_stage_prefix', 'stg_diff')
+        joiner = '' if prefix.endswith('_') else '_'
+        kinds = ['new_rows', 'changed_rows', 'unchanged_rows']
+        if config.get('handle_deleted_rows', 'include') == 'include':
+            kinds.append('deleted_rows')
+        return [f"{prefix}{joiner}{kind}_subset" for kind in kinds]
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('reference_stage', 'stage_in', required=True),
+            name_list('key_columns', required=True),
+            name_list('exclude_columns'),
+            Key('handle_deleted_rows', 'str', default='include', choices=['include', 'exclude']),
+            Key('include_json_details', 'bool', default=False),
+            Key('create_filtered_stages', 'bool', default=False),
+            Key('filtered_stage_prefix', 'str', default='stg_diff',
+                description='Prefix for the filtered stages created when create_filtered_stages is true'),
+        ])
+
+    @classmethod
     def get_minimal_config(cls) -> dict:
         """
         Get the minimal configuration required to instantiate this processor.
@@ -39,7 +66,7 @@ class DiffDataProcessor(BaseStepProcessor):
         """
         return {
             'reference_stage': 'test_baseline',
-            'key_columns': 'test_key',
+            'key_columns': ['test_key'],
             'source_stage': 'test_current',
             'save_to_stage': 'test_diff_results'
         }

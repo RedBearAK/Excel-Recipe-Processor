@@ -308,7 +308,7 @@ def test_scope_vocabulary_fails_loud():
     for bad_scope, expect in (
             ([{'sheet_names': ['Data'], 'columns': ['C'], 'rows': [1]}],
              'at most ONE'),
-            ([{'sheet_names': 'Data'}], 'LIST'),
+            ([{'sheet_names': 'Data'}], 'list'),
             ([{'sheet_names': ['Data'], 'cellz': ['A1']}], 'unknown')):
         try:
             registry._processors['strip_formula_caches']({

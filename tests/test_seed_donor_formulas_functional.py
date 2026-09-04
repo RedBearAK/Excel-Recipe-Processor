@@ -249,7 +249,7 @@ def test_basic_formula_transplant():
             'source_sheet': 'Budget',
             'target_file': target_file,
             'target_sheet': 'Budget',
-            'columns': ['D', 'E', 'F'],  # Total, Tax, Grand_Total columns
+            'column_refs': ['D', 'E', 'F'],  # Total, Tax, Grand_Total columns
             'start_row': 2,
             'row_count': 3  # Process 3 rows of data
         }
@@ -314,7 +314,7 @@ def test_column_name_matching():
             'source_sheet': 'Budget',
             'target_file': target_file,
             'target_sheet': 'Budget',
-            'columns': ['Total', 'Tax'],  # Use column header names
+            'column_names': ['Total', 'Tax'],  # Use column header names
             'start_row': 2,
             'row_count': 2
         }
@@ -377,7 +377,7 @@ def test_create_verification_file():
                 'source_sheet': 'Budget',
                 'target_file': verification_file,
                 'target_sheet': 'Budget',
-                'columns': ['D', 'E', 'F'],  # Total, Tax, Grand_Total
+                'column_refs': ['D', 'E', 'F'],  # Total, Tax, Grand_Total
                 'start_row': 2,
                 'row_count': 3
             }
@@ -438,7 +438,7 @@ def test_create_verification_file():
             'source_sheet': 'Budget',
             'target_file': target_file,
             'target_sheet': 'Budget',
-            'columns': ['D'],
+            'column_refs': ['D'],
             'start_row': 2,
             'row_count': 1
         }
@@ -498,7 +498,7 @@ def test_collision_detection():
             'source_sheet': 'Budget',
             'target_file': target_file,
             'target_sheet': 'Budget',
-            'columns': ['D'],
+            'column_refs': ['D'],
             'start_row': 2,
             'row_count': 1
         }

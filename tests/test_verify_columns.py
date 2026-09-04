@@ -22,9 +22,11 @@ def stage_with(columns):
 
 
 def build(expected, **overrides):
-    config = {'processor_type': 'verify_columns', 'source_stage': 'stg_check',
-              'expected_columns': expected}
+    config = {'processor_type': 'verify_columns', 'source_stage': 'stg_check'}
+    if expected is not None:
+        config['expected_columns'] = expected
     config.update(overrides)
+    config = {key: value for key, value in config.items() if value is not None}
     return VerifyColumnsProcessor(config)
 
 
@@ -33,7 +35,7 @@ def test_exact_match_verifies():
     print("\nTesting an exact match...")
 
     stage_with(['A', 'B', 'C'])
-    result = build(['A', 'B', 'C']).perform_file_operation()
+    _p = build(['A', 'B', 'C']); _p.execute_stage_to_stage(); result = _p.check_summary
 
     if 'verified' in result:
         print(f"  ✓ {result!r}")
@@ -47,7 +49,7 @@ def test_reorder_is_not_a_failure():
     print("\nTesting reordered columns pass...")
 
     stage_with(['C', 'A', 'B'])
-    result = build(['A', 'B', 'C']).perform_file_operation()
+    _p = build(['A', 'B', 'C']); _p.execute_stage_to_stage(); result = _p.check_summary
 
     if 'verified' in result:
         print("  ✓ Reorder verified clean")
@@ -63,7 +65,7 @@ def test_missing_expected_halts_naming_it():
     stage_with(['A', 'B'])
 
     try:
-        build(['A', 'B', 'C']).perform_file_operation()
+        build(['A', 'B', 'C']).execute_stage_to_stage()
         print("  ✗ Missing column accepted")
         return False
     except Exception as error:
@@ -79,7 +81,7 @@ def test_new_column_warns_and_proceeds():
     print("\nTesting a new unexpected column...")
 
     stage_with(['A', 'B', 'Surprise'])
-    result = build(['A', 'B']).perform_file_operation()
+    _p = build(['A', 'B']); _p.execute_stage_to_stage(); result = _p.check_summary
 
     if '1 new' in result:
         print(f"  ✓ Proceeded with drift report: {result!r}")
@@ -96,7 +98,7 @@ def test_knobs_invert_the_defaults():
 
     stage_with(['A', 'B', 'Surprise'])
     try:
-        build(['A', 'B'], on_unexpected='error').perform_file_operation()
+        build(['A', 'B'], on_unexpected='error').execute_stage_to_stage()
         print("  ✗ on_unexpected: error did not halt")
         passed = False
     except Exception as error:
@@ -107,7 +109,7 @@ def test_knobs_invert_the_defaults():
             passed = False
 
     stage_with(['A'])
-    result = build(['A', 'Ghost'], on_missing_expected='warn').perform_file_operation()
+    _p = build(['A', 'Ghost'], on_missing_expected='warn'); _p.execute_stage_to_stage(); result = _p.check_summary
     if '1 missing' in result:
         print("  ✓ on_missing_expected: warn proceeds with the drift report")
     else:
@@ -128,8 +130,10 @@ def test_expected_from_stage_compares_two_stages():
     StageManager.save_stage('stg_check', pd.DataFrame(columns=['X', 'OnlyA']), overwrite=True)
     StageManager.save_stage('stg_other', pd.DataFrame(columns=['X', 'OnlyB']), overwrite=True)
 
-    result = build(None, expected_columns=None, expected_from_stage='stg_other',
-                   on_missing_expected='warn', on_unexpected='warn').perform_file_operation()
+    _p = build(None, expected_columns=None, expected_from_stage='stg_other',
+               on_missing_expected='warn', on_unexpected='warn')
+    _p.execute_stage_to_stage()
+    result = _p.check_summary
 
     if '1 missing' in result and '1 new' in result:
         print(f"  ✓ Both directions reported: {result!r}")

@@ -373,72 +373,21 @@ def test_creation_vs_missing_distinction():
             return False
 
 
-def test_numeric_column_references():
-    """Test selecting columns by 1-based position."""
-    
-    print("\nTesting numeric column references...")
-    
-    test_df = create_test_data()
-    print(f"✓ Test data columns: {list(test_df.columns)}")
-    
-    # Test selecting columns by 1-based position
-    step_config = {
-        'processor_type': 'select_columns',
-        'step_description': 'Select by position',
-        'columns_to_keep': [1, 3, 6]  # 1st, 3rd, 6th columns (1-based)
-    }
-    
-    processor = SelectColumnsProcessor(step_config)
-    result = processor.execute(test_df)
-    
-    print(f"✓ Selected by position: {list(result.columns)}")
-    
-    # Check that we got the right columns by position
-    # 1st column should be 'Customer_ID', 3rd should be 'Price', 6th should be 'Status'
-    expected_columns = ['Customer_ID', 'Price', 'Status']  # Based on test data structure
-    if list(result.columns) == expected_columns:
-        print("✓ Numeric column references worked correctly")
-        
-        # Verify data integrity
-        if result.iloc[0]['Customer_ID'] == 'C001' and result.iloc[0]['Price'] == 10.50:
-            print("✓ Data integrity maintained with numeric references")
-            return True
-        else:
-            print("✗ Data integrity compromised")
-    else:
-        print(f"✗ Expected {expected_columns}, got {list(result.columns)}")
-        
-    return False
-
-
-def test_mixed_references():
-    """Test mixing column names and numeric positions."""
-    
-    print("\nTesting mixed name and numeric references...")
-    
-    test_df = create_test_data()
-    
-    # Test mixing names and positions
-    step_config = {
-        'processor_type': 'select_columns',
-        'step_description': 'Mix names and positions',
-        'columns_to_keep': ['Price', 1, 'Status', 2]  # Name, position, name, position
-    }
-    
-    processor = SelectColumnsProcessor(step_config)
-    result = processor.execute(test_df)
-    
-    print(f"✓ Mixed references result: {list(result.columns)}")
-    
-    # Should be: Price, Customer_ID (pos 1), Status, Product_Name (pos 2)
-    expected_columns = ['Price', 'Customer_ID', 'Status', 'Product_Name']
-    if list(result.columns) == expected_columns:
-        print("✓ Mixed name and numeric references worked correctly")
-        return True
-    else:
-        print(f"✗ Expected {expected_columns}, got {list(result.columns)}")
+def test_numeric_positions_are_refused():
+    """Names are strings only (2026-09-03): an integer position is a guided error."""
+    print("\nTesting that numeric positions are refused...")
+    df = create_test_data()
+    try:
+        SelectColumnsProcessor({'processor_type': 'select_columns', 'step_description': 't',
+                                'columns_to_keep': ['Customer_ID', 1], 'save_to_stage': 'x'}).execute(df)
+        print("✗ Integer position accepted")
         return False
-
+    except StepProcessorError as error:
+        if 'NAME strings' in str(error):
+            print("✓ Integer position refused with guidance")
+            return True
+        print(f"✗ Unhelpful error: {error}")
+        return False
 
 def test_numeric_reference_validation():
     """Test validation of numeric column references."""
@@ -627,8 +576,7 @@ def main():
     success &= test_column_dropping()
     success &= test_column_duplication()
     success &= test_column_creation()
-    success &= test_numeric_column_references()
-    success &= test_mixed_references()
+    success &= test_numeric_positions_are_refused()
     success &= test_strict_mode_handling()
     success &= test_duplicate_prevention()
     success &= test_column_creation_validation()
@@ -657,8 +605,7 @@ if __name__ == '__main__':
     success &= test_column_dropping()
     success &= test_column_duplication()
     success &= test_column_creation()
-    success &= test_numeric_column_references()
-    success &= test_mixed_references()
+    success &= test_numeric_positions_are_refused()
     success &= test_strict_mode_handling()
     success &= test_duplicate_prevention()
     success &= test_column_creation_validation()

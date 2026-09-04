@@ -101,7 +101,7 @@ def test_freed_memory_is_reported():
     print("\nTesting the freed-memory report...")
 
     fresh_stages()
-    result = build(['stg_a', 'stg_b']).perform_file_operation()
+    result = build(['stg_a', 'stg_b']).execute()
 
     if 'freed 2 stage(s)' in result and 'MB' in result:
         print(f"  ✓ Report: {result!r}")

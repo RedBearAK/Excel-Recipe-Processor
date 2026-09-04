@@ -178,7 +178,7 @@ def test_case_insensitive_sort():
         'step_description': 'Case insensitive product sort',
         'columns': ['Product_Name'],
         'sort_type': 'ascending',
-        'ignore_case': True
+        'case_sensitive': False
     }
     
     processor = SortDataProcessor(step_config)
@@ -310,7 +310,7 @@ def test_multiple_criteria_sort():
         },
         {
             'column': 'Product_Name',
-            'ignore_case': True,
+            'case_sensitive': False,
             'ascending': True
         }
     ]

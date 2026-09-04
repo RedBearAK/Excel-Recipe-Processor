@@ -4,12 +4,18 @@ Base step processor for Excel automation recipes.
 Defines the interface and common functionality that all step processors must implement.
 """
 
-import pandas as pd
-import logging
 import time
+import logging
+
+import pandas as pd
 
 from abc import ABC, abstractmethod
 from typing import Any
+
+from excel_recipe_processor.core.config_schema import (
+    FAMILY_BASE, FAMILY_EXPORT, FAMILY_FILE_OPS, FAMILY_IMPORT, FAMILY_TRANSFORM,
+    Schema, check_processor_schema,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +46,75 @@ class BaseStepProcessor(ABC):
     # of exceptions that drifts out of step with the processors themselves.
     requires_source_stage = True
     requires_save_to_stage = True
+
+    # FAMILY AND SCHEMA (2026-09-03). Each family class sets `family`; a
+    # processor declares its own keys in config_schema(); full_schema()
+    # merges the family contribution in. The merge is checked when the
+    # class is DEFINED (see __init_subclass__): a processor cannot
+    # redefine a family key or use a column-selector construct its
+    # family does not offer. A processor with no config_schema() is
+    # validated for stage keys only and logged as schema-less at load.
+    family = FAMILY_BASE
+    _full_schema = None
+
+    @classmethod
+    def config_schema(cls):
+        """The processor's own keys, as a Schema; None until declared."""
+        return None
+
+    @classmethod
+    def computed_stage_writes(cls, config: dict) -> list:
+        """
+        Stage names a step writes that its schema cannot name statically
+        (built from a prefix at run time). The validation phase adds these
+        to the stage graph. Default: none.
+        """
+        return []
+
+    @classmethod
+    def full_schema(cls):
+        """Family contribution merged with the processor's own schema, or None."""
+        return cls._full_schema
+
+    @classmethod
+    def construction_schema(cls):
+        """
+        The full schema with the family's stage keys made optional: a direct
+        caller may build a processor and hand it a frame with no stages in
+        play, so whether a RECIPE named its stages is the pipeline's check,
+        not the constructor's. Every other key is checked exactly as at load.
+        """
+        schema = cls.full_schema()
+        if schema is None:
+            return None
+        cached = cls.__dict__.get('_construction_schema')
+        if cached is not None:
+            return cached
+        from excel_recipe_processor.core.config_schema import Key, Schema
+        relaxed = []
+        for key in schema.keys.values():
+            if key.kind in ('stage_in', 'stage_out') and key.required:
+                relaxed.append(Key(key.name, key.kind, required=False, default=key.default,
+                                   choices=key.choices, description=key.description))
+            else:
+                relaxed.append(key)
+        cls._construction_schema = Schema(relaxed, schema.variants, schema.at_least_one)
+        return cls._construction_schema
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # The family classes themselves carry no schema; every concrete
+        # processor must declare one (2026-09-04) - see below.
+        if 'config_schema' in cls.__dict__:
+            own = cls.config_schema()
+            if own is None:
+                cls._full_schema = None
+                return
+            if not isinstance(own, Schema):
+                from excel_recipe_processor.core.config_schema import SchemaDefinitionError
+                raise SchemaDefinitionError(f"{cls.__name__}.config_schema() must return a Schema")
+            cls._full_schema = check_processor_schema(
+                cls.family, own, cls.__name__, getattr(cls, 'writes_stage', True))
     
     def __init__(self, step_config: dict):
         """
@@ -63,6 +138,23 @@ class BaseStepProcessor(ABC):
         self.step_config = step_config
         self.step_type = step_type
         self.step_name = step_config.get('step_description', f'Unnamed {step_type} step')
+
+        # CONSTRUCTION-TIME SCHEMA CHECK (2026-09-04). The pipeline already
+        # validates every step at load; this repeats the check for direct
+        # callers - tests and tooling - so a config no recipe could carry
+        # is refused wherever it is built, and the tests' own recipe
+        # fragments cannot drift from the vocabulary the way stale keys
+        # did through 2026-08/09. Unresolved {tokens} are tolerated here
+        # because substitution is the pipeline's job, not the caller's.
+        schema = type(self).construction_schema()
+        if schema is not None:
+            from excel_recipe_processor.core.config_schema import validate_config
+            problems = validate_config(step_config, schema, '', True)
+            if problems:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}' ({step_type}) configuration rejected by its "
+                    f"schema: " + '; '.join(problems)
+                )
         
         self.source_stage = step_config.get('source_stage')
         self.save_to_stage = step_config.get('save_to_stage')
@@ -235,10 +327,12 @@ class BaseStepProcessor(ABC):
         # Process
         result = self.execute(input_data)
         
-        # Save output
-        self.save_output_data(result)
-        
-        self.log_step_complete(f"processed {len(result)} rows")
+        # Save output - a CHECK (writes_stage = False) reads and writes nothing
+        if getattr(self, 'writes_stage', True):
+            self.save_output_data(result)
+            self.log_step_complete(f"processed {len(result)} rows")
+        else:
+            self.log_step_complete(f"checked {len(result)} rows")
         return result
     
     def __str__(self) -> str:
@@ -305,6 +399,15 @@ class StepProcessorRegistry:
         if not issubclass(processor_class, BaseStepProcessor):
             raise StepProcessorError(
                 f"Processor class {processor_class.__name__} must inherit from BaseStepProcessor"
+            )
+
+        # Every processor declares its step schema (2026-09-04): without one
+        # the validation phase cannot check its steps, so registration is
+        # where the framework enforces the rule. See docs/WRITING_A_PROCESSOR.md.
+        if processor_class.full_schema() is None:
+            raise StepProcessorError(
+                f"Processor class {processor_class.__name__} declares no config_schema(); "
+                f"every processor must declare one (docs/WRITING_A_PROCESSOR.md)"
             )
         
         self._processors[step_type] = processor_class
@@ -378,8 +481,25 @@ class StepProcessorRegistry:
 registry = StepProcessorRegistry()
 
 
+class TransformBaseProcessor(BaseStepProcessor):
+    """
+    Base class for processors that transform in-memory data: read one
+    stage, return one stage. The medium is never a file, so the only way
+    such a processor can name columns is by header string - the family
+    offers the name_list construct and nothing positional (2026-09-03).
+    Execution goes through execute_stage_to_stage(), unchanged.
+
+    writes_stage = False declares a CHECK: a transform that reads a stage
+    and writes nothing (verify_columns). The family then contributes no
+    save_to_stage and the stage graph records a read only.
+    """
+    family = FAMILY_TRANSFORM
+    writes_stage = True
+
+
 class ImportBaseProcessor(BaseStepProcessor):
     """Base class for processors that import data (create stages)."""
+    family = FAMILY_IMPORT
     
     def __init__(self, step_config: dict):
         super().__init__(step_config)
@@ -427,6 +547,7 @@ class ImportBaseProcessor(BaseStepProcessor):
 
 class ExportBaseProcessor(BaseStepProcessor):
     """Base class for processors that export data (consume stages)."""
+    family = FAMILY_EXPORT
     
     def __init__(self, step_config: dict):
         super().__init__(step_config)
@@ -476,7 +597,11 @@ class FileOpsBaseProcessor(BaseStepProcessor):
     meaningful stage data - they just perform file operations as side effects.
     
     Examples: format_excel, convert_file_format, backup_files, create_charts
+
+    The only family in which a positional Excel ref is a legal way to
+    name a column (column_names / column_refs pairs, typed item lists).
     """
+    family = FAMILY_FILE_OPS
     
     def __init__(self, step_config: dict):
         super().__init__(step_config)

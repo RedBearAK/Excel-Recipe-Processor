@@ -87,7 +87,6 @@ def debug_excel_with_data_check():
             'source_file': source_file,
             'template_file': template_file,
             'output_file': output_file,
-            'check_column_data': True,
             'max_rows': 1000
         }
         
@@ -163,7 +162,6 @@ def debug_headers_only_mode():
             'source_file': source_file,
             'template_file': template_file,
             'output_file': output_file,
-            'check_column_data': False  # Headers only
         }
         
         processor = GenerateColumnConfigProcessor(step_config)

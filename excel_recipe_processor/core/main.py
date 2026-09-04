@@ -97,6 +97,24 @@ def run_main(args: Namespace) -> int:
         if getattr(args, 'list_stages_recipe', None):
             return list_recipe_stages(args.list_stages_recipe)
 
+        if getattr(args, 'export_docs', None):
+            from excel_recipe_processor.core.pipeline import registry
+            from excel_recipe_processor.core.schema_export import export_processor_docs
+            written = export_processor_docs(registry, args.export_docs)
+            print(f"Wrote {len(written)} page(s) to {args.export_docs}")
+            return 0
+
+        if getattr(args, 'export_schemas', None):
+            from excel_recipe_processor.core.pipeline import registry
+            from excel_recipe_processor.core.schema_export import export_schemas, render_markdown
+            exported = export_schemas(registry)
+            if args.export_schemas.lower() == 'md':
+                print(render_markdown(exported), end='')
+            else:
+                import json
+                print(json.dumps(exported, indent=2, default=str))
+            return 0
+
         if hasattr(args, 'list_capabilities') and args.list_capabilities:
             # Check for output format flags
             detailed = getattr(args, 'detailed', False)
@@ -366,7 +384,8 @@ def process_recipe(args: Namespace) -> int:
         pipeline.configure_inspection(
             dump_requests=dump_requests,
             stop_after_stage=getattr(args, 'stop_after_stage', None),
-            dump_output_dir=getattr(args, 'dump_dir', '.')
+            dump_output_dir=getattr(args, 'dump_dir', '.'),
+            validate_only=getattr(args, 'validate_only', False),
         )
         
         try:
@@ -384,6 +403,12 @@ def process_recipe(args: Namespace) -> int:
             print(f"Error collecting variables: {e}")
             return 1
         
+        if completion_report.get('validate_only'):
+            mirror_print()
+            mirror_print(f"\u2713 Recipe validated: {completion_report['steps']} step(s), "
+                         f"{completion_report['warnings']} warning(s); not run")
+            return 0
+
         # Report completion with same level of detail as before
         steps_executed = completion_report.get('steps_executed', 0)
         stages_created = completion_report.get('stages_created', [])

@@ -67,7 +67,7 @@ def test_whole_column_style_chain():
         # No data below the header - the spill-fed sheet shape
 
         applied = apply_column_formats(sheet, [
-            {'columns': ['C'], 'number_format': 'thousands',
+            {'column_refs': ['C'], 'number_format': 'thousands',
              'whole_column': True, 'width': 15},
         ])
         workbook.save(target)
@@ -98,7 +98,7 @@ def test_empty_sheet_behavior():
 
     # Legacy path alone: skipped with the historic warning, nothing applied
     applied = apply_column_formats(sheet, [
-        {'columns': ['B'], 'number_format': 'thousands'},
+        {'column_refs': ['B'], 'number_format': 'thousands'},
     ])
     if applied:
         print(f"✗ Per-cell rule ran on an empty sheet: {applied}")
@@ -107,8 +107,8 @@ def test_empty_sheet_behavior():
 
     # Mixed: whole_column applies, per-cell portion still skipped
     applied = apply_column_formats(sheet, [
-        {'columns': ['B'], 'number_format': 'thousands'},
-        {'columns': ['C'], 'number_format': 'thousands',
+        {'column_refs': ['B'], 'number_format': 'thousands'},
+        {'column_refs': ['C'], 'number_format': 'thousands',
          'whole_column': True, 'width': 12},
     ])
     if len(applied) != 1 or '(whole column)' not in applied[0]:
@@ -128,7 +128,7 @@ def test_guided_error():
 
     try:
         apply_column_formats(sheet, [
-            {'columns': ['C'], 'number_format': 'thousands',
+            {'column_refs': ['C'], 'number_format': 'thousands',
              'whole_column': 'yes'},
         ])
         print("✗ Non-bool whole_column should have raised")
@@ -264,8 +264,8 @@ def test_zoom_and_font_size():
 
     # column_formats font_size, per-cell and whole_column paths
     apply_column_formats(sheet, [
-        {'columns': ['A'], 'font_size': 9},
-        {'columns': ['C'], 'font_size': 8, 'whole_column': True, 'width': 10},
+        {'column_refs': ['A'], 'font_size': 9},
+        {'column_refs': ['C'], 'font_size': 8, 'whole_column': True, 'width': 10},
     ])
     if sheet['A2'].font.size != 9:
         print(f"✗ per-cell column font_size wrong: {sheet['A2'].font.size}")

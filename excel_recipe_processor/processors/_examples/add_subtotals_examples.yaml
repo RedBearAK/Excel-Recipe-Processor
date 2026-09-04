@@ -83,7 +83,7 @@ hierarchical_example:
         columns: ["Division", "Department", "Cost_Center"]
         # OPT - Sort order for each column
         # Default value: [true] for all columns
-        ascending: [true, true, true]
+        sort_type: "ascending"
         save_to_stage: "stg_sorted_data"
 
       - # Step 3: Add division-level subtotals
@@ -254,7 +254,7 @@ advanced_workflow_example:
         processor_type: "sort_data"
         source_stage: "stg_filtered_data"
         columns: ["Territory", "Sales_Rep", "Deal_Size"]
-        ascending: [true, true, false]
+        sort_type: "ascending"
         save_to_stage: "stg_prepared_data"
 
       - # Step 4: Add subtotals with custom positioning

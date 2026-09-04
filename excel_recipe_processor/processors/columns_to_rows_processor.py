@@ -24,14 +24,24 @@ import logging
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class ColumnsToRowsProcessor(BaseStepProcessor):
+class ColumnsToRowsProcessor(TransformBaseProcessor):
     """Demote header columns into label/value rows (wide to long)."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('id_columns'), name_list('value_columns'),
+            Key('labels_to', 'str', default='Field'), Key('values_to', 'str', default='Value'),
+            Key('drop_empty_values', 'bool', default=False),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

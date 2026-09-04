@@ -89,7 +89,7 @@ def test_basic_diff_analysis():
         'step_description': 'Test basic diff analysis',
         'source_stage': 'current_customers',
         'reference_stage': 'baseline_customers',
-        'key_columns': 'customer_id',
+        'key_columns': ['customer_id'],
         'save_to_stage': 'diff_results',
         'exclude_columns': []
     }
@@ -185,7 +185,7 @@ def test_exclude_columns():
         'step_description': 'Test exclude columns',
         'source_stage': 'current_exclude_test',
         'reference_stage': 'baseline_exclude_test',
-        'key_columns': 'customer_id',
+        'key_columns': ['customer_id'],
         'save_to_stage': 'exclude_diff_results',
         'exclude_columns': ['customer_id', 'last_order_amount']
     }
@@ -229,7 +229,7 @@ def test_filtered_stages_creation():
         'step_description': 'Test filtered stages',
         'source_stage': 'current_filtered',
         'reference_stage': 'baseline_filtered',
-        'key_columns': 'customer_id',
+        'key_columns': ['customer_id'],
         'save_to_stage': 'filtered_main_results',
         'create_filtered_stages': True,
         'filtered_stage_prefix': 'stg_test_filtered'
@@ -284,7 +284,7 @@ def test_json_details_option():
         'step_description': 'Test JSON details',
         'source_stage': 'current_json',
         'reference_stage': 'baseline_json',
-        'key_columns': 'customer_id',
+        'key_columns': ['customer_id'],
         'save_to_stage': 'json_diff_results',
         'include_json_details': True
     }
@@ -335,7 +335,7 @@ def test_handle_deleted_rows_options():
         'step_description': 'Test exclude deleted',
         'source_stage': 'current_exclude_deleted',
         'reference_stage': 'baseline_exclude_deleted',
-        'key_columns': 'customer_id',
+        'key_columns': ['customer_id'],
         'save_to_stage': 'exclude_deleted_results',
         'handle_deleted_rows': 'exclude'
     }
@@ -384,7 +384,7 @@ def test_configuration_validation():
             'processor_type': 'diff_data',
             'source_stage': 'test_source',
             'reference_stage': 'test_reference',
-            'key_columns': 'test_key',
+            'key_columns': ['test_key'],
             'save_to_stage': 'test_save',
             'handle_deleted_rows': 'invalid_option'
         }

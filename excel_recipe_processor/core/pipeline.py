@@ -521,7 +521,8 @@ from excel_recipe_processor.processors.strip_formula_caches_processor  import St
 from excel_recipe_processor.processors.deduplicate_data_processor      import DeduplicateDataProcessor
 from excel_recipe_processor.processors.free_stages_processor           import FreeStagesProcessor
 from excel_recipe_processor.processors.verify_columns_processor        import VerifyColumnsProcessor
-from excel_recipe_processor.processors.verify_data_processor            import VerifyDataProcessor
+from excel_recipe_processor.processors.verify_stage_data_processor      import VerifyStageDataProcessor
+from excel_recipe_processor.processors.verify_sheet_data_processor      import VerifySheetDataProcessor
 from excel_recipe_processor.processors.flush_workbooks_processor       import FlushWorkbooksProcessor
 from excel_recipe_processor.processors.inject_formulas_processor        import InjectFormulasProcessor
 from excel_recipe_processor.processors.lookup_data_processor            import LookupDataProcessor
@@ -557,7 +558,8 @@ def register_standard_processors():
     registry.register('strip_formula_caches',           StripFormulaCachesProcessor         )
     registry.register('free_stages',                    FreeStagesProcessor                 )
     registry.register('verify_columns',                 VerifyColumnsProcessor              )
-    registry.register('verify_data',                    VerifyDataProcessor                 )
+    registry.register('verify_stage_data',              VerifyStageDataProcessor            )
+    registry.register('verify_sheet_data',              VerifySheetDataProcessor            )
     registry.register('flush_workbooks',                FlushWorkbooksProcessor             )
     registry.register('copy_stage',                     CopyStageProcessor                  )
     registry.register('create_stage',                   CreateStageProcessor                )

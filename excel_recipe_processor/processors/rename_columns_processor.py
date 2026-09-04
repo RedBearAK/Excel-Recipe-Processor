@@ -12,7 +12,8 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 proc_type = 'processor_type'
 
 
-class RenameColumnsProcessor(BaseStepProcessor):
+class RenameColumnsProcessor(TransformBaseProcessor):
     """
     Processor for renaming DataFrame columns.
     
@@ -28,6 +29,19 @@ class RenameColumnsProcessor(BaseStepProcessor):
     and systematic column name transformations.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('rename_type', 'str', default='mapping',
+                choices=['mapping', 'pattern', 'transform']),
+            Key('mapping', 'open_mapping', description='old name -> new name'),
+            Key('pattern', 'str'), Key('replacement', 'str', default=''),
+            Key('add_prefix', 'str'), Key('add_suffix', 'str'),
+            Key('case_conversion', 'str', choices=['upper', 'lower', 'title', 'snake_case', 'camel_case']),
+            Key('replace_spaces', 'str'), Key('strip_characters', 'str'),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         """

@@ -1,0 +1,145 @@
+# `profile_sheets`
+
+**Family:** `import`
+
+Per-column sheet metadata discovery (e.g., widths, dtypes, blanks, distincts)
+
+## Notes
+
+- **width math**: shared with format_excel auto-fit (column_width_scan helper)
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `sheets`: list_of_mappings; REQUIRED
+  - `source_stage`: stage_in
+  - `input_file`: str
+  - `sheet_name`: any
+  - `label`: str
+  - at least one of: `source_stage`, `input_file`
+- `scan_rows`: int
+- `min_width`: number
+- `max_width`: number
+- `padding`: number
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+Profile the main stage for view-tab width inheritance
+
+```yaml
+# Output contract (columns by NAME; future facts APPEND, never rename):
+#   Source          - stage name, or file!sheet for disk inputs
+#   Column          - header name
+#   Position        - 1-based column position
+#   Width           - auto-fit width via the SHARED clamp
+#                     (column_width_scan helper) - identical arithmetic
+#                     to format_excel's auto-fit
+#   Dtype           - pandas dtype string
+#   Blank_Count     - NA values plus empty-string values
+#   Distinct_Count  - distinct NON-BLANK values (empty strings do not
+#                     survive an Excel round trip, so counting them
+#                     would make stage and disk profiles of the same
+#                     data disagree)
+#   Row_Count       - data rows profiled
+
+settings:
+  description: "Profile the main stage so a view tab can inherit widths"
+  stages:
+    - stage_name: "stg_main_data"
+      description: "Processed data the view tab projects"
+      protected: false
+    - stage_name: "stg_sheet_profiles"
+      description: "Per-column profile of the main stage"
+      protected: false
+
+recipe:
+  # An earlier step populates stg_main_data
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed profile_sheets step"
+    step_description: "Profile the main stage for view-tab width inheritance"
+    # REQ - Must be "profile_sheets" for this processor type
+    processor_type: "profile_sheets"
+    # REQ - Non-empty list. Each entry profiles EXACTLY ONE of:
+    # source_stage (a stage in memory) or input_file + optional
+    # sheet_name (a disk sheet; first sheet when omitted). Memory vs
+    # disk is a pointer choice, not a mode - both land in the same
+    # output, identified by the Source column.
+    sheets:
+      - source_stage: "stg_main_data"
+    # REQ - Stage receiving the profile frame
+    save_to_stage: "stg_sheet_profiles"
+```
+
+### multi input
+
+Profile a stage and a disk sheet side by side, with width clamps
+
+```yaml
+settings:
+  description: "Profile a stage in memory and a reference sheet on disk"
+  variables:
+    lookup_dir: "{recipe_parent_dir}/lookup_source_files"
+  stages:
+    - stage_name: "stg_main_data"
+      description: "Processed data"
+      protected: false
+    - stage_name: "stg_sheet_profiles"
+      description: "Combined profile, one Source per input"
+      protected: false
+
+recipe:
+  - step_description: "Profile a stage and a disk sheet side by side"
+    # REQ - Must be "profile_sheets" for this processor type
+    processor_type: "profile_sheets"
+    # REQ - One entry per input; the disk entry names its sheet
+    sheets:
+      - source_stage: "stg_main_data"
+      - input_file: "{lookup_dir}/reference.xlsx"
+        # OPT - Tab to profile; first sheet when omitted
+        sheet_name: "Rates"
+    # REQ - Stage receiving the profile frame
+    save_to_stage: "stg_sheet_profiles"
+    # OPT - Width floor after padding
+    # Default value: 8 (tpl_sizing uses 10)
+    min_width: 10
+    # OPT - Width ceiling after padding
+    # Default value: 100 (tpl_sizing uses 40)
+    max_width: 40
+    # OPT - Extra characters beyond the longest content
+    # Default value: 4, matching auto-fit
+    padding: 4
+    # OPT - Measure only the first N data rows (header always measured)
+    # Default value: unset - every row is measured
+    scan_rows: 500
+```
+
+### consumer
+
+View tab inherits the seed sheet's widths via format_excel
+
+```yaml
+settings:
+  description: "Format the view tab with widths inherited from the profile"
+
+recipe:
+  - step_description: "View tab inherits the seed sheet's widths"
+    processor_type: "format_excel"
+    target_file: "{output_dir}/output.xlsx"
+    formatting:
+      - sheet_names: ["Exp_View"]
+        # Reads the profile stage by COLUMN NAME
+        column_widths_from_stage: "stg_sheet_profiles"
+        # OPT - Required only when the profile holds >1 Source
+        # column_widths_source: "stg_main_data"
+```
+

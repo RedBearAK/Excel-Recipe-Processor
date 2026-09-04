@@ -52,6 +52,7 @@ def make_processor():
         'processor_type': 'format_excel',
         'step_description': 'consolidated cycle test',
         'target_file': 'unused.xlsx',
+        'formatting': [],
     }
     return FormatExcelProcessor(step)
 
@@ -64,9 +65,9 @@ def test_hyperlinks_three_kinds():
     worksheet['C3'] = ''
 
     apply_column_formats(worksheet, [
-        {'columns': ['Path'], 'make_hyperlinks': 'file_paths'},
-        {'columns': ['Site'], 'make_hyperlinks': 'web_urls'},
-        {'columns': ['Contact'], 'make_hyperlinks': 'email_addresses'},
+        {'column_names': ['Path'], 'make_hyperlinks': 'file_paths'},
+        {'column_names': ['Site'], 'make_hyperlinks': 'web_urls'},
+        {'column_names': ['Contact'], 'make_hyperlinks': 'email_addresses'},
     ])
 
     file_target = worksheet['C2'].hyperlink.target
@@ -111,7 +112,7 @@ def test_hyperlink_guided_errors():
 
     try:
         apply_column_formats(worksheet, [
-            {'columns': ['Path'], 'make_hyperlinks': 'file_path'}])
+            {'column_names': ['Path'], 'make_hyperlinks': 'file_path'}])
         print("  Missed the near-miss singular 'file_path'")
         return False
     except ColumnFormatError as error:
@@ -121,7 +122,7 @@ def test_hyperlink_guided_errors():
 
     try:
         apply_column_formats(worksheet, [
-            {'columns': ['Path'], 'make_hyperlinks': 'file_paths',
+            {'column_names': ['Path'], 'make_hyperlinks': 'file_paths',
              'whole_column': True}])
         print("  Missed the whole_column combination")
         return False
@@ -131,7 +132,7 @@ def test_hyperlink_guided_errors():
     worksheet['C2'] = 'relative/path.xlsx'
     try:
         apply_column_formats(worksheet, [
-            {'columns': ['Path'], 'make_hyperlinks': 'file_paths'}])
+            {'column_names': ['Path'], 'make_hyperlinks': 'file_paths'}])
         print("  Missed the relative path")
         return False
     except ColumnFormatError as error:
@@ -150,9 +151,9 @@ def test_underline_and_strikethrough():
     workbook, worksheet = build_sheet(2)
 
     apply_column_formats(worksheet, [
-        {'columns': ['Name'], 'font_underline': True,
+        {'column_names': ['Name'], 'font_underline': True,
          'font_strikethrough': True},
-        {'columns': ['Amount'], 'font_underline': 'double'},
+        {'column_names': ['Amount'], 'font_underline': 'double'},
     ])
 
     if worksheet['A2'].font.underline != 'single':
@@ -167,7 +168,7 @@ def test_underline_and_strikethrough():
 
     try:
         apply_column_formats(worksheet, [
-            {'columns': ['Name'], 'font_underline': 'wavy'}])
+            {'column_names': ['Name'], 'font_underline': 'wavy'}])
         print("  Missed the invalid underline value")
         return False
     except ColumnFormatError as error:
@@ -190,7 +191,7 @@ def test_banding_wins_over_tint():
         'banded_row_color': 'EAF3FB',
         'banded_row_border_style': 'thin',
         'column_formats': [
-            {'columns': ['Amount'], 'background_color': 'FCE4D6',
+            {'column_names': ['Amount'], 'background_color': 'FCE4D6',
              'border_style': 'thin'},
         ],
     })
@@ -234,7 +235,7 @@ def test_outline_borders_and_ranges():
 
     processor._apply_sheet_formatting(worksheet, {
         'column_formats': [
-            {'columns': ['Amount'], 'background_color': 'FCE4D6',
+            {'column_names': ['Amount'], 'background_color': 'FCE4D6',
              'border_style': 'thin'},
         ],
         'outline_border_style': 'medium',

@@ -1,4 +1,4 @@
-# Revision date: 2025-08-07
+# Revision date: 2026-09-03
 
 description: >
   "Create new columns with calculated values using robust formula components, 
@@ -222,6 +222,94 @@ legacy_formula_example:
           # For robust column name handling, use formula_components instead
           pandas_formula: "{col:Price} * {col:Quantity}"
 
+spill_columns_example:
+  description: "One calculation filling two columns - a horizontal spill, declared and shape-checked"
+  yaml: |
+    # An expression may return more than one column, the way an Excel
+    # formula spills sideways. new_column is the calculated column; the
+    # rest are named in spill_columns, in order. The result's width must
+    # match the declaration and every column must be one value per row -
+    # an undeclared spill, a missing spill, or a vertical spill is an error.
+
+    settings:
+      description: "Due date and the reason it was chosen, from one calculation"
+      stages:
+        - stage_name: "stg_orders"
+          description: "Orders with a ship date and payment terms"
+          protected: false
+        - stage_name: "stg_orders_dated"
+          description: "Orders with a due date and its basis"
+          protected: false
+
+    recipe:
+      - step_description: "Compute the due date and its basis together"
+        processor_type: "add_calculated_column"
+        source_stage: "stg_orders"
+        save_to_stage: "stg_orders_dated"
+        # REQ - The calculated column
+        new_column: "Due Date"
+        # OPT - Further columns the same calculation fills, left to right.
+        # Only the evaluated calculation types (expression, first_match) may spill.
+        spill_columns: ["Due Basis"]
+        calculation_type: "expression"
+        calculation:
+          # A DataFrame (or a tuple of Series) with one column per declared name
+          pandas_formula: "pd.DataFrame({'d': {col:Ship Date} + pd.to_timedelta({col:Terms Days}, unit='D'), 'b': 'Ship + terms'})"
+
+first_match_example:
+  description: "Ordered rule table - first true predicate wins the row and fills every declared column"
+  yaml: |
+    # The IFS / CASE of the processor, with paired outputs. Rules are
+    # tried in order; the first whose 'when' is true supplies EVERY
+    # declared column from its own 'then' row, so a value and the label
+    # explaining it can never drift apart. Every rule and the default
+    # carry exactly one slot per declared column: an expression, a
+    # quoted literal or a number (broadcast), or "" for the column's
+    # typed blank - a blank is always visible, never an omitted term.
+    #
+    # Keys name their dialect: pandas_rules and pandas_default hold
+    # pandas text with {col:Name} references, so a quoted string inside
+    # a slot is a literal exactly as it would be inside pandas_formula.
+    # Shape and column references are checked for every rule BEFORE any
+    # evaluation, so a mistake is reported by rule number. The log
+    # reports how many rows each rule won, including rules that never
+    # matched.
+
+    settings:
+      description: "Projected due date with an audit tag, by first matching rule"
+      stages:
+        - stage_name: "stg_orders"
+          description: "Orders with kind, dates, terms and price"
+          protected: false
+        - stage_name: "stg_orders_projected"
+          description: "Orders with a projected due date and the branch that produced it"
+          protected: false
+
+    recipe:
+      - step_description: "Project the due date by first matching rule"
+        processor_type: "add_calculated_column"
+        source_stage: "stg_orders"
+        save_to_stage: "stg_orders_projected"
+        new_column: "Proj Due Date"
+        spill_columns: ["Diagnostics"]
+        calculation_type: "first_match"
+        calculation:
+          # REQ - Ordered rules; each 'then' has one slot per declared column,
+          # in the order new_column, then spill_columns
+          pandas_rules:
+            - when: "{col:Paid Date}.notna() | ~({col:Price}.fillna(0) > 0)"
+              then: ["", "'Paid or No Price'"]
+            - when: "({col:Kind} == 'Fresh') & {col:Ship Date}.notna()"
+              then: ["{col:Ship Date} + pd.to_timedelta({col:Terms Days} + 7, unit='D')", "'Fr-Ship'"]
+            - when: "{col:Kind} == 'Fresh'"
+              then: ["", "'Fr-NoShip'"]
+            - when: "({col:Kind} == 'Frozen') & {col:Invoice Date}.notna()"
+              then: ["{col:Invoice Date} + pd.to_timedelta({col:Terms Days}, unit='D')", "'Fz-Invoice'"]
+            - when: "({col:Kind} == 'Frozen') & {col:Ship Date}.notna()"
+              then: ["{col:Ship Date} + pd.to_timedelta({col:Terms Days} + 30, unit='D')", "'Fz-ShipFallback'"]
+          # REQ - What a row gets when no rule matches, same shape as a 'then'
+          pandas_default: ["", "'Unknown-Kind'"]
+
 parameter_details:
   formula_components:
     type: list
@@ -233,6 +321,24 @@ parameter_details:
       - [{"condition": {...}, "if_true": [...], "if_false": [...]}]
     note: "Recommended over 'formula' for reliability with complex column names"
   
+  spill_columns:
+    type: list
+    required: false
+    description: >
+      Further columns the same calculation fills beside new_column, in
+      order. Only expression and first_match may spill. The result's
+      width must equal 1 + len(spill_columns) and every column must be
+      one value per row; otherwise the step halts.
+
+  first_match:
+    calculation_keys: "pandas_rules (list of when/then rules, then = one slot per column), pandas_default (one slot per column)"
+    description: >
+      First true 'when' wins the row and every declared column takes the
+      slot from that rule's 'then'. A slot is pandas text: an expression,
+      a quoted literal or number, or "" for the typed blank. Rule shape
+      and column references are validated before evaluation; per-rule
+      hit counts are logged.
+
   pandas_formula:
     type: string  
     required: false (alternative to formula_components)

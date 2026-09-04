@@ -125,7 +125,7 @@ dictionary_lookup_example:
           # REQ - Column name for values (format: dictionary only)
           value_column: "Service_Tier"
           # REQ - Dictionary entries as key-value pairs (format: dictionary only)
-          entries:
+          data:
             "CUST001": "Premium"
             "CUST002": "Standard"
             "CUST003": "Premium"
@@ -222,10 +222,12 @@ advanced_filter_criteria_example:
         filters:
           - column: "Product_Code"
             condition: "in_stage"
-            save_to_stage: "stg_priority_products"
+            stage_name: "stg_priority_products"
+            stage_column: "Product_Code"
           - column: "Region"
             condition: "not_in_stage"
-            save_to_stage: "stg_excluded_regions"
+            stage_name: "stg_excluded_regions"
+            stage_column: "Region"
           - column: "Revenue"
             condition: "greater_than"
             value: "{min_revenue}"
@@ -293,7 +295,7 @@ configuration_driven_example:
           # REQ - Column name for values
           value_column: "Correct_Value"
           # REQ - Dictionary entries
-          entries:
+          data:
             "Activ": "Active"
             "Inactiv": "Inactive"
             "Pend": "Pending"

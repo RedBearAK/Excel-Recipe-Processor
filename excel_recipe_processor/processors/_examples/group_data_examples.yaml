@@ -93,7 +93,7 @@ stage_based_grouping_example:
         # REQ - Advanced source configuration for group definitions
         groups_source:
           # REQ - Source type for group definitions
-          # Valid values: "inline", "stage", "file", "lookup", "predefined"
+          # Valid values: "stage", "file", "lookup"
           type: "stage"
           # REQ - Stage containing group definitions (when type is "stage")
           stage_name: "stg_category_definitions"
@@ -108,7 +108,7 @@ stage_based_grouping_example:
           group_column: "Category"
           # OPT - Column containing values to match (for long format)
           # Default value: second column
-          value_column: "Product_Name"
+          values_column: "Product_Name"
         # OPT - Handle unmatched products
         unmatched_action: "set_default"
         unmatched_value: "Miscellaneous"
@@ -149,18 +149,14 @@ file_based_grouping_example:
           type: "file"
           # REQ - Path to file containing group definitions (supports variables)
           # Variables: {region_type}, {year} defined in settings
-          file_path: "config/{region_type}_regions_{year}.xlsx"
+          filename: "config/{region_type}_regions_{year}.xlsx"
           # OPT - File format (wide or long)
           format: "wide"
           # OPT - Sheet name for Excel files
           # Default value: first sheet
           sheet: "Regional_Mapping"
           # OPT - Which row contains group names (for wide format)
-          # Default value: 1 (first row)
-          header_row: 1
           # OPT - Starting column for values (for wide format)
-          # Default value: second column
-          value_start_column: 2
         # OPT - Case sensitivity for matching
         # Default value: false
         case_sensitive: false
@@ -237,44 +233,6 @@ hierarchical_grouping_example:
         unmatched_action: "keep_original"
         save_to_stage: "stg_territory_grouped"
 
-predefined_grouping_example:
-  description: "Use built-in predefined group definitions for common categorizations"
-  yaml: |
-    settings:
-      description: "Apply predefined regional groupings for consistent categorization"
-      stages:
-        - stage_name: "stg_location_data"
-          description: "Data with location information"
-          protected: false
-        - stage_name: "stg_standardized_regions"
-          description: "Data with predefined regional groupings"
-          protected: false
-
-    recipe:
-      - # Step 1: Import location data
-        step_description: "Import data with state information"
-        processor_type: "import_file"
-        input_file: "data/customer_locations.xlsx"
-        save_to_stage: "stg_location_data"
-
-      - # Step 2: Apply predefined US regional grouping
-        step_description: "Group states using predefined US regional definitions"
-        processor_type: "group_data"
-        source_stage: "stg_location_data"
-        source_column: "State"
-        target_column: "US_Region"
-        # REQ - Use predefined group definitions
-        groups_source:
-          # REQ - Use built-in predefined groups
-          type: "predefined"
-          # REQ - Predefined group type
-          # Valid values: "van_report_regions", "us_regions", "product_categories"
-          predefined_type: "us_regions"
-        # OPT - Handle unmatched values (states not in predefined groups)
-        unmatched_action: "set_default"
-        unmatched_value: "Other"
-        save_to_stage: "stg_standardized_regions"
-
 advanced_workflow_example:
   description: "Complex workflow with lookup-based grouping and validation"
   yaml: |
@@ -324,12 +282,8 @@ advanced_workflow_example:
           lookup_stage: "stg_validation_data"
           # REQ - Column in lookup data to match against
           lookup_key: "Customer_ID"
-          # REQ - Column in lookup data containing group values
-          lookup_value: "Tier"
           # OPT - Join type for lookup
           # Default value: "left"
-          # Valid values: "left", "inner"
-          join_type: "left"
         # OPT - Handle customers not found in lookup
         unmatched_action: "error"  # Strict validation - fail if customer not found
         save_to_stage: "stg_grouped_transactions"
@@ -424,14 +378,14 @@ parameter_details:
         type: string
         required: true
         description: "Source type for group definitions"
-        valid_values: ["inline", "stage", "file", "lookup", "predefined"]
+        valid_values: ["stage", "file", "lookup"]
       
       stage_name:
         type: string
         required: false
         description: "Stage containing group definitions (when type is 'stage')"
         
-      file_path:
+      filename:
         type: string
         required: false
         description: "Path to file containing group definitions (when type is 'file'). Supports variable substitution"
@@ -441,11 +395,6 @@ parameter_details:
         required: false
         description: "Stage containing lookup data (when type is 'lookup')"
         
-      predefined_type:
-        type: string
-        required: false
-        description: "Predefined group type (when type is 'predefined')"
-        valid_values: ["van_report_regions", "us_regions", "product_categories"]
     note: "Use either 'groups' (inline) OR 'groups_source' (advanced), not both"
 
   replace_source:

@@ -78,9 +78,7 @@ multiple_columns_example:
             # REQ - Clean and convert numeric data
             action: "fix_numeric"
             # OPT - Decimal places for formatting
-            decimal_places: 0
             # OPT - Use thousands separator
-            thousands_separator: true
           
           # Remove invisible characters from multiple text columns
           - # REQ - List of text columns to clean

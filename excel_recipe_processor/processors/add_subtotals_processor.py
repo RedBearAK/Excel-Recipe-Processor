@@ -12,13 +12,14 @@ from excel_recipe_processor.core.log_format import q
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class AddSubtotalsProcessor(BaseStepProcessor):
+class AddSubtotalsProcessor(TransformBaseProcessor):
     """
     Processor for adding subtotal rows to grouped data.
     
@@ -27,6 +28,17 @@ class AddSubtotalsProcessor(BaseStepProcessor):
     including pivot table results.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            name_list('group_by', required=True), name_list('subtotal_columns', required=True),
+            Key('subtotal_functions', 'list', item_kind='str', default=['sum']),
+            Key('subtotal_label', 'str', default='Subtotal'),
+            Key('position', 'str', default='after_group', choices=['after_group', 'before_group']),
+            Key('preserve_totals', 'bool', default=True),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

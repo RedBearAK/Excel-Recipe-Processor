@@ -325,13 +325,11 @@ complete_workflow_example:
         source_stage: "stg_sales_data"
         # REQ - Stage to save enriched results
         save_to_stage: "stg_enriched_sales"
-        # REQ - Lookup source configuration
-        lookup_source:
-          type: "stage"
-          stage_name: "stg_customer_data"
+        # REQ - Stage holding the lookup rows
+        lookup_stage: "stg_customer_data"
         # REQ - Key columns for joining
-        lookup_key: "Customer_ID"
-        source_key: "Customer_ID"
+        match_col_in_main_data: "Customer_ID"
+        match_col_in_lookup_data: "Customer_ID"
         # REQ - Columns to add from lookup
         lookup_columns: ["Customer_Name", "Region", "Tier"]
       
@@ -354,7 +352,7 @@ complete_workflow_example:
             # REQ - Aggregation function
             function: "sum"
             # OPT - Custom column name
-            new_column_name: "Total_Sales"
+            output_name: "Total_Sales"
       
       # Step 5: Combine enriched data with summary
       - # OPT - Human-readable step description

@@ -2,6 +2,7 @@
 Simple test for the base step processor functionality.
 """
 
+from excel_recipe_processor.core.config_schema import Schema
 from excel_recipe_processor.core.base_processor import (
     BaseStepProcessor, 
     StepProcessorRegistry, 
@@ -11,6 +12,10 @@ from excel_recipe_processor.core.base_processor import (
 
 class DummyProcessor(BaseStepProcessor):
     """Test processor that just returns the input data."""
+
+    @classmethod
+    def config_schema(cls):
+        return Schema([])
     
     def execute(self, data):
         self.log_step_start()

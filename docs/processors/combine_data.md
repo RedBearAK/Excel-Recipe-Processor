@@ -1,0 +1,448 @@
+# `combine_data`
+
+**Family:** `transform`
+
+Combine multiple DataFrames from stages with enhanced column handling
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_stage`: stage_in; REQUIRED - Stage to read
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `combine_type`: str; REQUIRED; one of vertical_stack, horizontal_concat
+- `column_handling`: str; one of require_matching_columns, allow_mismatched_columns
+- `data_sources`: list_of_mappings; REQUIRED
+  - `insert_from_stage`: stage_in
+  - `insert_blank_rows`: int
+  - `insert_blank_cols`: int
+  - `retain_column_names`: bool
+  - at least one of: `insert_from_stage`, `insert_blank_rows`, `insert_blank_cols`
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+Simple combination of two data stages with column handling
+
+```yaml
+# Combine title and data sections with proper column handling
+
+settings:
+  description: "Combine report title and data sections into complete document"
+  stages:
+    - stage_name: "stg_title_section"
+      description: "Report title and metadata"
+      protected: false
+    - stage_name: "stg_data_section"
+      description: "Main report data"
+      protected: false
+    - stage_name: "stg_complete_report"
+      description: "Combined title and data"
+      protected: false
+
+recipe:
+  # Previous steps would populate title_section and data_section stages
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed combine_data step"
+    step_description: "Combine title and data sections"
+    # REQ - Must be "combine_data" for this processor type
+    processor_type: "combine_data"
+    # REQ - Stage to read base data from (will be combined with other sources)
+    source_stage: "stg_title_section"
+    # REQ - Stage to save combined results
+    save_to_stage: "stg_complete_report"
+    # REQ - Combination method
+    combine_type: "vertical_stack"
+    # REQ - Column handling policy
+    column_handling: "allow_mismatched_columns"
+    # REQ - Additional data sources to combine
+    data_sources:
+      - # Add blank rows for spacing
+        insert_blank_rows: 1
+      - # Insert data from another stage
+        insert_from_stage: "data_section"
+        # OPT - Include column headers as first data row
+        # Default value: true (when column_handling = "allow_mismatched_columns")
+        retain_column_names: false
+```
+
+### desktop publishing
+
+Complete document assembly workflow with multiple sections and spacing
+
+```yaml
+# Assemble multi-section report with proper formatting
+
+settings:
+  description: "Assemble quarterly sales report from multiple prepared sections"
+  variables:
+    quarter: "Q4"
+    year: "2024"
+  stages:
+    - stage_name: "stg_report_header"
+      description: "Report title and metadata section"
+      protected: false
+    - stage_name: "stg_column_headers"
+      description: "Data column headers"
+      protected: false
+    - stage_name: "stg_sales_data"
+      description: "Main sales data"
+      protected: false
+    - stage_name: "stg_report_footer"
+      description: "Report summary and footer"
+      protected: false
+    - stage_name: "stg_assembled_report"
+      description: "Complete assembled document"
+      protected: false
+
+recipe:
+  # Previous steps populate all the section stages
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed combine_data step"
+    step_description: "Assemble complete quarterly report"
+    # REQ - Must be "combine_data" for this processor type
+    processor_type: "combine_data"
+    # REQ - Start with report header stage
+    source_stage: "stg_report_header"
+    # REQ - Stage to save complete assembled report
+    save_to_stage: "stg_assembled_report"
+    # REQ - Stack sections vertically
+    combine_type: "vertical_stack"
+    # REQ - Allow different column structures between sections
+    column_handling: "allow_mismatched_columns"
+    # REQ - Sequential document sections with formatting
+    data_sources:
+      # Visual spacing after header
+      - # Insert blank rows for document formatting
+        insert_blank_rows: 2
+      # Column headers section
+      - # Insert data from stage
+        insert_from_stage: "column_headers"
+        # OPT - Headers become data rows
+        # Default value: true (with allow_mismatched_columns)
+        retain_column_names: false
+      # Main data section
+      - # Insert data from stage
+        insert_from_stage: "sales_data"
+        # OPT - Pure data without extra headers
+        # Default value: true (with allow_mismatched_columns)
+        retain_column_names: false
+      # Spacing before footer
+      - # Insert blank rows for separation
+        insert_blank_rows: 1
+      # Report footer
+      - # Insert data from stage
+        insert_from_stage: "report_footer"
+        # OPT - Preserve footer structure
+        # Default value: true (with allow_mismatched_columns)
+        retain_column_names: true
+```
+
+### horizontal comparison
+
+Side-by-side data comparison using horizontal concatenation
+
+```yaml
+# Create side-by-side comparison of two datasets
+
+settings:
+  description: "Compare current year vs previous year data side-by-side"
+  stages:
+    - stage_name: "stg_current_year_data"
+      description: "Current year sales data"
+      protected: false
+    - stage_name: "stg_previous_year_data"
+      description: "Previous year sales data"
+      protected: false
+    - stage_name: "stg_yoy_comparison"
+      description: "Year-over-year comparison report"
+      protected: false
+
+recipe:
+  # Previous steps populate current_year_data and previous_year_data
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed combine_data step"
+    step_description: "Create side-by-side year comparison"
+    # REQ - Must be "combine_data" for this processor type
+    processor_type: "combine_data"
+    # REQ - Start with current year data
+    source_stage: "stg_current_year_data"
+    # REQ - Stage to save comparison results
+    save_to_stage: "stg_yoy_comparison"
+    # REQ - Place data side-by-side
+    combine_type: "horizontal_concat"
+    # REQ - Allow different column names for comparison
+    column_handling: "allow_mismatched_columns"
+    # REQ - Data sources for comparison
+    data_sources:
+      # Visual separator between datasets
+      - # Insert blank columns for spacing
+        insert_blank_cols: 2
+      # Previous year data
+      - # Insert data from stage
+        insert_from_stage: "previous_year_data"
+        # OPT - Include column headers for clarity
+        # Default value: true (with allow_mismatched_columns)
+        retain_column_names: true
+```
+
+### strict column validation
+
+Strict validation requiring identical column structures
+
+```yaml
+# Enforce identical columns across all combined datasets
+
+settings:
+  description: "Combine quarterly sales data with strict column validation"
+  stages:
+    - stage_name: "stg_q1_sales"
+      description: "Q1 sales data"
+      protected: false
+    - stage_name: "stg_q2_sales"
+      description: "Q2 sales data"
+      protected: false
+    - stage_name: "stg_q3_sales"
+      description: "Q3 sales data"
+      protected: false
+    - stage_name: "stg_annual_sales"
+      description: "Combined annual sales data"
+      protected: false
+
+recipe:
+  # Previous steps populate quarterly sales stages
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed combine_data step"
+    step_description: "Combine quarterly data with validation"
+    # REQ - Must be "combine_data" for this processor type
+    processor_type: "combine_data"
+    # REQ - Start with Q1 data
+    source_stage: "stg_q1_sales"
+    # REQ - Stage to save annual results
+    save_to_stage: "stg_annual_sales"
+    # REQ - Stack quarters vertically
+    combine_type: "vertical_stack"
+    # REQ - Require identical columns (validation)
+    column_handling: "require_matching_columns"
+    # REQ - Additional quarters with identical structure
+    data_sources:
+      # Separator between quarters
+      - # Insert blank rows for quarterly separation
+        insert_blank_rows: 1
+      # Q2 data (must match Q1 columns exactly)
+      - # Insert data from stage
+        insert_from_stage: "q2_sales"
+        # OPT - No extra headers with strict matching
+        # Default value: false (with require_matching_columns)
+        retain_column_names: false
+      # Separator
+      - # Insert blank rows for separation
+        insert_blank_rows: 1
+      # Q3 data (must match Q1 columns exactly)
+      - # Insert data from stage
+        insert_from_stage: "q3_sales"
+        # OPT - No extra headers
+        # Default value: false (with require_matching_columns)
+        retain_column_names: false
+```
+
+### variable substitution
+
+Using recipe variables in data source specifications
+
+```yaml
+# Dynamic data source selection using variables
+
+settings:
+  description: "Combine regional data using dynamic variable-based selection"
+  variables:
+    primary_region: "west"
+    comparison_region: "east"
+    report_type: "quarterly"
+  stages:
+    - stage_name: "stg_west_data"
+      description: "Western region data"
+      protected: false
+    - stage_name: "stg_east_data"
+      description: "Eastern region data"
+      protected: false
+    - stage_name: "stg_regional_comparison"
+      description: "Combined regional comparison"
+      protected: false
+
+recipe:
+  # Previous steps populate regional data stages
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed combine_data step"
+    step_description: "Create regional comparison using variables"
+    # REQ - Must be "combine_data" for this processor type
+    processor_type: "combine_data"
+    # REQ - Use variable to select primary region stage
+    source_stage: "{primary_region}_data"
+    # REQ - Stage to save comparison results
+    save_to_stage: "stg_regional_comparison"
+    # REQ - Stack regions vertically
+    combine_type: "vertical_stack"
+    # REQ - Allow different structures between regions
+    column_handling: "allow_mismatched_columns"
+    # REQ - Comparison region data
+    data_sources:
+      # Section separator
+      - # Insert blank rows with descriptive spacing
+        insert_blank_rows: 2
+      # Comparison region using variable
+      - # Insert data from dynamically selected stage
+        insert_from_stage: "{comparison_region}_data"
+        # OPT - Preserve region headers for identification
+        # Default value: true (with allow_mismatched_columns)
+        retain_column_names: true
+```
+
+### complete workflow
+
+Complete workflow: import → process → combine → export
+
+```yaml
+# Complete recipe with data preparation, combination, and export
+
+settings:
+  description: "Complete workflow from data import through combination to export"
+  variables:
+    input_date: "20250130"
+    output_prefix: "combined"
+  stages:
+    - stage_name: "stg_sales_data"
+      description: "Raw sales data from import"
+      protected: false
+    - stage_name: "stg_customer_data"
+      description: "Raw customer data from import"
+      protected: false
+    - stage_name: "stg_enriched_sales"
+      description: "Sales data enriched with customer info"
+      protected: false
+    - stage_name: "stg_summary_stats"
+      description: "Summary statistics"
+      protected: false
+    - stage_name: "stg_final_report"
+      description: "Complete combined report"
+      protected: false
+
+recipe:
+  # Step 1: Import sales data
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed import_file step"
+    step_description: "Import sales transactions"
+    # REQ - Must be "import_file" for this processor type
+    processor_type: "import_file"
+    # REQ - Input file with variable substitution
+    input_file: "sales_{input_date}.xlsx"
+    # REQ - Stage to save imported data
+    save_to_stage: "stg_sales_data"
+  
+  # Step 2: Import customer data
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed import_file step"
+    step_description: "Import customer master data"
+    # REQ - Must be "import_file" for this processor type
+    processor_type: "import_file"
+    # REQ - Input file path
+    input_file: "customers.xlsx"
+    # REQ - Stage to save imported data
+    save_to_stage: "stg_customer_data"
+  
+  # Step 3: Enrich sales with customer data
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed lookup_data step"
+    step_description: "Enrich sales with customer details"
+    # REQ - Must be "lookup_data" for this processor type
+    processor_type: "lookup_data"
+    # REQ - Stage to read sales data from
+    source_stage: "stg_sales_data"
+    # REQ - Stage to save enriched results
+    save_to_stage: "stg_enriched_sales"
+    # REQ - Stage holding the lookup rows
+    lookup_stage: "stg_customer_data"
+    # REQ - Key columns for joining
+    match_col_in_main_data: "Customer_ID"
+    match_col_in_lookup_data: "Customer_ID"
+    # REQ - Columns to add from lookup
+    lookup_columns: ["Customer_Name", "Region", "Tier"]
+  
+  # Step 4: Create summary statistics
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed aggregate_data step"
+    step_description: "Calculate summary statistics"
+    # REQ - Must be "aggregate_data" for this processor type
+    processor_type: "aggregate_data"
+    # REQ - Stage to read enriched data from
+    source_stage: "stg_enriched_sales"
+    # REQ - Stage to save summary results
+    save_to_stage: "stg_summary_stats"
+    # REQ - Grouping columns
+    group_by: ["Region"]
+    # REQ - Aggregation operations
+    aggregations:
+      - # REQ - Column to aggregate
+        column: "Amount"
+        # REQ - Aggregation function
+        function: "sum"
+        # OPT - Custom column name
+        output_name: "Total_Sales"
+  
+  # Step 5: Combine enriched data with summary
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed combine_data step"
+    step_description: "Combine detailed data with summary"
+    # REQ - Must be "combine_data" for this processor type
+    processor_type: "combine_data"
+    # REQ - Start with enriched sales data
+    source_stage: "stg_enriched_sales"
+    # REQ - Stage to save final combined report
+    save_to_stage: "stg_final_report"
+    # REQ - Stack data and summary vertically
+    combine_type: "vertical_stack"
+    # REQ - Allow different column structures
+    column_handling: "allow_mismatched_columns"
+    # REQ - Add summary section
+    data_sources:
+      # Separator before summary
+      - # Insert blank rows for section separation
+        insert_blank_rows: 3
+      # Summary statistics section
+      - # Insert summary data
+        insert_from_stage: "summary_stats"
+        # OPT - Include headers to identify summary section
+        # Default value: true (with allow_mismatched_columns)
+        retain_column_names: true
+  
+  # Step 6: Export final report
+  - # OPT - Human-readable step description
+    # Default value: "Unnamed export_file step"
+    step_description: "Export combined report"
+    # REQ - Must be "export_file" for this processor type
+    processor_type: "export_file"
+    # REQ - Stage to read final report from
+    source_stage: "stg_final_report"
+    # REQ - Output file with variable substitution
+    output_file: "reports/{output_prefix}_report_{input_date}.xlsx"
+```
+
+## Parameter notes
+
+- `source_stage` (required): Stage name to read base data from (must be declared in settings.stages)
+- `save_to_stage` (required): Stage name to save combined results (must be declared in settings.stages)
+- `combine_type` (required): Type of combination operation to perform
+- `column_handling` (required): Global policy for handling column structure differences
+- `data_sources` (required): Sequential list of data sources and formatting operations to combine with source_stage
+- `insert_from_stage` (required): Stage name to insert data from (must exist and contain data)
+- `retain_column_names`: Insert column headers as first data row before actual data
+- `insert_blank_rows` (required): Number of blank rows to insert for visual separation
+- `insert_blank_cols` (required): Number of blank columns to insert for visual separation
+

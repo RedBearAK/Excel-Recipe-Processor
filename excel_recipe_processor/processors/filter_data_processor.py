@@ -14,13 +14,17 @@ from typing import Any
 from tokenize import TokenError
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
+# Every condition the engine implements; the schema's choices come from here
+FILTER_CONDITIONS = ['contains', 'contains_all_in_list', 'contains_any_in_list', 'ends_with', 'ends_with_any_in_list', 'equals', 'equals_any_in_list', 'greater_equal', 'greater_equal_max_in_list', 'greater_equal_min_in_list', 'greater_than', 'greater_than_max_in_list', 'greater_than_min_in_list', 'in_list', 'in_stage', 'is_empty', 'less_equal', 'less_equal_max_in_list', 'less_equal_min_in_list', 'less_than', 'less_than_max_in_list', 'less_than_min_in_list', 'not_contains', 'not_contains_any_in_list', 'not_empty', 'not_ends_with', 'not_equals', 'not_equals_any_in_list', 'not_in_list', 'not_in_stage', 'not_starts_with', 'stage_comparison', 'starts_with', 'starts_with_any_in_list']
 
-class FilterDataProcessor(BaseStepProcessor):
+
+class FilterDataProcessor(TransformBaseProcessor):
     """
     Processor for filtering DataFrame rows based on specified conditions.
     
@@ -31,6 +35,24 @@ class FilterDataProcessor(BaseStepProcessor):
     - Can apply multiple filters in sequence with AND logic
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        rule = Schema([
+            Key('column', 'str', required=True),
+            Key('condition', 'str', required=True, choices=FILTER_CONDITIONS),
+            Key('value', 'any'),
+            Key('case_sensitive', 'bool', default=False),
+            Key('comparison_operator', 'str'),
+            Key('key_column', 'str'),
+            Key('stage_name', 'stage_in', description='For in_stage / not_in_stage'),
+            Key('stage_column', 'str'), Key('stage_key_column', 'str'), Key('stage_value_column', 'str'),
+        ])
+        return Schema([
+            Key('filters', 'list_of_mappings', schema=rule),
+            Key('pandas_expression', 'str', description='pandas query text; alternative to filters'),
+        ], at_least_one=[['filters', 'pandas_expression']])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

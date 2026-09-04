@@ -59,7 +59,7 @@ def test_diff_data_registration():
         'step_description': 'Test diff registration',
         'source_stage': 'current_data',
         'reference_stage': 'baseline_data',
-        'key_columns': 'id',
+        'key_columns': ['id'],
         'save_to_stage': 'diff_results'
     }
     
@@ -121,7 +121,7 @@ recipe:
     processor_type: "diff_data"
     source_stage: "current_data"
     reference_stage: "baseline_data"
-    key_columns: "customer_id"
+    key_columns: ["customer_id"]
     save_to_stage: "diff_results"
     
   - step_description: "Export results"
@@ -228,7 +228,7 @@ recipe:
     processor_type: "diff_data"
     source_stage: "current_data"
     reference_stage: "baseline_data"
-    key_columns: "customer_id"
+    key_columns: ["customer_id"]
     save_to_stage: "diff_results"
     exclude_columns: ["customer_id"]
     create_filtered_stages: true
@@ -459,7 +459,7 @@ recipe:
     processor_type: "diff_data"
     source_stage: "current_data"
     reference_stage: "baseline_data"
-    key_columns: "customer_id"
+    key_columns: ["customer_id"]
     save_to_stage: "diff_results"
     handle_deleted_rows: "exclude"
     

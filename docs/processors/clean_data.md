@@ -1,0 +1,457 @@
+# `clean_data`
+
+**Family:** `transform`
+
+Clean and transform data with various operations
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_stage`: stage_in; REQUIRED - Stage to read
+- `save_to_stage`: stage_out; REQUIRED - Stage to write
+- `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
+- `rules`: list_of_mappings; REQUIRED
+  - `columns`: any; REQUIRED - Column name list, or "*" for every column
+  - `action`: str; REQUIRED; one of replace, regex_replace, uppercase, lowercase, title_case, strip_whitespace, remove_special_chars, fix_numeric, fix_dates, coerce_datetime, fill_empty, remove_duplicates, standardize_values, remove_invisible_chars, normalize_whitespace, blank_repeats
+  - `old_value`: any
+  - `new_value`: any
+  - `pattern`: str
+  - `replacement`: str; default ""
+  - `mapping`: open_mapping
+  - `case_sensitive`: bool; default false
+  - `fill_value`: any
+  - `fill_na`: any
+  - `parse_format`: str
+  - `format`: str
+  - `method`: str
+  - `preserve_original_on_failure`: bool
+  - `subset_column`: bool
+  - `condition_column`: str
+  - `condition`: str
+  - `condition_value`: any
+  - `column`: str - Group column for blank_repeats
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+Simple data cleaning with whitespace and case fixes using new columns list syntax
+
+```yaml
+# Clean common data quality issues
+
+settings:
+  description: "Clean customer data formatting issues"
+  stages:
+    - stage_name: "stg_raw_customer_data"
+      description: "Raw customer data from import"
+      protected: false
+    - stage_name: "stg_cleaned_customers"
+      description: "Standardized customer data"
+      protected: false
+
+recipe:
+  # Previous steps populate raw_customer_data
+  - step_description: "Clean customer data formatting"
+    # REQ - Must be "clean_data" for this processor type
+    processor_type: "clean_data"
+    # REQ - Stage to read data from
+    source_stage: "stg_raw_customer_data"
+    # REQ - Stage to save cleaned results
+    save_to_stage: "stg_cleaned_customers"
+    # REQ - List of cleaning rules to apply in sequence
+    rules:
+      # First rule: remove extra whitespace
+      - # REQ - List of column names to clean
+        columns: ["Customer_Name"]
+        # REQ - Action type to perform
+        # Valid actions: "strip_whitespace", "normalize_whitespace", "remove_invisible_chars"
+        action: "strip_whitespace"
+      
+      # Second rule: standardize case
+      - # REQ - List of column names to clean
+        columns: ["Customer_Name"]
+        # REQ - Case conversion action
+        # Valid case actions: "uppercase", "lowercase", "title_case"
+        action: "title_case"
+```
+
+### multiple columns
+
+Apply same cleaning rule to multiple columns simultaneously
+
+```yaml
+# Clean multiple columns with the same rule - major usability improvement
+
+settings:
+  description: "Clean multiple date and numeric columns efficiently"
+  stages:
+    - stage_name: "stg_raw_data"
+      description: "Raw data with formatting issues"
+      protected: false
+    - stage_name: "stg_cleaned_data"
+      description: "Data with standardized formatting"
+      protected: false
+
+recipe:
+  - step_description: "Clean multiple columns efficiently"
+    processor_type: "clean_data"
+    source_stage: "stg_raw_data"
+    save_to_stage: "stg_cleaned_data"
+    rules:
+      # Clean multiple date columns at once
+      - # REQ - List of date columns to standardize
+        columns: ["Invoice_Date", "Ship_Date", "ETD", "ETA_Destination", "Paid_Date"]
+        # REQ - Standardize date formats
+        action: "fix_dates"
+        # OPT - Expected date format pattern
+        # Default value: auto-detect common formats
+        format: "%Y-%m-%d"
+      
+      # Clean multiple numeric columns at once
+      - # REQ - List of numeric columns to format
+        columns: ["Packages", "Cases", "Units", "Net_Weight", "Gross_Weight"]
+        # REQ - Clean and convert numeric data
+        action: "fix_numeric"
+        # OPT - Decimal places for formatting
+        # OPT - Use thousands separator
+      
+      # Remove invisible characters from multiple text columns
+      - # REQ - List of text columns to clean
+        columns: ["Product_Origin", "Species", "Component", "Customer"]
+        # REQ - Remove invisible Unicode characters
+        action: "normalize_whitespace"
+```
+
+### advanced
+
+Complex cleaning with conditional business rules and multiple data types
+
+```yaml
+# Advanced data cleaning with conditional logic and data type fixes
+
+settings:
+  description: "Comprehensive data cleaning and standardization"
+  stages:
+    - stage_name: "stg_sql_export_data"
+      description: "Raw data from SQL export"
+      protected: false
+    - stage_name: "stg_cleaned_data"
+      description: "Fully cleaned and standardized data"
+      protected: false
+
+recipe:
+  - step_description: "Comprehensive data cleaning and standardization"
+    processor_type: "clean_data"
+    source_stage: "stg_sql_export_data"
+    save_to_stage: "stg_cleaned_data"
+    # REQ - List of cleaning rules (processed in order)
+    rules:
+      # Rule 1: Fix invisible characters from SQL exports
+      - # REQ - List of columns to clean
+        columns: ["Product_Origin"]
+        # REQ - Remove invisible Unicode characters that break filtering
+        # Fixes: zero-width spaces, non-breaking spaces, BOM characters
+        action: "normalize_whitespace"
+      
+      # Rule 2: Conditional replacement based on business logic
+      - # REQ - Column to modify (must be a list)
+        columns: ["Component"]
+        # REQ - Find and replace action
+        action: "replace"
+        # REQ - Value to find and replace
+        old_value: "FLESH"
+        # REQ - Replacement value
+        new_value: "CANS"
+        # OPT - Column to check for condition
+        condition_column: "Product_Name"
+        # OPT - Type of condition to evaluate
+        # Valid conditions: "equals", "not_equals", "contains", "not_contains", 
+        # "greater_than", "less_than"
+        condition: "contains"
+        # OPT - Value to test condition against
+        condition_value: "CANNED"
+        # OPT - Case sensitivity for text operations
+        # Default value: true
+        case_sensitive: false
+      
+      # Rule 3: Standardize case for consistency
+      - columns: ["Status"]
+        # REQ - Convert all text to uppercase
+        action: "uppercase"
+      
+      # Rule 4: Fix numeric data formatting
+      - columns: ["Price"]
+        # REQ - Clean and convert numeric data
+        # Removes: $, commas, spaces, converts to float
+        # Handles: "$1,234.56" → 1234.56
+        action: "fix_numeric"
+        # OPT - Value for non-numeric entries
+        # Default value: NaN
+        fill_na: 0.0
+```
+
+### value standardization
+
+Map inconsistent values to standard terms
+
+```yaml
+# Standardize inconsistent values using mapping tables
+
+settings:
+  description: "Standardize status and category values"
+  stages:
+    - stage_name: "stg_inconsistent_data"
+      description: "Data with inconsistent value formats"
+      protected: false
+    - stage_name: "stg_standardized_data"
+      description: "Data with standardized values"
+      protected: false
+
+recipe:
+  - step_description: "Standardize status and category values"
+    processor_type: "clean_data"
+    source_stage: "stg_inconsistent_data"
+    save_to_stage: "stg_standardized_data"
+    rules:
+      # Map multiple variations to standard values
+      - # REQ - List of columns to standardize
+        columns: ["Status"]
+        # REQ - Value mapping action
+        action: "standardize_values"
+        # REQ - Mapping dictionary from old values to new values
+        # All variations of input will be mapped to the standard output
+        mapping:
+          "ACTIVE": "Active"
+          "active": "Active"
+          "Act": "Active"
+          "INACTIVE": "Inactive"
+          "inactive": "Inactive"
+          "Inc": "Inactive"
+          "PENDING": "Pending"
+          "pending": "Pending"
+          "Pend": "Pending"
+```
+
+### sql export cleanup
+
+Fix common SQL export issues that break filtering operations
+
+```yaml
+# Clean SQL export data that has invisible characters
+
+settings:
+  description: "Fix SQL export formatting issues"
+  stages:
+    - stage_name: "stg_sql_raw_data"
+      description: "Data directly from SQL export"
+      protected: false
+    - stage_name: "stg_filtering_ready_data"
+      description: "Data ready for reliable filtering"
+      protected: false
+
+recipe:
+  - step_description: "Clean SQL export data for reliable filtering"
+    processor_type: "clean_data"
+    source_stage: "stg_sql_raw_data"
+    save_to_stage: "stg_filtering_ready_data"
+    rules:
+      # Critical: Fix invisible characters that break exact matching
+      - columns: ["Product_Origin", "Major_Species", "Component"]
+        # REQ - Remove all invisible Unicode characters
+        # Essential for SQL exports that contain zero-width spaces
+        action: "normalize_whitespace"
+      
+      # Standardize case for consistent filtering
+      - columns: ["Status"]
+        action: "uppercase"
+```
+
+### data type cleaning
+
+Fix data types and formatting issues
+
+```yaml
+# Clean and convert data types for proper processing
+
+settings:
+  description: "Fix data types and formatting for analysis"
+  stages:
+    - stage_name: "stg_mixed_format_data"
+      description: "Data with various formatting issues"
+      protected: false
+    - stage_name: "stg_typed_data"
+      description: "Data with correct types and formatting"
+      protected: false
+
+recipe:
+  - step_description: "Fix data types and formatting"
+    processor_type: "clean_data"
+    source_stage: "stg_mixed_format_data"
+    save_to_stage: "stg_typed_data"
+    rules:
+      # Fix numeric columns with formatting
+      - # REQ - List of columns with numeric data
+        columns: ["Price"]
+        # REQ - Clean and convert numeric data
+        # Removes: $, commas, spaces, converts to float
+        # Handles: "$1,234.56" → 1234.56
+        action: "fix_numeric"
+        # OPT - Value for non-numeric entries
+        # Default value: NaN
+        fill_na: 0.0
+      
+      # Fix date formatting
+      - # REQ - List of columns with date data
+        columns: ["Order_Date"]
+        # REQ - Parse and standardize date formats
+        action: "fix_dates"
+        # OPT - Expected date format pattern
+        # Default value: auto-detect common formats
+        # Format examples: "%Y-%m-%d", "%m/%d/%Y", "%d-%b-%Y"
+        format: "%Y-%m-%d"
+      
+      # Fill empty/null values
+      - # REQ - List of columns to fill
+        columns: ["Customer_Category"]
+        # REQ - Fill empty cells with value
+        action: "fill_empty"
+        # REQ - Value to use for empty cells
+        fill_value: "Standard"
+```
+
+### multiple rules
+
+Apply multiple cleaning operations in sequence
+
+```yaml
+# Complex cleaning workflow with multiple sequential operations
+
+settings:
+  description: "Multi-step data cleaning workflow"
+  stages:
+    - stage_name: "stg_messy_data"
+      description: "Raw data with multiple quality issues"
+      protected: false
+    - stage_name: "stg_production_ready_data"
+      description: "Fully cleaned production-ready data"
+      protected: false
+
+recipe:
+  - step_description: "Complete data cleaning workflow"
+    processor_type: "clean_data"
+    source_stage: "stg_messy_data"
+    save_to_stage: "stg_production_ready_data"
+    rules:
+      # Step 1: Remove invisible characters
+      - columns: ["Product_Name"]
+        action: "remove_invisible_chars"
+      
+      # Step 2: Normalize whitespace
+      - columns: ["Product_Name"]
+        action: "strip_whitespace"
+      
+      # Step 3: Standardize case
+      - columns: ["Product_Name"]
+        action: "title_case"
+      
+      # Step 4: Clean phone numbers
+      - columns: ["Phone"]
+        action: "regex_replace"
+        # REQ - Regular expression pattern to match
+        pattern: "[^0-9]"
+        # REQ - Replacement text
+        replacement: ""
+      
+      # Step 5: Fix pricing data
+      - columns: ["Price"]
+        action: "fix_numeric"
+        fill_na: 0.0
+      
+      # Step 6: Conditional business rule
+      - columns: ["Priority"]
+        action: "replace"
+        old_value: "Standard"
+        new_value: "High"
+        condition_column: "Order_Value"
+        condition: "greater_than"
+        condition_value: 1000
+```
+
+### all columns
+
+Clean every column without naming them
+
+```yaml
+# "*" targets every column in the frame. Practical as a first step on a raw
+# download, where naming all sixty-odd columns would defeat the purpose.
+
+settings:
+  description: "Strip stray whitespace from a raw download"
+  stages:
+    - stage_name: "stg_raw"
+      description: "Untouched import"
+      protected: false
+    - stage_name: "stg_cleaned"
+      description: "Whitespace stripped from every text column"
+      protected: false
+
+recipe:
+  - step_description: "Strip whitespace from every text column"
+    processor_type: "clean_data"
+    source_stage: "stg_raw"
+    rules:
+      - # REQ - a list of column names, or "*" for every column
+        columns: "*"
+        action: "strip_whitespace"
+    save_to_stage: "stg_cleaned"
+```
+
+### blank repeats
+
+Pivot-style no-repeat display: blank grouped columns on continuation rows
+
+```yaml
+# Reproduces the pivot-table "don't repeat item labels" look: the first
+# row of a run keeps its values, continuation rows show blanks. The
+# listed columns move AS A GROUP - a row is a continuation only when
+# every one of them equals the row above, and then all are blanked
+# together, so a value whose neighbor differs is never wrongly blanked.
+#
+# This is a display transformation, and the blanks are static: unlike a
+# live pivot, re-sorting the sheet in Excel will not restore the values.
+# Apply it LAST, after all sorting, and only to sheets meant for
+# reading rather than further processing.
+
+settings:
+  description: "Summary sheet with pivot-style label suppression"
+  stages:
+    - stage_name: "stg_summary_sorted"
+      description: "Summary rows, sorted so groups are contiguous"
+      protected: false
+    - stage_name: "stg_summary_display"
+      description: "Display version with repeated labels blanked"
+      protected: false
+
+recipe:
+  - step_description: "Blank repeated booking and tracking on continuation rows"
+    processor_type: "clean_data"
+    source_stage: "stg_summary_sorted"
+    rules:
+      - columns: ["Booking", "Carrier Tracking No"]
+        action: "blank_repeats"
+    save_to_stage: "stg_summary_display"
+```
+
+## Parameter notes
+
+- `rules` (required): List of cleaning operations to apply in sequence
+- `columns` (required): List of column names to clean - must exist in source data. Can contain single column.
+- `action` (required): Type of cleaning operation to perform
+

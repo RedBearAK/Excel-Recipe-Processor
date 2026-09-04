@@ -264,7 +264,7 @@ def test_guided_errors():
          "A1-style"),
         ("retired singular 'range' key",
          dict(base_entry, range='B2'),
-         "apply_to_ranges"),
+         "unknown key 'range'"),
         ("interval missing maximum",
          {'sheet_name': 'Data_Entry', 'apply_to_ranges': ['B2'],
           'validation_type': 'decimal', 'operator': 'between',

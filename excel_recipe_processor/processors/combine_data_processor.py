@@ -13,13 +13,14 @@ import logging
 from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class CombineDataProcessor(BaseStepProcessor):
+class CombineDataProcessor(TransformBaseProcessor):
     """
     Processor for combining multiple DataFrames from various sources.
     
@@ -32,6 +33,20 @@ class CombineDataProcessor(BaseStepProcessor):
     - Header retention as data rows for complex documents
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        part = Schema([
+            Key('insert_from_stage', 'stage_in'),
+            Key('insert_blank_rows', 'int'), Key('insert_blank_cols', 'int'),
+            Key('retain_column_names', 'bool'),
+        ], at_least_one=[['insert_from_stage', 'insert_blank_rows', 'insert_blank_cols']])
+        return Schema([
+            Key('combine_type', 'str', required=True, choices=['vertical_stack', 'horizontal_concat']),
+            Key('column_handling', 'str', choices=['require_matching_columns', 'allow_mismatched_columns']),
+            Key('data_sources', 'list_of_mappings', required=True, schema=part),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

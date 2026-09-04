@@ -60,6 +60,7 @@ from openpyxl import load_workbook
 
 from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.core.base_processor import ImportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema
 from excel_recipe_processor.processors._helpers.column_width_scan import (
     BASE_PADDING,
     DEFAULT_MIN_WIDTH,
@@ -73,6 +74,20 @@ logger = logging.getLogger(__name__)
 
 class ProfileSheetsProcessor(ImportBaseProcessor):
     """Profile one or more sheets/stages into a per-column metadata stage."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-04). Each sheet entry names a stage OR a file plus sheet."""
+        entry = Schema([
+            Key('source_stage', 'stage_in'),
+            Key('input_file', 'str'), Key('sheet_name', 'any'),
+            Key('label', 'str'),
+        ], at_least_one=[['source_stage', 'input_file']])
+        return Schema([
+            Key('sheets', 'list_of_mappings', required=True, schema=entry),
+            Key('scan_rows', 'int'),
+            Key('min_width', 'number'), Key('max_width', 'number'), Key('padding', 'number'),
+        ])
 
     @classmethod
     def get_minimal_config(cls):

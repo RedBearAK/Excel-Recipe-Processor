@@ -41,6 +41,7 @@ import logging
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.processors._helpers.range_patterns import (
     cell_ref_rgx,
@@ -101,6 +102,37 @@ EXCEL_DV_FORMULA_LIMIT = 255
 
 class ExcelDataValidationProcessor(FileOpsBaseProcessor):
     """Write native Excel data-validation rules in canonical ERP vocabulary."""
+
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). One entry per validation; the canonical
+        type and operator names are the keys of VALIDATION_TYPES and
+        OPERATORS (openpyxl spellings are storage, not vocabulary).
+        """
+        alert = Schema([
+            Key('title', 'str'), Key('message', 'str'),
+            Key('style', 'str', choices=['stop', 'warning', 'information']),
+        ])
+        entry = Schema([
+            Key('sheet_name', 'any', required=True, description='Tab name, number, or ?sheet_NNN? token'),
+            Key('apply_to_ranges', 'list', item_kind='str', required=True, description='A1 ranges the validation covers'),
+            Key('validation_type', 'str', required=True, choices=list(VALIDATION_TYPES)),
+            Key('values_list', 'list', item_kind='any', description='list: literal choices'),
+            Key('list_from_named_range', 'str', description='list: a defined name'),
+            Key('list_from_spill_ref', 'str', description='list: a spill anchor like Cust_List!$A$2#'),
+            Key('excel_formula', 'str', description='custom: the validation formula'),
+            Key('operator', 'str', choices=list(OPERATORS)),
+            Key('minimum', 'any'), Key('maximum', 'any'), Key('compare_to', 'any'),
+            Key('allow_blank', 'bool', default=True),
+            Key('show_dropdown', 'bool', default=True),
+            Key('input_prompt', 'mapping', schema=alert),
+            Key('error_alert', 'mapping', schema=alert),
+        ])
+        return Schema([
+            Key('target_file', 'str', required=True),
+            Key('validations', 'list_of_mappings', required=True, schema=entry),
+        ])
 
     @classmethod
     def get_minimal_config(cls) -> dict:

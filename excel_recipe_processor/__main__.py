@@ -210,6 +210,16 @@ For detailed documentation and more examples:
         action='store_true',
         help='Enable verbose output and debug logging'
     )
+
+    parser.add_argument(
+        '--validate',
+        action='store_true',
+        dest='validate_only',
+        help='Load the recipe, resolve variables, validate every step against its '
+             'processor schema and check the stage graph, then stop without running. '
+             'Exit 1 on errors; warnings alone exit 0. The same checks run at the '
+             'start of every real run.'
+    )
     
     # System information commands
     parser.add_argument(
@@ -228,6 +238,22 @@ For detailed documentation and more examples:
         '--json',
         action='store_true',
         help='Output capabilities as JSON (use with --list-capabilities)'
+    )
+
+    parser.add_argument(
+        '--export-docs',
+        metavar='DIR',
+        help='Write one generated Markdown page per processor (description, declared keys, '
+             'validated examples) plus an index into DIR, e.g. docs/processors'
+    )
+
+    parser.add_argument(
+        '--export-schemas',
+        metavar='FORMAT',
+        choices=['json', 'md', 'JSON', 'MD'],
+        help='Print every processor\'s declared step schema (families, keys, kinds, required, '
+             'defaults, choices, variants) as json or md - the reference to read before writing '
+             'a recipe or a new processor'
     )
 
     parser.add_argument(

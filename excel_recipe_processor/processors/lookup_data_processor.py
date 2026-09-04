@@ -18,13 +18,14 @@ from excel_recipe_processor.core.log_format import q
 from typing import Any
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class LookupDataProcessor(BaseStepProcessor):
+class LookupDataProcessor(TransformBaseProcessor):
     """
     Clean processor for enriching data with lookups from stage sources.
     
@@ -38,6 +39,24 @@ class LookupDataProcessor(BaseStepProcessor):
     Uses stage-to-stage workflow only - no file handling complexity.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('lookup_stage', 'stage_in', required=True),
+            Key('match_col_in_main_data', 'str', required=True),
+            Key('match_col_in_lookup_data', 'str', required=True),
+            name_list('lookup_columns', required=True),
+            Key('join_type', 'str', default='left', choices=['left', 'inner']),
+            Key('handle_duplicates', 'str', default='first', choices=['first', 'last', 'error']),
+            Key('default_values', 'open_mapping', description='lookup column -> value when unmatched'),
+            Key('normalize_keys', 'bool', default=True),
+            Key('low_match_warning', 'bool', default=True),
+            Key('match_mode', 'str', default='exact_key_equality',
+                choices=['exact_key_equality', 'lookup_value_within_main_text']),
+            Key('prefix', 'str', default=''), Key('suffix', 'str', default=''),
+        ])
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {
@@ -203,8 +222,17 @@ class LookupDataProcessor(BaseStepProcessor):
     def _validate_lookup_data(self, lookup_data: pd.DataFrame, match_col_in_lookup_data: str, lookup_columns: list) -> None:
         """Validate that lookup data has required columns."""
         
+        # An EMPTY lookup stage that still carries the declared columns is
+        # the import_file create_empty contract arriving here (2026-09-02):
+        # the source file was absent on this machine, so every row comes
+        # back unmatched - loudly, but the run survives. An empty stage
+        # WITHOUT the columns is still a configuration error below.
         if len(lookup_data) == 0:
-            raise StepProcessorError("Lookup stage contains no data")
+            logger.warning(
+                f"\u26a0\ufe0f  '{self.step_name}': lookup stage is EMPTY - every row "
+                f"will be unmatched (blank or default). This is expected only "
+                f"when the source file was absent (on_missing_file: create_empty)."
+            )
         
         # Check lookup key exists
         if match_col_in_lookup_data not in lookup_data.columns:

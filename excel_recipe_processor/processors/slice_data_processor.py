@@ -12,13 +12,14 @@ import logging
 import pandas as pd
 
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class SliceDataProcessor(BaseStepProcessor):
+class SliceDataProcessor(TransformBaseProcessor):
     """
     Processor for extracting portions of DataFrames.
     
@@ -29,6 +30,19 @@ class SliceDataProcessor(BaseStepProcessor):
     - Stage-based source data loading
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('slice_type', 'str', required=True, choices=['row_range', 'column_range', 'transpose']),
+            Key('slice_result_contains_headers', 'bool', default=False),
+            Key('header_column', 'str'), Key('old_headers_column_name', 'str', default='Field'),
+        ], variants={'slice_type': {
+            'row_range': Schema([Key('start_row', 'int', default=1), Key('end_row', 'int')]),
+            'column_range': Schema([Key('start_col', 'any'), Key('end_col', 'any')]),
+            'transpose': Schema([]),
+        }})
+
     @classmethod
     def get_minimal_config(cls) -> dict:
         return {

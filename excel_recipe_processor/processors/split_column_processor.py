@@ -12,13 +12,14 @@ import logging
 
 from typing import Any
 
-from excel_recipe_processor.core.base_processor import BaseStepProcessor, StepProcessorError
+from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
+from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 
 
 logger = logging.getLogger(__name__)
 
 
-class SplitColumnProcessor(BaseStepProcessor):
+class SplitColumnProcessor(TransformBaseProcessor):
     """
     Processor for splitting DataFrame columns into multiple columns.
     
@@ -27,11 +28,29 @@ class SplitColumnProcessor(BaseStepProcessor):
     """
     
     @classmethod
+    def config_schema(cls) -> Schema:
+        """Declared keys (2026-09-03); see core/config_schema.py."""
+        return Schema([
+            Key('source_column', 'str', required=True),
+            Key('split_type', 'str', required=True, choices=['delimiter', 'fixed_width', 'regex', 'position']),
+            Key('delimiter', 'str'), Key('pattern', 'str'),
+            Key('widths', 'list', item_kind='int'), Key('positions', 'list', item_kind='int'),
+            Key('max_splits', 'int'),
+            name_list('new_column_names'),
+            Key('expand_to_columns', 'bool', default=True),
+            Key('fill_missing', 'any', default=''),
+            Key('remove_original', 'bool', default=False),
+            Key('strip_whitespace', 'bool', default=True),
+        ])
+
+    @classmethod
     def get_minimal_config(cls) -> dict:
         return {
             'source_column': 'test_column',
             'delimiter': ',',
-            'new_columns': ['part1', 'part2']
+            'split_type': 'delimiter',
+            'delimiter': ',',
+            'new_column_names': ['part1', 'part2']
         }
     
     def execute(self, data: Any) -> pd.DataFrame:

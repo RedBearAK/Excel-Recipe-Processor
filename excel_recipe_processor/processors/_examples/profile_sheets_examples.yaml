@@ -110,7 +110,7 @@ consumer_example:
         processor_type: "format_excel"
         target_file: "{output_dir}/output.xlsx"
         formatting:
-          - sheet_name: "Exp_View"
+          - sheet_names: ["Exp_View"]
             # Reads the profile stage by COLUMN NAME
             column_widths_from_stage: "stg_sheet_profiles"
             # OPT - Required only when the profile holds >1 Source

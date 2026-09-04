@@ -76,7 +76,7 @@ def test_basic_filter_detection():
     step_config = {
         'processor_type': 'filter_terms_detector',
         'step_description': 'Test basic filter detection',
-        'raw_stage': 'stg_raw_customer_data',
+        'source_stage': 'stg_raw_customer_data',
         'filtered_stage': 'stg_filtered_customer_data',
         'text_columns': ['notes'],
         'categorical_columns': ['status', 'priority'],
@@ -165,7 +165,7 @@ def test_text_ngram_analysis():
     step_config = {
         'processor_type': 'filter_terms_detector',
         'step_description': 'Test n-gram analysis',
-        'raw_stage': 'stg_raw_projects',
+        'source_stage': 'stg_raw_projects',
         'filtered_stage': 'stg_filtered_projects',
         'text_columns': ['description'],
         'ngram_range': [1, 3],
@@ -221,13 +221,13 @@ def test_configuration_validation():
         },
         {
             'processor_type': 'filter_terms_detector',
-            'raw_stage': 'test_raw',
+            'source_stage': 'test_raw',
             'filtered_stage': 'test_filtered',
             'text_columns': 123  # Should be string or list, not int
         },
         {
             'processor_type': 'filter_terms_detector', 
-            'raw_stage': 'test_raw',
+            'source_stage': 'test_raw',
             'filtered_stage': 'test_filtered',
             'text_columns': ['notes'],
             'ngram_range': [1, 7]  # Too high, max should be 6
@@ -273,7 +273,7 @@ def test_empty_data_handling():
     step_config = {
         'processor_type': 'filter_terms_detector',
         'step_description': 'Test minimal data handling',
-        'raw_stage': 'stg_minimal_raw',
+        'source_stage': 'stg_minimal_raw',
         'filtered_stage': 'stg_minimal_filtered',
         'text_columns': ['notes'],
         'save_to_stage': 'stg_minimal_results'
@@ -337,7 +337,7 @@ def test_auto_detect_columns():
     step_config = {
         'processor_type': 'filter_terms_detector',
         'step_description': 'Test auto-detection of column types',
-        'raw_stage': 'stg_raw_test_data',
+        'source_stage': 'stg_raw_test_data',
         'filtered_stage': 'stg_filtered_test_data',
         'auto_detect_columns': True,
         'exclude_columns': ['Price', 'Van Number'],  # Exclude numeric/ID columns
@@ -433,7 +433,7 @@ def test_auto_detect_with_mixed_config():
     step_config = {
         'processor_type': 'filter_terms_detector',
         'step_description': 'Test mixed auto-detection and explicit columns',
-        'raw_stage': 'stg_mixed_config_raw',
+        'source_stage': 'stg_mixed_config_raw',
         'filtered_stage': 'stg_mixed_config_filtered',
         'auto_detect_columns': True,
         'text_columns': ['Notes'],  # Explicitly specify Notes
@@ -502,7 +502,7 @@ def test_text_analysis_fix():
     step_config = {
         'processor_type': 'filter_terms_detector',
         'step_description': 'Test text analysis fix',
-        'raw_stage': 'stg_simple_raw',
+        'source_stage': 'stg_simple_raw',
         'filtered_stage': 'stg_simple_filtered',
         'text_columns': ['notes'],
         'ngram_range': [1, 2],

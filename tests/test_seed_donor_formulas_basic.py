@@ -35,7 +35,7 @@ def test_processor_initialization():
             'source_sheet': 'Summary',
             'target_file': 'output/new_budget.xlsx',
             'target_sheet': 'Summary',
-            'columns': ['C', 'D'],
+            'column_refs': ['C', 'D'],
             'start_row': 2,
             'row_count': 3
         }
@@ -54,7 +54,7 @@ def test_configuration_validation():
     print("Testing configuration validation...")
     
     # Test missing required fields
-    required_fields = ['source_file', 'source_sheet', 'target_file', 'target_sheet', 'columns']
+    required_fields = ['source_file', 'source_sheet', 'target_file', 'target_sheet', 'column_refs']
     
     base_config = {
         'processor_type': 'seed_donor_formulas',
@@ -63,7 +63,7 @@ def test_configuration_validation():
         'source_sheet': 'Summary',
         'target_file': 'output/new_budget.xlsx',
         'target_sheet': 'Summary',
-        'columns': ['C', 'D'],
+        'column_refs': ['C', 'D'],
         'start_row': 2,
         'row_count': 3
     }

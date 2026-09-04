@@ -70,10 +70,10 @@ def test_create_from_columns_stores_comment():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_indicator', 'sheet_name': 'Decode',
-                 'columns': ['Indicator'], 'row_mode': 'data',
+                 'column_names': ['Indicator'], 'row_mode': 'data',
                  'name_mgr_comment': comment_text},
                 {'name': 'rng_no_comment', 'sheet_name': 'Decode',
-                 'columns': ['Relevant Date'], 'row_mode': 'data'},
+                 'column_names': ['Relevant Date'], 'row_mode': 'data'},
             ]
         })
         processor.execute()
@@ -113,7 +113,7 @@ def test_multiline_yaml_text_is_flattened():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_indicator', 'sheet_name': 'Decode',
-                 'columns': ['Indicator'], 'row_mode': 'data',
+                 'column_names': ['Indicator'], 'row_mode': 'data',
                  'name_mgr_comment': 'Line one\ncontinues here\n  with   runs'},
             ]
         })
@@ -145,7 +145,7 @@ def test_over_limit_refused_with_guidance():
             'target_file': target,
             'ranges': [
                 {'name': 'rng_indicator', 'sheet_name': 'Decode',
-                 'columns': ['Indicator'], 'row_mode': 'data',
+                 'column_names': ['Indicator'], 'row_mode': 'data',
                  'name_mgr_comment': 'x' * 300},
             ]
         })
@@ -174,19 +174,18 @@ def test_wrong_key_gets_guided_error():
         target = str(Path(temp_dir) / 'lookup.xlsx')
         build_lookup_workbook(target)
 
-        processor = ManageNamedObjectsProcessor({
+        try:
+
+            ManageNamedObjectsProcessor({
             'processor_type': 'manage_named_objects',
             'operation': 'create_from_columns',
             'target_file': target,
             'ranges': [
                 {'name': 'rng_indicator', 'sheet_name': 'Decode',
-                 'columns': ['Indicator'], 'row_mode': 'data',
+                 'column_names': ['Indicator'], 'row_mode': 'data',
                  'comment': 'lands nowhere without guidance'},
             ]
-        })
-
-        try:
-            processor.execute()
+        }).execute()
         except StepProcessorError as error:
             if 'name_mgr_comment' in str(error):
                 print("  ✓ wrong key refused; error names name_mgr_comment")

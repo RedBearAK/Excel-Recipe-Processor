@@ -120,7 +120,7 @@ def test_singular_entry_key_guided():
         return False
     except StepProcessorError as error:
         message = str(error)
-        ok = "singular 'sheet_name'" in message and 'LIST' in message
+        ok = "unknown key 'sheet_name'" in message and "did you mean 'sheet_names'" in message
         print(f"  {'✓' if ok else '✗'} guided: {message[:90]}")
         return ok
 
@@ -140,7 +140,7 @@ def test_scalar_sheet_names_guided():
         return False
     except StepProcessorError as error:
         message = str(error)
-        ok = 'bare' in message and "['View_A']" in message
+        ok = 'sheet_names: expected list of str' in message
         print(f"  {'✓' if ok else '✗'} guided: {message[:90]}")
         return ok
 
@@ -178,7 +178,7 @@ def test_entry_validation_names_position():
         print("  ✗ entry without formulas accepted")
         return False
     except StepProcessorError as error:
-        ok = 'entry 2' in str(error) and 'formulas' in str(error)
+        ok = '[2]' in str(error) and "missing required key 'formulas'" in str(error)
         print(f"  {'✓' if ok else '✗'} named: {str(error)[:90]}")
         return ok
 
@@ -191,13 +191,13 @@ def test_unknown_entry_key_fails_loud():
         run_step({
             'mode': 'live',
             'sheets_to_receive_formulas': [
-                {'sheet_names': ['View_A'], 'mode': 'dead',
+                {'sheet_names': ['View_A'], 'mode': 'awaken',
                  'formulas': [{'cell': 'A2', 'excel_formula': '=1'}]}],
         })
         print("  ✗ stray per-entry key accepted")
         return False
     except StepProcessorError as error:
-        ok = 'unknown key' in str(error) and 'mode' in str(error)
+        ok = "unknown key 'mode'" in str(error)
         print(f"  {'✓' if ok else '✗'} named: {str(error)[:100]}")
         return ok
 

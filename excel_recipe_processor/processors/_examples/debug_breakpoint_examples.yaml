@@ -93,9 +93,9 @@ development_workflow_example:
         source_stage: "stg_raw_sales"
         # REQ - Cleaning rules to apply
         rules:
-          - column: "Sales_Amount"
+          - columns: ["Sales_Amount"]
             action: "fix_numeric"
-          - column: "Customer_Name"
+          - columns: ["Customer_Name"]
             action: "title_case"
         save_to_stage: "stg_cleaned_sales"
 
@@ -156,9 +156,9 @@ error_troubleshooting_example:
         processor_type: "clean_data"
         source_stage: "stg_product_data"
         rules:
-          - column: "Product_Category"
+          - columns: ["Product_Category"]
             action: "normalize_whitespace"
-          - column: "Region"
+          - columns: ["Region"]
             action: "uppercase"
         save_to_stage: "stg_prepared_data"
 
@@ -246,7 +246,7 @@ advanced_example:
         source_stage: "stg_transformed_data"
         # REQ - Sort configuration
         columns: ["Profit_Margin", "Revenue"]
-        ascending: [false, false]
+        sort_type: "descending"
         save_to_stage: "stg_analysis_ready"
 
       - # DEBUG: Final validation before export

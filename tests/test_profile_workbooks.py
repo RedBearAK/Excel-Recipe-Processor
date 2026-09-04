@@ -134,7 +134,7 @@ def test_drift_alarm_through_diff_data():
             'processor_type': 'diff_data',
             'reference_stage': 'stg_t_baseline',
             'source_stage': 'stg_t_current',
-            'key_columns': 'Sheet',
+            'key_columns': ['Sheet'],
             'save_to_stage': 'stg_t_drift',
         }
         # diff_data is data-in-data-out: current frame as the argument,

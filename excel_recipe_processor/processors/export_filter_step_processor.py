@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 from excel_recipe_processor.core.base_processor import ExportBaseProcessor, StepProcessorError
+from excel_recipe_processor.core.config_schema import Key, Schema
 
 
 from excel_recipe_processor.core.log_format import q
@@ -28,6 +29,26 @@ class ExportFilterStepProcessor(ExportBaseProcessor):
     that can be added to recipes as filter_data processor steps.
     """
     
+    @classmethod
+    def config_schema(cls) -> Schema:
+        """
+        Declared keys (2026-09-04). Writes a filter_data STEP (yaml/json) from
+        accepted terms in source_stage. target_stage / output_stage are the
+        names written INTO that generated step, not stages this step touches.
+        """
+        return Schema([
+            Key('output_file', 'str', required=True),
+            Key('output_format', 'str', default='yaml', choices=['yaml', 'json']),
+            Key('target_stage', 'str', default='stg_data_to_filter', description='source_stage of the generated step'),
+            Key('output_stage', 'str', default='stg_data_filtered', description='save_to_stage of the generated step'),
+            Key('acceptance_column', 'str', default='User_Verified'),
+            Key('acceptance_values', 'list', item_kind='any', default=['KEEP', 'YES', 'TRUE']),
+            Key('column_name_field', 'str', default='Column_Name'),
+            Key('filter_term_field', 'str', default='Filter_Term'),
+            Key('term_type_field', 'str', default='Term_Type'),
+            Key('include_full_recipe', 'bool', default=True),
+        ])
+
     @classmethod
     def get_minimal_config(cls):
         return {

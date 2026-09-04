@@ -109,12 +109,12 @@ def test_single_column_aggregation():
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Basic aggregation test',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Sales'
+                'output_name': 'Total_Sales'
             }
         ]
     }
@@ -151,12 +151,12 @@ def test_multi_column_aggregation():
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Sales'
+                'output_name': 'Total_Sales'
             },
             {
                 'column': 'Order_Count',
                 'function': 'mean',
-                'new_column_name': 'Avg_Orders'
+                'output_name': 'Avg_Orders'
             }
         ]
     }
@@ -188,22 +188,22 @@ def test_multiple_functions_same_column():
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Sales statistics by region',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Sales'
+                'output_name': 'Total_Sales'
             },
             {
                 'column': 'Sales_Amount',
                 'function': 'mean',
-                'new_column_name': 'Avg_Sales'
+                'output_name': 'Avg_Sales'
             },
             {
                 'column': 'Sales_Amount',
                 'function': 'count',
-                'new_column_name': 'Sales_Count'
+                'output_name': 'Sales_Count'
             }
         ]
     }
@@ -236,12 +236,12 @@ def test_configuration_options():
     step_config1 = {
         'processor_type': 'aggregate_data',
         'step_description': 'Test without group columns',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Sales'
+                'output_name': 'Total_Sales'
             }
         ],
         'keep_group_columns': False
@@ -256,7 +256,7 @@ def test_configuration_options():
     step_config2 = {
         'processor_type': 'aggregate_data',
         'step_description': 'Test output_name compatibility',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
@@ -293,12 +293,12 @@ def test_save_to_stage():
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Test stage saving',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Sales'
+                'output_name': 'Total_Sales'
             }
         ],
         'save_to_stage': 'Sales Summary'
@@ -468,12 +468,12 @@ def test_variable_substitution_aggregation():
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Test variable substitution',
-        'group_by': '{GROUP_COLUMN}',
+        'group_by': ['{GROUP_COLUMN}'],
         'aggregations': [
             {
                 'column': '{VALUE_COLUMN}',
                 'function': 'sum',
-                'new_column_name': '{OUTPUT_PREFIX}_Total'
+                'output_name': '{OUTPUT_PREFIX}_Total'
             }
         ]
     }
@@ -515,7 +515,7 @@ def test_summary_aggregation_helper():
     processor = AggregateDataProcessor({
         'processor_type': 'aggregate_data',
         'step_description': 'Test helper',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': []
     })
     
@@ -553,9 +553,9 @@ def test_analysis_method():
     
     processor = AggregateDataProcessor({
         'processor_type': 'aggregate_data',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
-            {'column': 'Sales_Amount', 'function': 'sum', 'new_column_name': 'Total_Sales'}
+            {'column': 'Sales_Amount', 'function': 'sum', 'output_name': 'Total_Sales'}
         ]
     })
     
@@ -582,7 +582,7 @@ def test_capabilities_method():
     
     processor = AggregateDataProcessor({
         'processor_type': 'aggregate_data',
-        'group_by': 'test',
+        'group_by': ['test'],
         'aggregations': []
     })
     
@@ -664,7 +664,7 @@ def test_aggregation_error_handling():
     # First create a stage to test overwrite with
     step_config_create = {
         'processor_type': 'aggregate_data',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [{'column': 'Sales_Amount', 'function': 'sum'}],
         'save_to_stage': 'Test Overwrite Stage',
         'confirm_stage_replacement': True  # Allow initial creation
@@ -676,7 +676,7 @@ def test_aggregation_error_handling():
     try:
         bad_config = {
             'processor_type': 'aggregate_data',
-            'group_by': 'Region',
+            'group_by': ['Region'],
             'aggregations': [{'column': 'Sales_Amount', 'function': 'sum'}],
             'save_to_stage': 'Test Overwrite Stage'  # This stage now exists
             # confirm_stage_replacement: false (default)
@@ -710,17 +710,17 @@ def test_real_world_scenario():
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Revenue'
+                'output_name': 'Total_Revenue'
             },
             {
                 'column': 'Order_Count',
                 'function': 'sum',
-                'new_column_name': 'Total_Orders'
+                'output_name': 'Total_Orders'
             },
             {
                 'column': 'Sales_Amount',
                 'function': 'mean',
-                'new_column_name': 'Avg_Deal_Size'
+                'output_name': 'Avg_Deal_Size'
             }
         ],
         'save_to_stage': 'Regional Quarterly Summary',
@@ -735,17 +735,17 @@ def test_real_world_scenario():
     step_config_2 = {
         'processor_type': 'aggregate_data',
         'step_description': 'Department analysis',
-        'group_by': 'Department',
+        'group_by': ['Department'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Dept_Revenue'
+                'output_name': 'Dept_Revenue'
             },
             {
                 'column': 'Sales_Amount',
                 'function': 'count',
-                'new_column_name': 'Dept_Transactions'
+                'output_name': 'Dept_Transactions'
             }
         ]
     }
@@ -788,12 +788,12 @@ def test_backward_compatibility():
     
     old_style_config = {
         'processor_type': 'aggregate_data',
-        'group_by': 'Region',
+        'group_by': ['Region'],
         'aggregations': [
             {
                 'column': 'Sales_Amount',
                 'function': 'sum',
-                'new_column_name': 'Total_Sales'
+                'output_name': 'Total_Sales'
             }
         ],
         'keep_group_columns': True,
@@ -840,7 +840,7 @@ def test_blank_keyed_groups_retained():
         'save_to_stage': 'stg_blank_key_out',
         'group_by': ['Booking', 'Tracking'],
         'aggregations': [{'column': 'Weight', 'function': 'sum',
-                          'new_column_name': 'Total'}],
+                          'output_name': 'Total'}],
     })
     result = processor.execute(frame)
     passed = True
@@ -909,7 +909,7 @@ if __name__ == '__main__':
     # Show processor capabilities
     processor = AggregateDataProcessor({
         'processor_type': 'aggregate_data',
-        'group_by': 'test', 
+        'group_by': ['test'], 
         'aggregations': []
     })
     

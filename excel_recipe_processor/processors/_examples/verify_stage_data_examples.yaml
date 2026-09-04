@@ -1,0 +1,87 @@
+# Revision date: 2026-09-03
+
+description: >
+  Check a STAGE's row VALUES against expectations, mid-pipeline - the
+  sibling of verify_columns, one level down. Rules speak the full
+  filter_data condition vocabulary (borrowed live, so the two never
+  drift). Each rule warns by default or halts; outcomes land in the
+  run-end verification summary. Written-sheet twin: verify_sheet_data.
+
+
+basic_example:
+  description: "Warn on data gaps after enrichment, halt on the unforgivable one"
+  yaml: |
+    settings:
+      description: "Verify the enriched data before export"
+      stages:
+        - stage_name: "stg_enriched"
+          description: "Fully enriched rows"
+          protected: false
+
+    recipe:
+      - # Each rule: column + condition (+ value where the condition takes
+        # one) + optional severity and description. warn is the default:
+        # the run continues, the log shows the count and a sample, and the
+        # run-end summary line tallies it.
+        step_description: "Verify the enrichment held"
+        # REQ - Must be "verify_data" for this processor type
+        processor_type: "verify_stage_data"
+        # REQ - Stage this step reads
+        source_stage: "stg_enriched"
+        rules:
+          - column: "SHIP REF"
+            condition: "not_empty"
+            # OPT - "warn" (default) or "halt"
+            severity: "halt"
+            # OPT - The line pass/warn/halt messages lead with
+            description: "Every row must have a resolved SHIP REF"
+          - column: "Price"
+            condition: "greater_than"
+            value: 0
+          - column: "Booking"
+            condition: "not_empty"
+
+referential_example:
+  description: "Values must exist in a lookup stage (unresolved-lookup guard)"
+  yaml: |
+    settings:
+      description: "Guard against carriers absent from the carriers table"
+      stages:
+        - stage_name: "stg_enriched"
+          description: "Enriched rows"
+          protected: false
+        - stage_name: "stg_lookup_carriers"
+          description: "The carriers lookup table"
+          protected: false
+
+    recipe:
+      - # in_stage is filter_data's referential condition: every value in
+        # the column must appear in the named stage's column. The classic
+        # use: after a lookup-based enrichment, prove nothing fell through.
+        step_description: "Every carrier must exist in the lookup"
+        processor_type: "verify_stage_data"
+        source_stage: "stg_enriched"
+        rules:
+          - column: "Carrier"
+            condition: "in_stage"
+            stage_name: "stg_lookup_carriers"
+            stage_column: "Carrier"
+            description: "Carrier must exist in the carriers lookup"
+
+parameter_details:
+  source_stage:
+    type: string
+    required: true
+    description: "Stage this step reads (a check: nothing is written). Rule-level stage references use filter_data's 'stage_name' - a different role, a different key."
+  rules:
+    type: list of objects
+    required: true
+    description: "Expectations every row must satisfy. Any filter_data condition works, with that condition's own parameters (value, case_sensitive, stage_name/stage_column for in_stage, ...)."
+    rule_keys:
+      column: "Column the expectation applies to"
+      condition: "Any filter_data condition name"
+      value: "The condition's operand, where it takes one"
+      severity: "warn (default) or halt"
+      description: "The line pass/warn/halt messages lead with"
+
+# End of file #

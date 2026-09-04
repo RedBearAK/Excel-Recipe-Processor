@@ -1,0 +1,309 @@
+# `debug_breakpoint`
+
+**Family:** `export`
+
+Export data for debugging and stop recipe execution
+
+## Keys
+
+Generated from the declared schema; keys not listed are refused at recipe load.
+
+- `step_description`: str - Human-readable step name; apostrophe-free by house style
+- `processor_type`: str; REQUIRED - Registered processor name
+- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `source_stage`: stage_in; REQUIRED - Stage to read
+- `message`: str
+- `output_path`: str
+- `filename_prefix`: str
+- `include_timestamp`: bool; default true
+- `show_sample`: bool; default true
+- `sample_rows`: int; default 5
+
+## Examples
+
+Every step below validates against the schema (tests/test_examples_validate_against_schemas.py).
+
+### basic
+
+Simple debugging checkpoint after data processing
+
+```yaml
+settings:
+  description: "Basic workflow with debug checkpoint"
+  stages:
+    - stage_name: "stg_imported_data"
+      description: "Raw data from file import"
+      protected: false
+    - stage_name: "stg_filtered_data"
+      description: "Data after filtering operation"
+      protected: false
+
+recipe:
+  - # Step 1: Import data
+    step_description: "Import customer data"
+    # REQ - Must be "import_file" for file import
+    processor_type: "import_file"
+    # REQ - Path to input Excel file
+    input_file: "data/customer_data.xlsx"
+    # REQ - Stage to save imported data (import_file only needs save_to_stage)
+    save_to_stage: "stg_imported_data"
+
+  - # Step 2: Filter for active customers
+    step_description: "Filter for active customers only"
+    # REQ - Must be "filter_data" for filtering
+    processor_type: "filter_data"
+    # REQ - Stage to read data from (must be declared in settings.stages)
+    source_stage: "stg_imported_data"
+    # REQ - Filter criteria
+    filters:
+      - column: "Status"
+        condition: "equals"
+        value: "Active"
+    # REQ - Stage to save filtered results
+    save_to_stage: "stg_filtered_data"
+
+  - # Step 3: Debug checkpoint to inspect results
+    # OPT - Human-readable step description
+    # Default value: "Unnamed debug_breakpoint step"
+    step_description: "DEBUG: Check filtering results"
+    # REQ - Must be "debug_breakpoint" for this processor type
+    processor_type: "debug_breakpoint"
+    # REQ - Stage to read debug data from (must be declared in settings.stages)
+    source_stage: "stg_filtered_data"
+    # OPT - Debug message for identification
+    # Default value: "Debug breakpoint reached"
+    message: "Verify active customer filtering worked correctly"
+```
+
+### development workflow
+
+Recipe development with multiple debug checkpoints
+
+```yaml
+settings:
+  description: "Sales report development with incremental testing"
+  stages:
+    - stage_name: "stg_raw_sales"
+      description: "Raw sales data import"
+      protected: false
+    - stage_name: "stg_cleaned_sales"
+      description: "Sales data after cleaning"
+      protected: false
+    - stage_name: "stg_current_quarter"
+      description: "Sales filtered for current quarter"
+      protected: false
+
+recipe:
+  - # Step 1: Import sales data
+    step_description: "Import monthly sales report"
+    processor_type: "import_file"
+    input_file: "data/sales_march_2024.xlsx"
+    save_to_stage: "stg_raw_sales"
+
+  - # DEBUG: Check raw data structure
+    step_description: "DEBUG: Inspect raw import structure"
+    processor_type: "debug_breakpoint"
+    source_stage: "stg_raw_sales"
+    # OPT - Custom debug message explaining what to check
+    message: "Verify column names and data types from import"
+    # OPT - Custom output path for organized debug files
+    # Default value: "./debug_outputs/"
+    output_path: "./debug/step_1_import/"
+    # OPT - Descriptive filename prefix
+    # Default value: "debug_breakpoint"
+    filename_prefix: "raw_sales_import"
+
+  - # Step 2: Clean the data
+    step_description: "Clean sales data and fix formats"
+    processor_type: "clean_data"
+    source_stage: "stg_raw_sales"
+    # REQ - Cleaning rules to apply
+    rules:
+      - columns: ["Sales_Amount"]
+        action: "fix_numeric"
+      - columns: ["Customer_Name"]
+        action: "title_case"
+    save_to_stage: "stg_cleaned_sales"
+
+  - # DEBUG: Verify cleaning worked
+    step_description: "DEBUG: Check data cleaning results"
+    processor_type: "debug_breakpoint"
+    source_stage: "stg_cleaned_sales"
+    message: "Verify numeric formatting and name capitalization"
+    output_path: "./debug/step_2_cleaning/"
+    filename_prefix: "cleaned_sales_data"
+    # OPT - Show more sample rows for detailed inspection
+    # Default value: 5
+    sample_rows: 10
+
+  - # Step 3: Filter for current quarter
+    step_description: "Filter for Q1 2024 sales only"
+    processor_type: "filter_data"
+    source_stage: "stg_cleaned_sales"
+    filters:
+      - column: "Sale_Date"
+        condition: "greater_equal"
+        value: "2024-01-01"
+      - column: "Sale_Date"
+        condition: "less_than"
+        value: "2024-04-01"
+    save_to_stage: "stg_current_quarter"
+
+  - # DEBUG: Final checkpoint before complex processing
+    step_description: "DEBUG: Validate quarter filtering before aggregation"
+    processor_type: "debug_breakpoint"
+    source_stage: "stg_current_quarter"
+    message: "Should show only Q1 2024 data, roughly 1000 records expected"
+    output_path: "./debug/step_3_filtering/"
+    filename_prefix: "q1_filtered_sales"
+```
+
+### error troubleshooting
+
+Add debug checkpoints to troubleshoot failing steps
+
+```yaml
+settings:
+  description: "Troubleshoot failing pivot table operation"
+  stages:
+    - stage_name: "stg_product_data"
+      description: "Product sales data"
+      protected: false
+    - stage_name: "stg_prepared_data"
+      description: "Data prepared for pivot table"
+      protected: false
+
+recipe:
+  - # Step 1: Import product data
+    step_description: "Import product sales data"
+    processor_type: "import_file"
+    input_file: "data/product_sales.xlsx"
+    save_to_stage: "stg_product_data"
+
+  - # Step 2: Prepare data for pivot
+    step_description: "Clean data for pivot table operation"
+    processor_type: "clean_data"
+    source_stage: "stg_product_data"
+    rules:
+      - columns: ["Product_Category"]
+        action: "normalize_whitespace"
+      - columns: ["Region"]
+        action: "uppercase"
+    save_to_stage: "stg_prepared_data"
+
+  - # DEBUG: Check data before failing step
+    step_description: "DEBUG: Inspect data before pivot table creation"
+    processor_type: "debug_breakpoint"
+    source_stage: "stg_prepared_data"
+    message: "Check column names, null values, and data types before pivot"
+    # OPT - Include timestamp for multiple debugging sessions
+    # Default value: true
+    include_timestamp: true
+    # OPT - Show sample data in console for quick inspection
+    # Default value: true
+    show_sample: true
+    sample_rows: 15
+
+  # NOTE: The pivot_table step that was failing would go here
+  # Commenting out during troubleshooting:
+  # - step_description: "Create sales pivot by region and category"
+  #   processor_type: "pivot_table"
+  #   source_stage: "prepared_data"
+  #   index: ["Region"]
+  #   columns: ["Product_Category"]
+  #   values: ["Sales_Amount"]
+  #   aggfunc: "sum"
+  #   save_to_stage: "pivot_results"
+```
+
+### advanced
+
+Advanced debugging with custom configuration and file management
+
+```yaml
+settings:
+  description: "Complex workflow with organized debug output and custom settings"
+  variables:
+    debug_session: "dev_test_001"
+    analysis_date: "2024-03-15"
+  stages:
+    - stage_name: "stg_source_data"
+      description: "Source data for analysis"
+      protected: false
+    - stage_name: "stg_transformed_data"
+      description: "Data after complex transformations"
+      protected: false
+    - stage_name: "stg_analysis_ready"
+      description: "Final data ready for analysis"
+      protected: false
+
+recipe:
+  - # Step 1: Import source data
+    step_description: "Import analysis dataset"
+    processor_type: "import_file"
+    input_file: "data/analysis_dataset.xlsx"
+    save_to_stage: "stg_source_data"
+
+  - # Step 2: Complex data transformation
+    step_description: "Apply complex business logic transformations"
+    processor_type: "add_calculated_column"
+    source_stage: "stg_source_data"
+    # REQ - Column calculation configuration
+    new_column: "Profit_Margin"
+    calculation:
+      pandas_formula: "({col:Revenue} - {col:Cost}) / {col:Revenue} * 100"
+    save_to_stage: "stg_transformed_data"
+
+  - # DEBUG: Comprehensive debugging checkpoint
+    step_description: "DEBUG: Comprehensive analysis checkpoint"
+    processor_type: "debug_breakpoint"
+    source_stage: "stg_transformed_data"
+    # OPT - Detailed message with expected results
+    message: "Verify profit margin calculations - should be between 0-50% for most records"
+    # OPT - Organized output path with variables
+    # Variables: {debug_session}, {analysis_date} defined in settings
+    output_path: "./debug/{debug_session}_{analysis_date}/"
+    # OPT - Descriptive filename with context
+    filename_prefix: "profit_margin_analysis"
+    # OPT - No timestamp for consistent filename during repeated testing
+    # Useful when iterating on recipe development
+    include_timestamp: false
+    # OPT - Disable console sample for cleaner output
+    # When debugging large datasets or in automated environments
+    show_sample: false
+
+  - # Step 3: Final data preparation
+    step_description: "Prepare final analysis dataset"
+    processor_type: "sort_data"
+    source_stage: "stg_transformed_data"
+    # REQ - Sort configuration
+    columns: ["Profit_Margin", "Revenue"]
+    sort_type: "descending"
+    save_to_stage: "stg_analysis_ready"
+
+  - # DEBUG: Final validation before export
+    step_description: "DEBUG: Final dataset validation"
+    processor_type: "debug_breakpoint"
+    source_stage: "stg_analysis_ready"
+    message: "FINAL CHECK: Data sorted by profit margin (highest first)"
+    output_path: "./debug/{debug_session}_{analysis_date}/"
+    filename_prefix: "final_analysis_dataset"
+    # OPT - Always include timestamp for final checkpoints
+    include_timestamp: true
+    # OPT - Show larger sample for final validation
+    show_sample: true
+    sample_rows: 20
+```
+
+## Parameter notes
+
+- `processor_type` (required): Must be 'debug_breakpoint' for this processor type
+- `step_description` (default `Unnamed debug_breakpoint step`): Human-readable description of what this debug checkpoint does
+- `source_stage` (required): Stage to read debug data from (must be declared in settings.stages)
+- `message` (default `Debug breakpoint reached`): Debug message explaining what to check or validate at this checkpoint
+- `output_path` (default `./debug_outputs/`): Directory path where debug Excel files will be saved
+- `filename_prefix` (default `debug_breakpoint`): Prefix for debug Excel filenames (timestamp added if enabled)
+- `include_timestamp` (default `True`): Whether to add timestamp to debug filename for uniqueness
+- `show_sample` (default `True`): Whether to display sample data rows in console output
+- `sample_rows` (default `5`): Number of sample data rows to display in console (when show_sample is true)
+

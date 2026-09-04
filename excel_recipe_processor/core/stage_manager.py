@@ -48,7 +48,7 @@ class StageManager:
     _save_counts: dict      = {}                # dict[str, int]
     _stage_metadata: dict   = {}                # dict[str, dict]  
     _stage_usage: dict      = {}                # dict[str, int]
-    _auto_free: bool        = False             # settings: auto_free_stages
+    _auto_free: bool        = True              # settings: auto_free_stages (default on, 2026-09-04)
     _expected_uses: dict    = {}                # dict[str, int] from recipe scan
     _max_stages: int        = 100               # Configurable limit
     _declared_stages: dict  = {}
@@ -87,9 +87,12 @@ class StageManager:
         # zero. Failure geometry is the safety case: an undercount
         # fails LOUD at the next load (stage-not-found with
         # suggestions, never silent wrong data); an overcount only
-        # holds memory longer. Opt-in: settings: auto_free_stages.
+        # holds memory longer. DEFAULT ON since 2026-09-04 - a recipe that
+        # said nothing kept every stage alive to the end (13 stages, 149 MB
+        # in the VMS merge) and nobody wanted that; settings:
+        # auto_free_stages: false is the opt-out.
         cls._auto_free = bool(
-            recipe_config.get('settings', {}).get('auto_free_stages', False))
+            recipe_config.get('settings', {}).get('auto_free_stages', True))
         cls._expected_uses = {}
         cls._step_consumers = []
         if cls._auto_free:

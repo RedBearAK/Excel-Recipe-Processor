@@ -265,20 +265,20 @@
         "smart_column_defaults"
       ],
       "data_sources": [
-        "saved_stages",
-        "current_pipeline_data"
+        "the source_stage frame, always first",
+        "saved_stages"
       ],
       "configuration_options": {
         "combine_type": "Type of combination operation to perform",
         "column_handling": "Global policy for handling column mismatches",
         "data_sources": "Sequential list of data sources and blank insertions",
-        "insert_from_stage": "Load data from a saved stage or current_dataframe",
+        "insert_from_stage": "Load data from a saved stage (the source_stage is always part one)",
         "insert_blank_rows": "Insert N blank rows (vertical_stack only)",
         "insert_blank_cols": "Insert N blank columns (horizontal_concat only)",
         "retain_column_names": "Insert column headers as data row (per-source setting)"
       },
       "data_source_operations": {
-        "insert_from_stage": "Load data from saved stage or current_dataframe",
+        "insert_from_stage": "Load data from a saved stage",
         "insert_blank_rows": "Insert blank rows between sections",
         "insert_blank_cols": "Insert blank columns between sections"
       },
@@ -327,7 +327,8 @@
       "description": "Collapse rows to one per key, keeping all columns, reporting value conflicts",
       "keep_options": [
         "first",
-        "last"
+        "last",
+        "none"
       ],
       "conflict_outputs": [
         "per-key warning log with disputed columns and values",

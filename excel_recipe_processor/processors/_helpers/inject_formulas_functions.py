@@ -25,6 +25,7 @@ name this module has not heard of pass through untouched.
 """
 
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import (
+    opaque_span_rgx,
     function_call_rgx,
     string_literal_rgx,
     eta_reference_rgx,
@@ -135,12 +136,13 @@ def prefix_future_functions(formula: str) -> str:
 def apply_outside_strings(formula: str, transform) -> str:
     """
     Apply a text transform to the parts of a formula OUTSIDE string
-    literals, so "text like Z1# or SUM" can never be rewritten. The
-    split preserves the literals verbatim, "" escapes included.
+    literals and OUTSIDE {col:...} placeholders, so neither "text like
+    Z1# or SUM" nor a column name like AUTO PRODUCT  FORM can ever be
+    rewritten. The split preserves both verbatim, "" escapes included.
     """
     pieces = []
     last_end = 0
-    for match in string_literal_rgx.finditer(formula):
+    for match in opaque_span_rgx.finditer(formula):
         pieces.append(transform(formula[last_end:match.start()]))
         pieces.append(match.group(0))
         last_end = match.end()

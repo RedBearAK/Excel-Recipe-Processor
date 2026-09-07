@@ -37,6 +37,15 @@ function_call_rgx = re.compile(r'(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_.]*)\s*\(
 # so text like "See tab Z1#" or "use SUM here" can never be mangled.
 string_literal_rgx = re.compile(r'"(?:[^"]|"")*"')
 
+# A string literal OR a {col:...} placeholder: the spans a storage
+# transform must never rewrite. A placeholder names a column, and a
+# column name may contain a word that looks like a function in value
+# position - "AUTO PRODUCT  FORM" carries a bare PRODUCT, which the eta
+# rewrite turned into _xleta.PRODUCT inside the placeholder, so the
+# column was then "not in the header row" (2026-09-07). Placeholders
+# resolve to cell references later; until then they are opaque.
+opaque_span_rgx = re.compile(r'"(?:[^"]|"")*"|\{col:[^}]+\}')
+
 # A spilled-range reference: cell ref (optionally sheet-prefixed) or a
 # defined name, wearing the trailing '#'. Excel STORES these wrapped in
 # _xlfn.ANCHORARRAY(...) - a literal '#' in a stored formula is invalid

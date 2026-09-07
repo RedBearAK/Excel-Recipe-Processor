@@ -83,6 +83,32 @@ def test_untouched_forms():
     return True
 
 
+def test_placeholders_are_opaque():
+    """A {col:...} placeholder is never rewritten, whatever words it holds."""
+    print("\nTesting that column placeholders are opaque to the transforms...")
+    # AUTO PRODUCT  FORM carries a bare PRODUCT in value position; the eta
+    # rewrite turned it into _xleta.PRODUCT inside the placeholder, and the
+    # column was then "not in the header row" (2026-09-07)
+    given = ('=IF(UPPER(TRIM({col:AUTO PRODUCT  FORM}2))<>UPPER(TRIM({col:PRODUCT  FORM}2)),"Check","")'
+             '+SUM({col:Net Weight#}2)')
+    result = stored(given)
+    for placeholder in ('{col:AUTO PRODUCT  FORM}', '{col:PRODUCT  FORM}', '{col:Net Weight#}'):
+        if placeholder not in result:
+            print(f"✗ placeholder rewritten: {placeholder!r} missing from\n  {result}")
+            return False
+    if '_xleta' in result or 'ANCHORARRAY' in result:
+        print(f"✗ transform reached inside a placeholder: {result}")
+        return False
+    print("✓ placeholders intact, including ones holding PRODUCT and #")
+    # and the real eta case beside a placeholder still transforms
+    beside = stored('=GROUPBY({col:Species}2:{col:Species}99, {col:Net Weight}2:{col:Net Weight}99, PRODUCT)')
+    if '_xleta.PRODUCT)' not in beside or '{col:Species}' not in beside:
+        print(f"✗ eta reference beside a placeholder not transformed correctly: {beside}")
+        return False
+    print("✓ eta reference beside placeholders still gains _xleta.")
+    return True
+
+
 def test_xlpm_constructs_transform():
     """LAMBDA/LET now TRANSFORM (guard retired); strings still safe."""
     print("\nTesting _xlpm construct transformation via the live pipeline...")
@@ -137,6 +163,7 @@ def main():
     tests = [
         test_harvested_forms,
         test_untouched_forms,
+        test_placeholders_are_opaque,
         test_xlpm_constructs_transform,
     ]
 

@@ -12,7 +12,7 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 - `processor_type`: str; REQUIRED - Registered processor name
 - `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
 - `source_stage`: stage_in; REQUIRED - Stage to read
-- `output_file`: str; REQUIRED
+- `output_file`: str; REQUIRED - Output path; a template with variable substitution. Put a run stamp in the name - {hour}{minute}{second} at least, {timestamp} when the name carries no date - so each run writes a NEW file: Excel holds an open workbook, and a same-named rewrite is not what the open window shows
 - `sheet_name`: str; default "Data"
 - `sheets_to_create`: list_of_mappings
   - `sheet_name`: str; REQUIRED
@@ -53,7 +53,17 @@ recipe:
     source_stage: "stg_processed_data"
     # REQ - Output file path with variable substitution support
     # Variable examples: {date}, {timestamp}, {company}
-    output_file: "reports/monthly_report.xlsx"
+    #
+    # STAMP THE NAME (2026-09-04). A same-named rewrite while Excel has
+    # the previous file open is invisible: the window keeps showing the
+    # old one, and the "why doesn't this look any different" hunt
+    # begins. A run stamp makes every run a new file; {hour}{minute}
+    # {second} suffices when the name already carries a date (as a
+    # download stem does), {timestamp} when it does not. The house
+    # pattern is one settings variable, e.g.
+    #   output_basename: "{source_stem}_proc_{hour}{minute}{second}"
+    # and every output plus the log named from it.
+    output_file: "reports/monthly_report_{timestamp}.xlsx"
     # OPT - Sheet name for single-sheet export
     # Default value: "Data"
     sheet_name: "Monthly Data"
@@ -293,7 +303,7 @@ recipe:
 ## Parameter notes
 
 - `source_stage` (required): Stage name to export data from (must be declared in settings.stages)
-- `output_file` (required): Output file path with variable substitution support
+- `output_file` (required): Output file path with variable substitution support. Stamp the name with the run time so each run writes a new file; Excel keeps showing a file it already has open, so a same-named rewrite looks like nothing happened.
 - `sheet_name` (default `Data`): Sheet name for single-sheet Excel export (ignored if sheets parameter is used)
 - `sheets_to_create`: List of sheet configurations for multi-sheet Excel export
 - `create_backup` (default `False`): Create backup copy of existing file before overwriting (.backup extension added)

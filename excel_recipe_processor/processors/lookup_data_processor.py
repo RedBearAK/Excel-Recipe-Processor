@@ -147,11 +147,15 @@ class LookupDataProcessor(TransformBaseProcessor):
                 if normalize_keys:
                     data, lookup_data = self._normalize_keys(data, lookup_data, match_col_in_main_data, match_col_in_lookup_data)
 
-                # Perform the lookup merge
-                result = self._perform_lookup_merge(data, lookup_data, match_col_in_main_data, match_col_in_lookup_data, lookup_columns, join_type)
-            
-            # Apply column naming (prefix/suffix)
-            if prefix or suffix:
+                # Perform the lookup merge. Prefix/suffix are applied to the
+                # lookup side BEFORE merging (2026-09-03) so a lookup column
+                # named like a main column lands beside it, never on top of it.
+                result = self._perform_lookup_merge(data, lookup_data, match_col_in_main_data,
+                                                    match_col_in_lookup_data, lookup_columns, join_type,
+                                                    prefix, suffix)
+
+            # The substring scan builds unprefixed columns; name them here.
+            if match_mode == 'lookup_value_within_main_text' and (prefix or suffix):
                 result = self._apply_column_naming(result, lookup_columns, prefix, suffix)
             
             # Analyze results BEFORE applying defaults (to get accurate match stats)
@@ -359,33 +363,55 @@ class LookupDataProcessor(TransformBaseProcessor):
 
     def _perform_lookup_merge(self, data: pd.DataFrame, lookup_data: pd.DataFrame,
                              match_col_in_main_data: str, match_col_in_lookup_data: str, lookup_columns: list, 
-                             join_type: str) -> pd.DataFrame:
-        """Perform the core lookup merge operation."""
+                             join_type: str, prefix: str = '', suffix: str = '') -> pd.DataFrame:
+        """
+        Perform the core lookup merge operation.
+
+        The lookup payload is renamed with prefix/suffix BEFORE the merge
+        (2026-09-03). The previous shape merged first and then, when a
+        payload column shared a main column's name, OVERWROTE the main
+        column with the lookup values - so an unmatched row lost its own
+        data and the prefix landed on the survivor. A collision that the
+        naming does not resolve is now an error: the recipe author picks a
+        prefix or drops the column, and no main column is ever replaced.
+
+        The lookup key may itself be listed in lookup_columns (an echo of
+        the key beside the main key); it is carried under its final name
+        without tripping pandas on a doubled column label.
+        """
         
-        # Select only the columns we need from lookup data
-        lookup_subset = lookup_data[[match_col_in_lookup_data] + lookup_columns].copy()
-        
-        # Use clean suffixes to handle any column name conflicts
+        final_names = {col: f"{prefix}{col}{suffix}" for col in lookup_columns}
+
+        collisions = [final_names[col] for col in lookup_columns
+                      if final_names[col] in data.columns]
+        if collisions:
+            raise StepProcessorError(
+                f"Lookup step '{self.step_name}': lookup column(s) {collisions} "
+                f"already exist in the main data. A lookup never overwrites a "
+                f"main column - set 'prefix' or 'suffix' to give the lookup "
+                f"copies distinct names, or remove them from lookup_columns."
+            )
+
+        # One merge-key column, renamed to a private label so it can never
+        # collide with a payload column or a main column, plus the payload
+        # under its final names.
+        merge_key = '__lookup_merge_key__'
+        if merge_key in data.columns:
+            raise StepProcessorError(
+                f"Lookup step '{self.step_name}': main data already has a "
+                f"column named {merge_key!r}"
+            )
+        lookup_subset = pd.DataFrame({merge_key: lookup_data[match_col_in_lookup_data]})
+        for col in lookup_columns:
+            lookup_subset[final_names[col]] = lookup_data[col].values
+
         result = data.merge(
             lookup_subset,
             left_on=match_col_in_main_data,
-            right_on=match_col_in_lookup_data,
+            right_on=merge_key,
             how=join_type,
-            suffixes=('', '_FROM_LOOKUP')
         )
-        
-        # Clean up duplicate key column if different names
-        if match_col_in_lookup_data != match_col_in_main_data and match_col_in_lookup_data in result.columns:
-            result = result.drop(columns=[match_col_in_lookup_data])
-        
-        # Handle any conflicts that got suffixed
-        conflicted_columns = [col for col in result.columns if col.endswith('_FROM_LOOKUP')]
-        for col in conflicted_columns:
-            original_name = col.replace('_FROM_LOOKUP', '')
-            if original_name in lookup_columns:
-                # Replace original with lookup data
-                result[original_name] = result[col]
-                result = result.drop(columns=[col])
+        result = result.drop(columns=[merge_key])
         
         return result
     

@@ -16,6 +16,7 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 - `confirm_stage_replacement`: bool; default false - Required true to overwrite an existing stage
 - `combine_type`: str; REQUIRED; one of vertical_stack, horizontal_concat
 - `column_handling`: str; one of require_matching_columns, allow_mismatched_columns
+- `retain_source_column_names`: bool - Insert the source_stage column names as its first data row; defaults like the per-source setting (true under allow_mismatched_columns, false under require_matching_columns)
 - `data_sources`: list_of_mappings; REQUIRED
   - `insert_from_stage`: stage_in
   - `insert_blank_rows`: int
@@ -54,7 +55,8 @@ recipe:
     step_description: "Combine title and data sections"
     # REQ - Must be "combine_data" for this processor type
     processor_type: "combine_data"
-    # REQ - Stage to read base data from (will be combined with other sources)
+    # REQ - Stage to read base data from: ALWAYS the first part of the
+    # result (2026-09-04), so it is never listed under data_sources
     source_stage: "stg_title_section"
     # REQ - Stage to save combined results
     save_to_stage: "stg_complete_report"
@@ -62,7 +64,11 @@ recipe:
     combine_type: "vertical_stack"
     # REQ - Column handling policy
     column_handling: "allow_mismatched_columns"
-    # REQ - Additional data sources to combine
+    # OPT - Insert the source stage's column names as its first data row
+    # Default value: same smart default as retain_column_names below
+    # (true under allow_mismatched_columns, false under require_matching_columns)
+    retain_source_column_names: true
+    # REQ - Parts stacked AFTER the source stage, in order
     data_sources:
       - # Add blank rows for spacing
         insert_blank_rows: 1
@@ -437,10 +443,11 @@ recipe:
 ## Parameter notes
 
 - `source_stage` (required): Stage name to read base data from (must be declared in settings.stages)
+- `retain_source_column_names`: Insert the source stage's column names as its first data row; the source-part twin of the per-source retain_column_names
 - `save_to_stage` (required): Stage name to save combined results (must be declared in settings.stages)
 - `combine_type` (required): Type of combination operation to perform
 - `column_handling` (required): Global policy for handling column structure differences
-- `data_sources` (required): Sequential list of data sources and formatting operations to combine with source_stage
+- `data_sources` (required): Sequential list of data sources and formatting operations appended after source_stage, in order
 - `insert_from_stage` (required): Stage name to insert data from (must exist and contain data)
 - `retain_column_names`: Insert column headers as first data row before actual data
 - `insert_blank_rows` (required): Number of blank rows to insert for visual separation

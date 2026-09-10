@@ -78,7 +78,9 @@ def test_configuration_validation():
         print("✗ Should have failed with invalid column_handling")
         return False
     except StepProcessorError as e:
-        if "Invalid column_handling" in str(e):
+        # The schema layer (2026-09-03) rejects the value before the
+        # processor's own check runs; either wording is the right refusal.
+        if "Invalid column_handling" in str(e) or "column_handling: 'invalid_policy' is not one of" in str(e):
             print("✓ Correctly caught invalid column_handling")
         else:
             print(f"✗ Wrong error for invalid column_handling: {e}")
@@ -102,7 +104,8 @@ def test_configuration_validation():
         print("✗ Should have failed with invalid retain_column_names type")
         return False
     except StepProcessorError as e:
-        if "retain_column_names must be a boolean" in str(e):
+        # Schema layer wording (2026-09-03) or the processor's own: both refuse
+        if "retain_column_names must be a boolean" in str(e) or "retain_column_names: expected bool" in str(e):
             print("✓ Correctly caught invalid retain_column_names type")
         else:
             print(f"✗ Wrong error for invalid retain_column_names: {e}")
@@ -132,7 +135,6 @@ def test_require_matching_columns_policy():
             'combine_type': 'vertical_stack',
             'column_handling': 'require_matching_columns',
             'data_sources': [
-                {'insert_from_stage': 'Report Title Section'},
                 {'insert_from_stage': 'Product Data Section'}
             ]
         }
@@ -140,7 +142,7 @@ def test_require_matching_columns_policy():
         processor = CombineDataProcessor(step_config)
         
         try:
-            result = processor.execute(None)
+            result = processor.execute(title_data)
             print("✗ Should have failed with column mismatch under require_matching_columns")
             return False
         except StepProcessorError as e:
@@ -176,13 +178,12 @@ def test_allow_mismatched_columns_policy():
             'combine_type': 'vertical_stack',
             'column_handling': 'allow_mismatched_columns',
             'data_sources': [
-                {'insert_from_stage': 'Report Title Section'},
                 {'insert_from_stage': 'Product Data Section'}
             ]
         }
         
         processor = CombineDataProcessor(step_config)
-        result = processor.execute(None)
+        result = processor.execute(title_data)
         
         # Should combine successfully with 6 columns (3 from title + 3 from data)
         expected_cols = 6  # Columns: [0, 1, 2, Product, Sales, Region]
@@ -226,11 +227,8 @@ def test_explicit_retain_column_names():
             'processor_type': 'combine_data',
             'combine_type': 'vertical_stack',
             'column_handling': 'allow_mismatched_columns',  # Allow different structures
+            'retain_source_column_names': True,  # Explicit override on the source part
             'data_sources': [
-                {
-                    'insert_from_stage': 'Product Data Section',
-                    'retain_column_names': True  # Explicit override
-                },
                 {'insert_blank_rows': 1},
                 {
                     'insert_from_stage': 'Report Metadata Section',
@@ -240,7 +238,7 @@ def test_explicit_retain_column_names():
         }
         
         processor = CombineDataProcessor(step_config)
-        result = processor.execute(None)
+        result = processor.execute(data_section)
         
         # First row should be headers from Data section: ['Product', 'Sales', 'Region']
         first_row_values = result.iloc[0].tolist()
@@ -282,15 +280,15 @@ def test_smart_defaults_allow_mismatched():
             'processor_type': 'combine_data',
             'combine_type': 'vertical_stack',
             'column_handling': 'allow_mismatched_columns',
+            # No retain_source_column_names: the source part follows the smart default too
             'data_sources': [
-                {'insert_from_stage': 'Report Title Section'},  # No explicit retain_column_names
                 {'insert_blank_rows': 1},
                 {'insert_from_stage': 'Product Data Section'}   # No explicit retain_column_names
             ]
         }
         
         processor = CombineDataProcessor(step_config)
-        result = processor.execute(None)
+        result = processor.execute(title_data)
         
         # Should have headers inserted for both sections due to smart defaults
         # Expected: 1 title header + 3 title data + 1 blank + 1 data header + 3 data rows = 9 rows
@@ -348,14 +346,13 @@ def test_smart_defaults_require_matching():
             'combine_type': 'vertical_stack',
             'column_handling': 'require_matching_columns',
             'data_sources': [
-                {'insert_from_stage': 'Product Data Set 1'},  # No explicit retain_column_names
                 {'insert_blank_rows': 1},
                 {'insert_from_stage': 'Product Data Set 2'}   # No explicit retain_column_names
             ]
         }
         
         processor = CombineDataProcessor(step_config)
-        result = processor.execute(None)
+        result = processor.execute(data1)
         
         # Should have no headers inserted due to smart defaults
         # Expected: 3 data1 rows + 1 blank + 2 data2 rows = 6 rows
@@ -423,11 +420,8 @@ def test_desktop_publishing_workflow():
             'processor_type': 'combine_data',
             'combine_type': 'vertical_stack',
             'column_handling': 'allow_mismatched_columns',  # Different section structures
+            'retain_source_column_names': True,  # Preserve title structure
             'data_sources': [
-                {
-                    'insert_from_stage': 'Report Title',
-                    'retain_column_names': True  # Preserve title structure
-                },
                 {'insert_blank_rows': 2},  # Visual spacing
                 {
                     'insert_from_stage': 'Column Headers',
@@ -446,7 +440,7 @@ def test_desktop_publishing_workflow():
         }
         
         processor = CombineDataProcessor(step_config)
-        result = processor.execute(None)
+        result = processor.execute(title_section)
         
         # Verify document structure
         # Expected: 1 title header + 1 title + 2 blank + 1 headers + 3 data + 1 blank + 1 footer header + 1 footer = 11 rows
@@ -504,11 +498,8 @@ def test_horizontal_with_header_retention():
             'processor_type': 'combine_data',
             'combine_type': 'horizontal_concat',
             'column_handling': 'allow_mismatched_columns',
+            'retain_source_column_names': True,
             'data_sources': [
-                {
-                    'insert_from_stage': 'Current Year Sales',
-                    'retain_column_names': True
-                },
                 {'insert_blank_cols': 1},
                 {
                     'insert_from_stage': 'Previous Year Sales',
@@ -518,7 +509,7 @@ def test_horizontal_with_header_retention():
         }
         
         processor = CombineDataProcessor(step_config)
-        result = processor.execute(None)
+        result = processor.execute(current_year)
         
         # Should have headers + data rows: 1 header + 3 data = 4 rows
         if len(result) == 4:
@@ -549,7 +540,7 @@ def test_capabilities():
         'processor_type': 'combine_data',
         'combine_type': 'vertical_stack',
         'column_handling': 'allow_mismatched_columns',
-        'data_sources': [{'insert_from_stage': 'current_dataframe'}]
+        'data_sources': [{'insert_from_stage': 'Some Other Stage'}]
     }
     
     processor = CombineDataProcessor(step_config)
@@ -585,6 +576,70 @@ def test_capabilities():
         return False
 
 
+def test_source_is_always_the_first_part():
+    """The source_stage frame leads the result without being listed (2026-09-04)."""
+    print("\nTesting the source frame is always the first part...")
+
+    StageManager.initialize_stages()
+
+    try:
+        primary = pd.DataFrame({'Van': ['V1', 'V1', 'V2'], 'Product': [10, 11, 20]})
+        extra = pd.DataFrame({'Van': ['V9'], 'Product': [90]})
+        StageManager.save_stage('Extra Vans', extra, description='Vans to append')
+
+        step_config = {
+            'processor_type': 'combine_data',
+            'combine_type': 'vertical_stack',
+            'column_handling': 'require_matching_columns',
+            'data_sources': [{'insert_from_stage': 'Extra Vans'}]
+        }
+        result = CombineDataProcessor(step_config).execute(primary)
+
+        if list(result['Van']) == ['V1', 'V1', 'V2', 'V9']:
+            print("✓ Source rows lead, appended stage follows")
+        else:
+            print(f"✗ Van order: {list(result['Van'])}")
+            return False
+
+        try:
+            CombineDataProcessor(step_config).execute(None)
+            print("✗ A missing source frame was accepted")
+            return False
+        except StepProcessorError as error:
+            if 'source_stage' in str(error):
+                print("✓ Missing source frame rejected by name")
+            else:
+                print(f"✗ Wrong error for missing source: {error}")
+                return False
+
+        return True
+
+    finally:
+        StageManager.cleanup_stages()
+
+
+def test_current_dataframe_entry_is_rejected():
+    """Naming the source in data_sources would double it, so it is an error."""
+    print("\nTesting current_dataframe rejection...")
+
+    step_config = {
+        'processor_type': 'combine_data',
+        'combine_type': 'vertical_stack',
+        'column_handling': 'require_matching_columns',
+        'data_sources': [{'insert_from_stage': 'current_dataframe'}]
+    }
+    try:
+        CombineDataProcessor(step_config).execute(pd.DataFrame({'A': [1]}))
+        print("✗ current_dataframe entry accepted")
+        return False
+    except StepProcessorError as error:
+        if 'current_dataframe' in str(error) and 'source_stage' in str(error):
+            print("✓ current_dataframe entry rejected with the migration hint")
+            return True
+        print(f"✗ Wrong error: {error}")
+        return False
+
+
 if __name__ == '__main__':
     print("Testing Enhanced CombineDataProcessor...")
     success = True
@@ -597,11 +652,17 @@ if __name__ == '__main__':
     success &= test_smart_defaults_require_matching()
     success &= test_desktop_publishing_workflow()
     success &= test_horizontal_with_header_retention()
+    success &= test_source_is_always_the_first_part()
+    success &= test_current_dataframe_entry_is_rejected()
     success &= test_capabilities()
     
     if success:
         print("\n🎉 All Enhanced CombineDataProcessor tests passed!")
     else:
         print("\n❌ Some Enhanced CombineDataProcessor tests failed!")
-    
-    print("\nTo run with pytest: pytest test_enhanced_combine_data_processor.py -v")
+
+    # A real exit code, so a suite runner sees a failure (2026-09-04)
+    exit(0 if success else 1)
+
+
+# End of file #

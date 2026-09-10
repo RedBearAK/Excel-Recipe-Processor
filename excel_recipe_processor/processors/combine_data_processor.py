@@ -3,8 +3,14 @@ Combine data step processor for Excel automation recipes.
 
 excel_recipe_processor/processors/combine_data_processor.py
 
-Handles combining multiple DataFrames from various sources (stages, current data)
-with enhanced column handling, header retention, and different combination methods.
+Handles combining multiple DataFrames from stages with enhanced column
+handling, header retention, and different combination methods.
+
+The source_stage frame is ALWAYS the first part of the combination
+(2026-09-04); data_sources follow it in order. Before this the source was
+consumed but silently left out unless data_sources named 'current_dataframe',
+so a stack that forgot the entry quietly lost its foundation rows. Naming the
+source in data_sources is now an error.
 """
 
 import pandas as pd
@@ -44,6 +50,10 @@ class CombineDataProcessor(TransformBaseProcessor):
         return Schema([
             Key('combine_type', 'str', required=True, choices=['vertical_stack', 'horizontal_concat']),
             Key('column_handling', 'str', choices=['require_matching_columns', 'allow_mismatched_columns']),
+            Key('retain_source_column_names', 'bool',
+                description='Insert the source_stage column names as its first data row; '
+                            'defaults like the per-source setting (true under '
+                            'allow_mismatched_columns, false under require_matching_columns)'),
             Key('data_sources', 'list_of_mappings', required=True, schema=part),
         ])
 
@@ -64,7 +74,7 @@ class CombineDataProcessor(TransformBaseProcessor):
         Execute the data combination operation.
         
         Args:
-            data: Current pipeline DataFrame (used when referencing 'current_dataframe')
+            data: The source_stage frame; always the first part of the result
         
         Returns:
             Combined DataFrame based on configuration
@@ -92,7 +102,8 @@ class CombineDataProcessor(TransformBaseProcessor):
             else:
                 raise StepProcessorError(f"Unsupported combine_type: {combine_type}")
             
-            result_info = f"combined {len(data_sources)} sources into {len(result)} rows, {len(result.columns)} columns"
+            result_info = (f"combined the source and {len(data_sources)} data source(s) "
+                           f"into {len(result)} rows, {len(result.columns)} columns")
             self.log_step_complete(result_info)
             
             return result
@@ -141,6 +152,13 @@ class CombineDataProcessor(TransformBaseProcessor):
                     f"Found: {found_operations}"
                 )
             
+            if source.get('insert_from_stage') == 'current_dataframe':
+                raise StepProcessorError(
+                    f"Data source {i+1}: 'current_dataframe' is no longer a data source. "
+                    f"The source_stage frame is always the first part of the combination; "
+                    f"remove this entry (2026-09-04)."
+                )
+
             # Validate operation-specific parameters
             if 'insert_blank_rows' in source:
                 if combine_type != 'vertical_stack':
@@ -182,8 +200,8 @@ class CombineDataProcessor(TransformBaseProcessor):
         Load data from a stage or current pipeline data.
         
         Args:
-            stage_name: Name of stage to load or 'current_dataframe'
-            current_data: Current pipeline DataFrame
+            stage_name: Name of stage to load
+            current_data: Unused; kept so the call shape matches the source part
             source_index: Index of source for error reporting
             retain_headers: Whether to insert column names as first data row
             
@@ -192,36 +210,50 @@ class CombineDataProcessor(TransformBaseProcessor):
         """
         logger.debug(f"Loading data from source: {stage_name}")
         
-        if stage_name == 'current_dataframe':
-            if current_data is None:
+        try:
+            df = StageManager.load_stage(stage_name)
+            if df is None:
                 raise StepProcessorError(
-                    f"Data source {source_index}: current_dataframe is None"
+                    f"Data source {source_index}: Stage '{stage_name}' not found"
                 )
-            df = current_data.copy()
-        else:
-            try:
-                df = StageManager.load_stage(stage_name)
-                if df is None:
-                    raise StepProcessorError(
-                        f"Data source {source_index}: Stage '{stage_name}' not found"
-                    )
-                df = df.copy()
-            except StageError as e:
-                raise StepProcessorError(
-                    f"Data source {source_index}: Error loading stage '{stage_name}': {e}"
-                )
+            df = df.copy()
+        except StageError as e:
+            raise StepProcessorError(
+                f"Data source {source_index}: Error loading stage '{stage_name}': {e}"
+            )
         
         logger.debug(f"Loaded DataFrame: {len(df)} rows, {len(df.columns)} columns")
         
-        # Insert column names as first row if requested
+        return self._with_header_row(df, retain_headers)
+
+    def _with_header_row(self, df: pd.DataFrame, retain_headers: bool) -> pd.DataFrame:
+        """Insert the column names as the first data row when requested."""
         if retain_headers and not df.empty:
-            # Create header row with column names
             header_row = pd.DataFrame([list(df.columns)], columns=df.columns)
-            # Combine header row with data
             df = pd.concat([header_row, df], ignore_index=True)
             logger.debug(f"Added header row: {list(df.columns)}")
-        
         return df
+
+    def _source_part(self, current_data, column_handling: str) -> pd.DataFrame:
+        """
+        The source_stage frame as the first part of the combination.
+
+        A missing frame is an error: the source is the foundation the other
+        parts are stacked onto, and a combination that silently starts from
+        nothing is the bug this method exists to end (2026-09-04).
+        """
+        if not isinstance(current_data, pd.DataFrame):
+            raise StepProcessorError(
+                f"Step '{self.step_name}': combine_data needs the source_stage frame as "
+                f"its first part, but none was supplied"
+            )
+        retain_headers = self.get_config_value('retain_source_column_names', None)
+        if retain_headers is None:
+            retain_headers = (column_handling == 'allow_mismatched_columns')
+        if not isinstance(retain_headers, bool):
+            raise StepProcessorError("retain_source_column_names must be a boolean")
+        logger.debug(f"Source part: {len(current_data)} rows, retain_headers={retain_headers}")
+        return self._with_header_row(current_data.copy(), retain_headers)
     
     def _get_source_retain_headers_setting(self, source: dict, column_handling: str) -> bool:
         """
@@ -280,10 +312,12 @@ class CombineDataProcessor(TransformBaseProcessor):
         Returns:
             Vertically combined DataFrame
         """
-        combined_dfs = []
-        data_dfs = []  # Track actual data (not blank rows) for column validation
         column_handling = self.get_config_value('column_handling')
         allow_mismatched = (column_handling == 'allow_mismatched_columns')
+
+        source_part = self._source_part(current_data, column_handling)
+        combined_dfs = [source_part]
+        data_dfs = [source_part]  # Track actual data (not blank rows) for column validation
         
         for i, source in enumerate(data_sources):
             try:
@@ -339,8 +373,9 @@ class CombineDataProcessor(TransformBaseProcessor):
         Returns:
             Horizontally combined DataFrame
         """
-        combined_dfs = []
         column_handling = self.get_config_value('column_handling')
+
+        combined_dfs = [self._source_part(current_data, column_handling)]
         
         for i, source in enumerate(data_sources):
             try:
@@ -437,19 +472,19 @@ class CombineDataProcessor(TransformBaseProcessor):
                 'header_retention', 'smart_column_defaults'
             ],
             'data_sources': [
-                'saved_stages', 'current_pipeline_data'
+                'the source_stage frame, always first', 'saved_stages'
             ],
             'configuration_options': {
                 'combine_type': 'Type of combination operation to perform',
                 'column_handling': 'Global policy for handling column mismatches',
                 'data_sources': 'Sequential list of data sources and blank insertions',
-                'insert_from_stage': 'Load data from a saved stage or current_dataframe',
+                'insert_from_stage': 'Load data from a saved stage (the source_stage is always part one)',
                 'insert_blank_rows': 'Insert N blank rows (vertical_stack only)',
                 'insert_blank_cols': 'Insert N blank columns (horizontal_concat only)',
                 'retain_column_names': 'Insert column headers as data row (per-source setting)'
             },
             'data_source_operations': {
-                'insert_from_stage': 'Load data from saved stage or current_dataframe',
+                'insert_from_stage': 'Load data from a saved stage',
                 'insert_blank_rows': 'Insert blank rows between sections',
                 'insert_blank_cols': 'Insert blank columns between sections'
             },

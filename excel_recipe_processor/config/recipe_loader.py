@@ -1,8 +1,45 @@
 """
 Recipe configuration loader for Excel automation recipes.
 
+excel_recipe_processor/config/recipe_loader.py
+
 This module handles loading and validation of YAML/JSON recipe files,
 with friendly error reporting and structure validation.
+
+settings.yaml_anchors
+---------------------
+A place to park YAML anchors so a block can be defined once and aliased
+into several steps. The loader accepts the key and NEVER looks inside
+it: anchors and aliases are resolved by the YAML parser, so by the time
+this module sees the recipe there are no anchors left, only the same
+mapping repeated wherever it was referenced.
+
+    settings:
+      yaml_anchors:
+        - &tpl_lookup_header
+          template_name: "tpl_lookup_header"
+          header_bold: true
+          header_background_color: "{var_header_green}"
+
+    ...
+        templates:
+          - *tpl_lookup_header
+
+Why a key rather than anchoring at the first use: an alias must appear
+LATER in the document than its anchor, so anchoring inside the first
+step that happens to use the block makes the definition's home an
+accident of step order - move that step down and every later alias
+breaks. settings comes first in every recipe, so a block parked here
+is available to all of them.
+
+What it does NOT do. It is not a shared-definition mechanism: the
+expansion is textual, each step ends up with its own complete copy, and
+a step remains self-sufficient when copied into another recipe. Nothing
+resolves an alias at run time, so an anchor cannot be "overridden" per
+step (YAML's merge key, `<<: *anchor`, is the tool for that). And it is
+not variable substitution: a variable replaces a scalar, an anchor
+reuses a structure. The two compose - a variable inside an anchored
+block is substituted per step, as it would be anywhere else.
 """
 
 import json
@@ -199,7 +236,13 @@ class RecipeLoader:
         return {'valid': len(errors) == 0, 'errors': errors, 'warnings': warnings}
     
     def _validate_settings_section(self) -> dict:
-        """Validate the settings section content."""
+        """Validate the settings section content.
+
+        `yaml_anchors` is accepted and its CONTENTS ARE NEVER INSPECTED -
+        it exists only to give YAML anchors a home (see the module
+        docstring). It is checked for shape alone, so that a typo like
+        `yaml_anchors: true` is reported rather than silently ignored.
+        """
         errors = []
         warnings = []
         
@@ -214,6 +257,23 @@ class RecipeLoader:
             errors.append("settings:")
             errors.append("  description: 'Brief description of what this recipe does'")
         
+        # A parking place for YAML anchors: the parser has already expanded
+        # every alias by now, so there is nothing here to read. Shape only.
+        if 'yaml_anchors' in settings:
+            anchors = settings['yaml_anchors']
+            if not isinstance(anchors, (list, dict)):
+                errors.append("'yaml_anchors' must be a list or a mapping - it exists only to hold "
+                              "YAML anchor definitions, which the parser expands before validation")
+                errors.append("💡 settings:")
+                errors.append("💡   yaml_anchors:")
+                errors.append("💡     - &tpl_header")
+                errors.append("💡       header_bold: true")
+            elif not anchors:
+                # no emoji here: the printer at the top of this class already
+                # prefixes every warning with one (the neighbouring
+                # 'output_filename' message predates that and doubles it up)
+                warnings.append("'yaml_anchors' is empty - remove it, or define an anchor in it")
+
         # Check for deprecated settings
         if 'output_filename' in settings:
             warnings.append("⚠️  'output_filename' is deprecated - use 'export_file' processor steps instead")

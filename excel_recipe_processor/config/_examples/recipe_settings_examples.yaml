@@ -47,6 +47,57 @@ recommended_example:
           description: "Orders filtered for specific region"
           protected: false
 
+yaml_anchors_example:
+  description: "Define a block once with a YAML anchor and reuse it in several steps"
+  yaml: |
+    # settings.yaml_anchors is a PARKING PLACE for YAML anchors, nothing
+    # more. The YAML parser expands every alias before the recipe is
+    # validated, so each step ends up with its own complete copy of the
+    # block and stays self-sufficient if you copy it elsewhere.
+    #
+    # Use it when the same STRUCTURE repeats - a formatting template
+    # used by several format_excel steps, say. Use a variable when the
+    # same VALUE repeats; the two compose, as below, where the anchored
+    # block contains a variable reference.
+    #
+    # The anchor must appear before any alias, which is why it lives in
+    # settings (always the first section) rather than in whichever step
+    # happens to use it first.
+
+    settings:
+      description: "Emit three workbooks that share one header style"
+
+      variables:
+        var_header_green: "548235"
+
+      yaml_anchors:
+        - &tpl_lookup_header
+          template_name: "tpl_lookup_header"
+          header_bold: true
+          header_background: true
+          header_background_color: "{var_header_green}"
+          header_text_color: "white"
+          freeze_top_row: true
+
+    recipe:
+      - step_description: "Format the first workbook"
+        processor_type: "format_excel"
+        target_file: "reference_a.xlsx"
+        templates:
+          - *tpl_lookup_header          # expands to the whole block
+        formatting:
+          - sheet_names: ["Glossary"]
+            apply_templates: ["tpl_lookup_header"]
+
+      - step_description: "Format the second workbook"
+        processor_type: "format_excel"
+        target_file: "reference_b.xlsx"
+        templates:
+          - *tpl_lookup_header          # the same block again
+        formatting:
+          - sheet_names: ["Rule_Codes"]
+            apply_templates: ["tpl_lookup_header"]
+
 error_handling_example:
   description: "Settings with global error handling configuration"
   yaml: |
@@ -277,6 +328,19 @@ parameter_details:
       basic: {"region": "west", "batch_id": "A47"}
       advanced: {"output_prefix": "processed", "min_amount": "1000", "company": "TechCorp"}
     
+  yaml_anchors:
+    type: array_or_object
+    required: false
+    description: "A home for YAML anchors, so a repeated block can be written once and aliased into several steps"
+    contents: "NEVER inspected - the YAML parser expands every alias before the recipe is loaded, so nothing here is read by the tool. Only the shape is checked (a list or a mapping), so that a typo is reported rather than ignored."
+    use_cases: ["A formatting template used by several format_excel steps", "Any structure repeated verbatim across steps"]
+    syntax: "Define with '- &anchor_name' here, reference with '*anchor_name' in a step"
+    why_here: "An alias must appear later in the document than its anchor. settings always comes first, so a block parked here is available to every step; anchoring inside the first step that uses it makes the definition's home an accident of step order."
+    limitations:
+      - "Not a shared definition: the expansion is textual, each step gets its own copy, and a step stays self-sufficient when copied into another recipe"
+      - "Cannot be overridden per step - YAML's merge key ('<<: *anchor') is the tool for that"
+      - "Not a substitute for variables: a variable replaces a scalar, an anchor reuses a structure. A variable INSIDE an anchored block is substituted normally"
+
   required_external_vars:
     type: object
     required: false
@@ -349,6 +413,7 @@ best_practices:
   always_describe: "Include description in every recipe for team collaboration"
   declare_stages: "Declare stages for auto-completion and protection features"
   use_variables: "Use variables for repeated values and dynamic content"
+  anchor_repeated_blocks: "Use yaml_anchors for a repeated structure (a formatting template in several steps); variables for a repeated value"
   external_vars: "Use external variables for CLI automation and interactive prompting"
   protect_critical: "Mark critical stages as protected to prevent accidental overwrite"
   consistent_naming: "Use consistent naming conventions for stages across recipes"

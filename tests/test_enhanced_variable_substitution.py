@@ -338,6 +338,56 @@ def test_convenience_functions():
     return success == tests
 
 
+def test_colon_after_a_variable_and_between_placeholders():
+    """A colon right after a closing brace is just the next character.
+
+    Two pre-existing faults met on 2026-09-10 when a recipe first wrote
+    "{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5" (an A1 range
+    between two column placeholders): the typo heuristic read the range
+    separator's colon as a missing opening brace and refused the string,
+    and the simple pass skipped any "{name}" immediately followed by ":"
+    as if it belonged to a format, so "{x}:{y}" came back "{x}:2". Both
+    fixed; this pins them.
+    """
+    print("\nTesting a colon after a variable / between placeholders...")
+    from excel_recipe_processor.core.variable_substitution import VariableSubstitution, VariableSubstitutionError
+    substituter = VariableSubstitution(custom_variables={'x': '1', 'y': '2', 'first': 'N', 'last': 'P'})
+    cases = [
+        ('{x}:{y}', '1:2'),
+        ('{first}2:{last}5', 'N2:P5'),
+        ('{x}:{y}:{x}', '1:2:1'),
+        ('{x}:', '1:'),
+        # {col:...} is a passthrough namespace: untouched, and the colon
+        # between two of them must not be mistaken for a typo
+        ('{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5',
+         '{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5'),
+        ('=LEN({col:Filter: SALE TYPE1}2)=0', '=LEN({col:Filter: SALE TYPE1}2)=0'),
+        ('{col:A}$2:{col:A}$5', '{col:A}$2:{col:A}$5'),
+    ]
+    ok = True
+    for given, expected in cases:
+        try:
+            got = substituter.substitute(given)
+        except VariableSubstitutionError as error:
+            print(f"  ✗ {given!r} refused: {str(error)[:70]}")
+            ok = False
+            continue
+        if got != expected:
+            print(f"  ✗ {given!r} -> {got!r}, expected {expected!r}")
+            ok = False
+    # the typo the heuristic exists for is still caught
+    try:
+        substituter.substitute('value is {x} and name:{y}}')
+        caught = False
+    except VariableSubstitutionError:
+        caught = True
+    if not caught:
+        print("  ✗ a half-typed reference was not refused")
+        ok = False
+    print(f"  {'✓' if ok else '✗'} {len(cases)} shapes substitute correctly; the real typo is still refused")
+    return ok
+
+
 def main():
     """Run all tests and return pass/fail status."""
     print("Enhanced Variable Substitution Tests")
@@ -351,6 +401,7 @@ def main():
     test_results.append(test_nested_structure_substitution())
     test_results.append(test_type_validation())
     test_results.append(test_convenience_functions())
+    test_results.append(test_colon_after_a_variable_and_between_placeholders())
     
     passed = sum(test_results)
     total = len(test_results)

@@ -35,6 +35,10 @@ from excel_recipe_processor.processors._helpers.format_excel_theme_manager impor
     ERP_DEFAULT_PIVOT_STYLE,
     ThemeManagerError,
 )
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+    ExcelRangeResolverError,
+    resolve_column_placeholders,
+)
 from excel_recipe_processor.processors._helpers.format_excel_column_formats import (
     apply_cell_formats, apply_column_formats, apply_column_widths, apply_hidden_columns,
     ColumnFormatError, NUMBER_FORMAT_ALIASES
@@ -118,7 +122,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             Key('whole_column', 'bool', default=False,
                 description='Column-dimension style, for cells Excel creates at calculation time'),
         ], at_least_one=[pair_group])
-        cell_rule = Schema([Key('cells', 'list', item_kind='str', required=True, description='A1-style cells or ranges, e.g. ["B2"] or ["A4:D4"]')]
+        cell_rule = Schema([Key('cells', 'list', item_kind='str', required=True, description='A1-style cells or ranges, e.g. ["B2"] or ["A4:D4"]; columns may be named by header, "{col:Header}2:{col:Other}5", so the rule follows the columns when others are inserted')]
                            + style_keys())
 
         def sheet_option_keys():
@@ -733,6 +737,27 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             if not isinstance(font_size, (int, float)) or font_size <= 0:
                 raise StepProcessorError(f"font_size must be a positive number in {context}")
 
+    @staticmethod
+    def _resolve_cell_placeholders(rules: list, worksheet, header_row: int, sheet_name: str) -> list:
+        """cell_formats rules with any {col:Header} in their 'cells' resolved
+        to letters from this sheet's header row, so a cell rule follows
+        its column when others are inserted (2026-09-10). Rules are
+        copied; the recipe's config is not mutated."""
+        resolved = []
+        for index, rule in enumerate(rules):
+            if not isinstance(rule, dict) or not isinstance(rule.get('cells'), list):
+                resolved.append(rule)
+                continue
+            copy = dict(rule)
+            try:
+                copy['cells'] = [resolve_column_placeholders(str(cell), worksheet, header_row,
+                                                             f"sheet '{sheet_name}' cell_formats rule {index + 1}")
+                                 for cell in rule['cells']]
+            except ExcelRangeResolverError as error:
+                raise StepProcessorError(str(error))
+            resolved.append(copy)
+        return resolved
+
     def _normalize_color(self, color) -> str:
         """
         Normalize a color to 6-digit uppercase hex.
@@ -1053,9 +1078,11 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # dimension styles by OOXML precedence).
         if 'cell_formats' in formatting:
             try:
+                cell_rules = self._resolve_cell_placeholders(
+                    formatting['cell_formats'], worksheet, formatting.get('header_row', 1), sheet_name)
                 cell_notes = apply_cell_formats(
                     worksheet,
-                    formatting['cell_formats'],
+                    cell_rules,
                     color_normalizer=self._normalize_color
                 )
             except ColumnFormatError as error:

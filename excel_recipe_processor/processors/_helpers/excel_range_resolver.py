@@ -27,6 +27,7 @@ from excel_recipe_processor.processors._helpers.range_patterns import (
     excel_column_ref_rgx,
     sheet_name_needs_quotes_rgx,
 )
+from excel_recipe_processor.processors._helpers.inject_formulas_rgx import column_placeholder_rgx
 
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,52 @@ class ColumnVocabularyError(Exception):
     Deliberately NOT an ExcelRangeResolverError subclass: missing-column
     policies (warn/skip) must never swallow a names-vs-refs crossover.
     """
+
+
+def resolve_column_placeholders(text: str, worksheet, header_row: int = 1,
+                                context: str = '', lock: bool = False) -> str:
+    """
+    Replace every {col:Header Name} in an A1 range string with that
+    header's column letter, read from the worksheet at apply time.
+
+    This is what lets a formatting or validation directive follow a
+    column when columns are inserted to its left (2026-09-10): the
+    Van_List filter blocks had to be re-lettered by hand after two
+    columns joined the spill, because their conditional-format ranges,
+    cell formats and dropdown validations all said "N2:P5" literally.
+    With placeholders they say
+    "{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5" and stay
+    right whatever lands to their left.
+
+    Args:
+        text:       "{col:Header}2:{col:Other}5", "{col:Header}2", or plain
+                    A1 text (returned unchanged)
+        worksheet:  openpyxl worksheet whose header row names the columns
+        header_row: 1-based header row
+        context:    for the error message
+        lock:       True to emit "$N" (a formula reference); False for a
+                    plain letter (a range address - openpyxl strips "$"
+                    from range strings anyway)
+
+    Raises:
+        ExcelRangeResolverError: a named header is not in the header row,
+        or appears more than once
+    """
+    if '{col:' not in text:
+        return text
+
+    def substitute(match):
+        header_name = match.group(1).strip()
+        letter = find_column_letter_by_name(worksheet, header_name, header_row)
+        if not letter:
+            available = sorted(str(cell.value).strip() for cell in worksheet[header_row] if cell.value is not None)
+            raise ExcelRangeResolverError(
+                f"{context + ': ' if context else ''}column '{header_name}' not found in the "
+                f"header row of sheet '{worksheet.title}'. Available: {available}"
+            )
+        return f"${letter}" if lock else letter
+
+    return column_placeholder_rgx.sub(substitute, text)
 
 
 def resolve_column_letter(worksheet, column_spec, header_row: int = 1,

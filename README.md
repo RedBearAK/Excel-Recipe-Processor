@@ -190,6 +190,13 @@ family contributes the step keys it needs and decides how columns may be named:
 - An evaluated string never sits under a bare key: `pandas_formula`,
   `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
 - Column-name lists are lists of strings, never positions.
+- A cell or range address may name its columns by header instead of
+  by letter: `{col:Header}2:{col:Other}5`. `inject_formulas` and
+  `conditional_format` have always resolved `{col:}` inside formulas;
+  since 2026-09-10 the RANGE fields do too - `conditional_format`'s
+  `range:`, `format_excel`'s `cells:`, `excel_data_validation`'s
+  `apply_to_ranges` - so a directive follows its columns when others are
+  inserted to their left, instead of needing its letters re-typed.
 - Enum values are snake_case ERP vocabulary; a library's own spelling is storage.
 - `case_sensitive: false` by default, everywhere.
 - Stage graph is strict: a stage read before it is written, written twice
@@ -211,6 +218,48 @@ recipe:
     processor_type: "processor_name"
     # ... processor-specific keys: see docs/STEP_SCHEMAS.md
 ```
+
+### Reusing a block: `settings.yaml_anchors`
+
+When the same *structure* repeats across steps - a formatting template
+used by three `format_excel` steps, say - write it once as a YAML anchor
+and alias it where it's needed:
+
+```yaml
+settings:
+  description: "Emit several workbooks that share one header style"
+  variables:
+    var_header_green: "548235"
+  yaml_anchors:
+    - &tpl_lookup_header
+      template_name: "tpl_lookup_header"
+      header_bold: true
+      header_background_color: "{var_header_green}"
+
+recipe:
+  - step_description: "Format the reference workbook"
+    processor_type: "format_excel"
+    target_file: "reference.xlsx"
+    templates:
+      - *tpl_lookup_header
+    formatting:
+      - sheet_names: ["Glossary"]
+        apply_templates: ["tpl_lookup_header"]
+```
+
+`yaml_anchors` is a parking place and nothing else: the YAML parser
+expands every alias before the recipe is loaded, so the tool never reads
+what's in there, and each step ends up with its own complete copy of the
+block - copy that step into another recipe and it still works. The key
+exists because an alias must appear *later* in the document than its
+anchor, and `settings` always comes first; anchoring inside whichever
+step happens to use the block first would make the definition's home an
+accident of step order.
+
+Use an anchor for a repeated **structure**, a variable for a repeated
+**value**. They compose - the anchored block above contains a variable,
+substituted per step as usual. An anchor can't be overridden per step;
+YAML's merge key (`<<: *anchor`) is the tool for that.
 
 ### Step Configuration
 

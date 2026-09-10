@@ -38,6 +38,10 @@ from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.processors._helpers.excel_color_support import normalize_color
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.processors._helpers.inject_formulas_rgx import column_placeholder_rgx
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+    ExcelRangeResolverError,
+    resolve_column_placeholders,
+)
 from excel_recipe_processor.processors._helpers.inject_formulas_functions import prefix_future_functions
 
 
@@ -116,7 +120,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             Key('style', 'mapping', schema=style),
             Key('apply_to', 'str', choices=['entire_row']),
             name_list('column_names', description='Target columns for when_* rules'),
-            Key('range', 'str', description='Literal target range like A2:B99'),
+            Key('range', 'str', description='Target range like A2:B99; columns may be named by header, {col:Header}2:{col:Other}5, so the range follows the columns when others are inserted'),
             Key('stop_if_true', 'bool', default=False),
         ], at_least_one=[['when_cell', 'when_formula', 'color_scale', 'data_bar']])
         return Schema([
@@ -274,6 +278,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
         worksheet = workbook[sheet_name]
 
         headers = self._build_header_map(worksheet)
+        self._worksheet = worksheet          # for {col:} in literal ranges
         last_row = worksheet.max_row
         last_col_letter = get_column_letter(worksheet.max_column)
 
@@ -438,7 +443,16 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
                       in self._column_ranges(rule, headers, last_row, context)]
             return ' '.join(ranges)
 
-        return str(rule['range'])
+        # A literal range may name its columns by header - "{col:Filter:
+        # SALE TYPE1}2:{col:Filter: Process Year}5" - so it follows the
+        # columns when others are inserted to the left (2026-09-10)
+        return self._resolve_range(str(rule['range']), context)
+
+    def _resolve_range(self, range_text: str, context) -> str:
+        try:
+            return resolve_column_placeholders(range_text, self._worksheet, 1, str(context))
+        except ExcelRangeResolverError as error:
+            raise StepProcessorError(str(error))
 
     def _column_ranges(self, spec, headers, last_row, context):
         """Yield (range_text, column_letter) for each named column, data rows only."""

@@ -43,6 +43,24 @@ def clock() -> str:
     return datetime.now().strftime('%H:%M:%S')
 
 
+def duration(seconds: float) -> str:
+    """An elapsed time at the precision that suits it, for a log line
+    that stays: '0.007s', '0.43s', '1.4s', '2m 14.0s'. Whole seconds are
+    right for a LIVE counter that redraws every second (sub-seconds
+    would flicker), and wrong for a completion line, where '0s total'
+    for a 7 ms phase says nothing (Kris 2026-09-13)."""
+    if seconds < 0:
+        seconds = 0.0
+    if seconds >= 60:
+        minutes, rest = divmod(seconds, 60)
+        return f"{int(minutes)}m {rest:.1f}s"
+    if seconds >= 1:
+        return f"{seconds:.1f}s"
+    if seconds >= 0.1:
+        return f"{seconds:.2f}s"
+    return f"{seconds:.3f}s"
+
+
 def q(value) -> str:
     """One user-originated name, quoted for a log line."""
     text = str(value).replace("'", "\\'")

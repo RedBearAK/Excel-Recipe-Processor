@@ -28,6 +28,8 @@ import os
 import sys
 import time
 import logging
+
+from excel_recipe_processor.core.log_format import duration
 import threading
 
 _LOCK = threading.RLock()
@@ -138,9 +140,11 @@ class TerminalPulse:
         # terminal keeps it as an ordinary log line. Only the live
         # updates themselves are terminal-only. Emitted after the
         # active pulse is unset so the bridge does not redraw over it.
+        # a completion line stays in the log, so it carries real precision;
+        # the live line above it ticks in whole seconds on purpose
         elapsed = time.perf_counter() - self.started
         logging.getLogger(__name__).info(
-            f"✅ {self.label} {self._detail} - {elapsed:.0f}s total")
+            f"✅ {self.label} {self._detail} - {duration(elapsed)} total")
 
 
 def pulse_tick(detail: str = ''):
@@ -217,7 +221,7 @@ class ByteGrowthPulse:
             elapsed = time.perf_counter() - self.started
             logging.getLogger(__name__).info(
                 f"✅ {self.label}: {self._shown.lstrip('|/-\\ ')}"
-                f" - {elapsed:.0f}s total")
+                f" - {duration(elapsed)} total")
         return False
 
 # End of file #

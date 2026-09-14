@@ -35,3 +35,12 @@ on every erp_ archive bumps by script and quotes the result.
 
 
 # End of file #
+
+## Also, v20260913.1: completion lines at real precision
+
+The pulse's two completion lines ("✅ Formatting sheet 1/1: 'Rule_Codes'
+- 0s total") printed whole seconds, which is right for the LIVE line
+that redraws every second and wrong for a line that stays in the log: a
+7 ms phase read as nothing. `log_format.duration()` picks the precision
+by scale - 0.007s, 0.43s, 1.4s, 2m 14.2s - and both completion lines use
+it; the live counters are unchanged. tests/test_log_format_duration.py.

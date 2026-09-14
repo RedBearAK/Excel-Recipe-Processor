@@ -115,9 +115,19 @@ across the file boundary where csv cannot. `import_file` and
 discard the types on purpose - read every column as characters, or write
 an all-string file the way a raw capture layer keeps it.
 
+A `--set` or `--var` value written as a YAML/JSON list or mapping is
+passed to the recipe as that structure (2026-09-14), so a launcher can
+hand a recipe a list variable: `--set var_integer_columns '["Packages"]'`
+reaches `{list_str:var_integer_columns}` as a list. Anything not starting
+with `[` or `{` is the string it always was.
+
+`recipes/parquet_to_xlsx.yaml` is a generic recipe on top of both: one
+Parquet in (every column text), `infer_column_types`, one compact xlsx
+out beside it.
+
 | Purpose | Processors |
 |---|---|
-| Bring data in | `import_file`, `create_stage`, `profile_files`, `profile_workbooks`, `profile_sheets`, `profile_named_objects` |
+| Bring data in | `import_file`, `infer_column_types`, `create_stage`, `profile_files`, `profile_workbooks`, `profile_sheets`, `profile_named_objects` |
 | Shape tables | `select_columns`, `rename_columns`, `filter_data`, `sort_data`, `deduplicate_data`, `slice_data`, `split_column`, `fill_data`, `clean_data`, `columns_to_rows`, `rows_to_columns`, `copy_stage` |
 | Enrich and combine | `add_calculated_column` (expressions and first-match rule tables), `lookup_data`, `merge_data`, `combine_data`, `group_data`, `diff_data` |
 | Summarise | `aggregate_data`, `pivot_table`, `add_subtotals` |

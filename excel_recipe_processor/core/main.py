@@ -11,6 +11,7 @@ from excel_recipe_processor.core.stage_manager import StageManager
 from excel_recipe_processor.core.recipe_pipeline import RecipePipeline, RecipePipelineError
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.core.interactive_variables import (
+    structured_cli_value,
     InteractiveVariablePrompt,
     InteractiveVariableError,
     parse_cli_variables
@@ -348,7 +349,7 @@ def process_recipe(args: Namespace) -> int:
         # same name later on the command line wins
         if getattr(args, 'variable_pairs', None):
             for name, value in args.variable_pairs:
-                cli_variables[name] = value
+                cli_variables[name] = structured_cli_value(value)
             mirror_print()  # separator; buffered for the file's head
             logger.info(f"Parsed {len(cli_variables)} variable overrides from --set")
 

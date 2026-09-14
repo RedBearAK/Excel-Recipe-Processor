@@ -498,6 +498,7 @@ from excel_recipe_processor.processors.combine_data_processor           import C
 from excel_recipe_processor.processors.columns_to_rows_processor       import ColumnsToRowsProcessor
 from excel_recipe_processor.processors.conditional_format_processor     import ConditionalFormatProcessor
 from excel_recipe_processor.processors.copy_stage_processor             import CopyStageProcessor
+from excel_recipe_processor.processors.infer_column_types_processor     import InferColumnTypesProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
 from excel_recipe_processor.processors.declare_dynamic_formulas_processor import DeclareDynamicFormulasProcessor
@@ -562,6 +563,7 @@ def register_standard_processors():
     registry.register('verify_sheet_data',              VerifySheetDataProcessor            )
     registry.register('flush_workbooks',                FlushWorkbooksProcessor             )
     registry.register('copy_stage',                     CopyStageProcessor                  )
+    registry.register('infer_column_types',             InferColumnTypesProcessor           )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
     registry.register('declare_dynamic_formulas',       DeclareDynamicFormulasProcessor     )

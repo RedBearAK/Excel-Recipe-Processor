@@ -60,6 +60,7 @@ against its processor's declared schema before anything runs.
 | `clean_data` | Rule list over columns: replace, regex replace, case, whitespace, numeric and date coercion, standardise values, blank repeated values on continuation rows. |
 | `columns_to_rows` / `rows_to_columns` | Wide-to-long and long-to-wide reshapes; the latter refuses silent aggregation. |
 | `copy_stage` | Duplicate a stage under another name. |
+| `infer_column_types` | Text columns become dates or decimals when every value proves it; integers only for columns named as counts (identifiers look numeric and are not); all or nothing per column, every decision logged. |
 
 ### Enriching and combining (transform family)
 

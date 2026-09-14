@@ -1,0 +1,63 @@
+# Revision date: 2026-09-14
+
+description: "Text columns become dates or decimals when every value proves it; integers only by name"
+
+basic_example:
+  description: "Type a system export whose columns arrived as text"
+  yaml: |
+    # A Parquet or csv from an export has every column as text. This gives
+    # each column the type its CONTENT proves, so Excel sorts, filters and
+    # sums it correctly on open - and leaves alone anything it cannot prove.
+    #
+    # Conservative by content, generous by name:
+    #   dates     every value parses in one of date_formats -> datetime
+    #   decimals  every value numeric and at least one has a point -> float
+    #   integers  ONLY columns named in integer_columns -> Int64, because an
+    #             integer-looking column is where identifiers live: package
+    #             numbers, lot numbers with leading zeros, sequence numbers
+    #   text      text_columns are never touched, whatever they hold
+    # All or nothing per column: one value that does not parse keeps the
+    # whole column text. No value is ever turned into NaN here. Every
+    # decision is logged with its reason.
+
+    settings:
+      description: "Type an export before writing it as xlsx"
+      stages:
+        - stage_name: "stg_text"
+          description: "The export, every column text"
+          protected: false
+        - stage_name: "stg_typed"
+          description: "The same rows, typed where proven"
+          protected: false
+
+    recipe:
+      - step_description: "Read the export"
+        processor_type: "import_file"
+        input_file: "exports/packages.parquet"
+        parquet_types: "text"
+        save_to_stage: "stg_text"
+
+      - # OPT - Human-readable step description
+        step_description: "Give each column the type its content proves"
+        # REQ - Must be "infer_column_types" for this processor type
+        processor_type: "infer_column_types"
+        # REQ - The stage to read, every column text
+        source_stage: "stg_text"
+        # OPT - counts that may become integers; identifiers are NOT listed
+        integer_columns: ["Packages", "Units/Package", "Unit Count"]
+        # OPT - never coerced, whatever they look like
+        text_columns: ["Lot Number", "Package Number"]
+        # OPT - strptime formats tried in order (default: ISO and US m/d/y, with and without times)
+        date_formats: ["%m/%d/%y", "%m/%d/%y %H:%M", "%Y-%m-%d"]
+        # OPT - a named integer column that would not parse is an error rather than a warning
+        strict: false
+        # REQ - Where the typed rows go
+        save_to_stage: "stg_typed"
+
+      - step_description: "Write it"
+        processor_type: "export_file"
+        source_stage: "stg_typed"
+        output_file: "exports/packages.xlsx"
+        sheet_name: "Data"
+
+# End of file #

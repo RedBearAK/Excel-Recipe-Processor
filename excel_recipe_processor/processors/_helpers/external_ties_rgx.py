@@ -38,6 +38,10 @@ external_sheet_ref_rgx = re.compile(
     r"|\[(?P<idx>\d+)\](?P<sheet>[^!'\s,()+*/^&=<>]*))!"
 )
 
+# A workbook-level external name: [N]!Name (no sheet). Handled before the
+# sheet pattern so the empty-sheet form never reaches it.
+external_name_ref_rgx = re.compile(r'\[(\d+)\]!([A-Za-z_\\][A-Za-z0-9_.]*)')
+
 # --- workbook.xml -----------------------------------------------------------
 
 workbook_sheet_element_rgx = re.compile(r'<sheet\b[^>]*/?>')
@@ -119,5 +123,41 @@ embedding_part_rgx = re.compile(r'^xl/embeddings/')
 
 # Hyperlink targets that are web or mail are not ties to another file.
 web_or_mail_target_rgx = re.compile(r'^(?:https?://|mailto:)', re.IGNORECASE)
+
+
+# --- sever surgery patterns (2026-09-14) -----------------------------------
+
+# One whole <c> element, self-closing or paired, for the freeze pass.
+cell_element_rgx = re.compile(
+    r'<c\b(?P<attrs>[^>]*?)(?:/>|>(?P<body>.*?)</c>)', re.DOTALL)
+formula_element_rgx = re.compile(r'<f\b(?P<attrs>[^>]*?)(?:/>|>(?P<text>[^<]*)</f>)')
+value_element_rgx = re.compile(r'<v\b[^>]*(?:/>|>.*?</v>)', re.DOTALL)
+inline_string_element_rgx = re.compile(r'<is\b[^>]*(?:/>|>.*?</is>)', re.DOTALL)
+formula_type_attr_rgx = re.compile(r'\bt="(array|shared|dataTable)"')
+formula_si_attr_rgx = re.compile(r'\bsi="(\d+)"')
+
+# Whole carrier elements for the drop policies.
+cf_rule_element_rgx = re.compile(r'<cfRule\b[^>]*>.*?</cfRule>', re.DOTALL)
+conditional_formatting_element_rgx = re.compile(
+    r'<conditionalFormatting\b[^>]*>(?P<body>.*?)</conditionalFormatting>', re.DOTALL)
+data_validation_element_rgx = re.compile(
+    r'<dataValidation\b[^>]*>.*?</dataValidation>', re.DOTALL)
+data_validations_element_rgx = re.compile(
+    r'<dataValidations\b(?P<attrs>[^>]*)>(?P<body>.*?)</dataValidations>', re.DOTALL)
+attr_count_rgx = re.compile(r'\bcount="\d+"')
+
+# Link plumbing to remove once every [N] is resolved.
+external_references_block_rgx = re.compile(
+    r'<externalReferences\b[^>]*>.*?</externalReferences>', re.DOTALL)
+external_link_rel_type_rgx = re.compile(r'/relationships/externalLink"')
+external_link_override_rgx = re.compile(
+    r'<Override\b[^>]*PartName="/xl/externalLinks/[^"]+"[^>]*/>')
+calc_chain_override_rgx = re.compile(
+    r'<Override\b[^>]*PartName="/xl/calcChain\.xml"[^>]*/>')
+calc_chain_rel_type_rgx = re.compile(r'/relationships/calcChain"')
+full_calc_on_load_rgx = re.compile(r'\bfullCalcOnLoad="[^"]*"')
+calc_completed_rgx = re.compile(r'\bcalcCompleted="[^"]*"')
+calc_mode_manual_rgx = re.compile(r'\bcalcMode="manual"')
+workbook_close_rgx = re.compile(r'</workbook>')
 
 # End of file #

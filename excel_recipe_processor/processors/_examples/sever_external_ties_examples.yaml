@@ -1,0 +1,133 @@
+# Usage examples and vocabulary for the sever_external_ties processor.
+# Revision date: 2026-09-14
+#
+# excel_recipe_processor/processors/_examples/sever_external_ties_examples.yaml
+
+description: "Sever every tie a closed xlsx file has to other workbooks, writing a NEW timestamped file beside the source. Goes beyond Excel Break Links: a [N]Sheet! reference whose sheet exists in this workbook is RETARGETED to the local sheet (the copied-tab case) instead of frozen; defined names, conditional-formatting rules, data-validation rules and chart series are handled, not just cells; and a JSON report names every fix, refusal and limbo item. All-or-nothing per file: any refusal means no output. The source file is never written."
+
+basic_example:
+  description: "Sever with the defaults: retarget what can be, freeze the rest, drop unresolvable names and rules"
+  yaml: |
+    settings:
+      description: "Sever links in a workbook the user copied tabs into"
+
+    recipe:
+      - step_description: "Sever external ties into a new file"
+        processor_type: "sever_external_ties"
+        # REQ - xlsx files to sever; never modified (variables substituted)
+        files:
+          - "review/merged_report.xlsx"
+        # writes review/merged_report_severed_260914_153000.xlsx
+
+strict_example:
+  description: "Refuse anything that cannot be retargeted, so the file is only written when every reference resolved to a local sheet"
+  yaml: |
+    settings:
+      description: "Retarget-only severing with a report"
+
+    recipe:
+      - step_description: "Sever by retargeting only"
+        processor_type: "sever_external_ties"
+        files:
+          - "review/merged_report.xlsx"
+        # OPT - directory for the new file; default beside the source
+        output_dir: "review/severed"
+        # OPT - appended to the stem before the timestamp
+        # Default value: "_severed"
+        output_suffix: "_local"
+        # OPT - strftime format for the timestamp
+        # Default value: "%y%m%d_%H%M%S"
+        timestamp_format: "%y%m%d_%H%M%S"
+        # OPT - rewrite [N]Sheet! to Sheet! when that sheet exists locally
+        # Default value: true
+        retarget_if_possible: true
+        # OPT - formula cells that do not retarget: freeze | refuse
+        # Default value: freeze
+        unresolved_formula_policy: "refuse"
+        # OPT - defined names that do not retarget: drop | refuse
+        # Default value: drop
+        unresolved_defined_name_policy: "refuse"
+        # OPT - CF rules that do not retarget: drop | refuse
+        # Default value: drop
+        unresolved_conditional_formatting_policy: "refuse"
+        # OPT - DV rules that do not retarget: drop | refuse
+        # Default value: drop
+        unresolved_data_validation_policy: "refuse"
+        # OPT - halt when file hyperlinks, connections, query tables or OLE remain
+        # Default value: false
+        fail_on_limbo: false
+        # OPT - JSON report of fixes, refusals and limbo; directory must exist
+        report_file: "review/severed/merged_report_sever.json"
+        # OPT - max named items per class in the log
+        # Default value: 10
+        name_cap: 25
+
+resolution_doctrine:
+  retarget: "Applies first, to every carrier. A reference is retargeted when every sheet it names exists in this workbook (3D refs need both ends) and a [N]!Name form names a local defined name. The [N] is removed and the reference becomes local, quoting preserved."
+  freeze: "Formula cells only. The <f> is removed and the cached <v> kept with its type. A cell with no cached value cannot be frozen and is refused. A shared-formula master freezes its whole group; a slave without a cached value refuses the group."
+  drop: "Defined names, CF rules and DV rules. A conditionalFormatting wrapper left with no rules is removed; a dataValidations count is corrected."
+  forced_refusals: "Array and data-table formulas with external refs, chart series that do not retarget, pivot caches sourced from an external link, and any [N] in a carrier the classifier does not name. These refuse regardless of policy because the plumbing can only be removed when zero [N] survives."
+  limbo: "Left in the new file on purpose and listed in the report: file hyperlinks, connections, query tables, OLE objects. They do not use the external-link plumbing and Break Links leaves them too."
+  plumbing: "Removed only after every [N] resolved: the externalReferences block, link relationships, externalLink parts and their content-type overrides. calcChain.xml goes too (a frozen cell still listed there triggers an Excel repair prompt) and calcPr gains fullCalcOnLoad."
+  verification: "The new file is re-inventoried and must be free of links, [N] carriers and orphans, or it is deleted and the step fails."
+
+parameter_details:
+  files:
+    type: "list of str"
+    required: true
+    description: "xlsx paths to sever; variable substitution applies; never modified"
+  output_dir:
+    type: "str"
+    required: false
+    description: "Directory for the new files; must exist; default is the source directory"
+  output_suffix:
+    type: "str"
+    required: false
+    default: "_severed"
+    description: "Filename fragment between the stem and the timestamp"
+  timestamp_format:
+    type: "str"
+    required: false
+    default: "%y%m%d_%H%M%S"
+    description: "strftime format; an existing output of the same name is refused, never overwritten"
+  retarget_if_possible:
+    type: "bool"
+    required: false
+    default: true
+    description: "Attempt local retargeting before applying any unresolved policy"
+  unresolved_formula_policy:
+    type: "str"
+    required: false
+    default: "freeze"
+    description: "freeze or refuse"
+  unresolved_defined_name_policy:
+    type: "str"
+    required: false
+    default: "drop"
+    description: "drop or refuse"
+  unresolved_conditional_formatting_policy:
+    type: "str"
+    required: false
+    default: "drop"
+    description: "drop or refuse"
+  unresolved_data_validation_policy:
+    type: "str"
+    required: false
+    default: "drop"
+    description: "drop or refuse"
+  fail_on_limbo:
+    type: "bool"
+    required: false
+    default: false
+    description: "Treat limbo items as a failure after the file is written"
+  report_file:
+    type: "str"
+    required: false
+    description: "JSON report (one object for one file, a list for several); written even when the step refuses"
+  name_cap:
+    type: "int"
+    required: false
+    default: 10
+    description: "Maximum named items per class in the log; the report is never capped"
+
+# End of file #

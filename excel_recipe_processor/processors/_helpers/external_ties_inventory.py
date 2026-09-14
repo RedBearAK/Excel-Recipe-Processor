@@ -277,9 +277,12 @@ def _scan_worksheet(archive: zipfile.ZipFile, sheet_name: str,
 
 
 def _classify_feature_tag(tag: str) -> str:
-    if tag.endswith('cfRule') or tag.endswith('conditionalFormatting'):
+    """Only the bare main-namespace carriers get a rule; x14: forms are
+    'other:' so the sever step refuses them by name instead of half-
+    handling them with the main-namespace patterns."""
+    if tag in ('cfRule', 'conditionalFormatting'):
         return 'conditional_formatting'
-    if tag.endswith('dataValidation'):
+    if tag == 'dataValidation':
         return 'data_validation'
     if tag == 'unclassified':
         return 'unclassified'

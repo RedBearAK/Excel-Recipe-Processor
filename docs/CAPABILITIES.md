@@ -25,7 +25,7 @@ against its processor's declared schema before anything runs.
 | Stages | Declared in `settings.stages` with a description and a `protected` flag. Written once (or explicitly replaced), read by any later step. |
 | Auto-free | Each stage is released as soon as its last consuming step completes, so memory follows the recipe's shape rather than growing to the end. |
 | Variables | `{name}` substitution from `settings.variables`, built-ins (`{date}`, `{recipe_parent_dir}`, ...), and external variables the recipe requires - supplied on the CLI with `--set NAME VALUE` or prompted for. |
-| Workbook session | File operations after an export act on the workbook held in memory and write it once; `flush_workbooks` writes earlier when needed. |
+| Workbook session | File operations after an export act on the workbook held in memory and write it once at run end; `flush_workbooks` writes earlier - a named file when it is finished, or everything as a checkpoint. |
 | Verification ledger | Every check rule's outcome (pass / warn / halt) is tallied and summarised at run end. |
 | Storage audit | After writing, workbooks can be audited for stored-formula grammar and dynamic-array declarations, so a file that Excel would silently repair is caught. |
 | Backups | Exports back up a file they replace; how many to keep is configurable. |
@@ -110,7 +110,7 @@ against its processor's declared schema before anything runs.
 | `verify_excel_storage` | Audit a workbook's stored formula grammar and declarations. |
 | `verify_sheet_data` | Row values of a written sheet against rules (values, not formula results). |
 | `generate_column_config` | Compare a source and a template workbook and write a column-configuration YAML. |
-| `flush_workbooks` | Write session-held workbooks now. |
+| `flush_workbooks` | Write session-held workbooks now: `target_files` names the ones that are finished (written and closed; the rest stay in the session), or absent, every dirty one. |
 
 ### Stage utilities (base family)
 

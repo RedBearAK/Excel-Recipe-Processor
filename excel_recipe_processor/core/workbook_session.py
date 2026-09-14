@@ -349,6 +349,40 @@ class WorkbookSession:
         return written
 
     @classmethod
+    def flush_paths(cls, file_paths) -> list:
+        """
+        Save and close the NAMED workbooks only; the rest of the session
+        is untouched. The per-file counterpart of flush_all (2026-09-13):
+        a recipe says "done with this workbook, write it out, the end"
+        for a file it will not touch again, without also flushing every
+        other workbook that happens to be open - which is what a
+        recipe-wide flush does, and which a file operation added earlier
+        in the recipe would silently change.
+
+        A named file that is not open in the session is an error: the
+        step is in the wrong place, or names the wrong file.
+
+        Returns:
+            The keys written, in order
+        """
+        written = []
+        for file_path in file_paths:
+            key = cls._key(file_path)
+            if key not in cls._open_workbooks:
+                raise WorkbookSessionError(
+                    f"flush of {q(file_path)} was asked for, but that workbook is not open in the "
+                    f"session - no earlier step in this run exported or formatted it, or it was "
+                    f"already flushed. Open: {qlist(sorted(cls._open_workbooks)) or 'nothing'}"
+                )
+            if key in cls._dirty_paths:
+                cls._save_workbook(cls._open_workbooks[key], key, "flush")
+                written.append(key)
+            cls._open_workbooks.pop(key, None)
+            cls._dirty_paths.discard(key)
+            cls._injected_formula_ranges.pop(key, None)
+        return written
+
+    @classmethod
     def discard_all(cls) -> int:
         """
         Close the session WITHOUT saving - the failure path.

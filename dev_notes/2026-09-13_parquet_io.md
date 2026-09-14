@@ -44,3 +44,20 @@ that redraws every second and wrong for a line that stays in the log: a
 7 ms phase read as nothing. `log_format.duration()` picks the precision
 by scale - 0.007s, 0.43s, 1.4s, 2m 14.2s - and both completion lines use
 it; the live counters are unchanged. tests/test_log_format_duration.py.
+
+## Also, v20260913.2: flush_workbooks names its files
+
+Kris: shouldn't there be a "flush THIS workbook, I'm done with it"
+directive, rather than a recipe-wide flush that will write whatever
+else happens to be open? Yes - a recipe-wide flush is action at a
+distance, right today only because nothing else is in the session at
+that step, and changed silently by any file operation added earlier.
+`flush_workbooks` now takes `target_files`: the named workbooks are
+written and closed, the rest stay in the session for the single save at
+run end; a named file that is not open is an error (the step is in the
+wrong place). Without target_files it still flushes everything, as a
+checkpoint. WorkbookSession.flush_paths() beside flush_all().
+tests/test_flush_workbooks_named.py: named writes only the named file
+and main's later formatting still lands; unnamed still flushes all; a
+wrong name errors and lists what IS open; a flushed file touched again
+reloads from disk. The VMS recipe uses the named form.

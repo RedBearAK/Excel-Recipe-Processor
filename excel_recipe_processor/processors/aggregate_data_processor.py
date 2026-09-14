@@ -596,7 +596,7 @@ class AggregateDataProcessor(TransformBaseProcessor):
     
     def get_supported_file_formats(self) -> list:
         """Get list of supported file formats for aggregation configs."""
-        return ['xlsx', 'csv', 'tsv']
+        return ['xlsx', 'csv', 'tsv', 'parquet']
     
     def get_capabilities(self) -> dict:
         """Get processor capabilities and features."""

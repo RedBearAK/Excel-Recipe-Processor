@@ -36,7 +36,9 @@ class ImportFileProcessor(ImportBaseProcessor):
             Key('sheet_name', 'any', default='?sheet_001?', description='Tab name, 1-based number, or ?sheet_NNN? token'),
             Key('header_row', 'int', default=1),
             Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
-            Key('format', 'str', choices=['xlsx', 'xls', 'csv', 'tsv']),
+            Key('format', 'str', choices=['xlsx', 'xls', 'csv', 'tsv', 'parquet']),
+            Key('parquet_types', 'str', default='preserve', choices=['preserve', 'text'],
+                description="Parquet only: keep the file's column types (default) or read every column as text"),
             name_list('verbatim_text_columns'),
             Key('on_missing_file', 'str', default='error', choices=['error', 'create_empty']),
         ], variants={'on_missing_file': {
@@ -231,7 +233,8 @@ class ImportFileProcessor(ImportBaseProcessor):
                 separator=separator,
                 explicit_format=explicit_format,
                 verbatim_text_columns=verbatim_text_columns,
-                header_row=header_row
+                header_row=header_row,
+                parquet_types=self.get_config_value('parquet_types', 'preserve')
             )
             
             # Final import summary with comprehensive sheet information

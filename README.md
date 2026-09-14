@@ -108,6 +108,13 @@ description of each, with the run-level features (stages, validation,
 auto-free, variables, the workbook session, audits), is in
 [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 
+File formats: `.xlsx` / `.xls` / `.xlsm` / `.xlsb` in, `.xlsx` out; `.csv`,
+`.tsv`; and `.parquet` both ways (2026-09-13), which keeps column types
+across the file boundary where csv cannot. `import_file` and
+`export_file` take `parquet_types: preserve` (the default) or `text` to
+discard the types on purpose - read every column as characters, or write
+an all-string file the way a raw capture layer keeps it.
+
 | Purpose | Processors |
 |---|---|
 | Bring data in | `import_file`, `create_stage`, `profile_files`, `profile_workbooks`, `profile_sheets`, `profile_named_objects` |

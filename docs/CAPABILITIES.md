@@ -38,7 +38,7 @@ against its processor's declared schema before anything runs.
 
 | Processor | Does |
 |---|---|
-| `import_file` | Reads xlsx / xls / csv / tsv into a stage; picks a sheet by name, number, or positional token; `header_row` for exports that lead with title lines; can create an empty stage with declared columns when the file is absent. |
+| `import_file` | Reads xlsx / xls / csv / tsv / parquet into a stage (Parquet types preserved by default; `parquet_types: text` reads every column as text); picks a sheet by name, number, or positional token; `header_row` for exports that lead with title lines; can create an empty stage with declared columns when the file is absent. |
 | `create_stage` | Builds a stage from inline data in the recipe - a list, a table, or a dictionary. |
 | `profile_files` | Per-file metadata (sizes, modification times) as a stage - the basis of a "Sources" tab. |
 | `profile_workbooks` | Per-sheet metadata of workbooks: state, tab colour, extents, counts. |
@@ -91,7 +91,7 @@ against its processor's declared schema before anything runs.
 
 | Processor | Does |
 |---|---|
-| `export_file` | One or many stages to sheets of an xlsx, or to csv / tsv, optionally onto a template workbook; backs up a replaced file. |
+| `export_file` | One or many stages to sheets of an xlsx, or to csv / tsv, optionally onto a template workbook; backs up a replaced file. Writes `.parquet` too, types preserved by default (`parquet_types: text` casts every column to text first). |
 | `debug_breakpoint` | Dump a stage to a file and stop the run. |
 | `export_filter_step` | Turn reviewed filter terms into a ready-to-paste `filter_data` step (yaml / json). |
 

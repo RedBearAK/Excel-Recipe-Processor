@@ -50,7 +50,9 @@ class ExportFileProcessor(ExportBaseProcessor):
             Key('sheet_name', 'str', default='Data'),
             Key('sheets_to_create', 'list_of_mappings', schema=sheet),
             Key('template_file', 'str'),
-            Key('format', 'str', choices=['xlsx', 'csv', 'tsv']),
+            Key('format', 'str', choices=['xlsx', 'csv', 'tsv', 'parquet']),
+            Key('parquet_types', 'str', default='preserve', choices=['preserve', 'text'],
+                description="Parquet only: write the stage's column types (default) or cast every column to text first"),
             Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
             Key('create_backup', 'bool', default=True),
             Key('delete_backups_beyond', 'int'),
@@ -176,8 +178,9 @@ class ExportFileProcessor(ExportBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Export stages to Excel or CSV multi-sheet workbooks, backing up replaced files',
-            'file_formats': ['xlsx', 'csv', 'tsv'],
+            'description': 'Export stages to Excel, CSV, TSV or Parquet, backing up replaced files',
+            'file_formats': ['xlsx', 'csv', 'tsv', 'parquet'],
+            'parquet': ['column types preserved by default', "parquet_types: text casts every column to text first (nulls stay null)"],
             'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
             'safety': [
                 'timestamped backup of an existing output file, extension preserved',
@@ -279,7 +282,8 @@ class ExportFileProcessor(ExportBaseProcessor):
                     explicit_format=explicit_format,
                     create_backup=create_backup,
                     encoding=encoding,
-                    separator=separator
+                    separator=separator,
+                    parquet_types=self.get_config_value('parquet_types', 'preserve')
                 )
             
             logger.info(f"Exported {len(data)} rows to '{resolved_file}'")

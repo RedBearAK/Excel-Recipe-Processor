@@ -11,6 +11,13 @@
 
 pandas>=2.0.0
 openpyxl>=3.1.0
+pyarrow>=14.0.0
+
+# pyarrow is the Parquet engine behind pandas' read_parquet / to_parquet
+# (2026-09-13). Parquet keeps column types across the file boundary, which
+# csv cannot, and it is what the SBS-Corp-DB-Replica exports when a result
+# is too big for Excel. import_file / export_file read and write it;
+# `parquet_types: text` on either side discards the types on purpose.
 
 # openpyxl 3.1 is a hard floor, not a preference. manage_named_objects reads
 # and writes sheet-scoped defined names via worksheet.defined_names, which does

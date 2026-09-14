@@ -68,11 +68,14 @@ class FileReader:
         '.csv': 'csv',
         '.tsv': 'tsv',
         '.txt': 'tsv',  # .txt files are processed as TSV
+        '.parquet': 'parquet',
     }
-    
+
+    PARQUET_FORMATS = {'parquet'}
+
     @staticmethod
     def read_file(filename, sheet=1, encoding='utf-8', separator=',', explicit_format=None,
-                  verbatim_text_columns=None, header_row=1):
+                  verbatim_text_columns=None, header_row=1, parquet_types='preserve'):
         """
         Read a file with automatic format detection
         
@@ -140,6 +143,11 @@ class FileReader:
                     filename, encoding,
                     raw_na=bool(verbatim_text_columns),
                     header_index=header_index)
+            elif file_format in FileReader.PARQUET_FORMATS:
+                # sheet, encoding, separator, header_row and the NA policy
+                # have no meaning for Parquet: a column is typed and a null
+                # is a null. Only parquet_types applies.
+                data = FileReader._read_parquet_file(filename, parquet_types)
             else:
                 raise FileReaderError(f"Unsupported file format: {q(file_format)}")
 
@@ -392,6 +400,37 @@ class FileReader:
         except ExcelReaderError as e:
             raise FileReaderError(f"Excel reading error for '{filename}': {e}")
     
+    @staticmethod
+    def _read_parquet_file(filename, parquet_types='preserve'):
+        """
+        Read a Parquet file. Types are preserved by default - that is the
+        point of the format - and discarded on request: parquet_types='text'
+        turns every column into text (a date reads back as its ISO form, a
+        number as its digits) with nulls left missing, the way a csv import
+        arrives, for a recipe that wants to treat the file as characters.
+        """
+        if parquet_types not in ('preserve', 'text'):
+            raise FileReaderError(f"parquet_types must be 'preserve' or 'text', got {parquet_types!r}")
+        try:
+            data = pd.read_parquet(filename)
+        except ImportError as error:
+            raise FileReaderError(f"Reading Parquet needs pyarrow (pip install pyarrow): {error}")
+        except Exception as error:
+            raise FileReaderError(f"Error reading Parquet file {q(filename)}: {error}")
+        if parquet_types == 'text':
+            data = FileReader._columns_to_text(data)
+        return data
+
+    @staticmethod
+    def _columns_to_text(data: pd.DataFrame) -> pd.DataFrame:
+        """Every column as text, missing values left missing."""
+        out = data.copy()
+        for column in out.columns:
+            series = out[column]
+            mask = series.isna()
+            out[column] = series.astype(str).where(~mask, other=None)
+        return out
+
     @staticmethod
     def _read_csv_file(filename, encoding, separator, raw_na=False, header_index=0):
         """Read CSV file with robust options. header_index is 0-based."""

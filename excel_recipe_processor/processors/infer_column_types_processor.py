@@ -147,7 +147,7 @@ class InferColumnTypesProcessor(TransformBaseProcessor):
 
     def get_capabilities(self) -> dict:
         return {
-            'description': 'Text columns become dates or decimals when every value proves it; integers only by name',
+            'description': 'Type text columns from content: dates, decimals; integers only by name',
             'rule': ['dates: every value parses in one of date_formats', 'decimals: every value numeric and one has a point',
                      'integers: only columns named in integer_columns (identifiers look numeric and are not)',
                      'all or nothing per column: one unparseable value keeps the column text; no value becomes NaN'],

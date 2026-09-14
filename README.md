@@ -121,9 +121,21 @@ hand a recipe a list variable: `--set var_integer_columns '["Packages"]'`
 reaches `{list_str:var_integer_columns}` as a list. Anything not starting
 with `[` or `{` is the string it always was.
 
-`recipes/parquet_to_xlsx.yaml` is a generic recipe on top of both: one
-Parquet in (every column text), `infer_column_types`, one compact xlsx
-out beside it.
+**csv and tsv columns arrive as text** (breaking change, 2026-09-14).
+The reader used to turn any all-numeric column into numbers on import,
+which changed data silently at the boundary: `01234` became `1234`, an
+all-digit identifier column became `int64`. Now a column is the text
+the file held, missing values missing; deciding what it means is a
+step. `infer_column_types` types columns from their content and says
+why; `infer_numeric: true` on the import restores the old on-import
+conversion for a recipe that wants it. `read_as_text: true` extends
+"text as read" to xlsx cells and means `parquet_types: text` for
+Parquet. A csv import with neither key logs one line saying so.
+
+A generic recipe on top of that and `infer_column_types` - one file in,
+every column text, types where the content proves them, one compact xlsx
+out beside the source - is a few steps; the `parquet_to_xlsx` and
+`csv_to_xlsx` recipes that do it live with the other recipes, not here.
 
 | Purpose | Processors |
 |---|---|

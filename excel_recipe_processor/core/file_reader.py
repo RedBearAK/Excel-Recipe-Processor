@@ -75,7 +75,8 @@ class FileReader:
 
     @staticmethod
     def read_file(filename, sheet=1, encoding='utf-8', separator=',', explicit_format=None,
-                  verbatim_text_columns=None, header_row=1, parquet_types='preserve'):
+                  verbatim_text_columns=None, header_row=1, parquet_types='preserve', read_as_text=False,
+                  infer_numeric=False):
         """
         Read a file with automatic format detection
         
@@ -134,25 +135,33 @@ class FileReader:
                     raw_na=bool(verbatim_text_columns),
                     header_index=header_index)
             elif file_format in FileReader.CSV_FORMATS:
+                # csv and tsv columns arrive as the TEXT they were (2026-09-14):
+                # a reader that turned 01234 into 1234, or an all-digit
+                # identifier column into int64, changed data silently at the
+                # boundary. infer_numeric=True is the old behaviour, asked for.
                 data = FileReader._read_csv_file(
                     filename, encoding, separator,
                     raw_na=bool(verbatim_text_columns),
-                    header_index=header_index)
+                    header_index=header_index, keep_text=not infer_numeric)
             elif file_format in FileReader.TSV_FORMATS:
                 data = FileReader._read_tsv_file(
                     filename, encoding,
                     raw_na=bool(verbatim_text_columns),
-                    header_index=header_index)
+                    header_index=header_index, keep_text=not infer_numeric)
             elif file_format in FileReader.PARQUET_FORMATS:
                 # sheet, encoding, separator, header_row and the NA policy
                 # have no meaning for Parquet: a column is typed and a null
-                # is a null. Only parquet_types applies.
-                data = FileReader._read_parquet_file(filename, parquet_types)
+                # is a null. Only parquet_types applies; read_as_text means
+                # the same as parquet_types='text'.
+                data = FileReader._read_parquet_file(filename, 'text' if read_as_text else parquet_types)
             else:
                 raise FileReaderError(f"Unsupported file format: {q(file_format)}")
 
             if verbatim_text_columns:
                 data = FileReader._apply_na_policy(data, verbatim_text_columns)
+            if read_as_text and file_format in FileReader.EXCEL_FORMATS:
+                # every cell as the text of its value; missing stays missing
+                data = FileReader._columns_to_text(data)
 
             return data
                 
@@ -432,7 +441,7 @@ class FileReader:
         return out
 
     @staticmethod
-    def _read_csv_file(filename, encoding, separator, raw_na=False, header_index=0):
+    def _read_csv_file(filename, encoding, separator, raw_na=False, header_index=0, keep_text=False):
         """Read CSV file with robust options. header_index is 0-based."""
         try:
             data = pd.read_csv(
@@ -448,8 +457,12 @@ class FileReader:
                 low_memory=False
             )
             
-            # Convert numeric columns that can be converted
-            data = FileReader._attempt_numeric_conversion(data)
+            # Convert numeric columns that can be converted - unless the
+            # caller wants every column as the text it was: read_as_text
+            # (2026-09-14) is how a recipe keeps '01234' and an all-digit
+            # identifier column from becoming numbers before it can decide
+            if not keep_text:
+                data = FileReader._attempt_numeric_conversion(data)
             
             logger.debug(f"Read CSV file '{filename}', shape: {data.shape}")
             return data
@@ -458,7 +471,7 @@ class FileReader:
             raise FileReaderError(f"CSV reading error for '{filename}': {e}")
     
     @staticmethod
-    def _read_tsv_file(filename, encoding, raw_na=False, header_index=0):
+    def _read_tsv_file(filename, encoding, raw_na=False, header_index=0, keep_text=False):
         """Read TSV file with robust options. header_index is 0-based."""
         try:
             data = pd.read_csv(
@@ -475,7 +488,8 @@ class FileReader:
             )
             
             # Convert numeric columns that can be converted
-            data = FileReader._attempt_numeric_conversion(data)
+            if not keep_text:
+                data = FileReader._attempt_numeric_conversion(data)
             
             logger.debug(f"Read TSV file '{filename}', shape: {data.shape}")
             return data

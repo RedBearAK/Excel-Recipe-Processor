@@ -94,9 +94,10 @@ settings:
       description: "from parquet"
       protected: false
 recipe:
-  - step_description: "csv in"
+  - step_description: "csv in, numbers inferred (the point of this test is the Parquet typing)"
     processor_type: "import_file"
     input_file: "{csv_path}"
+    infer_numeric: true
     save_to_stage: "stg_in"
   - step_description: "parquet out, typed"
     processor_type: "export_file"
@@ -180,9 +181,28 @@ recipe:
     return good
 
 
+def test_csv_columns_are_text_by_default() -> bool:
+    """Since 2026-09-14 a csv column arrives as the text it was: 01234
+    keeps its zeros. infer_numeric restores the old on-import conversion,
+    explicitly."""
+    print('\ncsv: text by default (01234 kept); infer_numeric=True gives the old conversion (1234)...')
+    path = os.path.join(WORK, 'zeros.csv')
+    with open(path, 'w', encoding='utf-8') as handle:
+        handle.write('Lot,Pkg,Weight\n01234,25PG00051213,12.5\n00567,25PG00051214,\n')
+    default = FileReader.read_file(path)
+    old_way = FileReader.read_file(path, infer_numeric=True)
+    kept = default['Lot'].tolist() == ['01234', '00567'] and str(default['Weight'].dtype) in ('object', 'str', 'string')
+    null_kept = default['Weight'].isna().tolist() == [False, True]
+    converted = old_way['Lot'].tolist() == [1234, 567] and str(old_way['Weight'].dtype) == 'float64'
+    good = kept and null_kept and converted
+    print(f"  default={default['Lot'].tolist()} null kept={null_kept}; infer_numeric={old_way['Lot'].tolist()} -> {'OK' if good else 'FAIL'}")
+    return good
+
+
 def main() -> int:
     tests = [test_round_trip_preserves_types, test_text_on_import, test_text_on_export,
-             test_recipe_csv_to_parquet_and_back, test_bad_option_is_refused_at_validation]
+             test_recipe_csv_to_parquet_and_back, test_bad_option_is_refused_at_validation,
+             test_csv_columns_are_text_by_default]
     passed = 0
     try:
         for test in tests:

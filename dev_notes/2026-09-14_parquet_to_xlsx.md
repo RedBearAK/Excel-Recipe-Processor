@@ -39,7 +39,7 @@ that does not parse, stays the string it was. Tested both ways.
 
 ## The recipe
 
-recipes/parquet_to_xlsx.yaml: import_file (parquet_types: text) ->
+parquet_to_xlsx.yaml (kept with the other recipes in Tech_scripts/erp_recipes, not in this repo): import_file (parquet_types: text) ->
 infer_column_types (lists from var_integer_columns / var_text_columns,
 empty by default: nothing becomes an integer unasked) -> export_file ->
 format_excel (header, freeze, filter, widths). Output
@@ -54,6 +54,49 @@ Ran end to end on a 20,000-row synthetic IMS-shaped zip: zip ->
 Parquet (6,644 inner quotes doubled) -> xlsx with Pack Date and Pack
 Datetime as datetimes, Packages Int64, Net Weight float, every
 identifier text, the `40" high` note intact.
+
+
+## read_as_text, and the csv recipe (same day)
+
+Kris wanted the csv version too. The csv reader reads as str and then
+`_attempt_numeric_conversion` turns any all-numeric column into numbers
+- so 01234 was 1234 and an all-digit package-number column was int64
+before any recipe step could protect them. `import_file: read_as_text:
+true` skips that conversion (csv / tsv; xlsx cells stringified; Parquet
+as parquet_types: text). Both generic recipes use it. Tested: default
+loses the zeros, read_as_text keeps them with the null intact.
+
+The csv recipe cannot repair an exporter's undoubled inner quotes -
+pandas cannot read such a file at all - so its header says: zip it and
+use the zip route, whose converter repairs that on the way through.
+
+Launchers, Kris's names: erp-generic-csv-to-xlsx-coerce-types,
+erp-generic-parquet-to-xlsx-coerce-types, erp-generic-zip-to-xlsx-
+coerce-types. The zip one calls the Parquet one by its command name.
+
+
+## The default flipped (same day)
+
+Kris: shouldn't text be the default way to read a csv? Yes. A reader
+that changes 01234 to 1234 is a silent change to data at the boundary,
+which is the thing every rule in these projects forbids. csv and tsv
+columns now arrive as text; `infer_numeric: true` is the old behaviour,
+asked for; a csv import with neither key logs one line so nothing
+changes silently. Breaking, on purpose: the couple of recipes that
+import csv and lean on numbers being numbers need `infer_numeric:
+true` or an infer_column_types step. The ERP suite had no such
+assumption anywhere - 141 of 142 modules, the one only a batch
+timeout - which is its own comment on how little the old default was
+relied upon.
+
+Two test adjustments on the way, both mine: test_parquet_io's csv ->
+Parquet case now says infer_numeric: true (its subject is the Parquet
+typing); the registry guard in test_declaration_lambda_and_registry
+grepped the whole module for a pop it forbids in the SAVE path, and
+flush_paths pops that registry for a file being CLOSED, after its save
+- the guard is now scoped to _save_workbook, as its docstring says.
+Two capability descriptions trimmed to the 80-character house cap; the
+capabilities snapshot refreshed for the new processor.
 
 
 # End of file #

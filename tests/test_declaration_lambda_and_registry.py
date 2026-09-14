@@ -129,8 +129,15 @@ def test_registry_survives_saves():
         print(f"✗ registry content wrong: {before}")
         return False
 
+    # The guard is scoped to the SAVE path, as the docstring says: a pop in
+    # _save_workbook drops provenance before the declaration can use it. A
+    # flush that CLOSES a file may forget that file's provenance afterwards
+    # (flush_all resets the whole dict; flush_paths pops the one file,
+    # 2026-09-14) - the same thing, after the save, not before.
     source = open('excel_recipe_processor/core/workbook_session.py').read()
-    if '_injected_formula_ranges.pop(' in source:
+    start = source.index('def _save_workbook(')
+    end = source.index('\n    @classmethod', start)
+    if '_injected_formula_ranges.pop(' in source[start:end]:
         print("✗ the save-path pop is back - provenance dies at first save")
         return False
     print("✓ registry populated and the save-path pop is gone")

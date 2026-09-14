@@ -92,7 +92,7 @@ class FlushWorkbooksProcessor(FileOpsBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Write session-held workbooks to disk now - the named ones (target_files) or all of them',
+            'description': 'Write session-held workbooks now: the named ones (target_files) or all',
             'when_to_use': 'a file is finished and will not be touched again; an external tool or risky operation needs it on disk mid-run',
             'named_form': 'target_files writes and closes only those; a named file not open in the session is an error',
             'after_effects': 'flushed workbooks leave the session; a later file operation on one reloads it from disk',

@@ -333,9 +333,17 @@ class WorkbookSession:
         """
         written = 0
 
-        for key in sorted(cls._dirty_paths):
-            cls._save_workbook(cls._open_workbooks[key], key, "session")
-            written += 1
+        # Write in the order the run FIRST TOUCHED the files, not by path.
+        # Sorted-by-path put a dated main workbook (digits first) ahead of
+        # every reference file opened long before it, so the small files
+        # always sorted between the main workbook and its log in a folder
+        # ordered by modification time (Kris 2026-09-13). The dict keeps
+        # insertion order, and "first opened, first written" is the order
+        # a person expects.
+        for key in list(cls._open_workbooks):
+            if key in cls._dirty_paths:
+                cls._save_workbook(cls._open_workbooks[key], key, "session")
+                written += 1
 
         # Empty the caches but KEEP the mode flags. A full reset() here
         # silently dropped _deferred after a mid-run flush_workbooks step,

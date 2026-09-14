@@ -61,3 +61,16 @@ tests/test_flush_workbooks_named.py: named writes only the named file
 and main's later formatting still lands; unnamed still flushes all; a
 wrong name errors and lists what IS open; a flushed file touched again
 reloads from disk. The VMS recipe uses the named form.
+
+## Also, v20260913.3: the end-of-run flush writes files in the order they were first touched
+
+Kris noticed the two small reference files ALWAYS sorted between the
+processed workbook and its log in a folder ordered by modification
+time, whatever was done to the recipe. Cause: flush_all wrote dirty
+workbooks sorted by PATH, and a dated main workbook (digits first)
+sorts ahead of vms_glossary.xlsx and vms_rule_codes.xlsx, so it was
+written first and the small files after it, just before the log
+closed. Now the flush writes in the order the run first opened the
+files - the dict already keeps it - which is the order a person
+expects and needs no recipe gymnastics. Proven with two files whose
+paths sort the wrong way round.

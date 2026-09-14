@@ -115,6 +115,15 @@ across the file boundary where csv cannot. `import_file` and
 discard the types on purpose - read every column as characters, or write
 an all-string file the way a raw capture layer keeps it.
 
+Large exports (2026-09-14): a single-sheet `export_file` now rides the
+workbook session's export bridge like a multi-sheet one, so the workbook
+is built in memory and written once at run end instead of serialized
+and read straight back (263 s + 233 s on 728,631 rows). `fit_columns:
+true` on the export sets column widths from the data as it is written,
+every row measured, vectorized, with the same rule and bounds as
+`format_excel`'s `auto_fit_columns` - which walks every cell in Python
+and took 290 s on the same sheet. Use one or the other, not both.
+
 A `--set` or `--var` value written as a YAML/JSON list or mapping is
 passed to the recipe as that structure (2026-09-14), so a launcher can
 hand a recipe a list variable: `--set var_integer_columns '["Packages"]'`

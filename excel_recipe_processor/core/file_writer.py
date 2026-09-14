@@ -57,7 +57,7 @@ class FileWriter:
     def write_file(data, filename, sheet_name='Data', index=False, 
                     create_backup=True, explicit_format=None,
                     delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND,
-                    encoding='utf-8', separator=',', parquet_types='preserve'):
+                    encoding='utf-8', separator=',', parquet_types='preserve', fit_columns=None):
         """
         Write a DataFrame to file with automatic format detection
         
@@ -93,7 +93,7 @@ class FileWriter:
             
             # Delegate to appropriate writer based on logical format
             if file_format in FileWriter.EXCEL_FORMATS:
-                FileWriter._write_excel_file(data, filename, sheet_name, index)
+                FileWriter._write_excel_file(data, filename, sheet_name, index, fit_columns)
             elif file_format in FileWriter.CSV_FORMATS:
                 FileWriter._write_csv_file(data, filename, index, encoding, separator)
             elif file_format in FileWriter.TSV_FORMATS:
@@ -113,7 +113,7 @@ class FileWriter:
     
     @staticmethod
     def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None,
-                                delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
+                                delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND, fit_columns=None):
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
@@ -155,7 +155,7 @@ class FileWriter:
             
             # Use ExcelWriter for multi-sheet writing
             excel_writer = ExcelWriter()
-            excel_writer.write_multiple_sheets(sheets_data, filename)
+            excel_writer.write_multiple_sheets(sheets_data, filename, fit_columns=fit_columns)
             
             # Set active sheet if specified (requires openpyxl)
             if active_sheet and active_sheet in sheets_data:
@@ -358,11 +358,11 @@ class FileWriter:
             return 'xlsx'
     
     @staticmethod
-    def _write_excel_file(data, filename, sheet_name, index):
+    def _write_excel_file(data, filename, sheet_name, index, fit_columns=None):
         """Write DataFrame to Excel file using ExcelWriter."""
         try:
             excel_writer = ExcelWriter()
-            excel_writer.write_file(data, filename, sheet_name=sheet_name, index=index)
+            excel_writer.write_file(data, filename, sheet_name=sheet_name, index=index, fit_columns=fit_columns)
             
         except ExcelWriterError as e:
             raise FileWriterError(f"Excel writing error for '{filename}': {e}")

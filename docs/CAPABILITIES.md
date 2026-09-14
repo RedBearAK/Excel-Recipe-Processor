@@ -25,7 +25,7 @@ against its processor's declared schema before anything runs.
 | Stages | Declared in `settings.stages` with a description and a `protected` flag. Written once (or explicitly replaced), read by any later step. |
 | Auto-free | Each stage is released as soon as its last consuming step completes, so memory follows the recipe's shape rather than growing to the end. |
 | Variables | `{name}` substitution from `settings.variables`, built-ins (`{date}`, `{recipe_parent_dir}`, ...), and external variables the recipe requires - supplied on the CLI with `--set NAME VALUE` or prompted for. |
-| Workbook session | File operations after an export act on the workbook held in memory and write it once at run end; `flush_workbooks` writes earlier - a named file when it is finished, or everything as a checkpoint. |
+| Workbook session | File operations after an export act on the workbook held in memory and write it once at run end (single-sheet exports included, since 2026-09-14); `flush_workbooks` writes earlier - a named file when it is finished, or everything as a checkpoint. |
 | Verification ledger | Every check rule's outcome (pass / warn / halt) is tallied and summarised at run end. |
 | Storage audit | After writing, workbooks can be audited for stored-formula grammar and dynamic-array declarations, so a file that Excel would silently repair is caught. |
 | Backups | Exports back up a file they replace; how many to keep is configurable. |
@@ -92,7 +92,7 @@ against its processor's declared schema before anything runs.
 
 | Processor | Does |
 |---|---|
-| `export_file` | One or many stages to sheets of an xlsx, or to csv / tsv, optionally onto a template workbook; backs up a replaced file. Writes `.parquet` too, types preserved by default (`parquet_types: text` casts every column to text first). |
+| `export_file` | One or many stages to sheets of an xlsx, or to csv / tsv, optionally onto a template workbook; backs up a replaced file. Writes `.parquet` too, types preserved by default (`parquet_types: text` casts every column to text first). `fit_columns: true` sets column widths from the data as it writes - exact, every row, vectorized - so no auto-fit walk is needed afterwards. |
 | `debug_breakpoint` | Dump a stage to a file and stop the run. |
 | `export_filter_step` | Turn reviewed filter terms into a ready-to-paste `filter_data` step (yaml / json). |
 

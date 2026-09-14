@@ -781,7 +781,10 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         Returns:
             Number of sheets processed
         """
-        logger.info(f"📋 Loading Excel file: {q(Path(filename).name)}")
+        if WorkbookSession.is_open(filename):
+            logger.info(f"📋 Using the session's workbook: {q(Path(filename).name)} (not reloaded)")
+        else:
+            logger.info(f"📋 Loading Excel file: {q(Path(filename).name)}")
         
         # Build template lookup
         template_lookup = self._build_template_lookup(templates or [])

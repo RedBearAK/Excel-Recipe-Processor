@@ -51,3 +51,12 @@ export and drop auto_fit from their format step.
 
 
 # End of file #
+
+v20260914.3: two log lines. The fit said nothing about itself; now
+"📐 [Data] Fitted 39 column width(s) from the data, every row measured:
+8-48, 3 at the 48 cap". And format_excel logged "📋 Loading Excel
+file" even when it took the workbook from the session and loaded
+nothing - the absence of a "loaded in N s" line was the only tell. It
+now says "Using the session's workbook (not reloaded)". A log that
+says a slow thing happened when it did not is how the next person
+spends an afternoon optimizing the wrong step.

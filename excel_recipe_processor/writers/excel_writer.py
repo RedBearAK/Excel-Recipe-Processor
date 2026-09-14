@@ -496,8 +496,14 @@ def fitted_widths(df: pd.DataFrame, options: dict) -> dict:
 
 def set_fitted_widths(worksheet, df: pd.DataFrame, options: dict) -> None:
     from openpyxl.utils import get_column_letter
-    for index, (column, width) in enumerate(fitted_widths(df, options).items(), start=1):
+    widths = fitted_widths(df, options)
+    for index, (column, width) in enumerate(widths.items(), start=1):
         worksheet.column_dimensions[get_column_letter(index)].width = float(width)
+    if widths:
+        at_max = sum(1 for width in widths.values() if width >= float(options.get('max_width', 100)))
+        logger.info(f"📐 [{worksheet.title}] Fitted {len(widths)} column width(s) from the data, every row measured: "
+                    f"{min(widths.values()):.0f}-{max(widths.values()):.0f}"
+                    + (f", {at_max} at the {options.get('max_width', 100):.0f} cap" if at_max else ''))
 
 
 

@@ -306,17 +306,14 @@ class VariableSubstitution:
                 var_name = match.group(1)
                 full_match = match.group(0)
                 
-                # Check if there's a colon immediately after this variable
-                # by looking at what comes after the closing brace
-                match_end = match.end()
-                if match_end < len(template):
-                    # Look for colon pattern: {variable}:something or {variable:something}
-                    remaining = template[match_end:]
-                    if remaining.startswith(':') or ':' in template[match.start():match_end]:
-                        # This is part of a formatted variable, skip it
-                        return full_match
-                
-                # Also skip if the variable name is followed by colon inside the braces
+                # A colon INSIDE the braces marks a typed or formatted
+                # reference ({int:name}, {date:YYYY}), which other passes
+                # own; the simple pattern cannot match one anyway, so this
+                # is only a guard. A colon AFTER the closing brace is just
+                # the next character - "{start}:{end}" is two variables
+                # around an A1 range separator - and used to be skipped
+                # here as if it were part of a format, which half-substituted
+                # the string ("{x}:{y}" -> "{x}:2", 2026-09-10).
                 if ':' in full_match:
                     return full_match
                     
@@ -506,6 +503,14 @@ class VariableSubstitution:
         if ':' in template and '}' in template:
             for i in range(len(template)):
                 if template[i] == ':':
+                    # An A1 range between two placeholders -
+                    # "{col:Start}2:{col:End}5" - has a colon that is
+                    # followed by the NEXT placeholder's opening brace.
+                    # That colon is the range separator, not a half-typed
+                    # variable, and the check must not read the earlier
+                    # "}" as proof of a missing "{" (2026-09-10).
+                    if template[i + 1:].lstrip().startswith('{'):
+                        continue
                     # Look for closing brace after this colon
                     for j in range(i + 1, len(template)):
                         if template[j] == '}':

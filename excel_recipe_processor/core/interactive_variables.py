@@ -9,6 +9,7 @@ Enhanced with prompt_toolkit for better UX when available.
 """
 
 import re
+import yaml
 import logging
 from typing import Any
 
@@ -338,10 +339,34 @@ def parse_cli_variables(variable_args: list) -> dict:
         if not name:
             raise InteractiveVariableError(f"Variable name cannot be empty in: '{var_arg}'")
         
-        variables[name] = value
-        logger.debug(f"Parsed CLI variable: {name} = {value}")
+        variables[name] = structured_cli_value(value)
+        logger.debug(f"Parsed CLI variable: {name} = {variables[name]!r}")
     
     return variables
+
+
+def structured_cli_value(value: str):
+    """A command-line value is a string - except one written as a YAML/JSON
+    list or mapping, which becomes that structure (2026-09-14), so a
+    launcher can hand a recipe a list variable:
+
+        --set var_integer_columns '["Packages", "Units"]'
+        --var var_text_columns='["Lot Number"]'
+
+    A recipe declaring {list_str:var_integer_columns} then receives a
+    list, as it would from settings.variables. Anything not starting with
+    '[' or '{', or that does not parse, is the string it always was.
+    """
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    if not stripped or stripped[0] not in '[{':
+        return value
+    try:
+        parsed = yaml.safe_load(stripped)
+    except yaml.YAMLError:
+        return value
+    return parsed if isinstance(parsed, (list, dict)) else value
 
 
 def validate_external_variable_config(var_name: str, var_config: Any) -> None:

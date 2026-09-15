@@ -1,6 +1,6 @@
-# Revision date: 2026-08-16
+# Revision date: 2026-09-13
 
-description: "Write every session-held workbook to disk now, instead of at run end"
+description: "Write session-held workbooks to disk now - the named ones, or all of them"
 
 
 basic_example:
@@ -23,5 +23,43 @@ basic_example:
         step_description: "Write all pending workbook changes to disk"
         # REQ - Must be "flush_workbooks" for this processor type
         processor_type: "flush_workbooks"
+
+named_example:
+  description: "A file is finished: write and close just that one"
+  yaml: |
+    # The unnamed form above flushes whatever happens to be open, which a
+    # file operation added earlier in the recipe silently changes. When a
+    # file is DONE - a reference workbook written near the start that the
+    # run will not touch again - name it. Only the named workbooks are
+    # written and closed; everything else stays in the session for the
+    # single save at run end. Naming a file that is not open is an error:
+    # the step is in the wrong place.
+
+    settings:
+      description: "Emit a reference workbook early and be done with it"
+      stages:
+        - stage_name: "stg_glossary"
+          description: "Reference rows"
+          protected: false
+
+    recipe:
+      - step_description: "Export the glossary"
+        processor_type: "export_file"
+        source_stage: "stg_glossary"
+        output_file: "output/glossary.xlsx"
+        sheet_name: "Glossary"
+        create_backup: false
+
+      - step_description: "Format it"
+        processor_type: "format_excel"
+        target_file: "output/glossary.xlsx"
+        formatting:
+          - sheet_names: ["Glossary"]
+            header_bold: true
+
+      - step_description: "The glossary is finished: write it now, not at run end"
+        processor_type: "flush_workbooks"
+        # OPT - Workbooks to write and close; the rest of the session is untouched
+        target_files: ["output/glossary.xlsx"]
 
 # End of file #

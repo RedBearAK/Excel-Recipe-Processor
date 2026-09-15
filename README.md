@@ -108,9 +108,47 @@ description of each, with the run-level features (stages, validation,
 auto-free, variables, the workbook session, audits), is in
 [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 
+File formats: `.xlsx` / `.xls` / `.xlsm` / `.xlsb` in, `.xlsx` out; `.csv`,
+`.tsv`; and `.parquet` both ways (2026-09-13), which keeps column types
+across the file boundary where csv cannot. `import_file` and
+`export_file` take `parquet_types: preserve` (the default) or `text` to
+discard the types on purpose - read every column as characters, or write
+an all-string file the way a raw capture layer keeps it.
+
+Large exports (2026-09-14): a single-sheet `export_file` now rides the
+workbook session's export bridge like a multi-sheet one, so the workbook
+is built in memory and written once at run end instead of serialized
+and read straight back (263 s + 233 s on 728,631 rows). `fit_columns:
+true` on the export sets column widths from the data as it is written,
+every row measured, vectorized, with the same rule and bounds as
+`format_excel`'s `auto_fit_columns` - which walks every cell in Python
+and took 290 s on the same sheet. Use one or the other, not both.
+
+A `--set` or `--var` value written as a YAML/JSON list or mapping is
+passed to the recipe as that structure (2026-09-14), so a launcher can
+hand a recipe a list variable: `--set var_integer_columns '["Packages"]'`
+reaches `{list_str:var_integer_columns}` as a list. Anything not starting
+with `[` or `{` is the string it always was.
+
+**csv and tsv columns arrive as text** (breaking change, 2026-09-14).
+The reader used to turn any all-numeric column into numbers on import,
+which changed data silently at the boundary: `01234` became `1234`, an
+all-digit identifier column became `int64`. Now a column is the text
+the file held, missing values missing; deciding what it means is a
+step. `infer_column_types` types columns from their content and says
+why; `infer_numeric: true` on the import restores the old on-import
+conversion for a recipe that wants it. `read_as_text: true` extends
+"text as read" to xlsx cells and means `parquet_types: text` for
+Parquet. A csv import with neither key logs one line saying so.
+
+A generic recipe on top of that and `infer_column_types` - one file in,
+every column text, types where the content proves them, one compact xlsx
+out beside the source - is a few steps; the `parquet_to_xlsx` and
+`csv_to_xlsx` recipes that do it live with the other recipes, not here.
+
 | Purpose | Processors |
 |---|---|
-| Bring data in | `import_file`, `create_stage`, `profile_files`, `profile_workbooks`, `profile_sheets`, `profile_named_objects` |
+| Bring data in | `import_file`, `infer_column_types`, `create_stage`, `profile_files`, `profile_workbooks`, `profile_sheets`, `profile_named_objects` |
 | Shape tables | `select_columns`, `rename_columns`, `filter_data`, `sort_data`, `deduplicate_data`, `slice_data`, `split_column`, `fill_data`, `clean_data`, `columns_to_rows`, `rows_to_columns`, `copy_stage` |
 | Enrich and combine | `add_calculated_column` (expressions and first-match rule tables), `lookup_data`, `merge_data`, `combine_data`, `group_data`, `diff_data` |
 | Summarise | `aggregate_data`, `pivot_table`, `add_subtotals` |
@@ -190,6 +228,13 @@ family contributes the step keys it needs and decides how columns may be named:
 - An evaluated string never sits under a bare key: `pandas_formula`,
   `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
 - Column-name lists are lists of strings, never positions.
+- A cell or range address may name its columns by header instead of
+  by letter: `{col:Header}2:{col:Other}5`. `inject_formulas` and
+  `conditional_format` have always resolved `{col:}` inside formulas;
+  since 2026-09-10 the RANGE fields do too - `conditional_format`'s
+  `range:`, `format_excel`'s `cells:`, `excel_data_validation`'s
+  `apply_to_ranges` - so a directive follows its columns when others are
+  inserted to their left, instead of needing its letters re-typed.
 - Enum values are snake_case ERP vocabulary; a library's own spelling is storage.
 - `case_sensitive: false` by default, everywhere.
 - Stage graph is strict: a stage read before it is written, written twice
@@ -211,6 +256,48 @@ recipe:
     processor_type: "processor_name"
     # ... processor-specific keys: see docs/STEP_SCHEMAS.md
 ```
+
+### Reusing a block: `settings.yaml_anchors`
+
+When the same *structure* repeats across steps - a formatting template
+used by three `format_excel` steps, say - write it once as a YAML anchor
+and alias it where it's needed:
+
+```yaml
+settings:
+  description: "Emit several workbooks that share one header style"
+  variables:
+    var_header_green: "548235"
+  yaml_anchors:
+    - &tpl_lookup_header
+      template_name: "tpl_lookup_header"
+      header_bold: true
+      header_background_color: "{var_header_green}"
+
+recipe:
+  - step_description: "Format the reference workbook"
+    processor_type: "format_excel"
+    target_file: "reference.xlsx"
+    templates:
+      - *tpl_lookup_header
+    formatting:
+      - sheet_names: ["Glossary"]
+        apply_templates: ["tpl_lookup_header"]
+```
+
+`yaml_anchors` is a parking place and nothing else: the YAML parser
+expands every alias before the recipe is loaded, so the tool never reads
+what's in there, and each step ends up with its own complete copy of the
+block - copy that step into another recipe and it still works. The key
+exists because an alias must appear *later* in the document than its
+anchor, and `settings` always comes first; anchoring inside whichever
+step happens to use the block first would make the definition's home an
+accident of step order.
+
+Use an anchor for a repeated **structure**, a variable for a repeated
+**value**. They compose - the anchored block above contains a variable,
+substituted per step as usual. An anchor can't be overridden per step;
+YAML's merge key (`<<: *anchor`) is the tool for that.
 
 ### Step Configuration
 

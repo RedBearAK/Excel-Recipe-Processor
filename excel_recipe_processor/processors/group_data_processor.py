@@ -49,7 +49,7 @@ class GroupDataProcessor(TransformBaseProcessor):
             Key('type', 'str', required=True, choices=['stage', 'lookup', 'file']),
             Key('stage_name', 'stage_in'), Key('lookup_stage', 'stage_in'), Key('lookup_key', 'str'),
             Key('filename', 'str'), Key('sheet', 'any'), Key('encoding', 'str'), Key('separator', 'str'),
-            Key('format_type', 'str', choices=['xlsx', 'csv', 'tsv']),
+            Key('format_type', 'str', choices=['xlsx', 'csv', 'tsv', 'parquet']),
             Key('format', 'str', default='wide', choices=['wide', 'long'], description='Shape of the definitions table'),
             Key('group_column', 'str'), Key('group_name_column', 'str'), Key('values_column', 'str'),
             Key('filter_condition', 'any'),

@@ -1,0 +1,92 @@
+# parquet_to_xlsx.yaml - one Parquet in, one compact xlsx out, columns typed
+# where their content proves it.
+#
+# Generic on purpose: it knows nothing about the export's columns. The
+# only knowledge it takes is two optional lists (counts allowed to become
+# integers; columns never to touch), supplied by the launcher that knows
+# the exporter. Everything else is decided from the data by
+# infer_column_types, conservatively, and logged.
+#
+#   excel-recipe-processor parquet_to_xlsx.yaml \
+#       --var source_parquet=/path/to/file.parquet \
+#       --set output_dir /path/to \
+#       --set source_stem file
+#
+# Output: {output_dir}/{source_stem}_{hour}{minute}{second}.xlsx, the time
+# stamp so consecutive runs never shadow a file left open in Excel (the
+# VMS recipe's rule). The xlsx is compact by construction - ERP consolidates
+# inline strings on every save.
+#
+# Not this recipe's job: the row limit. A Parquet with more rows than Excel
+# holds (1,048,576) cannot become one sheet, and the launcher checks that
+# before calling this.
+
+settings:
+  description: "A Parquet from an export becomes a compact, typed xlsx"
+  log_file: "{output_dir}/{output_basename}_log.txt"
+
+  required_external_vars:
+    source_parquet:
+      description: "The Parquet to convert (every column text, as zipcsv2parquet writes it)"
+      example: "260913_IMS_Naknek.parquet"
+
+  variables:
+    output_dir: "{recipe_parent_dir}/output"
+    source_stem: "parquet"
+    output_basename: "{source_stem}_{hour}{minute}{second}"
+
+    # ---- What the launcher may set for a known exporter --------------------
+    # Counts that may become integers. Identifiers are NEVER listed: package
+    # numbers, lot numbers (leading zeros), sequence numbers all look numeric
+    # and are not. Empty by default: nothing becomes an integer unasked.
+    var_integer_columns: []
+    # Columns never coerced, whatever they look like.
+    var_text_columns: []
+
+    var_color_header: "1F4E79"
+
+  stages:
+    - stage_name: "stg_parquet_text"
+      description: "The Parquet as read, every column text"
+      protected: true
+    - stage_name: "stg_parquet_typed"
+      description: "The same rows, typed where the content proves it"
+      protected: false
+
+recipe:
+  - step_description: "Read the Parquet, every column as text"
+    processor_type: "import_file"
+    input_file: "{source_parquet}"
+    parquet_types: "text"
+    save_to_stage: "stg_parquet_text"
+
+  - step_description: "Give each column the type its content proves"
+    processor_type: "infer_column_types"
+    source_stage: "stg_parquet_text"
+    integer_columns: "{list_str:var_integer_columns}"
+    text_columns: "{list_str:var_text_columns}"
+    save_to_stage: "stg_parquet_typed"
+
+  - step_description: "Write the xlsx"
+    processor_type: "export_file"
+    source_stage: "stg_parquet_typed"
+    output_file: "{output_dir}/{output_basename}.xlsx"
+    sheet_name: "Data"
+    create_backup: false
+
+  - step_description: "Header, freeze, filter, widths"
+    processor_type: "format_excel"
+    target_file: "{output_dir}/{output_basename}.xlsx"
+    formatting:
+      - sheet_names: ["Data"]
+        header_bold: true
+        header_background: true
+        header_background_color: "{var_color_header}"
+        header_text_color: "white"
+        freeze_top_row: true
+        auto_filter: true
+        auto_fit_columns: true
+        min_column_width: 8
+        max_column_width: 48
+
+# End of file #

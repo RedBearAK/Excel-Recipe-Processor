@@ -48,7 +48,7 @@ class ExcelWriter:
         self.last_output_path = None
     
     def write_file(self, df: pd.DataFrame, output_path, sheet_name: str = 'Sheet1', 
-                   index: bool = False, **kwargs) -> None:
+                   index: bool = False, fit_columns: dict = None, **kwargs) -> None:
         """
         Write a DataFrame to an Excel file.
         
@@ -93,7 +93,17 @@ class ExcelWriter:
             )
         
         logger.info(f"Writing DataFrame to Excel: {q(output_path)}")
-        
+
+        # A single sheet without an index is the common export, and under a
+        # pipeline session it belongs on the export bridge like any other:
+        # until 2026-09-14 only the multi-sheet path was bridged, so a
+        # single-sheet export serialized the workbook to disk and the next
+        # file operation read the identical bytes back - 263 s to write and
+        # 233 s to reload, on 728,631 rows.
+        if not index and not kwargs and WorkbookSession.is_deferred():
+            self.write_multiple_sheets({sheet_name: df}, output_path, fit_columns=fit_columns)
+            return
+
         try:
             # Write the DataFrame through an explicit writer, so the
             # constructed workbook can be given the modern Office theme
@@ -101,6 +111,8 @@ class ExcelWriter:
             single_writer = pd.ExcelWriter(output_path, engine='openpyxl')
             try:
                 df.to_excel(single_writer, sheet_name=sheet_name, index=index, **kwargs)
+                if fit_columns:
+                    set_fitted_widths(single_writer.book[sheet_name], df, fit_columns)
             finally:
                 apply_base_theme(single_writer.book)
                 single_writer.close()
@@ -119,7 +131,7 @@ class ExcelWriter:
         except Exception as e:
             raise ExcelWriterError(f"Error writing Excel file: {e}")
     
-    def write_multiple_sheets(self, data_dict: dict, output_path) -> None:
+    def write_multiple_sheets(self, data_dict: dict, output_path, fit_columns: dict = None) -> None:
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
@@ -176,6 +188,8 @@ class ExcelWriter:
                     
                     # Write this sheet
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    if fit_columns:
+                        set_fitted_widths(writer.book[sheet_name], df, fit_columns)
                     logger.debug(f"Wrote sheet '{sheet_name}': {len(df)} rows")
             finally:
                 # Every workbook ERP constructs gets the modern Office theme
@@ -192,11 +206,14 @@ class ExcelWriter:
                     # a reloaded file shows them as empty. The live book
                     # must match, or downstream steps see phantom "data"
                     # a disk round-trip would have erased.
-                    for worksheet in writer.book.worksheets:
-                        for row in worksheet.iter_rows():
-                            for cell in row:
-                                if cell.value == '':
-                                    cell.value = None
+                    # Only the cells that WERE null need visiting, and the
+                    # frames say exactly which (2026-09-14): the scan of every
+                    # cell was a Python loop over 28 million values on a
+                    # 728,631 x 39 export.
+                    for sheet_name, df in data_dict.items():
+                        if not isinstance(df, pd.DataFrame) or sheet_name not in writer.book.sheetnames:
+                            continue
+                        clear_null_cells(writer.book[sheet_name], df)
 
                     # Hand the populated book to the session. close() is
                     # DELIBERATELY not called on this path: closing is what
@@ -435,3 +452,59 @@ class ExcelWriter:
             info["exists"] = False
         
         return info
+
+def clear_null_cells(worksheet, df: pd.DataFrame) -> int:
+    """pandas materializes every NaN as a literal '' cell (na_rep default);
+    serializing to disk silently drops those, so a reloaded file shows
+    them as empty. The live book must match, or downstream steps see
+    phantom data a disk round-trip would have erased. Visits only the
+    cells the frame says were null. Returns how many."""
+    cleared = 0
+    null_mask = df.isna()
+    for column_index, column in enumerate(df.columns, start=1):
+        flags = null_mask[column].to_numpy()
+        if not flags.any():
+            continue
+        for row_offset in flags.nonzero()[0]:
+            cell = worksheet.cell(row=int(row_offset) + 2, column=column_index)
+            if cell.value == '':
+                cell.value = None
+                cleared += 1
+    return cleared
+
+
+def fitted_widths(df: pd.DataFrame, options: dict) -> dict:
+    """Column widths from the FRAME, exact and vectorized - the same rule
+    format_excel's auto_fit applies by walking every cell, which on a
+    728,631-row sheet took 290 s (2026-09-14). The longest rendered value
+    per column (a float or datetime renders the way str(cell.value)
+    does), the header at x1.2 when it will be bold, plus 4, plus 3 when
+    an auto-filter will sit on the header, clamped to min / max.
+    Returns {column name: width}."""
+    minimum = float(options.get('min_width', 8))
+    maximum = float(options.get('max_width', 100))
+    padding = 4 + (3 if options.get('auto_filter', False) else 0)
+    header_factor = 1.2 if options.get('header_bold', True) else 1.0
+    widths = {}
+    for column in df.columns:
+        series = df[column].dropna()
+        longest = int(series.astype(str).str.len().max()) if len(series) else 0
+        header = int(len(str(column)) * header_factor)
+        widths[column] = max(minimum, min(max(longest, header) + padding, maximum))
+    return widths
+
+
+def set_fitted_widths(worksheet, df: pd.DataFrame, options: dict) -> None:
+    from openpyxl.utils import get_column_letter
+    widths = fitted_widths(df, options)
+    for index, (column, width) in enumerate(widths.items(), start=1):
+        worksheet.column_dimensions[get_column_letter(index)].width = float(width)
+    if widths:
+        at_max = sum(1 for width in widths.values() if width >= float(options.get('max_width', 100)))
+        logger.info(f"📐 [{worksheet.title}] Fitted {len(widths)} column width(s) from the data, every row measured: "
+                    f"{min(widths.values()):.0f}-{max(widths.values()):.0f}"
+                    + (f", {at_max} at the {options.get('max_width', 100):.0f} cap" if at_max else ''))
+
+
+
+# End of file #

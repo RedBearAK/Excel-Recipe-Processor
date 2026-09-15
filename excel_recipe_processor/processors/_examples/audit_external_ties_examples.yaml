@@ -1,0 +1,69 @@
+# Usage examples and vocabulary for the audit_external_ties processor.
+# Revision date: 2026-09-14
+#
+# excel_recipe_processor/processors/_examples/audit_external_ties_examples.yaml
+
+description: "Inventory every tie a closed xlsx file has to other files - external workbook links by index, every formula cell / defined name / conditional-formatting rule / data-validation rule / chart series carrying a [N] reference, pivot cache sources, file hyperlinks, connections, query tables and OLE objects, plus orphan indexes and phantom link parts. Read-only: the file is opened with zipfile in read mode and cannot be changed by this step. Excel's Break Links shows one list of workbooks and cannot say where the links live; this shows where."
+
+basic_example:
+  description: "Audit one file and print the inventory to the log"
+  yaml: |
+    settings:
+      description: "Audit a workbook the user copied tabs into"
+
+    recipe:
+      - step_description: "Inventory external ties in the merged workbook"
+        processor_type: "audit_external_ties"
+        # REQ - xlsx files to audit; never modified (variables substituted)
+        files:
+          - "review/merged_report.xlsx"
+
+report_example:
+  description: "Write the full inventory as sorted JSON for diffing across runs, and halt if anything is tied"
+  yaml: |
+    settings:
+      description: "Gate an archive copy on having no external ties"
+
+    recipe:
+      - step_description: "Audit and gate the archive copy"
+        processor_type: "audit_external_ties"
+        files:
+          - "archive/260914_VMS_processed.xlsx"
+        # OPT - path for the JSON inventory; directory must exist
+        report_file: "archive/260914_VMS_processed_ties.json"
+        # OPT - halt the recipe when any audited file has a tie
+        # Default value: false
+        fail_on_ties: true
+        # OPT - max named items per class in the log
+        # Default value: 10
+        name_cap: 25
+
+what_is_reported:
+  external_links: "Each externalLinkN.xml by its 1-based [N] index, with target path, kind (workbook / oleLink / ddeLink), the sheet names the source workbook had, and whether cached values are present."
+  formula_refs: "Every formula element carrying [N]: sheet, cell, referenced sheet names, cached-value flag, and the shared-formula ref range when the cell is a shared master. The log splits them into cells whose referenced sheet EXISTS locally (retarget candidates for the later repair step) and cells that can only be frozen or refused."
+  defined_names: "Names whose text carries [N] or #REF!, with scope and hidden flag - the usual phantom-link culprits."
+  sheet_features: "[N] found outside sheetData, classified by carrier: conditional_formatting, data_validation, or unclassified - an unknown carrier is reported loudly, never ignored."
+  pivots: "Every pivot table with host sheet, location, cache source (sheet / ref / name, or the external r:id) and refreshOnLoad. Local-source pivots are NOT counted as ties; they are listed because the tab-transplant pre-flight needs them."
+  orphans: "[N] indexes with no externalReference behind them, declared references nothing uses (phantom links), and externalLink parts nothing points at."
+
+parameter_details:
+  files:
+    type: "list of str"
+    required: true
+    description: "xlsx paths to audit; variable substitution applies; never modified"
+  report_file:
+    type: "str"
+    required: false
+    description: "Write the inventory as sorted JSON (one object for one file, a list for several); the directory must already exist"
+  fail_on_ties:
+    type: "bool"
+    required: false
+    default: false
+    description: "Raise after the report when any audited file has an external tie"
+  name_cap:
+    type: "int"
+    required: false
+    default: 10
+    description: "Maximum named items per class in the log; the JSON report is never capped"
+
+# End of file #

@@ -50,7 +50,18 @@ class ExportFileProcessor(ExportBaseProcessor):
             Key('sheet_name', 'str', default='Data'),
             Key('sheets_to_create', 'list_of_mappings', schema=sheet),
             Key('template_file', 'str'),
-            Key('format', 'str', choices=['xlsx', 'csv', 'tsv']),
+            Key('format', 'str', choices=['xlsx', 'csv', 'tsv', 'parquet']),
+            Key('parquet_types', 'str', default='preserve', choices=['preserve', 'text'],
+                description="Parquet only: write the stage's column types (default) or cast every column to text first"),
+            Key('fit_columns', 'bool', default=False,
+                description='xlsx: set column widths from the data as it is written - exact, every row measured, '
+                            'vectorized - so a format_excel auto_fit afterwards has nothing to walk (290 s on 728,631 rows)'),
+            Key('fit_min_width', 'number', default=8, description='fit_columns lower bound (format_excel: min_column_width)'),
+            Key('fit_max_width', 'number', default=100, description='fit_columns upper bound (format_excel: max_column_width)'),
+            Key('fit_for_auto_filter', 'bool', default=False,
+                description='fit_columns: add the 3 extra a format_excel auto_filter would add for the dropdown arrows'),
+            Key('fit_header_bold', 'bool', default=True,
+                description='fit_columns: measure the header at x1.2 as a bold header renders (what format_excel does)'),
             Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
             Key('create_backup', 'bool', default=True),
             Key('delete_backups_beyond', 'int'),
@@ -168,6 +179,17 @@ class ExportFileProcessor(ExportBaseProcessor):
         return (f"wrote {len(data)} rows into sheet '{sheet_name}' of a copy of "
                 f"'{template_path.name}'")
 
+    def _fit_options(self):
+        """The fit_columns options as the writer takes them, or None."""
+        if not self.get_config_value('fit_columns', False):
+            return None
+        return {
+            'min_width': self.get_config_value('fit_min_width', 8),
+            'max_width': self.get_config_value('fit_max_width', 100),
+            'auto_filter': bool(self.get_config_value('fit_for_auto_filter', False)),
+            'header_bold': bool(self.get_config_value('fit_header_bold', True)),
+        }
+
     def get_capabilities(self) -> dict:
         """
         Get processor capabilities information.
@@ -176,8 +198,9 @@ class ExportFileProcessor(ExportBaseProcessor):
             Dictionary with processor capabilities
         """
         return {
-            'description': 'Export stages to Excel or CSV multi-sheet workbooks, backing up replaced files',
-            'file_formats': ['xlsx', 'csv', 'tsv'],
+            'description': 'Export stages to Excel, CSV, TSV or Parquet, backing up replaced files',
+            'file_formats': ['xlsx', 'csv', 'tsv', 'parquet'],
+            'parquet': ['column types preserved by default', "parquet_types: text casts every column to text first (nulls stay null)"],
             'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
             'safety': [
                 'timestamped backup of an existing output file, extension preserved',
@@ -268,7 +291,8 @@ class ExportFileProcessor(ExportBaseProcessor):
                 FileWriter.write_multi_sheet_excel(
                     sheets_data,
                     resolved_file,
-                    create_backup=create_backup
+                    create_backup=create_backup,
+                    fit_columns=self._fit_options()
                 )  # No variables parameter
             else:
                 # Single file export
@@ -279,7 +303,9 @@ class ExportFileProcessor(ExportBaseProcessor):
                     explicit_format=explicit_format,
                     create_backup=create_backup,
                     encoding=encoding,
-                    separator=separator
+                    separator=separator,
+                    parquet_types=self.get_config_value('parquet_types', 'preserve'),
+                    fit_columns=self._fit_options()
                 )
             
             logger.info(f"Exported {len(data)} rows to '{resolved_file}'")

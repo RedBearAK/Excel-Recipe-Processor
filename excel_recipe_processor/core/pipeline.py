@@ -498,6 +498,7 @@ from excel_recipe_processor.processors.combine_data_processor           import C
 from excel_recipe_processor.processors.columns_to_rows_processor       import ColumnsToRowsProcessor
 from excel_recipe_processor.processors.conditional_format_processor     import ConditionalFormatProcessor
 from excel_recipe_processor.processors.copy_stage_processor             import CopyStageProcessor
+from excel_recipe_processor.processors.infer_column_types_processor     import InferColumnTypesProcessor
 from excel_recipe_processor.processors.create_stage_processor           import CreateStageProcessor
 from excel_recipe_processor.processors.debug_breakpoint_processor       import DebugBreakpointProcessor
 from excel_recipe_processor.processors.declare_dynamic_formulas_processor import DeclareDynamicFormulasProcessor
@@ -518,6 +519,8 @@ from excel_recipe_processor.processors.profile_sheets_processor         import P
 from excel_recipe_processor.processors.profile_workbooks_processor      import ProfileWorkbooksProcessor
 from excel_recipe_processor.processors.verify_excel_storage_processor   import VerifyExcelStorageProcessor
 from excel_recipe_processor.processors.strip_formula_caches_processor  import StripFormulaCachesProcessor
+from excel_recipe_processor.processors.audit_external_ties_processor   import AuditExternalTiesProcessor
+from excel_recipe_processor.processors.sever_external_ties_processor   import SeverExternalTiesProcessor
 from excel_recipe_processor.processors.deduplicate_data_processor      import DeduplicateDataProcessor
 from excel_recipe_processor.processors.free_stages_processor           import FreeStagesProcessor
 from excel_recipe_processor.processors.verify_columns_processor        import VerifyColumnsProcessor
@@ -556,12 +559,15 @@ def register_standard_processors():
     registry.register('profile_workbooks',              ProfileWorkbooksProcessor           )
     registry.register('verify_excel_storage',           VerifyExcelStorageProcessor         )
     registry.register('strip_formula_caches',           StripFormulaCachesProcessor         )
+    registry.register('audit_external_ties',            AuditExternalTiesProcessor          )
+    registry.register('sever_external_ties',            SeverExternalTiesProcessor          )
     registry.register('free_stages',                    FreeStagesProcessor                 )
     registry.register('verify_columns',                 VerifyColumnsProcessor              )
     registry.register('verify_stage_data',              VerifyStageDataProcessor            )
     registry.register('verify_sheet_data',              VerifySheetDataProcessor            )
     registry.register('flush_workbooks',                FlushWorkbooksProcessor             )
     registry.register('copy_stage',                     CopyStageProcessor                  )
+    registry.register('infer_column_types',             InferColumnTypesProcessor           )
     registry.register('create_stage',                   CreateStageProcessor                )
     registry.register('debug_breakpoint',               DebugBreakpointProcessor            )
     registry.register('declare_dynamic_formulas',       DeclareDynamicFormulasProcessor     )

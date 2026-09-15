@@ -38,8 +38,9 @@ class FileWriter:
     EXCEL_FORMATS = {'xlsx', 'xls', 'xlsm'}
     CSV_FORMATS = {'csv'}
     TSV_FORMATS = {'tsv'}
-    
-    ALL_FORMATS = EXCEL_FORMATS | CSV_FORMATS | TSV_FORMATS
+    PARQUET_FORMATS = {'parquet'}
+
+    ALL_FORMATS = EXCEL_FORMATS | CSV_FORMATS | TSV_FORMATS | PARQUET_FORMATS
     
     # Extension to logical format mapping - matches FileReader
     EXTENSION_TO_FORMAT = {
@@ -49,13 +50,14 @@ class FileWriter:
         '.csv': 'csv',
         '.tsv': 'tsv',
         '.txt': 'tsv',  # .txt files are written as TSV
+        '.parquet': 'parquet',
     }
     
     @staticmethod
     def write_file(data, filename, sheet_name='Data', index=False, 
                     create_backup=True, explicit_format=None,
                     delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND,
-                    encoding='utf-8', separator=','):
+                    encoding='utf-8', separator=',', parquet_types='preserve', fit_columns=None):
         """
         Write a DataFrame to file with automatic format detection
         
@@ -91,11 +93,13 @@ class FileWriter:
             
             # Delegate to appropriate writer based on logical format
             if file_format in FileWriter.EXCEL_FORMATS:
-                FileWriter._write_excel_file(data, filename, sheet_name, index)
+                FileWriter._write_excel_file(data, filename, sheet_name, index, fit_columns)
             elif file_format in FileWriter.CSV_FORMATS:
                 FileWriter._write_csv_file(data, filename, index, encoding, separator)
             elif file_format in FileWriter.TSV_FORMATS:
                 FileWriter._write_tsv_file(data, filename, index, encoding)
+            elif file_format in FileWriter.PARQUET_FORMATS:
+                FileWriter._write_parquet_file(data, filename, index, parquet_types)
             else:
                 raise FileWriterError(f"Unsupported file format: {file_format}")
             
@@ -109,7 +113,7 @@ class FileWriter:
     
     @staticmethod
     def write_multi_sheet_excel(sheets_data, filename, create_backup=True, active_sheet=None,
-                                delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND):
+                                delete_backups_beyond=DEFAULT_DELETE_BACKUPS_BEYOND, fit_columns=None):
         """
         Write multiple DataFrames to different sheets in one Excel file.
         
@@ -151,7 +155,7 @@ class FileWriter:
             
             # Use ExcelWriter for multi-sheet writing
             excel_writer = ExcelWriter()
-            excel_writer.write_multiple_sheets(sheets_data, filename)
+            excel_writer.write_multiple_sheets(sheets_data, filename, fit_columns=fit_columns)
             
             # Set active sheet if specified (requires openpyxl)
             if active_sheet and active_sheet in sheets_data:
@@ -354,15 +358,40 @@ class FileWriter:
             return 'xlsx'
     
     @staticmethod
-    def _write_excel_file(data, filename, sheet_name, index):
+    def _write_excel_file(data, filename, sheet_name, index, fit_columns=None):
         """Write DataFrame to Excel file using ExcelWriter."""
         try:
             excel_writer = ExcelWriter()
-            excel_writer.write_file(data, filename, sheet_name=sheet_name, index=index)
+            excel_writer.write_file(data, filename, sheet_name=sheet_name, index=index, fit_columns=fit_columns)
             
         except ExcelWriterError as e:
             raise FileWriterError(f"Excel writing error for '{filename}': {e}")
     
+    @staticmethod
+    def _write_parquet_file(data: pd.DataFrame, filename, index, parquet_types='preserve'):
+        """
+        Write Parquet. Column types go into the file as they are in the
+        frame by default; parquet_types='text' casts every column to text
+        first (nulls stay null), producing an all-string file the way a raw
+        capture layer keeps it - for a consumer that must not trust the
+        types, or must match a text-only schema.
+        """
+        if parquet_types not in ('preserve', 'text'):
+            raise FileWriterError(f"parquet_types must be 'preserve' or 'text', got {parquet_types!r}")
+        frame = data
+        if parquet_types == 'text':
+            frame = data.copy()
+            for column in frame.columns:
+                series = frame[column]
+                mask = series.isna()
+                frame[column] = series.astype(str).where(~mask, other=None).astype('string')
+        try:
+            frame.to_parquet(filename, index=index)
+        except ImportError as error:
+            raise FileWriterError(f"Writing Parquet needs pyarrow (pip install pyarrow): {error}")
+        except Exception as error:
+            raise FileWriterError(f"Error writing Parquet file {filename}: {error}")
+
     @staticmethod
     def _write_csv_file(data: pd.DataFrame, filename, index, encoding, separator):
         """Write DataFrame to CSV file."""

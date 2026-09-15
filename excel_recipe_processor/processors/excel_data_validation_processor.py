@@ -40,6 +40,12 @@ import logging
 
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from excel_recipe_processor.processors._helpers.inject_formulas_rgx import column_placeholder_rgx
+from excel_recipe_processor.processors._helpers.excel_range_resolver import (
+    ExcelRangeResolverError,
+    resolve_column_placeholders,
+)
+
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.core.config_schema import Key, Schema, name_list
 from excel_recipe_processor.core.workbook_session import WorkbookSession
@@ -116,7 +122,7 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
         ])
         entry = Schema([
             Key('sheet_name', 'any', required=True, description='Tab name, number, or ?sheet_NNN? token'),
-            Key('apply_to_ranges', 'list', item_kind='str', required=True, description='A1 ranges the validation covers'),
+            Key('apply_to_ranges', 'list', item_kind='str', required=True, description='A1 ranges the validation covers; columns may be named by header, "{col:Header}2:{col:Header}5", so the validation follows its column when others are inserted'),
             Key('validation_type', 'str', required=True, choices=list(VALIDATION_TYPES)),
             Key('values_list', 'list', item_kind='any', description='list: literal choices'),
             Key('list_from_named_range', 'str', description='list: a defined name'),
@@ -233,10 +239,17 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
                     f"got {range_text!r}"
                 )
             candidate = range_text.strip()
+            if '{col:' in candidate:
+                # columns named by header - "{col:Filter: SALE TYPE1}2:{col:Filter:
+                # SALE TYPE1}5" - resolve against the sheet at apply time, so the
+                # validation follows its column when others are inserted
+                # (2026-09-10). Check the shape with the placeholders stood in
+                # for by a letter.
+                candidate = column_placeholder_rgx.sub('A', candidate)
             if not (cell_ref_rgx.match(candidate) or range_ref_rgx.match(candidate)):
                 raise StepProcessorError(
                     f"{context}: {range_text!r} is not an A1-style cell or "
-                    f"range (like \"B2\", \"$B$2\", or \"A2:A500\")"
+                    f"range (like \"B2\", \"$B$2\", \"A2:A500\", or \"{{col:Header}}2:{{col:Header}}5\")"
                 )
 
     def _validate_list_entry(self, entry: dict, context: str) -> None:
@@ -451,9 +464,14 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
             data_validation = self._build_data_validation(entry)
 
             for range_text in entry['apply_to_ranges']:
+                try:
+                    resolved_range = resolve_column_placeholders(
+                        range_text.strip(), worksheet, 1, f"{context} sheet '{sheet_name}'")
+                except ExcelRangeResolverError as error:
+                    raise StepProcessorError(str(error))
                 # openpyxl normalizes '$' away, but strip anyway so the
                 # stored sqref never depends on library behavior.
-                data_validation.add(range_text.strip().replace('$', ''))
+                data_validation.add(resolved_range.replace('$', ''))
 
             worksheet.add_data_validation(data_validation)
             rules_written += 1

@@ -1,7 +1,7 @@
 {
   "system_info": {
     "description": "Excel Recipe Processor - Automated Excel data processing system",
-    "total_processors": 46,
+    "total_processors": 47,
     "processor_types": [
       "add_calculated_column",
       "add_subtotals",
@@ -28,6 +28,7 @@
       "generate_column_config",
       "group_data",
       "import_file",
+      "infer_column_types",
       "inject_formulas",
       "lookup_data",
       "manage_named_objects",
@@ -167,7 +168,8 @@
       "file_formats": [
         "xlsx",
         "csv",
-        "tsv"
+        "tsv",
+        "parquet"
       ],
       "grouping_features": [
         "single_column_grouping",
@@ -456,9 +458,10 @@
       "family": "file_ops: target_file and sheet_name"
     },
     "flush_workbooks": {
-      "description": "Write every session-held workbook to disk now, instead of at run end",
-      "when_to_use": "an external tool or risky operation needs the file on disk mid-run",
-      "after_effects": "the session empties; later file operations reload from disk"
+      "description": "Write session-held workbooks now: the named ones (target_files) or all",
+      "when_to_use": "a file is finished and will not be touched again; an external tool or risky operation needs it on disk mid-run",
+      "named_form": "target_files writes and closes only those; a named file not open in the session is an error",
+      "after_effects": "flushed workbooks leave the session; a later file operation on one reloads it from disk"
     },
     "copy_stage": {
       "description": "Copy a stage to another named stage",
@@ -476,6 +479,16 @@
         "checkpoint": "Copy intermediate results for later analysis",
         "branching": "Copy data before trying different processing paths"
       }
+    },
+    "infer_column_types": {
+      "description": "Type text columns from content: dates, decimals; integers only by name",
+      "rule": [
+        "dates: every value parses in one of date_formats",
+        "decimals: every value numeric and one has a point",
+        "integers: only columns named in integer_columns (identifiers look numeric and are not)",
+        "all or nothing per column: one unparseable value keeps the column text; no value becomes NaN"
+      ],
+      "reporting": "every decision logged with its reason"
     },
     "create_stage": {
       "description": "Create stages from inline data with support for lists, tables, and dictionaries",
@@ -641,11 +654,16 @@
       "session": "file operation on the workbook session, like conditional_format - run after export, before flush"
     },
     "export_file": {
-      "description": "Export stages to Excel or CSV multi-sheet workbooks, backing up replaced files",
+      "description": "Export stages to Excel, CSV, TSV or Parquet, backing up replaced files",
       "file_formats": [
         "xlsx",
         "csv",
-        "tsv"
+        "tsv",
+        "parquet"
+      ],
+      "parquet": [
+        "column types preserved by default",
+        "parquet_types: text casts every column to text first (nulls stay null)"
       ],
       "excel_options": [
         "multi-sheet export from named stages",

@@ -36,7 +36,16 @@ class ImportFileProcessor(ImportBaseProcessor):
             Key('sheet_name', 'any', default='?sheet_001?', description='Tab name, 1-based number, or ?sheet_NNN? token'),
             Key('header_row', 'int', default=1),
             Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
-            Key('format', 'str', choices=['xlsx', 'xls', 'csv', 'tsv']),
+            Key('format', 'str', choices=['xlsx', 'xls', 'csv', 'tsv', 'parquet']),
+            Key('parquet_types', 'str', default='preserve', choices=['preserve', 'text'],
+                description="Parquet only: keep the file's column types (default) or read every column as text"),
+            Key('read_as_text', 'bool', default=False,
+                description='Every column arrives as the text it was, missing values missing. Already the default for '
+                            'csv / tsv (2026-09-14); this extends it to xlsx cells and means parquet_types: text for Parquet'),
+            Key('infer_numeric', 'bool', default=False,
+                description='csv / tsv only: turn every all-numeric column into numbers on import - the behaviour before '
+                            '2026-09-14. Loses leading zeros (01234 -> 1234) and types all-digit identifiers; prefer an '
+                            'infer_column_types step, which decides per column and says why'),
             name_list('verbatim_text_columns'),
             Key('on_missing_file', 'str', default='error', choices=['error', 'create_empty']),
         ], variants={'on_missing_file': {
@@ -231,8 +240,15 @@ class ImportFileProcessor(ImportBaseProcessor):
                 separator=separator,
                 explicit_format=explicit_format,
                 verbatim_text_columns=verbatim_text_columns,
-                header_row=header_row
+                header_row=header_row,
+                parquet_types=self.get_config_value('parquet_types', 'preserve'),
+                read_as_text=bool(self.get_config_value('read_as_text', False)),
+                infer_numeric=bool(self.get_config_value('infer_numeric', False))
             )
+            if (file_format in FileReader.CSV_FORMATS or file_format in FileReader.TSV_FORMATS) \
+                    and 'infer_numeric' not in self.step_config and 'read_as_text' not in self.step_config:
+                logger.info("csv columns arrive as text (since 2026-09-14): 01234 keeps its zeros. Type them with an "
+                            "infer_column_types step, or add `infer_numeric: true` here for the old on-import conversion")
             
             # Final import summary with comprehensive sheet information
             if is_excel_file:

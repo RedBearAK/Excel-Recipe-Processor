@@ -12,9 +12,12 @@ against a COPY: the source file is read once and never written, the
 result lands beside it as <stem><suffix>_<timestamp>.xlsx, and a
 report names every fix, every refusal and every limbo item.
 
-In-place operation is deliberately absent from v1 (2026-09-14
-ruling): it becomes an explicit opt-in once the new-file mode has
-proven itself on real files.
+write_mode in_place is the explicit opt-in (2026-09-14): the result
+is written to a temp file beside the source, verified, the source is
+copied to <name>.severbak, and the temp atomically replaces the
+source. Refused when Excel has the file open or a .severbak already
+exists. Both modes prove, byte for byte, that every part the surgery
+did not claim to touch is unchanged (see _helpers/xlsx_package_write).
 
 Resolution per carrier: retarget when every referenced sheet (or
 name) exists locally, else the carrier's unresolved policy - freeze
@@ -24,9 +27,9 @@ survives; any refusal means no output file at all (the report is
 still written). See _helpers/external_ties_sever.py for the surgery
 doctrine.
 
-After writing, the new file is re-inventoried and must come back
-free of links, [N] carriers and orphans, or the output is deleted and
-the step fails loud.
+Before the result is named anything, it is re-inventoried and must
+come back free of links, [N] carriers and orphans, or the temp is
+deleted and the step fails loud.
 """
 
 import os
@@ -51,6 +54,10 @@ from excel_recipe_processor.processors._helpers.external_ties_sever import (
     DROPPABLE_POLICIES,
     validate_policies,
 )
+from excel_recipe_processor.processors._helpers.xlsx_package_write import (
+    PackageWriteError,
+    refuse_if_open_in_excel,
+)
 from excel_recipe_processor.processors._helpers.external_ties_inventory import (
     inventory_external_ties,
 )
@@ -61,6 +68,11 @@ logger = logging.getLogger(__name__)
 REPORT_NAME_CAP = 10
 HEARTBEAT_SECONDS = 5.0
 DEFAULT_SUFFIX = '_severed'
+BACKUP_SUFFIX = '.severbak'
+WRITE_MODE_NEW_FILE = 'new_file'
+WRITE_MODE_IN_PLACE = 'in_place'
+WRITE_MODES = (WRITE_MODE_NEW_FILE, WRITE_MODE_IN_PLACE)
+NEW_FILE_ONLY_KEYS = ('output_dir', 'output_suffix', 'timestamp_format')
 DEFAULT_TIMESTAMP_FORMAT = '%y%m%d_%H%M%S'
 
 # Sections of the post-write inventory that must be empty for the
@@ -98,6 +110,12 @@ class SeverExternalTiesProcessor(FileOpsBaseProcessor):
             Key('unresolved_data_validation_policy', 'str', default=POLICY_DROP,
                 choices=list(DROPPABLE_POLICIES),
                 description='DV rules that do not retarget: drop the rule, or refuse'),
+            Key('write_mode', 'str', default=WRITE_MODE_NEW_FILE,
+                choices=list(WRITE_MODES),
+                description='new_file (default): timestamped copy beside the source; '
+                            'in_place: temp + verify + .severbak backup + atomic replace'),
+            Key('verify_with_openpyxl', 'bool', default=False,
+                description='Also load the result with openpyxl before accepting it (slow on large files)'),
             Key('fail_on_limbo', 'bool', default=False,
                 description='Halt when file hyperlinks, connections, query tables or OLE objects remain'),
             Key('report_file', 'str',
@@ -136,6 +154,20 @@ class SeverExternalTiesProcessor(FileOpsBaseProcessor):
                 'unresolved_data_validation_policy', POLICY_DROP),
         }
         validate_policies(self.policies, self.step_name, StepProcessorError)
+        self.write_mode = self.get_config_value('write_mode', WRITE_MODE_NEW_FILE)
+        if self.write_mode not in WRITE_MODES:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': write_mode must be one of "
+                f"{list(WRITE_MODES)}, got {self.write_mode!r}"
+            )
+        if self.write_mode == WRITE_MODE_IN_PLACE:
+            named = [key for key in NEW_FILE_ONLY_KEYS if key in step_config]
+            if named:
+                raise StepProcessorError(
+                    f"Step '{self.step_name}': {named} only apply to "
+                    f"write_mode new_file; in_place writes over the source"
+                )
+        self.verify_with_openpyxl = bool(self.get_config_value('verify_with_openpyxl', False))
         self.fail_on_limbo = bool(self.get_config_value('fail_on_limbo', False))
         self.report_file = self.get_config_value('report_file', None)
         self.name_cap = self.get_config_value('name_cap', REPORT_NAME_CAP)
@@ -170,8 +202,9 @@ class SeverExternalTiesProcessor(FileOpsBaseProcessor):
                 f"{len(failures)} file(s) - {', '.join(failures)}; see the "
                 f"refusals in the log{' and report' if self.report_file else ''}"
             )
-        written = [Path(report['output']).name for report in reports]
-        return f"severed {len(reports)} file(s) -> {', '.join(written)}"
+        written = [Path(report['output']).name for report in reports if report['output']]
+        mode = 'in place' if self.write_mode == WRITE_MODE_IN_PLACE else 'to new files'
+        return f"severed {len(written)} of {len(reports)} file(s) {mode}: {', '.join(written)}"
 
     def _substitute(self, value: str) -> str:
         if hasattr(self, 'variable_substitution') and self.variable_substitution:
@@ -202,8 +235,18 @@ class SeverExternalTiesProcessor(FileOpsBaseProcessor):
                 f"Step '{self.step_name}': file not found: {source}"
             )
         name = Path(source).name
-        output = self._output_path_for(source)
-        logger.info(f"✂️  Severing external ties in {q(name)} -> {q(Path(output).name)}")
+        in_place = self.write_mode == WRITE_MODE_IN_PLACE
+        if in_place:
+            try:
+                refuse_if_open_in_excel(source)
+            except PackageWriteError as error:
+                raise StepProcessorError(f"Step '{self.step_name}': {error}")
+            output = source
+            logger.info(f"✂️  Severing external ties in {q(name)} IN PLACE "
+                        f"(backup {q(name + BACKUP_SUFFIX)})")
+        else:
+            output = self._output_path_for(source)
+            logger.info(f"✂️  Severing external ties in {q(name)} -> {q(Path(output).name)}")
         started = time.perf_counter()
         last_beat = [started]
 
@@ -233,21 +276,35 @@ class SeverExternalTiesProcessor(FileOpsBaseProcessor):
             report['after_summary'] = {}
             return report
 
-        plan.write(output)
-        after = inventory_external_ties(output)
-        report['after_summary'] = after['summary']
-        dirty = [section for section in MUST_BE_CLEAN if after[section]]
-        orphans = after['orphans']
-        if dirty or orphans['unresolved_indexes'] or orphans['dangling_parts']:
-            os.remove(output)
+        def verify_clean(temp_path: str) -> None:
+            after = inventory_external_ties(temp_path)
+            report['after_summary'] = after['summary']
+            dirty = [section for section in MUST_BE_CLEAN if after[section]]
+            orphans = after['orphans']
+            if dirty or orphans['unresolved_indexes'] or orphans['dangling_parts']:
+                raise PackageWriteError(
+                    f"post-write inventory still shows {dirty or orphans}")
+
+        try:
+            checks = plan.write(output, in_place, BACKUP_SUFFIX,
+                                verify_output=verify_clean,
+                                verify_with_openpyxl=self.verify_with_openpyxl)
+        except PackageWriteError as error:
             raise StepProcessorError(
-                f"Step '{self.step_name}': post-write verification failed for "
-                f"{name}: {dirty or orphans} still present; output deleted"
+                f"Step '{self.step_name}': verification failed for {name}: "
+                f"{error}; nothing was written or replaced"
             )
         report['output'] = output
-        logger.info(f"✅ {q(Path(output).name)} verified clean "
+        report['write_checks'] = checks
+        where = 'in place' if in_place else q(Path(output).name)
+        logger.info(f"✅ {where} verified: {checks['parts_untouched_verified']} "
+                    f"untouched part(s) byte-identical, "
+                    f"{len(checks['parts_changed'])} changed, "
+                    f"{len(checks['parts_removed'])} removed "
                     f"({os.path.getsize(output) / 1e6:.2f} MB) in "
                     f"{time.perf_counter() - started:.2f}s")
+        if in_place:
+            logger.info(f"   backup: {q(checks['backup'])}")
         return report
 
     def _write_report(self, report_path: str, reports: list) -> None:

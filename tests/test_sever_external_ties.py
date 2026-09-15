@@ -227,7 +227,7 @@ def test_copied_tab_retargets_everything():
         sheet = loaded['Data']
         after = inventory_external_ties(output)
         return check_all([
-            ('severed 1 file' in result, f"result: {result}"),
+            ('severed 1 of 1' in result, f"result: {result}"),
             ('<f>Ext!A1*2</f><v>14</v>' in data, 'bare ref retargeted, cache kept'),
             ("<f>'Ext'!A1&amp;\"x\"</f>" in data, 'quoted ref retargeted'),
             ('<f>LocalName</f>' in data, '[1]!LocalName -> local name'),
@@ -364,7 +364,7 @@ def test_output_naming_and_skip():
         return check_all([
             (pattern_ok, f"outputs {outputs}"),
             (collision_refused, 'same-day collision refused rather than overwritten'),
-            ('severed 1 file' in result and only_output(workdir, 'clean') == '',
+            ('severed 0 of 1' in result and only_output(workdir, 'clean') == '',
              'tie-free file skipped without an output'),
         ])
 

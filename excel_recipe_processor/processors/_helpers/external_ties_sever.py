@@ -4,10 +4,13 @@ remove the external-link plumbing, writing a NEW package.
 
 excel_recipe_processor/processors/_helpers/external_ties_sever.py
 
-The source file is read once with zipfile and never written. Every
-part is held as bytes; the XML parts that carry ties are rewritten as
-text; the result is written to a new path. Refusal at any point means
-NO output file - the report still records what would have happened.
+The source file is read once with zipfile. Every part is held as
+bytes; the XML parts that carry ties are rewritten as text; the result
+goes through xlsx_package_write.write_and_verify, which proves the
+surgery touched only the parts it claimed before naming the result -
+as a new file, or in place of the original (temp + verify + backup +
+atomic replace). Refusal at any point means NO output - the report
+still records what would have happened.
 
 RESOLUTION ORDER, per carrier (2026-09-14 design):
   1. retarget - when every sheet the reference names exists in this
@@ -37,40 +40,45 @@ retargeted formulas need a recalculation anyway.
 
 import zipfile
 
-from excel_recipe_processor.processors._helpers.external_ties_rgx import (
+from excel_recipe_processor.processors._helpers.xlsx_package_rgx import (
     calc_pr_rgx,
     attr_name_rgx,
-    attr_sqref_rgx,
     attr_count_rgx,
+    attr_sqref_rgx,
+    chart_part_rgx,
     cell_element_rgx,
-    calc_completed_rgx,
     cell_ref_attr_rgx,
     chart_formula_rgx,
-    chart_part_rgx,
     value_element_rgx,
-    worksheet_part_rgx,
-    external_index_rgx,
-    formula_element_rgx,
+    calc_completed_rgx,
     workbook_close_rgx,
+    worksheet_part_rgx,
     cf_rule_element_rgx,
+    formula_element_rgx,
     formula_si_attr_rgx,
-    full_calc_on_load_rgx,
     calc_mode_manual_rgx,
-    external_name_ref_rgx,
-    external_sheet_ref_rgx,
-    inline_string_element_rgx,
-    pivot_cache_definition_part_rgx,
     formula_type_attr_rgx,
-    calc_chain_rel_type_rgx,
+    full_calc_on_load_rgx,
     calc_chain_override_rgx,
+    calc_chain_rel_type_rgx,
     relationship_element_rgx,
+    inline_string_element_rgx,
     workbook_defined_name_rgx,
     data_validation_element_rgx,
-    external_link_rel_type_rgx,
-    external_link_override_rgx,
     data_validations_element_rgx,
-    external_references_block_rgx,
+    pivot_cache_definition_part_rgx,
     conditional_formatting_element_rgx,
+)
+from excel_recipe_processor.processors._helpers.external_ties_rgx import (
+    external_index_rgx,
+    external_name_ref_rgx,
+    external_sheet_ref_rgx,
+    external_link_override_rgx,
+    external_link_rel_type_rgx,
+    external_references_block_rgx,
+)
+from excel_recipe_processor.processors._helpers.xlsx_package_write import (
+    write_and_verify,
 )
 from excel_recipe_processor.processors._helpers.external_ties_inventory import (
     sheet_part_map,
@@ -126,6 +134,10 @@ class SeverPlan:
         # through to the carrier policy and is reported as such.
         self.link_sheets = {link['index']: set(link['sheet_names'])
                             for link in self.before['external_links']}
+        # What the surgery claims to touch; write_and_verify proves that
+        # nothing outside these two sets differs from the original.
+        self.changed_parts = set()
+        self.removed_parts = set()
         self.fixed = {'retargeted': [], 'frozen': [], 'dropped': []}
         self.refused = []
         self.limbo = []
@@ -136,7 +148,10 @@ class SeverPlan:
         return self.parts[part].decode('utf-8')
 
     def _set_text(self, part: str, text: str) -> None:
-        self.parts[part] = text.encode('utf-8')
+        payload = text.encode('utf-8')
+        if payload != self.parts[part]:
+            self.changed_parts.add(part)
+        self.parts[part] = payload
 
     def _retarget_text(self, text: str) -> str:
         """Local form of every [N] reference, or '' when any cannot resolve."""
@@ -471,6 +486,7 @@ class SeverPlan:
                     removed['calc_chain'] = True
                 self.order.remove(part)
                 del self.parts[part]
+                self.removed_parts.add(part)
         return removed
 
     def _force_recalc(self, workbook: str) -> str:
@@ -508,10 +524,13 @@ class SeverPlan:
             'before_summary': self.before['summary'],
         }
 
-    def write(self, output_path: str) -> None:
-        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as archive:
-            for name in self.order:
-                archive.writestr(name, self.parts[name])
+    def write(self, output_path: str, in_place: bool, backup_suffix: str,
+              verify_output=None, verify_with_openpyxl: bool = False) -> dict:
+        """Hand the plan to the shared write-and-verify path."""
+        return write_and_verify(
+            self.source_path, self.order, self.parts,
+            self.changed_parts, self.removed_parts, output_path,
+            in_place, backup_suffix, verify_output, verify_with_openpyxl)
 
 
 # ---- small pulls ----------------------------------------------------------------

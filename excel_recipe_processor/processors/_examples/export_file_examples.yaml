@@ -358,6 +358,35 @@ backup_control_example:
         # (default: 2; 0 means make no backup at all)
         delete_backups_beyond: 2
 
+empty_stage_example:
+  description: "An exceptions report that exists only when there are exceptions"
+  yaml: |
+    # By default an export of a stage with no rows still writes the file,
+    # headers only. For a report of things that went wrong that is noise:
+    # a file appears on every run and has to be opened to learn it is
+    # empty. empty_stage_policy: "skip" writes nothing when there are no
+    # rows, so the file's PRESENCE is the signal - the same idea as
+    # deduplicate_data's conflicts_file. No backup is made and an existing
+    # file of that name is left alone.
+    #
+    # "error" is the opposite guard: an export that must never be empty
+    # stops the recipe instead of writing a hollow file.
+
+    recipe:
+      - step_description: "Report the van numbers that were corrected, if any were"
+        processor_type: "export_file"
+        source_stage: "stg_vms_van_seq_corrections_applied"
+        output_file: "{output_dir}/{output_basename}_van_seq_corrected.xlsx"
+        # OPT - write (default) | skip | error
+        empty_stage_policy: "skip"
+
+parameter_details_empty_stage:
+  empty_stage_policy:
+    required: false
+    default: "write"
+    options: ["write", "skip", "error"]
+    description: "What to do when source_stage has no rows. Judged on source_stage in every mode, including sheets_to_create and template_file"
+
 parameter_details_backups:
   create_backup:
     required: false

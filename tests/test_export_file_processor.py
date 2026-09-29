@@ -506,6 +506,79 @@ def test_error_handling():
     return True
 
 
+def test_empty_stage_policy():
+    """An empty stage: written by default, skipped on request, refused on request."""
+
+    print("\nTesting empty_stage_policy (write / skip / error)...")
+
+    empty = create_sample_data().head(0)
+    full = create_sample_data()
+    StageManager.initialize_stages()
+
+    try:
+        StageManager.save_stage('stg_test_export_empty_policy_none', empty, description='No rows')
+        StageManager.save_stage('stg_test_export_empty_policy_some', full, description='Rows')
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            def run(stage, name, **extra):
+                path = Path(temp_dir) / name
+                config = {'processor_type': 'export_file', 'step_description': f'Empty policy {name}',
+                          'source_stage': stage, 'output_file': str(path)}
+                config.update(extra)
+                ExportFileProcessor(config).execute()
+                return path
+
+            default_path = run('stg_test_export_empty_policy_none', 'default.xlsx')
+            if not default_path.exists():
+                print("✗ default policy should still write a headers-only file")
+                return False
+            print("✓ default 'write': headers-only file written, as before")
+
+            skipped_path = run('stg_test_export_empty_policy_none', 'skipped.xlsx', empty_stage_policy='skip')
+            if skipped_path.exists():
+                print("✗ 'skip' wrote a file for an empty stage")
+                return False
+            print("✓ 'skip': no rows, no file")
+
+            # the near miss: 'skip' must NOT suppress a stage that has rows
+            written_path = run('stg_test_export_empty_policy_some', 'written.xlsx', empty_stage_policy='skip')
+            if not written_path.exists() or len(pd.read_excel(written_path)) != len(full):
+                print("✗ 'skip' suppressed or damaged an export that had rows")
+                return False
+            print("✓ 'skip' with rows: written normally")
+
+            # 'skip' leaves an existing file of that name alone - no rewrite, no backup
+            before = written_path.stat().st_mtime_ns
+            run('stg_test_export_empty_policy_none', 'written.xlsx', empty_stage_policy='skip')
+            backups = [item for item in Path(temp_dir).iterdir() if '_erpbkup_' in item.name]
+            if written_path.stat().st_mtime_ns != before or backups:
+                print(f"✗ 'skip' touched an existing file or made a backup: {backups}")
+                return False
+            print("✓ 'skip' over an existing file: untouched, no backup")
+
+            try:
+                run('stg_test_export_empty_policy_none', 'refused.xlsx', empty_stage_policy='error')
+                print("✗ 'error' should have stopped on an empty stage")
+                return False
+            except StepProcessorError as e:
+                if (Path(temp_dir) / 'refused.xlsx').exists():
+                    print("✗ 'error' raised but still wrote the file")
+                    return False
+                print(f"✓ 'error': {e}")
+
+            try:
+                run('stg_test_export_empty_policy_none', 'typo.xlsx', empty_stage_policy='skipp')
+                print("✗ an unknown policy should be refused")
+                return False
+            except StepProcessorError as e:
+                print(f"✓ unknown policy refused: {e}")
+
+        return True
+
+    finally:
+        StageManager.cleanup_stages()
+
+
 def test_capabilities_info():
     """Test getting processor capabilities information."""
 
@@ -556,6 +629,7 @@ if __name__ == '__main__':
     success &= test_variable_substitution()
     success &= test_backup_creation()
     success &= test_error_handling()
+    success &= test_empty_stage_policy()
     success &= test_capabilities_info()
 
     if success:

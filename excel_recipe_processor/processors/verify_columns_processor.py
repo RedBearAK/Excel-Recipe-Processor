@@ -48,6 +48,10 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
             Key('expected_from_stage', 'stage_in', description='Take the expected list from another stage'),
             Key('on_unexpected', 'str', default='warn', choices=['error', 'warn', 'skip']),
             Key('on_missing_expected', 'str', default='error', choices=['error', 'warn', 'skip']),
+            name_list('optional_columns',
+                      description='Columns that may be present or absent: neither NEW when present nor '
+                                  'MISSING when absent (a column the source system added that older '
+                                  'exports lack); names only, order ignored'),
         ], at_least_one=[['expected_columns', 'expected_from_stage']])
 
     @classmethod
@@ -85,6 +89,18 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
         # (default) halts - it would break downstream steps anyway, and this
         # failure names the actual cause; "warn" logs and proceeds.
         self.on_missing_expected = self.get_config_value('on_missing_expected', 'error')
+
+        # Columns the source may or may not carry (2026-10-06): a field the
+        # source system added mid-season is in every export from that day
+        # and in none before it. Listed as expected it would halt every
+        # older export; left off it would raise the NEW notice on every
+        # run, which is how a real change gets ignored. Optional is the
+        # third state: present or absent, no notice either way.
+        self.optional_columns = self.get_config_value('optional_columns', None) or []
+        if not isinstance(self.optional_columns, list) or not all(isinstance(name, str) for name in self.optional_columns):
+            raise StepProcessorError(
+                f"Step '{self.step_name}': optional_columns must be a list of column names"
+            )
 
         if not self.stage:
             raise StepProcessorError(
@@ -132,8 +148,12 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
         else:
             expected = list(self.expected_columns)
 
-        unexpected = [col for col in actual if col not in expected]
-        missing = [col for col in expected if col not in actual]
+        optional = set(self.optional_columns)
+        unexpected = [col for col in actual if col not in expected and col not in optional]
+        missing = [col for col in expected if col not in actual and col not in optional]
+        optional_present = [col for col in actual if col in optional and col not in expected]
+        if optional_present:
+            logger.info(f"   optional column(s) present: {optional_present}")
 
         if not unexpected and not missing:
             logger.info(

@@ -90,6 +90,37 @@ def test_new_column_warns_and_proceeds():
     return False
 
 
+def test_optional_columns_are_neither_new_nor_missing():
+    """An optional column raises no notice present or absent; a non-optional one still does."""
+    print("\nTesting optional_columns...")
+
+    stage_with(['A', 'B', 'Due Date Indicator'])
+    present = build(['A', 'B'], optional_columns=['Due Date Indicator'])
+    present.execute_stage_to_stage()
+    stage_with(['A', 'B'])
+    absent = build(['A', 'B'], optional_columns=['Due Date Indicator'])
+    absent.execute_stage_to_stage()
+    stage_with(['A', 'B', 'Due Date Indicator', 'Surprise'])
+    still = build(['A', 'B'], optional_columns=['Due Date Indicator'])
+    still.execute_stage_to_stage()
+    stage_with(['A'])
+    try:
+        build(['A', 'B'], optional_columns=['Due Date Indicator']).execute_stage_to_stage()
+        print("  ✗ a missing NON-optional column should still halt")
+        return False
+    except Exception:
+        pass
+
+    good = (present.check_summary == '2 columns verified' and absent.check_summary == '2 columns verified'
+            and '1 new' in still.check_summary)
+    if good:
+        print(f"  ✓ present: {present.check_summary!r}; absent: {absent.check_summary!r}; "
+              f"a real new column still noticed: {still.check_summary!r}")
+        return True
+    print(f"  ✗ {present.check_summary!r} / {absent.check_summary!r} / {still.check_summary!r}")
+    return False
+
+
 def test_knobs_invert_the_defaults():
     """error/warn are swappable per direction."""
     print("\nTesting inverted knobs...")
@@ -175,6 +206,7 @@ def main():
         test_reorder_is_not_a_failure,
         test_missing_expected_halts_naming_it,
         test_new_column_warns_and_proceeds,
+        test_optional_columns_are_neither_new_nor_missing,
         test_knobs_invert_the_defaults,
         test_expected_from_stage_compares_two_stages,
         test_exactly_one_expectation_source,

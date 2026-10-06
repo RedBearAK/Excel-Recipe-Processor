@@ -310,7 +310,38 @@ first_match_example:
           # REQ - What a row gets when no rule matches, same shape as a 'then'
           pandas_default: ["", "'Unknown-Kind'"]
 
+skip_if_present_example:
+  description: "A column the source system added mid-season: blank when absent, untouched when present"
+  yaml: |
+    # The online database gained 'Due Date Indicator' on 2026-10-06. Every
+    # export from that day carries it; none before it does. Later steps
+    # address the column by name, so it has to EXIST either way - but it
+    # must never be overwritten where the export supplied it. overwrite
+    # would do exactly that; skip_if_present does the opposite: create the
+    # blank column only when it is missing.
+
+    recipe:
+      - step_description: "Ensure Due Date Indicator exists (older downloads lack it)"
+        processor_type: "add_calculated_column"
+        source_stage: "stg_vms_cleaned"
+        new_column: "Due Date Indicator"
+        # OPT - an existing column is left as it is (default: false)
+        skip_if_present: true
+        calculation_type: "expression"
+        calculation:
+          pandas_formula: '""'
+        save_to_stage: "stg_vms_ddi_column_present"
+
 parameter_details:
+  skip_if_present:
+    type: boolean
+    required: false
+    default: false
+    description: >
+      When new_column already exists, do nothing and pass the data on
+      unchanged; the calculation runs only when the column is absent.
+      Cannot be combined with overwrite.
+
   formula_components:
     type: list
     required: false (alternative to formula)

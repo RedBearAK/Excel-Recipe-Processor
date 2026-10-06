@@ -113,6 +113,11 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
             # 'calculation' itself is declared by each variant below, so its
             # legal keys are exactly those of the selected calculation_type
             Key('overwrite', 'bool', default=False),
+            Key('skip_if_present', 'bool', default=False,
+                description='When new_column already exists, leave it as it is and do nothing: the step '
+                            'only CREATES the column when it is absent. For a column a source system added '
+                            'mid-season, so older exports get a blank one and newer exports keep their real one. '
+                            'Cannot be combined with overwrite'),
         ], variants={'calculation_type': {
             kind: Schema([Key('calculation', 'mapping', required=True, schema=shape)])
             for kind, shape in calculation_by_type.items()
@@ -160,6 +165,24 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
         calculation_type        = self.get_config_value('calculation_type', 'expression')
         overwrite               = self.get_config_value('overwrite', False)
         spill_columns           = self.get_config_value('spill_columns', None)
+
+        # OPT skip_if_present (2026-10-06): the column is created only when
+        # absent, and an existing one is left exactly as it is. The use is
+        # an export column that exists from some date on: older exports get
+        # the blank (or default) this step computes, newer ones keep what
+        # the source wrote, and every later step can address the column by
+        # name either way. overwrite says the opposite, so the two refuse
+        # to combine rather than letting one silently win.
+        skip_if_present         = self.get_config_value('skip_if_present', False)
+        if skip_if_present and overwrite:
+            raise StepProcessorError(
+                f"Step '{self.step_name}': skip_if_present and overwrite contradict each other - "
+                f"one leaves an existing column alone, the other replaces it; choose one"
+            )
+        if skip_if_present and new_column in data.columns:
+            logger.info(f"   {new_column!r} is already present; skip_if_present leaves it as it is")
+            self.log_step_complete(f"column {new_column!r} already present, left alone")
+            return data.copy()
         
         # Validate configuration
         self._validate_calculation_config(data, new_column, calculation, overwrite)

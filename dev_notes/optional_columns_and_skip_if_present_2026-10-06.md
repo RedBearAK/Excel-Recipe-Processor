@@ -26,6 +26,15 @@ wrote, and every later step can address the column by name. `overwrite`
 says the opposite, so the two refuse to combine rather than letting one
 silently win.
 
+## The version, and the backstop it lacked
+
+The version stood at 20260914.3 through the 2026-09-28 "Empty policies"
+delivery and the first cut of this one. Bumping was a habit; a habit is
+not a backstop. `tests/test_version_bumped.py` now asks git whether code
+or tests changed without `_version.py` changing - in the working tree
+and in history - and fails if so. It flagged the 09-28 commit the first
+time it ran. This delivery bumps to 20261006.0 (ERP's days start at .0).
+
 ## Checked
 
 - `tests/test_verify_columns.py::test_optional_columns_are_neither_new_nor_missing`

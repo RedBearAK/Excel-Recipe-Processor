@@ -136,9 +136,16 @@ class CleanDataProcessor(TransformBaseProcessor):
     # Sentinel accepted in place of a column list, meaning every column.
     ALL_COLUMNS = '*'
 
+    # regex_replace joined the list 2026-10-08: a wildcard rule folding
+    # typographic quotes raised a failure warning on every typed column of
+    # the download (eleven per rule, two rules, every run) because the
+    # text result could not be assigned back into an int64 / float64
+    # column. A regex has nothing to do on a number; skip it like the
+    # other text actions instead of stringifying and failing.
     TEXT_ONLY_ACTIONS = (
         'uppercase', 'lowercase', 'title_case', 'strip_whitespace', 'coerce_datetime',
         'remove_special_chars', 'remove_invisible_chars', 'normalize_whitespace',
+        'regex_replace',
     )
 
     def _apply_to_text_values(self, series, operation):

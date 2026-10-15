@@ -1411,6 +1411,12 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         skipped = []
 
         try:
+            # Log column for the name: as wide as the widest name in this
+            # batch (never narrower than 16), so the -> column stays aligned
+            # whatever the names are (2026-10-14; rng_ddi_relevant_dates
+            # used to push its arrow 6 characters right of the others).
+            name_width = max([16] + [len(str(spec.get('name', ''))) for spec in range_specs
+                                     if isinstance(spec, dict)])
             for index, spec in enumerate(range_specs):
                 if not isinstance(spec, dict):
                     raise StepProcessorError(
@@ -1492,7 +1498,7 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
 
                 span = reference.split('!')[-1]
                 logger.info(
-                    f"📐 {outcome.title():8} {name:16} -> {reference}"
+                    f"📐 {outcome.title():8} {name:{name_width}} -> {reference}"
                     f"   [{spec.get('row_mode', 'data_with_header')}]"
                 )
 

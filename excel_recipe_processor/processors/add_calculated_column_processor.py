@@ -14,6 +14,7 @@ import pandas as pd
 
 from excel_recipe_processor.core.base_processor import StepProcessorError, TransformBaseProcessor
 from excel_recipe_processor.core.config_schema import Key, Schema, name_list
+from excel_recipe_processor.core.stage_manager import StageManager
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,22 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
                 Key('operation', 'str', required=True, choices=['days_between']),
                 Key('start_date_column', 'str', required=True),
                 Key('end_date_column', 'str', required=True),
+            ]),
+            # next_workday (2026-10-14): Excel's WORKDAY(date - 1, 1, holidays),
+            # the first working day on or after each date. The holiday list
+            # is a COLUMN OF ANOTHER STAGE - a vector parameter, not a
+            # row-wise join - which is why this is its own type: pandas_formula
+            # can only see the source stage's columns. holidays_stage is
+            # typed stage_in so the stage graph and auto-free see the read.
+            'next_workday': Schema([
+                Key('date_column', 'str', required=True,
+                    description='Dates to move onto a working day; blank stays blank'),
+                Key('holidays_stage', 'stage_in',
+                    description='Stage holding the holiday dates (with holidays_column)'),
+                Key('holidays_column', 'str',
+                    description='Column of holidays_stage holding one date per row'),
+                Key('weekmask', 'str', default='1111100',
+                    description='Seven 0/1 flags Monday to Sunday; 1 = working day'),
             ]),
             'text': Schema([
                 Key('operation', 'str', required=True,
@@ -212,6 +229,8 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
                 result_data = self._apply_math_operation(result_data, new_column, calculation)
             elif calculation_type == 'date':
                 result_data = self._apply_date_calculation(result_data, new_column, calculation)
+            elif calculation_type == 'next_workday':
+                result_data = self._apply_next_workday(result_data, new_column, calculation)
             elif calculation_type == 'text':
                 result_data = self._apply_text_operation(result_data, new_column, calculation)
             else:
@@ -1043,6 +1062,128 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
         
         return df
     
+    def _apply_next_workday(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
+        """
+        The first working day on or after each date in date_column.
+
+        Excel's WORKDAY(date - 1, 1, holidays): a date already on a working
+        day stays; a weekend or holiday date rolls FORWARD to the next
+        working day. Blank in, blank out (NaT). Working days are the
+        weekmask (default Monday to Friday) minus every date in the
+        holiday column of holidays_stage, which is read whole - the one
+        cross-stage read in this processor, declared stage_in so the
+        stage graph and auto-free account for it.
+
+        Fail-loud: a non-blank value in date_column that is not a date,
+        a holiday cell that is not a date, a missing stage or column, or
+        a malformed weekmask each stop the run naming the culprit.
+        """
+        date_column = calculation.get('date_column')
+        holidays_stage = calculation.get('holidays_stage')
+        holidays_column = calculation.get('holidays_column')
+        weekmask = calculation.get('weekmask', '1111100')
+
+        if not isinstance(date_column, str) or date_column not in df.columns:
+            raise StepProcessorError(
+                f"next_workday: date_column {date_column!r} not found. "
+                f"Available columns: {list(df.columns)}"
+            )
+        if (holidays_stage is None) != (holidays_column is None):
+            raise StepProcessorError(
+                "next_workday: holidays_stage and holidays_column go together - "
+                "give both (holidays honored) or neither (weekends only)"
+            )
+        if (not isinstance(weekmask, str) or len(weekmask) != 7
+                or set(weekmask) - {'0', '1'} or '1' not in weekmask):
+            raise StepProcessorError(
+                f"next_workday: weekmask must be seven 0/1 flags Monday to "
+                f"Sunday with at least one working day, got {weekmask!r}"
+            )
+
+        source = df[date_column]
+        if not isinstance(source, pd.Series):
+            raise TypeError(f"Expected Series for column {date_column!r}, got {type(source)}")
+        # The typed blank of first_match / expression results is NaT, but a
+        # column that arrived as text may spell blank as ''. Both are blank.
+        if source.dtype == object:
+            source = source.where(source.astype(str).str.strip() != '', None)
+        try:
+            dates = pd.to_datetime(source, errors='raise')
+        except (ValueError, TypeError) as error:
+            raise StepProcessorError(
+                f"next_workday: date_column {date_column!r} holds a value that "
+                f"is not a date: {error}"
+            )
+        if not isinstance(dates, pd.Series):
+            raise TypeError(f"Expected Series from to_datetime, got {type(dates)}")
+
+        holidays = np.array([], dtype='datetime64[D]')
+        if holidays_stage is not None:
+            holidays = self._load_holiday_dates(holidays_stage, holidays_column)
+
+        present = dates.notna()
+        result = pd.Series(pd.NaT, index=df.index, dtype='datetime64[ns]')
+        moved = 0
+        if present.any():
+            day_values = dates[present].dt.normalize().to_numpy().astype('datetime64[D]')
+            shifted = np.busday_offset(day_values, 0, roll='forward',
+                                       weekmask=weekmask, holidays=holidays)
+            result[present] = pd.to_datetime(shifted)
+            moved = int((shifted != day_values).sum())
+
+        df[new_column] = result
+        logger.info(
+            f"next_workday: {int(present.sum())} dated rows, {moved} moved onto a "
+            f"later working day, {int((~present).sum())} blank; "
+            f"{len(holidays)} holidays, weekmask {weekmask}"
+        )
+        return df
+
+    def _load_holiday_dates(self, stage_name: str, column_name: str) -> np.ndarray:
+        """
+        The holiday dates of one stage column as a sorted, unique
+        datetime64[D] array for numpy's business-day functions.
+
+        Blank cells are skipped (counted in the log); a non-blank cell
+        that is not a date stops the run.
+        """
+        if not StageManager.stage_exists(stage_name):
+            available = list(StageManager.list_stages().keys())
+            raise StepProcessorError(
+                f"next_workday: holidays_stage '{stage_name}' does not exist. "
+                f"Available stages: {available}"
+            )
+        stage_data = StageManager.load_stage(stage_name)
+        if not isinstance(stage_data, pd.DataFrame):
+            raise TypeError(f"Expected DataFrame from stage '{stage_name}', got {type(stage_data)}")
+        if column_name not in stage_data.columns:
+            raise StepProcessorError(
+                f"next_workday: holidays_column '{column_name}' not found in stage "
+                f"'{stage_name}'. Available columns: {list(stage_data.columns)}"
+            )
+        raw = stage_data[column_name]
+        if not isinstance(raw, pd.Series):
+            raise TypeError(f"Expected Series for column {column_name!r}, got {type(raw)}")
+        if raw.dtype == object:
+            raw = raw.where(raw.astype(str).str.strip() != '', None)
+        kept = raw.dropna()
+        try:
+            parsed = pd.to_datetime(kept, errors='raise')
+        except (ValueError, TypeError) as error:
+            raise StepProcessorError(
+                f"next_workday: holidays_column '{column_name}' of stage "
+                f"'{stage_name}' holds a value that is not a date: {error}"
+            )
+        if not isinstance(parsed, pd.Series):
+            raise TypeError(f"Expected Series from to_datetime, got {type(parsed)}")
+        days = np.unique(parsed.dt.normalize().to_numpy().astype('datetime64[D]'))
+        skipped = len(raw) - len(kept)
+        logger.info(
+            f"next_workday: {len(days)} distinct holiday dates from "
+            f"{stage_name}.{column_name}" + (f" ({skipped} blank rows skipped)" if skipped else "")
+        )
+        return days
+
     def _apply_text_operation(self, df: pd.DataFrame, new_column: str, calculation: dict) -> pd.DataFrame:
         """
         Apply text/string operations.
@@ -1202,7 +1343,8 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
         Returns:
             List of supported calculation type strings
         """
-        return ['constant', 'row_number', 'expression', 'first_match', 'concat', 'conditional', 'math', 'date', 'text']
+        return ['constant', 'row_number', 'expression', 'first_match', 'concat', 'conditional', 'math', 'date',
+                'next_workday', 'text']
     
     def get_supported_conditions(self) -> list:
         """
@@ -1232,9 +1374,14 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
             'supported_features': [
                 'expression_calculations', 'first_match_rule_tables', 'horizontal_spill',
                 'string_concatenation', 'conditional_logic',
-                'mathematical_operations', 'date_calculations', 'text_operations',
-                'multi_column_aggregations', 'column_overwriting'
+                'mathematical_operations', 'date_calculations', 'next_workday',
+                'text_operations', 'multi_column_aggregations', 'column_overwriting'
             ],
+            'next_workday': "calculation: {date_column, holidays_stage, holidays_column, weekmask}; "
+                            "Excel's WORKDAY(date - 1, 1, holidays): the first working day on or "
+                            "after each date, blank stays blank; the holidays are a column of "
+                            "another stage",
+
             'spill_columns': "Extra columns a calculation fills beside new_column, in order; "
                              "only for expression and first_match; the result width must match",
             'first_match': "calculation: {pandas_rules: [{when, then: [one slot per column]}], "

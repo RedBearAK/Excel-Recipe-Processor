@@ -331,6 +331,49 @@ skip_if_present_example:
         calculation:
           pandas_formula: '""'
         save_to_stage: "stg_vms_ddi_column_present"
+next_workday_example:
+  description: "Each date moved onto the first working day on or after it, honoring a holiday table held in another stage"
+  yaml: |
+    # Excel's WORKDAY(date - 1, 1, holidays), statically: a date already
+    # on a working day stays, a weekend or holiday rolls FORWARD to the
+    # next working day, a blank stays blank. The holiday list is a column
+    # of ANOTHER stage - a whole-column parameter rather than a row-wise
+    # join, which pandas_formula cannot express (it sees only the source
+    # stage's columns). holidays_stage is a declared stage read, so the
+    # stage graph and auto-free account for it like any other.
+    #
+    # weekmask is seven 0/1 flags Monday to Sunday; the default is the
+    # Monday-to-Friday week. Omit holidays_stage and holidays_column
+    # together for weekends-only.
+
+    settings:
+      description: "Due dates nudged onto business days"
+      stages:
+        - stage_name: "stg_holidays"
+          description: "One holiday date per row"
+          protected: false
+        - stage_name: "stg_invoices_projected"
+          description: "Invoices with a projected due date"
+          protected: false
+        - stage_name: "stg_invoices_due"
+          description: "Invoices with the due date on a business day"
+          protected: false
+
+    recipe:
+      - step_description: "Move each projected due date onto the next business day"
+        processor_type: "add_calculated_column"
+        source_stage: "stg_invoices_projected"
+        save_to_stage: "stg_invoices_due"
+        new_column: "Due Date"
+        calculation_type: "next_workday"
+        calculation:
+          # REQ - Column of dates to move; blank in, blank out
+          date_column: "Proj Due Date"
+          # OPT - Stage and column holding the holiday dates (both or neither)
+          holidays_stage: "stg_holidays"
+          holidays_column: "Date"
+          # OPT - Working days Monday to Sunday (default Monday to Friday)
+          weekmask: "1111100"
 
 parameter_details:
   skip_if_present:
@@ -369,6 +412,16 @@ parameter_details:
       a quoted literal or number, or "" for the typed blank. Rule shape
       and column references are validated before evaluation; per-rule
       hit counts are logged.
+
+  next_workday:
+    calculation_keys: "date_column (required), holidays_stage + holidays_column (together, optional), weekmask (optional, default 1111100)"
+    description: >
+      The first working day on or after each date - Excel's
+      WORKDAY(date - 1, 1, holidays). Working days are the weekmask minus
+      the dates in the holiday column of holidays_stage, read whole. Blank
+      dates stay blank; a non-blank non-date in either column, a missing
+      stage or column, or a malformed weekmask halts the step. The log
+      reports how many rows moved and how many holidays were honored.
 
   pandas_formula:
     type: string  

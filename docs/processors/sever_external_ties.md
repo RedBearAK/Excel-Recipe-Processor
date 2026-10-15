@@ -20,6 +20,8 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 - `unresolved_defined_name_policy`: str; default "drop"; one of drop, refuse - Defined names that do not retarget: drop the name, or refuse
 - `unresolved_conditional_formatting_policy`: str; default "drop"; one of drop, refuse - CF rules that do not retarget: drop the rule, or refuse
 - `unresolved_data_validation_policy`: str; default "drop"; one of drop, refuse - DV rules that do not retarget: drop the rule, or refuse
+- `write_mode`: str; default "new_file"; one of new_file, in_place - new_file (default): timestamped copy beside the source; in_place: temp + verify + .severbak backup + atomic replace
+- `verify_with_openpyxl`: bool; default false - Also load the result with openpyxl before accepting it (slow on large files)
 - `fail_on_limbo`: bool; default false - Halt when file hyperlinks, connections, query tables or OLE objects remain
 - `report_file`: str - Optional path for the JSON report of fixes, refusals and limbo
 - `name_cap`: int; default 10 - Max named items per class in the log
@@ -81,6 +83,12 @@ recipe:
     # OPT - DV rules that do not retarget: drop | refuse
     # Default value: drop
     unresolved_data_validation_policy: "refuse"
+    # OPT - new_file (default) or in_place; see in_place_example
+    # Default value: new_file
+    write_mode: "new_file"
+    # OPT - also load the result with openpyxl before accepting it (slow on big files)
+    # Default value: false
+    verify_with_openpyxl: false
     # OPT - halt when file hyperlinks, connections, query tables or OLE remain
     # Default value: false
     fail_on_limbo: false
@@ -89,6 +97,23 @@ recipe:
     # OPT - max named items per class in the log
     # Default value: 10
     name_cap: 25
+```
+
+### in place
+
+Sever the source file itself: temp + verify + .severbak backup + atomic replace. Refused when Excel has the file open or a .severbak already exists. output_dir, output_suffix and timestamp_format cannot be combined with this mode.
+
+```yaml
+settings:
+  description: "In-place severing after the new-file mode has been trusted"
+
+recipe:
+  - step_description: "Sever external ties in place"
+    processor_type: "sever_external_ties"
+    files:
+      - "review/merged_report.xlsx"
+    write_mode: "in_place"
+    report_file: "review/merged_report_sever.json"
 ```
 
 ## Parameter notes
@@ -102,6 +127,8 @@ recipe:
 - `unresolved_defined_name_policy` (default `drop`): drop or refuse
 - `unresolved_conditional_formatting_policy` (default `drop`): drop or refuse
 - `unresolved_data_validation_policy` (default `drop`): drop or refuse
+- `write_mode` (default `new_file`): new_file or in_place
+- `verify_with_openpyxl` (default `False`): Load the result with openpyxl as a second parser's check before accepting it
 - `fail_on_limbo` (default `False`): Treat limbo items as a failure after the file is written
 - `report_file`: JSON report (one object for one file, a list for several); written even when the step refuses
 - `name_cap` (default `10`): Maximum named items per class in the log; the report is never capped

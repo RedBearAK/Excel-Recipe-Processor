@@ -467,6 +467,54 @@ def test_capabilities_include_stage_features():
         return False
 
 
+def test_empty_input_policy():
+    """An empty input stops the run by default and passes through on request."""
+    print("\nTesting empty_input_policy (error / pass_through)...")
+
+    empty = create_test_data().head(0)
+    base = {'processor_type': 'filter_data', 'step_description': 'Empty input policy',
+            'filters': [{'column': 'Department', 'condition': 'equals', 'value': 'Grocery'}]}
+
+    try:
+        FilterDataProcessor(dict(base)).execute(empty)
+        print("✗ default policy should still stop on an empty input")
+        return False
+    except StepProcessorError:
+        print("✓ default 'error': an empty input still stops the run")
+
+    result = FilterDataProcessor(dict(base, empty_input_policy='pass_through')).execute(empty)
+    if len(result) != 0 or list(result.columns) != list(empty.columns):
+        print(f"✗ pass_through should return the empty frame with its columns, got {result.shape}")
+        return False
+    print("✓ 'pass_through': 0 rows out, columns intact")
+
+    # the near miss: pass_through must not change what a NON-empty input gives
+    full = create_test_data()
+    plain = FilterDataProcessor(dict(base)).execute(full)
+    opted = FilterDataProcessor(dict(base, empty_input_policy='pass_through')).execute(full)
+    if len(plain) == 0 or not plain.equals(opted):
+        print("✗ pass_through changed the result for an input that has rows")
+        return False
+    print(f"✓ 'pass_through' with rows: filtered exactly as without it ({len(opted)} rows)")
+
+    # ... and a frame with no columns is still refused: there is nothing to pass on
+    try:
+        FilterDataProcessor(dict(base, empty_input_policy='pass_through')).execute(pd.DataFrame())
+        print("✗ a frame with no columns should still be refused")
+        return False
+    except StepProcessorError:
+        print("✓ a frame with no columns is still an error")
+
+    expression = {'processor_type': 'filter_data', 'step_description': 'Empty input, expression',
+                  'pandas_expression': '`Department`.astype("string").str.lower() == "grocery"',
+                  'empty_input_policy': 'pass_through'}
+    if len(FilterDataProcessor(expression).execute(empty)) != 0:
+        print("✗ pass_through with a pandas_expression should return 0 rows")
+        return False
+    print("✓ 'pass_through' with a pandas_expression: not evaluated on nothing")
+    return True
+
+
 def test_backward_compatibility():
     """Test that minimal config is unchanged for backward compatibility."""
     print("\nTesting backward compatibility...")
@@ -715,6 +763,7 @@ if __name__ == '__main__':
     print("\n=== Testing Error Handling and Capabilities ===")
     success &= test_stage_filter_error_handling()
     success &= test_capabilities_include_stage_features()
+    success &= test_empty_input_policy()
     success &= test_backward_compatibility()
     
     print("Testing FilterDataProcessor pandas_expression feature...")

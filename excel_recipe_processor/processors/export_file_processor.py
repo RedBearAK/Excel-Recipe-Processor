@@ -65,6 +65,11 @@ class ExportFileProcessor(ExportBaseProcessor):
             Key('encoding', 'str', default='utf-8'), Key('separator', 'str', default=','),
             Key('create_backup', 'bool', default=True),
             Key('delete_backups_beyond', 'int'),
+            Key('empty_stage_policy', 'str', default='write', choices=['write', 'skip', 'error'],
+                description="What to do when source_stage has no rows: 'write' the file anyway (default, "
+                            "headers only); 'skip' - write nothing, so the file's PRESENCE is the signal "
+                            "(an exceptions report that exists only when there are exceptions); 'error' - "
+                            "stop the recipe, for an export that must never be empty"),
         ])
 
     @classmethod
@@ -202,6 +207,7 @@ class ExportFileProcessor(ExportBaseProcessor):
             'file_formats': ['xlsx', 'csv', 'tsv', 'parquet'],
             'parquet': ['column types preserved by default', "parquet_types: text casts every column to text first (nulls stay null)"],
             'excel_options': ['multi-sheet export from named stages', 'sheet naming', 'active sheet selection', 'template-based export'],
+            'empty_stage': "empty_stage_policy: write (default) | skip (no file when there are no rows) | error",
             'safety': [
                 'timestamped backup of an existing output file, extension preserved',
                 'create_backup: false to disable; delete_backups_beyond keeps the newest N and deletes older',
@@ -255,6 +261,27 @@ class ExportFileProcessor(ExportBaseProcessor):
             resolved_file = self.variable_substitution.substitute(output_file)
         else:
             resolved_file = output_file
+
+        # OPT empty_stage_policy: what an export of NO ROWS does. Judged on
+        # source_stage, for every mode (single sheet, sheets_to_create,
+        # template). 'skip' is the deduplicate_data conflicts_file idea made
+        # general: a report of exceptions is written only when there are
+        # some, so a clean run leaves no file and finding one means
+        # something. No backup is made and no existing file is touched.
+        empty_stage_policy = self.get_config_value('empty_stage_policy', 'write')
+        if empty_stage_policy not in ('write', 'skip', 'error'):
+            raise StepProcessorError(
+                f"Export step '{self.step_name}': invalid empty_stage_policy "
+                f"'{empty_stage_policy}'. Supported: write (default), skip, error"
+            )
+        if len(data) == 0 and empty_stage_policy == 'skip':
+            logger.info(f"✓ No rows in {q(self.source_stage)}; not writing {q(Path(str(resolved_file)).name)}")
+            return
+        if len(data) == 0 and empty_stage_policy == 'error':
+            raise StepProcessorError(
+                f"Export step '{self.step_name}': source_stage '{self.source_stage}' has no rows and "
+                f"empty_stage_policy is 'error'; {Path(str(resolved_file)).name} was not written"
+            )
         
         # Template mode: copy an existing workbook and replace one sheet inside
         # it, instead of building a new workbook from nothing.

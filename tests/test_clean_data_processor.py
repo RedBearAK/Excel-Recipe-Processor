@@ -237,6 +237,45 @@ def test_regex_operations():
         return False
 
 
+def test_wildcard_regex_skips_typed_columns():
+    """A '*' regex_replace leaves int and float columns untouched and typed (2026-10-08)."""
+
+    print("\nTesting wildcard regex_replace against typed columns...")
+
+    test_df = pd.DataFrame({
+        'Name': ['GORTON\u2019S', 'plain'],
+        'Year': [2025, 2026],
+        'Price': [10.5, 2.0],
+    })
+
+    step_config = {
+        'processor_type': 'clean_data',
+        'step_description': 'Fold typographic apostrophes everywhere',
+        'rules': [
+            {
+                'columns': '*',
+                'action': 'regex_replace',
+                'pattern': '[\u2018\u2019\u201b]',
+                'replacement': "'",
+            }
+        ]
+    }
+
+    processor = CleanDataProcessor(step_config)
+    result = processor.execute(test_df)
+
+    name_ok = result.iloc[0]['Name'] == "GORTON'S"
+    year_ok = str(result['Year'].dtype) == 'int64' and result['Year'].tolist() == [2025, 2026]
+    price_ok = str(result['Price'].dtype) == 'float64' and result['Price'].tolist() == [10.5, 2.0]
+    print(f"✓ text folded: {name_ok}; Year still int64: {year_ok}; Price still float64: {price_ok}")
+
+    if name_ok and year_ok and price_ok:
+        print("✓ Wildcard regex_replace skipped the typed columns")
+        return True
+    print("✗ Wildcard regex_replace touched or failed on a typed column")
+    return False
+
+
 def test_standardize_values():
     """Test value standardization using mappings."""
     
@@ -571,6 +610,7 @@ if __name__ == '__main__':
     success &= test_numeric_cleaning()
     success &= test_fill_empty_values()
     success &= test_regex_operations()
+    success &= test_wildcard_regex_skips_typed_columns()
     success &= test_standardize_values()
     success &= test_multiple_rules()
     

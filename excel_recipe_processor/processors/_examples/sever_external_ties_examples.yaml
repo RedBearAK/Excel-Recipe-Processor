@@ -53,6 +53,12 @@ strict_example:
         # OPT - DV rules that do not retarget: drop | refuse
         # Default value: drop
         unresolved_data_validation_policy: "refuse"
+        # OPT - new_file (default) or in_place; see in_place_example
+        # Default value: new_file
+        write_mode: "new_file"
+        # OPT - also load the result with openpyxl before accepting it (slow on big files)
+        # Default value: false
+        verify_with_openpyxl: false
         # OPT - halt when file hyperlinks, connections, query tables or OLE remain
         # Default value: false
         fail_on_limbo: false
@@ -62,6 +68,20 @@ strict_example:
         # Default value: 10
         name_cap: 25
 
+in_place_example:
+  description: "Sever the source file itself: temp + verify + .severbak backup + atomic replace. Refused when Excel has the file open or a .severbak already exists. output_dir, output_suffix and timestamp_format cannot be combined with this mode."
+  yaml: |
+    settings:
+      description: "In-place severing after the new-file mode has been trusted"
+
+    recipe:
+      - step_description: "Sever external ties in place"
+        processor_type: "sever_external_ties"
+        files:
+          - "review/merged_report.xlsx"
+        write_mode: "in_place"
+        report_file: "review/merged_report_sever.json"
+
 resolution_doctrine:
   retarget: "Applies first, to every carrier. A reference is retargeted when every sheet it names exists in this workbook (3D refs need both ends) and a [N]!Name form names a local defined name. The [N] is removed and the reference becomes local, quoting preserved."
   freeze: "Formula cells only. The <f> is removed and the cached <v> kept with its type. A cell with no cached value cannot be frozen and is refused. A shared-formula master freezes its whole group; a slave without a cached value refuses the group."
@@ -69,7 +89,8 @@ resolution_doctrine:
   forced_refusals: "Array and data-table formulas with external refs, chart series that do not retarget, pivot caches sourced from an external link, and any [N] in a carrier the classifier does not name. These refuse regardless of policy because the plumbing can only be removed when zero [N] survives."
   limbo: "Left in the new file on purpose and listed in the report: file hyperlinks, connections, query tables, OLE objects. They do not use the external-link plumbing and Break Links leaves them too."
   plumbing: "Removed only after every [N] resolved: the externalReferences block, link relationships, externalLink parts and their content-type overrides. calcChain.xml goes too (a frozen cell still listed there triggers an Excel repair prompt) and calcPr gains fullCalcOnLoad."
-  verification: "The new file is re-inventoried and must be free of links, [N] carriers and orphans, or it is deleted and the step fails."
+  verification: "Before the result is named anything it is re-inventoried and must be free of links, [N] carriers and orphans; the zip passes testzip; the part list matches the plan; and every part the surgery did not claim to change is byte-identical to the original. Any failure deletes the temp and the step fails; in in_place mode the source is untouched and no backup is taken."
+  write_modes: "new_file writes <stem><output_suffix>_<timestamp>.xlsx beside the source. in_place writes a temp beside the source, verifies it, copies the source to <name>.severbak, then atomically replaces the source. Excel lock files (~$name.xlsx) and an existing .severbak refuse."
 
 parameter_details:
   files:
@@ -115,6 +136,16 @@ parameter_details:
     required: false
     default: "drop"
     description: "drop or refuse"
+  write_mode:
+    type: "str"
+    required: false
+    default: "new_file"
+    description: "new_file or in_place"
+  verify_with_openpyxl:
+    type: "bool"
+    required: false
+    default: false
+    description: "Load the result with openpyxl as a second parser's check before accepting it"
   fail_on_limbo:
     type: "bool"
     required: false

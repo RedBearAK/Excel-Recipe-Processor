@@ -616,6 +616,40 @@ common_use_cases:
   pattern_matching: "Filter based on text patterns, file extensions, product codes, etc."
   cross_validation: "Validate data against reference lists and historical data in other stages"
 
+empty_input_policy_example:
+  description: "Filter an optional lookup that may not exist yet"
+  yaml: |
+    # filter_data stops the recipe when its input has no rows - usually the
+    # right call, because an empty main table means an import failed.
+    # An OPTIONAL input is different: a hand sheet that has not been created
+    # on this machine arrives as an empty stage with its declared columns
+    # (import_file on_missing_file: create_empty), and there is simply
+    # nothing to filter. empty_input_policy: "pass_through" hands the empty
+    # frame on with its columns intact so the joins after it still work.
+
+    recipe:
+      - step_description: "Import the corrections sheet if present"
+        processor_type: "import_file"
+        input_file: "{lookup_dir}/van_seq_corrections.xlsx"
+        on_missing_file: "create_empty"
+        create_empty_columns: ["Old Van Seq #", "New Van Seq #", "Kind", "Confirmed"]
+        save_to_stage: "stg_lookup_corrections_raw"
+
+      - step_description: "Keep confirmed corrections"
+        processor_type: "filter_data"
+        source_stage: "stg_lookup_corrections_raw"
+        pandas_expression: '`Confirmed`.astype("string").str.lower() == "yes"'
+        # OPT - error (default) | pass_through
+        empty_input_policy: "pass_through"
+        save_to_stage: "stg_lookup_corrections_confirmed"
+
+parameter_details_empty_input:
+  empty_input_policy:
+    required: false
+    default: "error"
+    options: ["error", "pass_through"]
+    description: "What to do when the input stage has no rows. pass_through returns the empty frame with its columns; a frame with no COLUMNS is still an error"
+
 parameter_details_update:
   pandas_expression:
     type: string

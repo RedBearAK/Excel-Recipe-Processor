@@ -345,6 +345,44 @@ def test_overwrite_existing_column():
         return False
 
 
+def test_skip_if_present_creates_only_when_absent():
+    """skip_if_present: an absent column is created; a present one is untouched; with overwrite it refuses."""
+
+    print("\nTesting skip_if_present...")
+
+    test_df = create_test_data()
+    config = {
+        'step_description': 'Ensure the column exists',
+        'processor_type': 'add_calculated_column',
+        'new_column': 'Due Date Indicator',
+        'skip_if_present': True,
+        'calculation_type': 'expression',
+        'calculation': {'pandas_formula': '""'},
+    }
+    created = AddCalculatedColumnProcessor(dict(config)).execute(test_df)
+    if 'Due Date Indicator' not in created.columns or set(created['Due Date Indicator']) != {''}:
+        print("✗ absent column should have been created blank")
+        return False
+    print("✓ absent column created blank")
+
+    with_values = test_df.copy()
+    with_values['Due Date Indicator'] = ['Release Date'] * len(with_values)
+    kept = AddCalculatedColumnProcessor(dict(config)).execute(with_values)
+    if kept['Due Date Indicator'].tolist() != ['Release Date'] * len(with_values):
+        print("✗ present column should have been left as it is")
+        return False
+    print("✓ present column left untouched")
+
+    try:
+        AddCalculatedColumnProcessor(dict(config, overwrite=True)).execute(with_values)
+        print("✗ skip_if_present with overwrite should have been refused")
+        return False
+    except StepProcessorError as error:
+        print(f"✓ refused with overwrite: {error}")
+
+    return True
+
+
 def test_error_handling():
     """Test error handling for various failure cases."""
     
@@ -477,6 +515,7 @@ if __name__ == '__main__':
     success &= test_aggregation_operations()
     success &= test_expression_calculation()
     success &= test_overwrite_existing_column()
+    success &= test_skip_if_present_creates_only_when_absent()
     success &= test_multiple_calculations()
     test_error_handling()
     

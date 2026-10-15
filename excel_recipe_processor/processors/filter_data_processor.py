@@ -51,6 +51,11 @@ class FilterDataProcessor(TransformBaseProcessor):
         return Schema([
             Key('filters', 'list_of_mappings', schema=rule),
             Key('pandas_expression', 'str', description='pandas query text; alternative to filters'),
+            Key('empty_input_policy', 'str', default='error', choices=['error', 'pass_through'],
+                description="An input stage with no rows: 'error' stops the recipe (default - an empty main "
+                            "table is usually a failed import upstream); 'pass_through' hands the empty frame "
+                            "on, columns intact, for an OPTIONAL input such as a lookup sheet that may not "
+                            "exist yet (import_file on_missing_file: create_empty)"),
         ], at_least_one=[['filters', 'pandas_expression']])
 
     @classmethod
@@ -84,6 +89,24 @@ class FilterDataProcessor(TransformBaseProcessor):
         if not isinstance(data, pd.DataFrame):
             raise StepProcessorError(f"Filter step '{self.step_name}' requires a pandas DataFrame")
         
+        # OPT empty_input_policy (2026-09-19). Filtering nothing is nothing,
+        # and for an optional input that is the normal case: a hand sheet
+        # nobody has created yet arrives as an empty stage with its declared
+        # columns (import_file create_empty), and the filter over it used to
+        # halt the whole run. The default stays 'error', because an empty
+        # MAIN table almost always means something upstream failed and
+        # should be heard.
+        empty_input_policy = self.get_config_value('empty_input_policy', 'error')
+        if empty_input_policy not in ('error', 'pass_through'):
+            raise StepProcessorError(
+                f"Filter step '{self.step_name}': invalid empty_input_policy "
+                f"'{empty_input_policy}'. Supported: error (default), pass_through"
+            )
+        if len(data) == 0 and len(data.columns) > 0 and empty_input_policy == 'pass_through':
+            logger.info(f"'{self.step_name}': input has 0 rows; nothing to filter, passing the empty frame through")
+            self.log_step_complete("0 rows in, 0 rows out")
+            return data.copy()
+
         self.validate_data_not_empty(data)
         
         # NEW: Handle pandas_expression if provided (before filter validation)

@@ -91,6 +91,27 @@ compare_two_files_example:
         on_unexpected: "warn"
 
 
+optional_columns_example:
+  description: "A column the source system added mid-season"
+  yaml: |
+    # The online database gained a field on 2026-10-06; every export from
+    # that day carries it and none before it. Listed in expected_columns
+    # it would HALT every older export (on_missing_expected: error);
+    # left off, every new export would raise the NEW notice, and a notice
+    # that fires every day is one nobody reads. optional_columns is the
+    # third state: present or absent, no notice either way - and a column
+    # that is NOT optional still gets its notice.
+
+    recipe:
+      - step_description: "Verify the download carries the expected columns"
+        processor_type: "verify_columns"
+        source_stage: "stg_vms_import_raw"
+        expected_columns: "{list_str:var_expected_download_columns}"
+        on_missing_expected: "error"
+        on_unexpected: "warn"
+        # OPT - may be present or absent
+        optional_columns: ["Due Date Indicator"]
+
 parameter_details:
   source_stage:
     required: true
@@ -109,5 +130,8 @@ parameter_details:
     required: false
     default: "warn"
     description: "A data column absent from the expectation: warn logs it; error halts"
+  optional_columns:
+    required: false
+    description: "Columns that may be present or absent without notice - a field the source added mid-season"
 
 # End of file #

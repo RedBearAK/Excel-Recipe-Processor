@@ -11,6 +11,8 @@ sever patterns).
 ```
 excel_recipe_processor/processors/audit_external_ties_processor.py
 excel_recipe_processor/processors/sever_external_ties_processor.py
+excel_recipe_processor/processors/_helpers/xlsx_package_rgx.py
+excel_recipe_processor/processors/_helpers/xlsx_package_write.py
 excel_recipe_processor/processors/_helpers/external_ties_rgx.py
 excel_recipe_processor/processors/_helpers/external_ties_inventory.py
 excel_recipe_processor/processors/_helpers/external_ties_sever.py
@@ -22,6 +24,7 @@ docs/processors/sever_external_ties.md         (from --export-docs)
 tests/test_audit_external_ties.py
 tests/test_sever_external_ties.py
 tests/test_sever_external_ties_seams.py
+tests/test_sever_external_ties_in_place.py
 dev_notes/external_ties_audit_and_sever_2026-09-14.md
 dev_notes/pipeline_registration.patch
 ```
@@ -126,12 +129,65 @@ one, fails, and reports a list; openpyxl can load and re-save the
 output; XML entities inside formulas survive retargeting; a link part
 with no `<sheetNames>` still permits retargeting.
 
+## In-place mode and the write-and-verify proof (same day, piece 1 of the transplant work)
+
+Three structural changes, no behavior change to the surgery itself:
+
+1. **`_helpers/xlsx_package_rgx.py`** now holds the package-generic
+   grammar (cells, formulas, relationships, calcPr, CF/DV elements,
+   pivot/chart elements, part classifiers, attribute pulls).
+   `external_ties_rgx.py` keeps only the `[N]` grammar and externalLink
+   plumbing. The coming transplant processor imports the generic module
+   by name, so no second copy of a cell pattern can exist.
+2. **`_helpers/xlsx_package_write.py`** is the one write path for
+   zip-level surgery, both modes. It writes a hidden temp beside the
+   target (same directory so the final rename is atomic; real
+   extension so a second parser will open it), then verifies:
+   `testzip`; parts claimed removed are absent; the part set equals
+   original minus removed plus added; **every part the plan did not
+   claim to change is byte-identical to the original** (SHA-256);
+   the caller's own check (sever: post-write inventory clean);
+   optional openpyxl load. Only then is the temp renamed - to the
+   new output path, or over the original after a `.severbak` copy.
+   Any failure deletes the temp; nothing is replaced and no backup
+   is taken.
+3. **`sever_external_ties` gains `write_mode: new_file | in_place`**
+   (default new_file) and `verify_with_openpyxl` (default false).
+   In-place refuses when a `~$name.xlsx` lock is present, when a
+   `.severbak` already exists (a rerun must not bury the true
+   original), or when `output_dir` / `output_suffix` /
+   `timestamp_format` are also given. `SeverPlan` records
+   `changed_parts` (any `_set_text` that altered bytes) and
+   `removed_parts`; those two sets are the surgery's claim.
+
+`tests/test_sever_external_ties_in_place.py` (6 tests) covers the
+happy path (backup is the untouched original, source holds the
+result, no temp left), lock-file and stale-backup refusals, a refusal
+leaving no backup, a deliberately tampered unclaimed part failing in
+both modes with the source untouched, a claimed-removed part still
+present failing, the new-file-only keys refused with in_place, and
+the openpyxl check. Two findings during that round: the temp name
+must keep the `.xlsx` extension or openpyxl refuses it, and the
+still-present check has to run before the part-set check for its
+message to be reachable.
+
+The generic recipe carries `write_mode` as an external variable
+(`--set write_mode new_file|in_place`; the stub always passes it) and
+the stub has `--in-place`. Schema `choices` validation runs after
+substitution, so the string form is checked properly.
+
+What "certain of the lack of deleterious effects" still needs is the
+check no code can run: Excel opening the result without a repair
+prompt, on real files, in new-file mode, a few times. The in-place
+write is then the same risk plus a rename.
+
 ## Verification (exit codes)
 
 ```
 PYTHONPATH=. python3 tests/test_audit_external_ties.py     8/8  exit 0
 PYTHONPATH=. python3 tests/test_sever_external_ties.py     5/5  exit 0
 PYTHONPATH=. python3 tests/test_sever_external_ties_seams.py 10/10 exit 0
+PYTHONPATH=. python3 tests/test_sever_external_ties_in_place.py 6/6 exit 0
 PYTHONPATH=. python3 tests/test_strip_formula_caches.py    8/8  exit 0
 PYTHONPATH=. python3 tests/test_examples_validate_against_schemas.py  exit 0
 PYTHONPATH=. python3 tests/test_all_processor_examples.py  exit 0

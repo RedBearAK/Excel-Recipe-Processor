@@ -1,11 +1,12 @@
 {
   "system_info": {
     "description": "Excel Recipe Processor - Automated Excel data processing system",
-    "total_processors": 47,
+    "total_processors": 49,
     "processor_types": [
       "add_calculated_column",
       "add_subtotals",
       "aggregate_data",
+      "audit_external_ties",
       "clean_data",
       "columns_to_rows",
       "combine_data",
@@ -42,6 +43,7 @@
       "rows_to_columns",
       "seed_donor_formulas",
       "select_columns",
+      "sever_external_ties",
       "slice_data",
       "sort_data",
       "split_column",
@@ -428,6 +430,33 @@
       "description": "strip_formula_caches step processor",
       "note": "this processor has not published detailed capabilities"
     },
+    "audit_external_ties": {
+      "description": "Inventory every external tie in closed xlsx files, read-only",
+      "finds": [
+        "external workbook links by index with target and sheet list",
+        "formula cells, defined names, CF/DV features and chart series carrying [N]",
+        "pivot cache sources (local and external), file hyperlinks, connections, OLE",
+        "orphan indexes, phantom links, dangling link parts"
+      ],
+      "safety": [
+        "never writes to an audited file",
+        "optional JSON report"
+      ]
+    },
+    "sever_external_ties": {
+      "description": "Sever every external tie in closed xlsx files, writing a new timestamped file",
+      "resolution": [
+        "retarget [N]Sheet! to a local sheet of the same name when it exists",
+        "freeze unresolved formulas to cached values, or refuse",
+        "drop unresolved defined names, CF rules and DV rules, or refuse",
+        "remove externalReferences, link parts, rels, overrides and calcChain; force recalc"
+      ],
+      "safety": [
+        "source file never written; output is a new file beside it",
+        "all-or-nothing: any refusal means no output, report still written",
+        "post-write re-inventory must be clean or the output is deleted"
+      ]
+    },
     "free_stages": {
       "description": "Delete named stages mid-run to reclaim memory once their consumers have run",
       "safety": [
@@ -671,6 +700,7 @@
         "active sheet selection",
         "template-based export"
       ],
+      "empty_stage": "empty_stage_policy: write (default) | skip (no file when there are no rows) | error",
       "safety": [
         "timestamped backup of an existing output file, extension preserved",
         "create_backup: false to disable; delete_backups_beyond keeps the newest N and deletes older"

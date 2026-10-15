@@ -20,6 +20,9 @@ from openpyxl.workbook.defined_name import DefinedName
 
 from excel_recipe_processor.core.base_processor import FileOpsBaseProcessor, StepProcessorError
 from excel_recipe_processor.core.config_schema import Key, Schema, name_list
+from excel_recipe_processor.core.erp_metadata import (
+    ErpMetadataError, inspect_erp_metadata, log_report_start, build_named_objects_metadata,
+)
 from excel_recipe_processor.processors._helpers.sheet_addressing import resolve_sheet_ref
 from excel_recipe_processor.processors._helpers.named_objects_extraction import (
     detect_object_type,
@@ -502,15 +505,31 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         export_file = Path(export_path)
         export_file.parent.mkdir(parents=True, exist_ok=True)
         
+        # The file opens with the erp_metadata block (2026-10-14): the kind
+        # declaration plus the provenance an export knows - harvested from
+        # which workbook, when, with which openpyxl, how many objects (the
+        # importer verifies that count). The working 'metadata' dict the
+        # extraction built stays internal; the file carries erp_metadata.
+        working = objects_dict.get('metadata', {})
+        document = {'erp_metadata': build_named_objects_metadata(
+            working.get('total_objects', 0),
+            exported_from_workbook=working.get('source_file'),
+            exported_on=working.get('export_date'),
+            openpyxl_version=working.get('openpyxl_version'),
+        )}
+        for key, value in objects_dict.items():
+            if key != 'metadata':
+                document[key] = value
+
         # Write YAML with proper formatting
         with open(export_file, 'w', encoding='utf-8') as f:
             # Write header comment
             f.write("# Excel Named Objects Export\n")
-            f.write(f"# Export date: {objects_dict['metadata']['export_date']}\n")
-            f.write(f"# Total objects: {objects_dict['metadata']['total_objects']}\n\n")
+            f.write(f"# Export date: {working.get('export_date', 'unknown')}\n")
+            f.write(f"# Total objects: {working.get('total_objects', 0)}\n\n")
             
             # Write YAML content
-            yaml.dump(objects_dict, f, default_flow_style=False, allow_unicode=True,
+            yaml.dump(document, f, default_flow_style=False, allow_unicode=True,
                      sort_keys=False, indent=2)
         
         logger.info(f"Exported {objects_dict['metadata']['total_objects']} objects to {q(export_path)}")
@@ -592,14 +611,40 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
             raise StepProcessorError(f"Invalid YAML format in {q(import_path)}: {e}")
         
         # Validate structure
-        self._validate_yaml_structure(objects_dict)
+        self._validate_yaml_structure(objects_dict, import_file.name)
         
         return objects_dict
     
-    def _validate_yaml_structure(self, objects_dict: dict) -> None:
-        """Validate YAML structure for import compatibility."""
-        
-        required_sections = ['metadata', 'named_ranges', 'lambda_functions', 
+    def _validate_yaml_structure(self, objects_dict: dict, source_label: str = 'named objects file') -> None:
+        """
+        Validate YAML structure for import compatibility.
+
+        The erp_metadata block (2026-10-14) is inspected first: absent is
+        reported, malformed is fatal, erp_file_kind must be named_objects
+        (a recipe handed to this door is named as such), and a declared
+        named_object_count must equal the objects actually in the file.
+        The pre-2026-10-14 'metadata' block was never read on import; it
+        is tolerated and ignored, with a note to migrate.
+        """
+        if 'recipe' in objects_dict and 'lambda_functions' not in objects_dict:
+            raise StepProcessorError(
+                f"{source_label} looks like a recipe (it has a top-level 'recipe' key), "
+                f"not a named-objects library; a library has named_ranges, "
+                f"lambda_functions, named_formulas and named_tables sections"
+            )
+        try:
+            report = inspect_erp_metadata(objects_dict, 'named_objects', source_label)
+        except ErpMetadataError as error:
+            raise StepProcessorError(f"erp_metadata block rejected: {error}")
+        log_report_start(report)
+        if 'metadata' in objects_dict:
+            logger.info(
+                f"🏷️  {source_label}: the old 'metadata' block is ignored on import; "
+                f"move its facts into erp_metadata (exported_from_workbook, exported_on, "
+                f"named_object_count) and delete it"
+            )
+
+        required_sections = ['named_ranges', 'lambda_functions', 
                            'named_formulas', 'named_tables']
         
         for section in required_sections:
@@ -609,6 +654,18 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         # Validate each object has required fields
         all_objects = (objects_dict['named_ranges'] + objects_dict['lambda_functions'] + 
                       objects_dict['named_formulas'] + objects_dict['named_tables'])
+
+        declared_count = objects_dict.get('erp_metadata', {}).get('named_object_count')
+        if declared_count is not None and declared_count != len(all_objects):
+            raise StepProcessorError(
+                f"{source_label}: erp_metadata.named_object_count says {declared_count}, "
+                f"but the file holds {len(all_objects)} objects "
+                f"({len(objects_dict['named_ranges'])} ranges, "
+                f"{len(objects_dict['lambda_functions'])} lambdas, "
+                f"{len(objects_dict['named_formulas'])} formulas, "
+                f"{len(objects_dict['named_tables'])} tables) - a definition was "
+                f"added or dropped without updating the count"
+            )
         
         for obj in all_objects:
             required_fields = ['name', 'type', 'scope']
@@ -1208,6 +1265,13 @@ class ManageNamedObjectsProcessor(FileOpsBaseProcessor):
         on_existing, name_validation = self._get_write_policies('excel')
 
         objects_dict = self.import_from_yaml(import_file)
+        logger.info(
+            f"📚 {Path(import_file).name}: {len(objects_dict.get('lambda_functions', []))} lambdas, "
+            f"{len(objects_dict.get('named_ranges', []))} named ranges, "
+            f"{len(objects_dict.get('named_formulas', []))} named formulas, "
+            f"{len(objects_dict.get('named_tables', []))} named tables - static definitions, "
+            f"written into the workbook's Name Manager"
+        )
         workbook = self._load_target_workbook(target_file)
 
         try:

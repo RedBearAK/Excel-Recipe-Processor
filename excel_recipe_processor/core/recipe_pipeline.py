@@ -16,6 +16,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from excel_recipe_processor.core.erp_metadata import (
+    ErpMetadataError, ErpMetadataReport, inspect_erp_metadata, log_report_start, log_report_end,
+)
 from excel_recipe_processor.core.stage_manager import StageManager, StageError
 from excel_recipe_processor.core.workbook_session import WorkbookSession
 from excel_recipe_processor.core.verification_ledger import VerificationLedger
@@ -106,6 +109,8 @@ class RecipePipeline:
         
         # Track pipeline state
         self._recipe_path = None
+        # Set by load_recipe(); a no-op report until then so completion logging never trips.
+        self._erp_metadata_report = ErpMetadataReport()
         self._custom_variables = {}
         self._external_variables = {}
         self._completion_report = None
@@ -118,6 +123,14 @@ class RecipePipeline:
             
             # Load recipe data
             self.recipe_data = self.recipe_loader.load_recipe_file(recipe_path)
+
+            # The erp_metadata frontmatter (2026-10-14): what kind of file
+            # this is and which ERP last validated it. Absent is reported
+            # (here and again at the end), malformed or the wrong kind is
+            # fatal, and the version comparison is always logged.
+            self._erp_metadata_report = inspect_erp_metadata(
+                self.recipe_data, 'recipe', recipe_path.name)
+            log_report_start(self._erp_metadata_report)
             
             # Declare stages for execution (not just validation)
             StageManager.declare_recipe_stages(self.recipe_data)
@@ -139,6 +152,9 @@ class RecipePipeline:
         except RecipeValidationError as e:
             logger.error(f"❌ Recipe validation failed: {e}")
             raise RecipePipelineError(f"Recipe validation failed: {e}")
+        except ErpMetadataError as e:
+            logger.error(f"❌ erp_metadata block rejected: {e}")
+            raise RecipePipelineError(f"erp_metadata block rejected: {e}")
         except FileNotFoundError:
             logger.error(f"❌ Recipe file not found: {recipe_path}")
             raise RecipePipelineError(f"Recipe file not found: {recipe_path}")
@@ -348,6 +364,7 @@ class RecipePipeline:
                 f"parsed from the YAML across {len(self.recipe_data.get('recipe', []))} "
                 f"step(s) (ballpark: enumerated list items per step, min 1)"
             )
+        log_report_end(self._erp_metadata_report)
         
         return self._completion_report
 
@@ -496,6 +513,7 @@ class RecipePipeline:
                 self.recipe_data, registry, self._substitute_variables_in_config)
             if self._validate_only:
                 logger.info("\U0001f6d1 --validate: stopping before execution")
+                log_report_end(self._erp_metadata_report)
                 return {
                     'validate_only': True,
                     'steps': len(self.recipe_data.get('recipe', [])),

@@ -291,7 +291,7 @@ recipe:
     # REQ - Must be "combine_data" for this processor type
     processor_type: "combine_data"
     # REQ - Use variable to select primary region stage
-    source_stage: "{primary_region}_data"
+    source_stage: "{{primary_region}}_data"
     # REQ - Stage to save comparison results
     save_to_stage: "stg_regional_comparison"
     # REQ - Stack regions vertically
@@ -305,7 +305,7 @@ recipe:
         insert_blank_rows: 2
       # Comparison region using variable
       - # Insert data from dynamically selected stage
-        insert_from_stage: "{comparison_region}_data"
+        insert_from_stage: "{{comparison_region}}_data"
         # OPT - Preserve region headers for identification
         # Default value: true (with allow_mismatched_columns)
         retain_column_names: true
@@ -348,7 +348,7 @@ recipe:
     # REQ - Must be "import_file" for this processor type
     processor_type: "import_file"
     # REQ - Input file with variable substitution
-    input_file: "sales_{input_date}.xlsx"
+    input_file: "sales_{{input_date}}.xlsx"
     # REQ - Stage to save imported data
     save_to_stage: "stg_sales_data"
   
@@ -437,7 +437,7 @@ recipe:
     # REQ - Stage to read final report from
     source_stage: "stg_final_report"
     # REQ - Output file with variable substitution
-    output_file: "reports/{output_prefix}_report_{input_date}.xlsx"
+    output_file: "reports/{{output_prefix}}_report_{{input_date}}.xlsx"
 ```
 
 ## Parameter notes

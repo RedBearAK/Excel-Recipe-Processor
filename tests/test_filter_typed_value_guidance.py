@@ -4,16 +4,16 @@ Typed-variable guidance for filter_data ordering comparisons.
 tests/test_filter_typed_value_guidance.py
 
 Substituted recipe variables arrive as STRINGS unless typed at the
-reference site. Before 2026-08-17, an untyped '{min_sales}' feeding a
+reference site. Before 2026-08-17, an untyped '{{min_sales}}' feeding a
 greater_than filter died inside pandas with "Invalid comparison between
 dtype=int64 and str" - true, baffling, and silent about the fix. These
 tests pin the two halves of the remedy:
 
 1. The GUARD: a string value on an ordering condition fails first, in
    ERP vocabulary, naming the filter/column/value and teaching the
-   typed reference syntax ({int:name}, {float:name}, {list_int:name}).
+   typed reference syntax ({{int:name}}, {{float:name}}, {{list_int:name}}).
 2. The FEATURE: typed references substitute the actual typed value, so
-   the same recipe works by changing '{min_sales}' to '{int:min_sales}'
+   the same recipe works by changing '{{min_sales}}' to '{{int:min_sales}}'
    - even when the variable itself arrives as a CLI string.
 
 Equality conditions stay untouched: '120' == 120 being False is
@@ -49,7 +49,7 @@ def run_filter(filters, frame=None):
 
 
 def test_string_value_on_ordering_gets_guided_error():
-    """A string threshold fails loud, in ERP words, teaching {int:...}."""
+    """A string threshold fails loud, in ERP words, teaching {{int:...}}."""
     print("Testing the guided error for string ordering values...")
 
     passed = True
@@ -83,14 +83,14 @@ def test_string_list_members_get_guided_error():
     except StepProcessorError as error:
         message = str(error)
         if '{list_int:' in message and 'lexically' in message:
-            print("  ✓ guided error teaches {list_int:...} and names the lexical trap")
+            print("  ✓ guided error teaches {{list_int:...}} and names the lexical trap")
             return True
         print(f"  ✗ error lacks guidance: {message[:120]}")
         return False
 
 
 def test_typed_reference_fixes_the_same_recipe():
-    """Swapping '{min_sales}' for '{int:min_sales}' makes the filter work."""
+    """Swapping '{{min_sales}}' for '{{int:min_sales}}' makes the filter work."""
     print("\nTesting the typed reference end to end...")
 
     # The variable arrives as a STRING - the CLI/interactive case - and
@@ -98,14 +98,14 @@ def test_typed_reference_fixes_the_same_recipe():
     substitution = VariableSubstitution(custom_variables={'min_sales': '120'})
     filters = substitution.substitute_structure(
         [{'column': 'Sales', 'condition': 'greater_than',
-          'value': '{int:min_sales}'}]
+          'value': '{{int:min_sales}}'}]
     )
 
     substituted_value = filters[0]['value']
     if substituted_value != 120 or isinstance(substituted_value, str):
         print(f"  ✗ typed substitution yielded {substituted_value!r}")
         return False
-    print("  ✓ {int:min_sales} substituted the actual int 120")
+    print("  ✓ {{int:min_sales}} substituted the actual int 120")
 
     result = run_filter(filters)
     if result['Sales'].tolist() == [150, 200]:

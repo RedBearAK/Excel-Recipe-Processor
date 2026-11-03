@@ -37,7 +37,7 @@ settings:
 recipe:
   - step_description: "Import test data"
     processor_type: "import_file"
-    input_file: "{input_file}"
+    input_file: "{{input_file}}"
     save_to_stage: "raw_data"
     
   - step_description: "Filter active items"
@@ -52,7 +52,7 @@ recipe:
   - step_description: "Export results"
     processor_type: "export_file"
     source_stage: "filtered_data"
-    output_file: "{output_file}"
+    output_file: "{{output_file}}"
 """
 
 UNDECLARED_STAGES_RECIPE = """
@@ -63,7 +63,7 @@ settings:
 recipe:
   - step_description: "Import to undeclared stage"
     processor_type: "import_file"
-    input_file: "{input_file}"
+    input_file: "{{input_file}}"
     save_to_stage: "undeclared_stage"
 """
 
@@ -84,7 +84,7 @@ settings:
 recipe:
   - step_description: "Import test data"
     processor_type: "import_file"
-    input_file: "{input_file}"
+    input_file: "{{input_file}}"
     save_to_stage: "raw_data"
     
   - step_description: "Filter using variable"
@@ -99,7 +99,7 @@ recipe:
   - step_description: "Export with variable filename"
     processor_type: "export_file"
     source_stage: "processed_data"
-    output_file: "{temp_path}/{{{{output_prefix}}}}_results.xlsx"
+    output_file: "{{temp_path}}/{{{{output_prefix}}}}_results.xlsx"
 """
 
 INVALID_RECIPE_NO_SETTINGS = """
@@ -293,12 +293,12 @@ recipe:
     filters:
       - column: "Status"
         condition: "equals"
-        value: "{'{status_filter}'}"
+        value: "{'{{{{status_filter}}}}'}"
         
   - step_description: "Export with variable filename"
     processor_type: "export_file"
     source_stage: "processed_data"
-    output_file: "{temp_path}/{'{output_prefix}'}_results.xlsx"
+    output_file: "{temp_path}/{'{{{{output_prefix}}}}'}_results.xlsx"
 """
             
             recipe_file = temp_path / 'recipe.yaml'

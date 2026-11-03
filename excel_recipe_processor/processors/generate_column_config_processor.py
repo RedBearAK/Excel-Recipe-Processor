@@ -149,7 +149,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
         
         # Existence is deliberately NOT checked here. This method runs during
         # __init__, before variable substitution resolves paths like
-        # "export_{date}.xlsx", and capability discovery instantiates every
+        # "export_{{date}}.xlsx", and capability discovery instantiates every
         # processor from get_minimal_config() placeholder paths. Existence is
         # checked in perform_file_operation() instead, once paths are real.
         for file_param in ['source_file', 'template_file']:
@@ -947,7 +947,7 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
                 output_lines.append('    processor_type: "rename_columns"')
                 output_lines.append('    source_stage: "stg_source_data"')
                 output_lines.append('    rename_type: "mapping"')
-                output_lines.append('    column_mapping: "{dict_str:var_columns_to_rename}"')
+                output_lines.append('    column_mapping: "{{dict_str:var_columns_to_rename}}"')
                 output_lines.append('    save_to_stage: "stg_renamed_columns"')
                 output_lines.append('')
                 
@@ -959,8 +959,8 @@ class GenerateColumnConfigProcessor(FileOpsBaseProcessor):
             output_lines.append('  - step_description: "Select and create final column structure"')
             output_lines.append('    processor_type: "select_columns"')
             output_lines.append(f'    source_stage: "{next_stage}"')
-            output_lines.append('    columns_to_keep: "{list_str:var_columns_to_keep}"')
-            output_lines.append('    columns_to_create: "{list_str:var_columns_to_create}"')
+            output_lines.append('    columns_to_keep: "{{list_str:var_columns_to_keep}}"')
+            output_lines.append('    columns_to_create: "{{list_str:var_columns_to_create}}"')
             output_lines.append('    save_to_stage: "stg_final_structure"')
             output_lines.append('')
             

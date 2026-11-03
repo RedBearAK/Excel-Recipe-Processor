@@ -197,14 +197,14 @@ def test_variable_substitution():
                         'source_stage': 'raw_data',
                         'save_to_stage': 'processed_data',
                         'filters': [
-                            {'column': 'Status', 'condition': 'equals', 'value': '{status_filter}'}
+                            {'column': 'Status', 'condition': 'equals', 'value': '{{status_filter}}'}
                         ]
                     },
                     {
                         'step_description': 'Export with variable filename',
                         'processor_type': 'export_file',
                         'source_stage': 'processed_data',
-                        'output_file': str(temp_path / '{output_prefix}_results.xlsx')
+                        'output_file': str(temp_path / '{{output_prefix}}_results.xlsx')
                     }
                 ]
             }

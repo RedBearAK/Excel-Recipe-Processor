@@ -183,7 +183,7 @@ recipe:
   - # Step 1: Import customer data
     step_description: "Import customer database"
     processor_type: "import_file"
-    input_file: "data/customers_{year}.xlsx"
+    input_file: "data/customers_{{year}}.xlsx"
     save_to_stage: "stg_customer_data"
 
   - # Step 2: Group using external file definitions
@@ -197,8 +197,8 @@ recipe:
       # REQ - Use external file for group definitions
       type: "file"
       # REQ - Path to file containing group definitions (supports variables)
-      # Variables: {region_type}, {year} defined in settings
-      filename: "config/{region_type}_regions_{year}.xlsx"
+      # Variables: {{region_type}}, {{year}} defined in settings
+      filename: "config/{{region_type}}_regions_{{year}}.xlsx"
       # OPT - File format (wide or long)
       format: "wide"
       # OPT - Sheet name for Excel files
@@ -314,13 +314,13 @@ recipe:
   - # Step 1: Import transaction data
     step_description: "Import sales transaction data"
     processor_type: "import_file"
-    input_file: "data/{department}_transactions.xlsx"
+    input_file: "data/{{department}}_transactions.xlsx"
     save_to_stage: "stg_transaction_data"
 
   - # Step 2: Import validation lookup data
     step_description: "Import customer validation data"
     processor_type: "import_file"
-    input_file: "validation/customer_lookup_{validation_date}.xlsx"
+    input_file: "validation/customer_lookup_{{validation_date}}.xlsx"
     save_to_stage: "stg_validation_data"
 
   - # Step 3: Group customers with validation lookup

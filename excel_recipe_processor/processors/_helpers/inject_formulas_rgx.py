@@ -8,19 +8,26 @@ corrupt them.
 
 A formula may name a column instead of lettering it:
 
-    =IF({col:Test Dest}2=1, XLOOKUP({col:Destination}2, rng_EXdest, rng_country), "")
+    =IF({{col:Test Dest}}2=1, XLOOKUP({{col:Destination}}2, rng_EXdest, rng_country), "")
 
 The placeholder is replaced with that column's letter, read from the sheet's
 header row at injection time, so inserting a column upstream cannot silently
 repoint a formula at its neighbour.
+
+DELIMITER (2026-11-02): doubled braces, the one grammar every placeholder
+uses; column_placeholder_rgx is the core COLUMN_PLACEHOLDER_RGX under its
+long-standing local name, so the two can never drift. An Excel array
+constant {1,2,3} or {"a","b"} in a formula is now ordinary text.
 """
 
 import re
 
 
-# {col:Header Name} - the header may contain spaces and punctuation, so the
+# {{col:Header Name}} - the header may contain spaces and punctuation, so the
 # pattern stops at the closing brace rather than at whitespace.
-column_placeholder_rgx = re.compile(r'\{col:([^}]+)\}')
+from excel_recipe_processor.core.variable_substitution_rgx import COLUMN_PLACEHOLDER_RGX
+
+column_placeholder_rgx = COLUMN_PLACEHOLDER_RGX
 
 # A function call in a formula: a name followed by an opening parenthesis.
 #
@@ -37,14 +44,14 @@ function_call_rgx = re.compile(r'(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_.]*)\s*\(
 # so text like "See tab Z1#" or "use SUM here" can never be mangled.
 string_literal_rgx = re.compile(r'"(?:[^"]|"")*"')
 
-# A string literal OR a {col:...} placeholder: the spans a storage
+# A string literal OR a {{col:...}} placeholder: the spans a storage
 # transform must never rewrite. A placeholder names a column, and a
 # column name may contain a word that looks like a function in value
 # position - "AUTO PRODUCT  FORM" carries a bare PRODUCT, which the eta
 # rewrite turned into _xleta.PRODUCT inside the placeholder, so the
 # column was then "not in the header row" (2026-09-07). Placeholders
 # resolve to cell references later; until then they are opaque.
-opaque_span_rgx = re.compile(r'"(?:[^"]|"")*"|\{col:[^}]+\}')
+opaque_span_rgx = re.compile(r'"(?:[^"]|"")*"|\{\{col:[^{}]+\}\}')
 
 # A spilled-range reference: cell ref (optionally sheet-prefixed) or a
 # defined name, wearing the trailing '#'. Excel STORES these wrapped in

@@ -37,7 +37,7 @@ def run(path: Path, mode: str) -> None:
         'processor_type': 'inject_formulas', 'step_description': f'{mode} drill',
         'target_file': str(path), 'mode': mode,
         'sheets_to_receive_formulas': [{'sheet_names': ['Data'], 'formulas': [
-            {'cell': 'C2', 'excel_formula': '={col:Units}2*{col:Unit Price}2', 'fill_down': True}]}],
+            {'cell': 'C2', 'excel_formula': '={{col:Units}}2*{{col:Unit Price}}2', 'fill_down': True}]}],
     }).execute()
 
 

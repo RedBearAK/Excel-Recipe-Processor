@@ -32,9 +32,9 @@ def test_backwards_compatibility():
     
     # Test untyped string substitution (backwards compatible)
     templates = [
-        "report_{region}_{date}.xlsx",
-        "batch_{batch_id}_data.csv",
-        "{region}_{batch_id}_{date}"
+        "report_{{region}}_{{date}}.xlsx",
+        "batch_{{batch_id}}_data.csv",
+        "{{region}}_{{batch_id}}_{{date}}"
     ]
     
     expected = [
@@ -70,9 +70,9 @@ def test_typed_string_substitution():
     substitution = VariableSubstitution(custom_variables=custom_vars)
     
     test_cases = [
-        ("{str:filename}.{str:extension}", "customer_report.xlsx"),
-        ("count_{str:numeric_value}", "count_42"),
-        ("active_{str:bool_value}", "active_True")
+        ("{{str:filename}}.{{str:extension}}", "customer_report.xlsx"),
+        ("count_{{str:numeric_value}}", "count_42"),
+        ("active_{{str:bool_value}}", "active_True")
     ]
     
     success = 0
@@ -110,8 +110,8 @@ def test_structure_substitution():
     
     # Test list substitution
     config = {
-        'columns_to_keep': '{list_str:customer_columns}',
-        'secondary_columns': '{list_str:sales_columns}'
+        'columns_to_keep': '{{list_str:customer_columns}}',
+        'secondary_columns': '{{list_str:sales_columns}}'
     }
     
     result = substitution.substitute_structure(config)
@@ -139,8 +139,8 @@ def test_structure_substitution():
     
     # Test dict substitution
     dict_config = {
-        'lookup_mapping': '{dict_str:status_codes}',
-        'filter_region': '{region}'  # Mixed with string
+        'lookup_mapping': '{{dict_str:status_codes}}',
+        'filter_region': '{{region}}'  # Mixed with string
     }
     
     dict_result = substitution.substitute_structure(dict_config)
@@ -181,19 +181,19 @@ def test_nested_structure_substitution():
     complex_config = {
         'data_sources': {
             'primary': {
-                'columns': '{list_str:primary_cols}',
-                'region': '{region}'
+                'columns': '{{list_str:primary_cols}}',
+                'region': '{{region}}'
             },
             'backup': {
-                'columns': '{list_str:backup_cols}',
-                'active_filter': '{bool:active_only}'
+                'columns': '{{list_str:backup_cols}}',
+                'active_filter': '{{bool:active_only}}'
             }
         },
         'processing_steps': [
             {
                 'type': 'filter',
-                'columns': '{list_str:primary_cols}',
-                'region': '{region}'
+                'columns': '{{list_str:primary_cols}}',
+                'region': '{{region}}'
             }
         ]
     }
@@ -256,7 +256,7 @@ def test_type_validation():
     # Test successful type conversions
     tests += 1
     try:
-        result = substitution.substitute_structure('{int:int_var}')
+        result = substitution.substitute_structure('{{int:int_var}}')
         if result == 42:
             print(f"  ✓ Type preservation: int correctly preserved")
             success += 1
@@ -269,7 +269,7 @@ def test_type_validation():
     tests += 1
     try:
         # Try to use a string as a list
-        substitution.substitute_structure('{list_any:string_var}')
+        substitution.substitute_structure('{{list_any:string_var}}')
         print(f"  ✗ Type validation: should have failed for list:string_var")
     except VariableSubstitutionError as e:
         print(f"  ✓ Type validation: correctly caught type mismatch")
@@ -280,7 +280,7 @@ def test_type_validation():
     # Test unsupported type
     tests += 1
     try:
-        substitution.substitute_structure('{unsupported:string_var}')
+        substitution.substitute_structure('{{unsupported:string_var}}')
         print(f"  ✗ Type validation: should have failed for unsupported type")
     except VariableSubstitutionError as e:
         print(f"  ✓ Type validation: correctly caught unsupported type")
@@ -291,7 +291,7 @@ def test_type_validation():
     # Test string context restrictions
     tests += 1
     try:
-        substitution.substitute('output_{list_any:list_var}.xlsx')
+        substitution.substitute('output_{{list_any:list_var}}.xlsx')
         print(f"  ✗ String context: should have failed for list in string")
     except VariableSubstitutionError as e:
         print(f"  ✓ String context: correctly prevented list in string context")
@@ -317,7 +317,7 @@ def test_convenience_functions():
     
     # Test substitute_variables function
     tests += 1
-    result = substitute_variables('{filename}_{date}.xlsx', custom_variables=custom_vars)
+    result = substitute_variables('{{filename}}_{{date}}.xlsx', custom_variables=custom_vars)
     if 'report_' in result and '.xlsx' in result:
         print(f"  ✓ substitute_variables: works correctly")
         success += 1
@@ -326,7 +326,7 @@ def test_convenience_functions():
     
     # Test substitute_structure function  
     tests += 1
-    config = {'cols': '{list_str:columns}', 'name': '{filename}'}
+    config = {'cols': '{{list_str:columns}}', 'name': '{{filename}}'}
     result = substitute_structure(config, custom_variables=custom_vars)
     if result['cols'] == ['A', 'B', 'C'] and result['name'] == 'report':
         print(f"  ✓ substitute_structure: works correctly")
@@ -342,27 +342,27 @@ def test_colon_after_a_variable_and_between_placeholders():
     """A colon right after a closing brace is just the next character.
 
     Two pre-existing faults met on 2026-09-10 when a recipe first wrote
-    "{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5" (an A1 range
+    "{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5" (an A1 range
     between two column placeholders): the typo heuristic read the range
     separator's colon as a missing opening brace and refused the string,
-    and the simple pass skipped any "{name}" immediately followed by ":"
-    as if it belonged to a format, so "{x}:{y}" came back "{x}:2". Both
+    and the simple pass skipped any "{{name}}" immediately followed by ":"
+    as if it belonged to a format, so "{{x}}:{{y}}" came back "{{x}}:2". Both
     fixed; this pins them.
     """
     print("\nTesting a colon after a variable / between placeholders...")
     from excel_recipe_processor.core.variable_substitution import VariableSubstitution, VariableSubstitutionError
     substituter = VariableSubstitution(custom_variables={'x': '1', 'y': '2', 'first': 'N', 'last': 'P'})
     cases = [
-        ('{x}:{y}', '1:2'),
-        ('{first}2:{last}5', 'N2:P5'),
-        ('{x}:{y}:{x}', '1:2:1'),
-        ('{x}:', '1:'),
-        # {col:...} is a passthrough namespace: untouched, and the colon
+        ('{{x}}:{{y}}', '1:2'),
+        ('{{first}}2:{{last}}5', 'N2:P5'),
+        ('{{x}}:{{y}}:{{x}}', '1:2:1'),
+        ('{{x}}:', '1:'),
+        # {{col:...}} is a passthrough namespace: untouched, and the colon
         # between two of them must not be mistaken for a typo
-        ('{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5',
-         '{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5'),
-        ('=LEN({col:Filter: SALE TYPE1}2)=0', '=LEN({col:Filter: SALE TYPE1}2)=0'),
-        ('{col:A}$2:{col:A}$5', '{col:A}$2:{col:A}$5'),
+        ('{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5',
+         '{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5'),
+        ('=LEN({{col:Filter: SALE TYPE1}}2)=0', '=LEN({{col:Filter: SALE TYPE1}}2)=0'),
+        ('{{col:A}}$2:{{col:A}}$5', '{{col:A}}$2:{{col:A}}$5'),
     ]
     ok = True
     for given, expected in cases:
@@ -377,7 +377,7 @@ def test_colon_after_a_variable_and_between_placeholders():
             ok = False
     # the typo the heuristic exists for is still caught
     try:
-        substituter.substitute('value is {x} and name:{y}}')
+        substituter.substitute('value is {{x}} and name:{y}}')
         caught = False
     except VariableSubstitutionError:
         caught = True

@@ -96,7 +96,7 @@ recipe:
     # REQ - New stage name for the copy
     save_to_stage: "stg_branch_strict"
     # OPT - Detailed description for the copied stage
-    # Default value: "Copy of {source_stage}"
+    # Default value: "Copy of {{source_stage}}"
     description: "Working copy for testing strict business rules"
   
   # Create copy for lenient filtering branch
@@ -185,7 +185,7 @@ recipe:
     save_to_stage: "stg_enriched"
     new_column: "Total"
     calculation:
-      pandas_formula: "{col:Price} * {col:Quantity}"
+      pandas_formula: "{{col:Price}} * {{col:Quantity}}"
   
   # Checkpoint 2: Save after enrichment
   - step_description: "Checkpoint: Post-enrichment"
@@ -216,32 +216,32 @@ settings:
     - stage_name: "stg_report_v2"
       description: "Version 2 of report"
       protected: true
-    - stage_name: "stg_report_archive_{report_date}"
+    - stage_name: "stg_report_archive_{{report_date}}"
       description: "Date-stamped archive"
       protected: true
 
 recipe:
   # Save current version before updates
   - # OPT - Step description with variable
-    step_description: "Archive current report as {version}"
+    step_description: "Archive current report as {{version}}"
     # REQ - Processor type
     processor_type: "copy_stage"
     # REQ - Current report stage
     source_stage: "stg_current_report"
     # REQ - Versioned target using variable
-    save_to_stage: "stg_report_{version}"
+    save_to_stage: "stg_report_{{version}}"
     # OPT - Prevent overwriting existing versions
     # Default value: false
     overwrite: false
     # OPT - Version description
-    description: "Report {version} - includes {report_date} updates"
+    description: "Report {{version}} - includes {{report_date}} updates"
   
   # Create date-stamped archive
   - step_description: "Create date-stamped archive"
     processor_type: "copy_stage"
     source_stage: "stg_current_report"
-    save_to_stage: "stg_report_archive_{report_date}"
-    description: "Permanent archive for {report_date}"
+    save_to_stage: "stg_report_archive_{{report_date}}"
+    description: "Permanent archive for {{report_date}}"
 ```
 
 ### iterative development
@@ -285,5 +285,5 @@ recipe:
 - `source_stage` (required): Stage to copy data from (must exist and be declared in settings.stages)
 - `target_stage` (required): Name for the new stage copy (must be declared in settings.stages)
 - `overwrite` (default `False`): Allow overwriting existing stage with same name
-- `description` (default `Copy of {source_stage}`): Human-readable description of the copied stage's purpose
+- `description` (default `Copy of {{source_stage}}`): Human-readable description of the copied stage's purpose
 

@@ -230,7 +230,7 @@ advanced_filter_criteria_example:
             stage_column: "Region"
           - column: "Revenue"
             condition: "greater_than"
-            value: "{min_revenue}"
+            value: "{{min_revenue}}"
 
 configuration_driven_example:
   description: "Use inline stages for configuration-driven processing"

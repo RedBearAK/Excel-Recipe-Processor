@@ -9,7 +9,7 @@ Native Excel data-validation rules: dropdowns, bounds, formula gates, prompts
 - **list sources**: exactly one of values_list (inline), list_from_named_range (pairs with lookup tabs and manage_named_objects), or list_from_spill_ref ("$Z$2#" anchors)
 - **bounds vocabulary**: operator + minimum/maximum for between/not_between; operator + compare_to for the six comparisons; bounds accept numbers, "=formulas", ISO dates, and clock times (auto-converted to DATE()/TIME())
 - **targeting**: apply_to_ranges is ALWAYS a list of A1 cells/ranges; one rule may cover several areas (multi-area sqref)
-- **behaviors**: allow_blank (default true), show_dropdown (list only, default true), input_prompt {title, message}, error_alert {style: stop/warning/information, title, message}
+- **behaviors**: allow_blank (default true), show_dropdown (list only, default true), input_prompt {title, message}, error_alert {{style: stop/warning/information, title, message}}
 - **enforcement scope**: fires on MANUAL entry only - paste, fill-down and formulas bypass Excel data validation; use verify_data for pipeline integrity
 - **session**: file operation on the workbook session, like conditional_format - run after export, before flush
 

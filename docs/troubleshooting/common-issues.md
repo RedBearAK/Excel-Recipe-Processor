@@ -178,7 +178,7 @@ column: "Product_Name"     # ❌ Wrong separator
 - processor_type: "add_calculated_column"
   new_column: "Total"
   calculation:
-    pandas_formula: "{col:Price} * {col:Quantity}"
+    pandas_formula: "{{col:Price}} * {{col:Quantity}}"
 ```
 
 ---

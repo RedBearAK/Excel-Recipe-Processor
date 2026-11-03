@@ -106,7 +106,7 @@ recipe:
     # Default value: false (only create main stage)
     create_filtered_stages: true
     # OPT - Stage naming pattern for filtered outputs
-    # Default value: "stg_diff_{change_type}_rows_subset"
+    # Default value: "stg_diff_{{change_type}}_rows_subset"
     filtered_stage_prefix: "stg_diff_analysis"
     # OPT - Include JSON format of change details
     # Default value: false (only pipe-separated format)

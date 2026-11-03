@@ -196,12 +196,12 @@ recipe:
   - step_description: "Export terms for Excel review"
     processor_type: "export_file"
     source_stage: "stg_detected_terms"
-    output_file: "{review_file}"
+    output_file: "{{review_file}}"
   
   # Step 3: Import human-reviewed terms
   - step_description: "Import reviewed filter terms"
     processor_type: "import_file"
-    input_file: "{reviewed_file}"
+    input_file: "{{reviewed_file}}"
     save_to_stage: "stg_reviewed_terms"
   
   # Step 4: Generate filter recipe

@@ -35,7 +35,9 @@ from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeVali
 from excel_recipe_processor.core.stage_inspection import (
     dump_stage_to_file, StageInspectionError
 )
-from excel_recipe_processor.core.variable_substitution import VariableSubstitution
+from excel_recipe_processor.core.variable_substitution import (
+    RetiredPlaceholderSyntaxError, VariableSubstitution,
+)
 from excel_recipe_processor.core.interactive_variables import (
     InteractiveVariablePrompt, InteractiveVariableError
 )
@@ -54,7 +56,7 @@ def count_step_elements(value) -> int:
     format_excel step counts its sheet entries plus each entry's nested
     column_formats rules.
 
-    Known ballpark limits, accepted on purpose: a "{list_str:variable}" string
+    Known ballpark limits, accepted on purpose: a "{{list_str:variable}}" string
     counts as 1 though it may expand to many items, and a step with no
     list content at all reports 0 here (the caller floors it to 1). The
     number is a property of what the author WROTE - stable across data
@@ -511,7 +513,7 @@ class RecipePipeline:
 
             # The log-file decision (2026-09-04): every run writes a log.
             # A recipe log_file template attaches HERE because paths like
-            # {output_dir}/{output_basename}_log.txt need the external
+            # {{output_dir}}/{{output_basename}}_log.txt need the external
             # variables just resolved above; no directive means the
             # platform default location (core/default_log_path.py); false
             # opts out. The buffered startup lines become the file's head.
@@ -555,7 +557,7 @@ class RecipePipeline:
         unresolved_vars = []
         
         for name, value in available_vars.items():
-            if isinstance(value, str) and '{' in value and '}' in value:
+            if isinstance(value, str) and '{{' in value and '}}' in value:
                 # This variable still contains unresolved references
                 unresolved_vars.append(f"{name} = '{value}'")
         
@@ -619,6 +621,10 @@ class RecipePipeline:
                 try:
                     resolved_value = self.variable_substitution.substitute(template_value)
                     self.variable_substitution.add_custom_variable(name, resolved_value)
+                except RetiredPlaceholderSyntaxError as e:
+                    # A forward reference may legitimately fail on this pass
+                    # (the warning below); the retired delimiter never may
+                    raise RecipePipelineError(f"settings.variables.{name}: {e}")
                 except Exception as e:
                     logger.warning(f"Failed to re-resolve variable '{name}': {e}")
     
@@ -654,8 +660,8 @@ class RecipePipeline:
             
         # Create variable system.
         #
-        # Passing the recipe path is what supplies {recipe_dir} and
-        # {recipe_parent_dir}, which let a recipe reference its own siblings
+        # Passing the recipe path is what supplies {{recipe_dir}} and
+        # {{recipe_parent_dir}}, which let a recipe reference its own siblings
         # regardless of the directory the command was run from. Without it those
         # variables never resolve and the run fails at load with "Unresolved
         # variables detected" - correct, but only after the user wonders why.
@@ -723,7 +729,7 @@ class RecipePipeline:
             # Fail LOUD (2026-08-17). The old warn-and-continue returned
             # the UNSUBSTITUTED config, so the step then failed on a
             # misleading shape complaint (e.g. verify_columns seeing the
-            # literal '{list:...}' string instead of a list) while the
+            # literal '{{list:...}}' string instead of a list) while the
             # real, guided error - a retired reference, an unconvertible
             # member, a typo'd template - scrolled past as a warning.
             raise StepProcessorError(

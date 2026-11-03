@@ -157,7 +157,7 @@ class BaseStepProcessor(ABC):
         # callers - tests and tooling - so a config no recipe could carry
         # is refused wherever it is built, and the tests' own recipe
         # fragments cannot drift from the vocabulary the way stale keys
-        # did through 2026-08/09. Unresolved {tokens} are tolerated here
+        # did through 2026-08/09. Unresolved {{tokens}} are tolerated here
         # because substitution is the pipeline's job, not the caller's.
         schema = type(self).construction_schema()
         if schema is not None:

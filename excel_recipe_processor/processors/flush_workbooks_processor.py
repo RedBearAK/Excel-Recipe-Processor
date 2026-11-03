@@ -13,7 +13,7 @@ will not touch again - can force the write here.
 Two forms (2026-09-13):
 
     processor_type: "flush_workbooks"
-    target_files: ["{output_dir}/vms_glossary.xlsx"]
+    target_files: ["{{output_dir}}/vms_glossary.xlsx"]
 
   writes and closes the NAMED workbooks only. This is the form to reach for
   when a file is finished: it says which file, and it cannot be changed by a

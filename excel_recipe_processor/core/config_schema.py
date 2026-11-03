@@ -31,7 +31,7 @@ which column-selector constructs a processor MAY use:
   name_ref_pair    column_names / column_refs siblings, at least one
                    present - legal only where a positional Excel ref is a
                    real way to say which column (file-addressing families)
-  typed_item_list  ordered entries of {name: ...} or {ref: ...}, for a
+  typed_item_list  ordered entries of {{name: ...}} or {{ref: ...}}, for a
                    file-addressing operation whose order matters
 
 A processor declares its own keys with config_schema(); the family's
@@ -194,7 +194,7 @@ def name_ref_pair(description: str = '') -> tuple:
 
 
 def typed_item_list(name: str, required: bool = False, description: str = '') -> Key:
-    """Ordered entries, each {name: ...} or {ref: ...}, for order-sensitive mixed selection."""
+    """Ordered entries, each {{name: ...}} or {{ref: ...}}, for order-sensitive mixed selection."""
     item = Schema([
         Key('name', 'str', description='Header name'),
         Key('ref', 'str', description='Positional Excel ref'),
@@ -251,9 +251,9 @@ def validate_config(config: dict, schema: Schema, path: str = '', allow_unresolv
     """
     Validate a mapping against a Schema. Returns a list of error strings.
 
-    allow_unresolved: a string value holding a {token} placeholder passes
+    allow_unresolved: a string value holding a {{token}} placeholder passes
     the kind check where a non-string kind is declared, because variable
-    substitution may still turn it into the right shape (a {list_str:...}
+    substitution may still turn it into the right shape (a {{list_str:...}}
     token becomes a list). Validation runs after substitution in the
     pipeline, so the allowance only matters for callers validating raw
     recipe text.
@@ -304,7 +304,7 @@ def validate_config(config: dict, schema: Schema, path: str = '', allow_unresolv
             continue
         key = legal[name]
         child = f"{path}.{name}" if path else name
-        if (allow_unresolved and isinstance(value, str) and '{' in value and '}' in value
+        if (allow_unresolved and isinstance(value, str) and '{{' in value and '}}' in value
                 and key.kind not in ('str', 'stage_in', 'stage_out', 'stage_release', 'any')):
             continue
         if not _kind_matches(value, key.kind, key.item_kind):

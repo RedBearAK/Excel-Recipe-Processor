@@ -60,7 +60,7 @@ A provenance sheet in a generated workbook
 settings:
   description: "Report with a source-files tab"
   variables:
-    lookup_dir: "{recipe_parent_dir}/lookup_source_files"
+    lookup_dir: "{{recipe_parent_dir}}/lookup_source_files"
   required_external_vars:
     source_download:
       description: "Raw download being processed"
@@ -76,14 +76,14 @@ settings:
 recipe:
   - step_description: "Import the download"
     processor_type: "import_file"
-    input_file: "{source_download}"
+    input_file: "{{source_download}}"
     save_to_stage: "stg_data"
 
   - step_description: "Record the input vintages"
     processor_type: "profile_files"
     files:
-      - "{source_download}"
-      - "{lookup_dir}/product_ids.xlsx"
+      - "{{source_download}}"
+      - "{{lookup_dir}}/product_ids.xlsx"
     save_to_stage: "stg_source_file_info"
 
   - step_description: "Export data plus the provenance tab"

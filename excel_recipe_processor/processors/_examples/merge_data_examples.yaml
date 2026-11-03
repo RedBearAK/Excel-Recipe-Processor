@@ -76,7 +76,7 @@ multi_source_example:
         save_to_stage: "stg_customer_enriched"
         merge_source:
           type: "excel"
-          path: "reference_data/customers_{data_year}.xlsx"
+          path: "reference_data/customers_{{data_year}}.xlsx"
           sheet: "Active_Customers"
           # OPT - Text encoding for files (ignored for Excel)
           # Default value: "utf-8"
@@ -251,7 +251,7 @@ parameter_details:
     required: true
     context: "Required for excel, csv, tsv source types"
     description: "File path to external data source (supports variable substitution)"
-    examples: ["customers.xlsx", "data/{year}/products.csv", "reference/{region}_territories.xlsx"]
+    examples: ["customers.xlsx", "data/{{year}}/products.csv", "reference/{{region}}_territories.xlsx"]
   
   merge_source_sheet:
     type: string_or_int

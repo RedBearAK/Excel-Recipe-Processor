@@ -64,7 +64,7 @@ recipe:
     source_stage: "stg_import_raw"
     # REQ - The expectation; keep it in a variable beside the recipe's
     # other lists so shape changes are a one-line maintenance edit
-    expected_columns: "{list_str:var_expected_columns}"
+    expected_columns: "{{list_str:var_expected_columns}}"
     # OPT - "error" (default) or "warn"
     on_missing_expected: "error"
     # OPT - "warn" (default) or "error"
@@ -101,12 +101,12 @@ settings:
 recipe:
   - step_description: "Import A"
     processor_type: "import_file"
-    input_file: "{file_a}"
+    input_file: "{{file_a}}"
     save_to_stage: "stg_a"
 
   - step_description: "Import B"
     processor_type: "import_file"
-    input_file: "{file_b}"
+    input_file: "{{file_b}}"
     save_to_stage: "stg_b"
 
   - step_description: "Compare columns, both directions"

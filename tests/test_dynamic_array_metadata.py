@@ -177,7 +177,7 @@ def test_pass_is_idempotent_and_reopenable():
 
 
 def test_legacy_cse_cell_gets_completed():
-    """A t="array" cell without cm (inherited {braces}) gains cm and keeps its ref."""
+    """A t="array" cell without cm (inherited {{braces}}) gains cm and keeps its ref."""
     print("\nTesting a legacy CSE cell gets completed into a dynamic one...")
 
     passed = True

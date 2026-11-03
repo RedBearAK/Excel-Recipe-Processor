@@ -137,7 +137,7 @@ recipe:
     processor_type: "manage_named_objects"
     operation: "create_from_columns"
     # REQ - Workbook to write the names into
-    target_file: "{output_file}"
+    target_file: "{{output_file}}"
     # OPT - "error" (default), "replace", or "skip"
     on_existing: "replace"
     # OPT - Delete inherited names with this prefix that are not defined

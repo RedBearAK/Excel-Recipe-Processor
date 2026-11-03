@@ -251,7 +251,7 @@ recipe:
     # REQ - Column calculation configuration
     new_column: "Profit_Margin"
     calculation:
-      pandas_formula: "({col:Revenue} - {col:Cost}) / {col:Revenue} * 100"
+      pandas_formula: "({{col:Revenue}} - {{col:Cost}}) / {{col:Revenue}} * 100"
     save_to_stage: "stg_transformed_data"
 
   - # DEBUG: Comprehensive debugging checkpoint
@@ -261,8 +261,8 @@ recipe:
     # OPT - Detailed message with expected results
     message: "Verify profit margin calculations - should be between 0-50% for most records"
     # OPT - Organized output path with variables
-    # Variables: {debug_session}, {analysis_date} defined in settings
-    output_path: "./debug/{debug_session}_{analysis_date}/"
+    # Variables: {{debug_session}}, {{analysis_date}} defined in settings
+    output_path: "./debug/{{debug_session}}_{{analysis_date}}/"
     # OPT - Descriptive filename with context
     filename_prefix: "profit_margin_analysis"
     # OPT - No timestamp for consistent filename during repeated testing
@@ -286,7 +286,7 @@ recipe:
     processor_type: "debug_breakpoint"
     source_stage: "stg_analysis_ready"
     message: "FINAL CHECK: Data sorted by profit margin (highest first)"
-    output_path: "./debug/{debug_session}_{analysis_date}/"
+    output_path: "./debug/{{debug_session}}_{{analysis_date}}/"
     filename_prefix: "final_analysis_dataset"
     # OPT - Always include timestamp for final checkpoints
     include_timestamp: true

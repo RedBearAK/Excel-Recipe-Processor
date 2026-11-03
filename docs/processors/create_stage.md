@@ -268,7 +268,7 @@ recipe:
         stage_column: "Region"
       - column: "Revenue"
         condition: "greater_than"
-        value: "{min_revenue}"
+        value: "{{min_revenue}}"
 ```
 
 ### configuration driven

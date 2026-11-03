@@ -81,7 +81,7 @@ def test_setting_resolution():
 
     os.environ['ERP_LOG_DIR'] = '/logs'
     try:
-        substitute = lambda text: text.replace('{output_dir}', '/out')
+        substitute = lambda text: text.replace('{{output_dir}}', '/out')
         passed = True
 
         for setting in (None, True):
@@ -98,7 +98,7 @@ def test_setting_resolution():
             print("  ✗ false did not opt out")
             passed = False
 
-        resolved = resolve_log_file_setting('{output_dir}/run_log.txt', 'r.yaml', substitute)
+        resolved = resolve_log_file_setting('{{output_dir}}/run_log.txt', 'r.yaml', substitute)
         if resolved == Path('/out/run_log.txt'):
             print("  ✓ template substituted")
         else:

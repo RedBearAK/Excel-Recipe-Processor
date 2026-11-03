@@ -12,7 +12,7 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 - `processor_type`: str; REQUIRED - Registered processor name
 - `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
 - `source_stage`: stage_in; REQUIRED - Stage to read
-- `output_file`: str; REQUIRED - Output path; a template with variable substitution. Put a run stamp in the name - {hour}{minute}{second} at least, {timestamp} when the name carries no date - so each run writes a NEW file: Excel holds an open workbook, and a same-named rewrite is not what the open window shows
+- `output_file`: str; REQUIRED - Output path; a template with variable substitution. Put a run stamp in the name - {{hour}}{{minute}}{{second}} at least, {{timestamp}} when the name carries no date - so each run writes a NEW file: Excel holds an open workbook, and a same-named rewrite is not what the open window shows
 - `sheet_name`: str; default "Data"
 - `sheets_to_create`: list_of_mappings
   - `sheet_name`: str; REQUIRED
@@ -52,18 +52,18 @@ recipe:
     # REQ - Stage to export data from (must be declared in settings.stages)
     source_stage: "stg_processed_data"
     # REQ - Output file path with variable substitution support
-    # Variable examples: {date}, {timestamp}, {company}
+    # Variable examples: {{date}}, {{timestamp}}, {{company}}
     #
     # STAMP THE NAME (2026-09-04). A same-named rewrite while Excel has
     # the previous file open is invisible: the window keeps showing the
     # old one, and the "why doesn't this look any different" hunt
-    # begins. A run stamp makes every run a new file; {hour}{minute}
-    # {second} suffices when the name already carries a date (as a
-    # download stem does), {timestamp} when it does not. The house
+    # begins. A run stamp makes every run a new file; {{hour}}{{minute}}
+    # {{second}} suffices when the name already carries a date (as a
+    # download stem does), {{timestamp}} when it does not. The house
     # pattern is one settings variable, e.g.
-    #   output_basename: "{source_stem}_proc_{hour}{minute}{second}"
+    #   output_basename: "{{source_stem}}_proc_{{hour}}{{minute}}{{second}}"
     # and every output plus the log named from it.
-    output_file: "reports/monthly_report_{timestamp}.xlsx"
+    output_file: "reports/monthly_report_{{timestamp}}.xlsx"
     # OPT - Sheet name for single-sheet export
     # Default value: "Data"
     sheet_name: "Monthly Data"
@@ -103,9 +103,9 @@ recipe:
     # goes on each tab; source_stage is what the step consumes.
     source_stage: "stg_executive_summary"
     # REQ - Output file path with variable substitution
-    # Built-in variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}
+    # Built-in variables: {{date}}, {{timestamp}}, {{YYYY}}, {{MM}}, {{DD}}
     # Custom variables: defined in recipe settings or CLI --var
-    output_file: "reports/{company}_Q{quarter}_{date}.xlsx"
+    output_file: "reports/{{company}}_Q{{quarter}}_{{date}}.xlsx"
     create_backup: true
     # OPT - List of sheet configurations for multi-sheet Excel export
     sheets_to_create:
@@ -179,9 +179,9 @@ recipe:
     processor_type: "export_file"
     source_stage: "stg_final_results"
     # REQ - Output file with multiple variable types
-    # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
-    # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
-    output_file: "reports/{department}_{YYYY}{MM}{DD}_{batch_id}.xlsx"
+    # Built-in date variables: {{date}}, {{timestamp}}, {{YYYY}}, {{MM}}, {{DD}}, {{YY}}, {{MMDD}}
+    # Custom variables: {{department}}, {{batch_id}} - defined in recipe settings or CLI
+    output_file: "reports/{{department}}_{{YYYY}}{{MM}}{{DD}}_{{batch_id}}.xlsx"
     # OPT - Create backup of existing files
     # Default value: false
     create_backup: true
@@ -211,7 +211,7 @@ recipe:
   # Step 1: Import data
   - step_description: "Import raw sales data"
     processor_type: "import_file"
-    input_file: "sales_data_{region}.xlsx"
+    input_file: "sales_data_{{region}}.xlsx"
     save_to_stage: "stg_raw_data"
   
   # Step 2: Process data
@@ -228,7 +228,7 @@ recipe:
   - step_description: "Export filtered results"
     processor_type: "export_file"
     source_stage: "stg_filtered_data"
-    output_file: "output/{output_prefix}_{region}_{date}.xlsx"
+    output_file: "output/{{output_prefix}}_{{region}}_{{date}}.xlsx"
     create_backup: true
 ```
 

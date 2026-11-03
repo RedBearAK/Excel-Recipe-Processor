@@ -144,10 +144,10 @@ recipe:
     # REQ - Processor type
     processor_type: "import_file"
     # REQ - File path with variable substitution
-    # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
-    # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
+    # Built-in date variables: {{date}}, {{timestamp}}, {{YYYY}}, {{MM}}, {{DD}}, {{YY}}, {{MMDD}}
+    # Custom variables: {{department}}, {{batch_id}} - defined in recipe settings or CLI
     # Variable examples: department="sales", batch_id="B001"
-    input_file: "daily_data/{department}_{YYYY}{MM}{DD}.xlsx"
+    input_file: "daily_data/{{department}}_{{YYYY}}{{MM}}{{DD}}.xlsx"
     # REQ - Stage to save imported data
     save_to_stage: "stg_daily_data"
     # OPT - Import specific sheet by index (starts at 1, converts to 0-based internally)
@@ -192,7 +192,7 @@ recipe:
   # Import daily orders with variable substitution
   - step_description: "Import daily orders"
     processor_type: "import_file"
-    input_file: "daily/orders_{processing_date}.xlsx"
+    input_file: "daily/orders_{{processing_date}}.xlsx"
     save_to_stage: "stg_orders_data"
 ```
 

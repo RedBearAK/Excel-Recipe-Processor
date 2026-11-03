@@ -275,7 +275,7 @@ def test_variable_substitution():
         print(f"✓ Created test file: {actual_filename}")
         
         # Import using variable template
-        template_filename = str(Path(temp_dir) / "data_{date}.csv")
+        template_filename = str(Path(temp_dir) / "data_{{date}}.csv")
         
         step_config = {
             'processor_type': 'import_file',

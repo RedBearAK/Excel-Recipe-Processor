@@ -66,7 +66,7 @@ recipe:
     source_stage: "stg_electronics"
     new_column: "Total_Value"
     calculation:
-      pandas_formula: "{col:Quantity} * {col:Price}"
+      pandas_formula: "{{col:Quantity}} * {{col:Price}}"
     save_to_stage: "stg_valued"
 
   - step_description: "Highest value first"
@@ -81,9 +81,9 @@ recipe:
     source_stage: "stg_sorted"
     # Stamped, so every run is a new file: Excel keeps showing a workbook
     # it already has open, and a same-named rewrite looks like nothing
-    # changed. {timestamp} here; {hour}{minute}{second} is enough when the
+    # changed. {{timestamp}} here; {{hour}}{{minute}}{{second}} is enough when the
     # name already carries a date.
-    output_file: "electronics_report_{timestamp}.xlsx"
+    output_file: "electronics_report_{{timestamp}}.xlsx"
 ```
 
 Check it, then run it:
@@ -127,7 +127,7 @@ and took 290 s on the same sheet. Use one or the other, not both.
 A `--set` or `--var` value written as a YAML/JSON list or mapping is
 passed to the recipe as that structure (2026-09-14), so a launcher can
 hand a recipe a list variable: `--set var_integer_columns '["Packages"]'`
-reaches `{list_str:var_integer_columns}` as a list. Anything not starting
+reaches `{{list_str:var_integer_columns}}` as a list. Anything not starting
 with `[` or `{` is the string it always was.
 
 **csv and tsv columns arrive as text** (breaking change, 2026-09-14).
@@ -235,8 +235,8 @@ family contributes the step keys it needs and decides how columns may be named:
   `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
 - Column-name lists are lists of strings, never positions.
 - A cell or range address may name its columns by header instead of
-  by letter: `{col:Header}2:{col:Other}5`. `inject_formulas` and
-  `conditional_format` have always resolved `{col:}` inside formulas;
+  by letter: `{{col:Header}}2:{{col:Other}}5`. `inject_formulas` and
+  `conditional_format` have always resolved `{{col:}}` inside formulas;
   since 2026-09-10 the RANGE fields do too - `conditional_format`'s
   `range:`, `format_excel`'s `cells:`, `excel_data_validation`'s
   `apply_to_ranges` - so a directive follows its columns when others are
@@ -278,7 +278,7 @@ settings:
     - &tpl_lookup_header
       template_name: "tpl_lookup_header"
       header_bold: true
-      header_background_color: "{var_header_green}"
+      header_background_color: "{{var_header_green}}"
 
 recipe:
   - step_description: "Format the reference workbook"

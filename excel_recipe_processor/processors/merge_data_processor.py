@@ -226,7 +226,7 @@ class MergeDataProcessor(TransformBaseProcessor):
         
         try:
             # Convert nested dictionary to DataFrame
-            # Format: {key: {col1: val1, col2: val2}, key2: {col1: val3, col2: val4}}
+            # Format: {key: {{col1: val1, col2: val2}}, key2: {col1: val3, col2: val4}}
             df = pd.DataFrame.from_dict(data_dict, orient='index')
             
             # Reset index to make the keys a column
@@ -439,7 +439,7 @@ class MergeDataProcessor(TransformBaseProcessor):
                 'csv_enrichment': "Add customer data from CSV export with variable paths",
                 'dictionary_mapping': "Add category mappings from configuration", 
                 'stage_merge': "Merge with data from previously created stage",
-                'variable_file': "Merge with data_{date}.xlsx using date substitution",
+                'variable_file': "Merge with data_{{date}}.xlsx using date substitution",
                 'cross_stage': "Combine current data with multiple reference stages"
             },
             'configuration_options': {

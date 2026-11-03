@@ -61,7 +61,7 @@ recipe:
     # usual). v1 reads from disk - the drift shape reads files that
     # only exist on disk.
     workbooks:
-      - "{output_dir}/previous_output.xlsx"
+      - "{{output_dir}}/previous_output.xlsx"
     # REQ - Stage receiving the profile frame
     save_to_stage: "stg_previous_profile"
 ```
@@ -95,13 +95,13 @@ recipe:
     # REQ - Must be "profile_workbooks" for this processor type
     processor_type: "profile_workbooks"
     # REQ - Workbook paths to profile
-    workbooks: ["{output_dir}/previous.xlsx"]
+    workbooks: ["{{output_dir}}/previous.xlsx"]
     # REQ - Stage receiving the profile frame
     save_to_stage: "stg_profile_previous"
 
   - step_description: "Profile the current output"
     processor_type: "profile_workbooks"
-    workbooks: ["{output_dir}/{output_basename}.xlsx"]
+    workbooks: ["{{output_dir}}/{{output_basename}}.xlsx"]
     save_to_stage: "stg_profile_current"
 
   - step_description: "Drift alarm"

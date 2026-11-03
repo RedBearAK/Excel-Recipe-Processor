@@ -52,6 +52,7 @@ tests automatically; prose and recipes outside this repo need the grep.
 | a camelCase or Excel-dialog spelling as an enum value (`greaterThan`, `containsText`, `notBetween`, `textLength`) | the snake_case ERP name (`greater_than`, `contains`, `not_between`, `text_length`) | A library's spelling is storage, never recipe vocabulary |
 | `--variable NAME=VALUE` (CLI) | `--set NAME VALUE` | |
 | `pytest`-style or `unittest` tests | standalone modules that run, print, and exit 0/1 | House test style |
+| a single-brace placeholder: `{name}`, `{str:name}`, `{list_str:name}`, `{date:FMT}`, `{col:Header}` | the doubled form: `{{name}}`, `{{str:name}}`, `{{list_str:name}}`, `{{date:FMT}}`, `{{col:Header}}` | 2026-11-02 delimiter change; a single brace is ordinary text (regex quantifiers, Excel array constants, dict literals need no escape); the old form is refused at `--validate` naming the doubled one; `dev_notes/sweep_placeholder_braces.py` migrates a file |
 
 ### Global concepts that were removed, not renamed
 
@@ -279,3 +280,4 @@ tests automatically; prose and recipes outside this repo need the grep.
 - 2026-08-26 - `formula` -> `excel_formula`; `columns` -> `column_names` / `column_refs` in format_excel; bare letter shapes refused in name lists
 - 2026-09-03 - schema declarations; `ignore_case` -> `case_sensitive`; verify_data split; `raw_stage` -> `source_stage`; positional select retired; `new_column_name` -> `output_name`; aliases removed
 - 2026-09-04 - remaining file_ops `columns` -> `column_names`; `force_column_names` removed everywhere; `predefined_groups` removed; inject_formulas `mode: dead` removed; every processor declares a schema
+- 2026-11-02 - placeholder delimiter `{...}` -> `{{...}}` everywhere (variables, typed, date/time, `col:`); single braces become ordinary text

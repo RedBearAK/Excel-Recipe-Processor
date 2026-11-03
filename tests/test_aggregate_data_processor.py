@@ -468,12 +468,12 @@ def test_variable_substitution_aggregation():
     step_config = {
         'processor_type': 'aggregate_data',
         'step_description': 'Test variable substitution',
-        'group_by': ['{GROUP_COLUMN}'],
+        'group_by': ['{{GROUP_COLUMN}}'],
         'aggregations': [
             {
-                'column': '{VALUE_COLUMN}',
+                'column': '{{VALUE_COLUMN}}',
                 'function': 'sum',
-                'output_name': '{OUTPUT_PREFIX}_Total'
+                'output_name': '{{OUTPUT_PREFIX}}_Total'
             }
         ]
     }

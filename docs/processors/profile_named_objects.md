@@ -60,7 +60,7 @@ recipe:
     # REQ - Non-empty list of workbook paths; reads from disk
     # (variables substitute as usual)
     workbooks:
-      - "{output_dir}/{output_basename}.xlsx"
+      - "{{output_dir}}/{{output_basename}}.xlsx"
     # REQ - Stage receiving the catalog frame
     save_to_stage: "stg_named_object_profiles"
 ```
@@ -94,13 +94,13 @@ recipe:
     # REQ - Must be "profile_named_objects" for this processor type
     processor_type: "profile_named_objects"
     # REQ - Workbook paths to catalog
-    workbooks: ["{output_dir}/previous.xlsx"]
+    workbooks: ["{{output_dir}}/previous.xlsx"]
     # REQ - Stage receiving the catalog frame
     save_to_stage: "stg_names_previous"
 
   - step_description: "Catalog the current output's names"
     processor_type: "profile_named_objects"
-    workbooks: ["{output_dir}/{output_basename}.xlsx"]
+    workbooks: ["{{output_dir}}/{{output_basename}}.xlsx"]
     save_to_stage: "stg_names_current"
 
   - step_description: "Name drift alarm"

@@ -78,7 +78,7 @@ recipe:
         # REQ - Aggregation function to apply
         function: "sum"
         # OPT - Name for the new aggregated column
-        # Default value: "{column}_{function}" (e.g., "Revenue_sum")
+        # Default value: "{{column}}_{{function}}" (e.g., "Revenue_sum")
         output_name: "Total_Revenue"
 ```
 
@@ -219,7 +219,7 @@ recipe:
 - `aggregations` (required): List of aggregation operations to perform on grouped data
 - `column` (required): Name of the column to aggregate - must exist in source data
 - `function` (required): Aggregation function to apply to the column
-- `output_name` (default `Uses format: {column}_{function} (e.g., Revenue_sum, Customer_ID_nunique)`): Custom name for the aggregated column
+- `output_name` (default `Uses format: {{column}}_{{function}} (e.g., Revenue_sum, Customer_ID_nunique)`): Custom name for the aggregated column
 - `keep_group_columns` (default `True`): Whether to include grouping columns in the output DataFrame
 - `sort_by_groups` (default `True`): Whether to sort the result by grouping columns
 - `reset_index` (default `True`): Whether to reset index after grouping (makes group columns regular columns)

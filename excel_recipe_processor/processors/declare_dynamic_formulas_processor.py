@@ -10,7 +10,7 @@ implicit-intersection @.
 
 The at-save form of the same pass is enabled recipe-wide with
 `declare_dynamic_formulas: true` in settings; this processor exists for
-files already on disk - a donor workbook carrying inherited {CSE} braces,
+files already on disk - a donor workbook carrying inherited {{CSE}} braces,
 or an output flushed before a recipe wants the declaration applied. Shared
 guts live in core/dynamic_array_metadata.py, which also documents why the
 default function vocabulary makes the pass safe by construction.

@@ -19,7 +19,7 @@ mapping repeated wherever it was referenced.
         - &tpl_lookup_header
           template_name: "tpl_lookup_header"
           header_bold: true
-          header_background_color: "{var_header_green}"
+          header_background_color: "{{var_header_green}}"
 
     ...
         templates:

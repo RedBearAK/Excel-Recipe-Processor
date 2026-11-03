@@ -33,7 +33,7 @@ Audit the output workbook's stored grammar
 #     prefixes, _xlfn on names outside the validated future-function
 #     map, LAMBDA/LET declaration slots lacking _xlpm.
 #   legacy_cse - any t="array" cell missing its cm dynamic-array
-#     declaration - the class where a spill shows {braces} and
+#     declaration - the class where a spill shows {{braces}} and
 #     collapses to one value.
 
 settings:
@@ -53,7 +53,7 @@ recipe:
     # Files outside the session (previous outputs, foreign workbooks)
     # audit from disk.
     files:
-      - "{output_dir}/{output_basename}.xlsx"
+      - "{{output_dir}}/{{output_basename}}.xlsx"
 ```
 
 ### warn
@@ -70,7 +70,7 @@ recipe:
     processor_type: "verify_excel_storage"
     # REQ - Workbook paths to audit
     files:
-      - "{output_dir}/some_older_output.xlsx"
+      - "{{output_dir}}/some_older_output.xlsx"
     # OPT - 'halt' fails the run listing every violation; 'warn' logs
     # and continues
     # Default value: "halt"

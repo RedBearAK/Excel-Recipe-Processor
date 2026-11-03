@@ -146,7 +146,7 @@ settings:
       default_value: "west"
   variables:
     static_var: "test_value"
-  output_filename: "batch_{batch_id}_{region}.xlsx"
+  output_filename: "batch_{{batch_id}}_{{region}}.xlsx"
   stages:
     - stage_name: "stg_test_vars_probe_data"
       description: "Probe stage for validation-only recipe"
@@ -268,7 +268,7 @@ settings:
       description: "Region to filter by"
       choices: ["west", "east", "central"]
       default_value: "west"
-  output_filename: "filtered_{{region_filter}}_output.xlsx"
+  output_filename: "filtered_{{{{region_filter}}}}_output.xlsx"
   stages:
     - stage_name: "stg_test_vars_region_raw"
       description: "Raw data for region filter test"
@@ -285,7 +285,7 @@ recipe:
     filters:
       - column: "Region"
         condition: "equals"
-        value: "{{region_filter}}"
+        value: "{{{{region_filter}}}}"
 """
             
             recipe_file = temp_path / "test_recipe.yaml"
@@ -305,7 +305,7 @@ recipe:
             from excel_recipe_processor.core.variable_substitution import VariableSubstitution
             
             var_sub = VariableSubstitution(input_file, recipe_file, {"region_filter": "west"})
-            output_template = "filtered_{region_filter}_output.xlsx"
+            output_template = "filtered_{{region_filter}}_output.xlsx"
             substituted = var_sub.substitute(output_template)
             
             print(f"  ✓ Variable substitution: {output_template} → {substituted}")

@@ -24,7 +24,7 @@ against its processor's declared schema before anything runs.
 | Validation phase | Before step 1: every step checked against its schema (unknown keys refused with a nearest-name suggestion), and the stage graph checked in order - read-before-write, double write without confirmation, declared-but-unused stages are errors. `--validate` stops here. |
 | Stages | Declared in `settings.stages` with a description and a `protected` flag. Written once (or explicitly replaced), read by any later step. |
 | Auto-free | Each stage is released as soon as its last consuming step completes, so memory follows the recipe's shape rather than growing to the end. |
-| Variables | `{name}` substitution from `settings.variables`, built-ins (`{date}`, `{recipe_parent_dir}`, ...), and external variables the recipe requires - supplied on the CLI with `--set NAME VALUE` or prompted for. |
+| Variables | `{{name}}` substitution from `settings.variables`, built-ins (`{{date}}`, `{{recipe_parent_dir}}`, ...), and external variables the recipe requires - supplied on the CLI with `--set NAME VALUE` or prompted for. |
 | Workbook session | File operations after an export act on the workbook held in memory and write it once at run end (single-sheet exports included, since 2026-09-14); `flush_workbooks` writes earlier - a named file when it is finished, or everything as a checkpoint. |
 | Verification ledger | Every check rule's outcome (pass / warn / halt) is tallied and summarised at run end. |
 | Storage audit | After writing, workbooks can be audited for stored-formula grammar and dynamic-array declarations, so a file that Excel would silently repair is caught. |
@@ -101,7 +101,7 @@ against its processor's declared schema before anything runs.
 | Processor | Does |
 |---|---|
 | `format_excel` | Presentation on a written workbook: header styles, column formats by header name or letter, widths and auto-fit, freeze panes, filters, banding, outline borders, row heights, hidden columns, tab colour, zoom, sheet state, per-cell formats, reusable templates, pivot styles, workbook themes. |
-| `inject_formulas` | Formulas into cells or ranges, addressed by header name (`{col:Header}`), with fill-down and array declaration - live (`mode: live`) or as inert formula text (`mode: text`) for templates and review copies; `awaken` turns formula text already in a sheet into live formulas. |
+| `inject_formulas` | Formulas into cells or ranges, addressed by header name (`{{col:Header}}`), with fill-down and array declaration - live (`mode: live`) or as inert formula text (`mode: text`) for templates and review copies; `awaken` turns formula text already in a sheet into live formulas. |
 | `manage_named_objects` | Defined names, lambda functions, and tables: create names from columns (by header, resolved on the sheet's own layout), import / export them as YAML or VBA-ready text, copy between workbooks, list, validate. |
 | `conditional_format` | Native Excel conditional formatting that stays live in the file: cell conditions, formula rules, colour scales, data bars, targeted at columns, whole rows, or ranges. |
 | `excel_data_validation` | Native data validation: dropdown lists (literal, from a defined name, or from a spill range), numeric and date bounds, text length, custom formulas, prompts and alerts. |

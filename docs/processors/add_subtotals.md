@@ -268,8 +268,8 @@ recipe:
     step_description: "Import annual sales data"
     processor_type: "import_file"
     # REQ - File path with variable substitution
-    # Variables: {year} defined in settings
-    input_file: "data/sales_{year}.xlsx"
+    # Variables: {{year}} defined in settings
+    input_file: "data/sales_{{year}}.xlsx"
     save_to_stage: "stg_raw_data"
 
   - # Step 2: Filter for significant sales only

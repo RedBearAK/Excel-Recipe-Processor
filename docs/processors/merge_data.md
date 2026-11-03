@@ -114,7 +114,7 @@ recipe:
     save_to_stage: "stg_customer_enriched"
     merge_source:
       type: "excel"
-      path: "reference_data/customers_{data_year}.xlsx"
+      path: "reference_data/customers_{{data_year}}.xlsx"
       sheet: "Active_Customers"
       # OPT - Text encoding for files (ignored for Excel)
       # Default value: "utf-8"

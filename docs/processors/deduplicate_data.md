@@ -99,7 +99,7 @@ recipe:
     save_conflicts_to_stage: "stg_collapse_conflicts"
     # OPT - Report file with the same contents; NOT written when the
     # collapse is clean
-    conflicts_file: "{report_file}"
+    conflicts_file: "{{report_file}}"
     save_to_stage: "stg_orders"
 ```
 

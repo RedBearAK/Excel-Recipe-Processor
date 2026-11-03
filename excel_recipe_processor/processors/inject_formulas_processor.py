@@ -110,7 +110,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         keyed by dialect: excel_formula, targeted at a cell or a range.
         """
         formula = Schema([
-            Key('excel_formula', 'str', required=True, description='Excel formula text; {col:Header} resolves to that column letter on the sheet'),
+            Key('excel_formula', 'str', required=True, description='Excel formula text; {{col:Header}} resolves to that column letter on the sheet'),
             Key('cell', 'str', description='Target cell like B2'),
             Key('range', 'str', description='Target range like B2:B100'),
             Key('fill_down', 'bool', default=False, description='Cell target: fill down the data extent'),
@@ -522,7 +522,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Args:
             worksheet: openpyxl worksheet
             formula_def: Dictionary with 'cell'/'range' and 'excel_formula' keys.
-                         The formula may use {col:Header Name} placeholders,
+                         The formula may use {{col:Header Name}} placeholders,
                          resolved against the sheet's header row, and a cell
                          target may set fill_down: true
             mode: 'live' or 'text'
@@ -639,7 +639,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
 
     def _resolve_column_placeholders(self, worksheet, formula: str) -> str:
         """
-        Replace {col:Header Name} with that column's letter on THIS sheet.
+        Replace {{col:Header Name}} with that column's letter on THIS sheet.
 
         Excel formulas address columns by letter, which makes a recipe
         fragile: inserting one column shifts every letter after it and the
@@ -654,7 +654,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         Returns:
             Formula with every placeholder replaced by a column letter
         """
-        if '{col:' not in formula:
+        if '{{col:' not in formula:
             return formula
 
         headers = {}
@@ -683,7 +683,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
         it with a leading @.
 
         CORRECTED CLAIM (2026-08-13): the array marker alone is NOT enough
-        to retire the @ - it trades it for legacy {CSE} braces, because
+        to retire the @ - it trades it for legacy {{CSE}} braces, because
         t="array" without the cm="1"/xl/metadata.xml declaration means "old
         Ctrl+Shift+Enter formula". Use array_formula only for a formula
         that genuinely IS an array formula. The honest fix for the @ is the
@@ -960,7 +960,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
             'operation_type': 'formula_injection',
             'supported_modes': ['live', 'text', 'awaken'],
             'targeting_options': ['single_cell', 'cell_range', 'auto_scan'],
-            'column_placeholders': '{col:Header Name} in cell refs and formulas '
+            'column_placeholders': '{{col:Header Name}} in cell refs and formulas '
                                    'resolves to the column letter from the header '
                                    'row at injection time, so upstream column '
                                    'insertions cannot silently repoint a formula',
@@ -979,7 +979,7 @@ class InjectFormulasProcessor(FileOpsBaseProcessor):
                                          'intersection @ (any function, by '
                                          'provenance)',
             'array_formula_caveat': 'array_formula: true stores a legacy CSE array '
-                                    'formula ({braces}); use it only for formulas '
+                                    'formula ({{braces}}); use it only for formulas '
                                     'that genuinely are array formulas - it is NOT '
                                     'the fix for the @ display',
             'sheet_support': ['single_sheet', 'multiple_sheets', 'all_sheets'],

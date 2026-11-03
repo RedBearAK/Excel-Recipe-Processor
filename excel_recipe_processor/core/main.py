@@ -167,7 +167,7 @@ def run_main(args: Namespace) -> int:
         # CLI log file attaches from startup, so it captures everything
         # including recipe loading. A recipe-settings log_file attaches
         # later (it needs external variables resolved for paths like
-        # {output_dir}); the CLI flag wins when both are given.
+        # {{output_dir}}); the CLI flag wins when both are given.
         if getattr(args, 'log_file', None):
             attach_log_file(args.log_file, source='cli')
         

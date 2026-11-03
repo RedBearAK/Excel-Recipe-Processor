@@ -7,7 +7,7 @@ Write native Excel conditional-formatting rules that stay live in the file
 ## Notes
 
 - **vocabulary**: canonical ERP condition names (filter_data's equals, greater_than, is_empty, ... plus between, duplicates, unique in the same style); one spelling per condition
-- **formula convention**: same as inject_formulas - write for data row 2 with {col:Header Name} placeholders - except placeholders resolve $-LOCKED here so row-wise tests cannot drift sideways as Excel translates the rule across its range; modern function names get the _xlfn storage prefix automatically
+- **formula convention**: same as inject_formulas - write for data row 2 with {{col:Header Name}} placeholders - except placeholders resolve $-LOCKED here so row-wise tests cannot drift sideways as Excel translates the rule across its range; modern function names get the _xlfn storage prefix automatically
 - **targeting**: apply_to: entire_row, columns: [names], or a literal range
 - **ordering**: list order is Excel priority order; stop_if_true supported
 - **per column anchoring**: text, blank, duplicate and unique conditions emit one Excel rule per named column, each anchored to its own range (and duplicates are per-column domains by design)
@@ -70,12 +70,12 @@ recipe:
     sheet_name: "Data"
     rules:
       - # Formula rules use the SAME convention as inject_formulas:
-        # write for data row 2 with {col:Header Name} placeholders.
+        # write for data row 2 with {{col:Header Name}} placeholders.
         # Here placeholders resolve $-LOCKED ($AX2) so the row-wise
         # test cannot drift sideways as Excel translates the rule
         # across the range. Modern function names get their _xlfn
         # storage prefix automatically.
-        when_formula: '=AND({col:Contracts}2<>"", {col:Price}2="")'
+        when_formula: '=AND({{col:Contracts}}2<>"", {{col:Price}}2="")'
         # REQ (formula rules) - exactly one target: apply_to:
         # "entire_row", column_names: [names], or range: "F2:F500"
         apply_to: "entire_row"

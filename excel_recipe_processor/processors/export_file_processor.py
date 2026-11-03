@@ -43,7 +43,7 @@ class ExportFileProcessor(ExportBaseProcessor):
         return Schema([
             Key('output_file', 'str', required=True,
                 description='Output path; a template with variable substitution. Put a run '
-                            'stamp in the name - {hour}{minute}{second} at least, {timestamp} '
+                            'stamp in the name - {{hour}}{{minute}}{{second}} at least, {{timestamp}} '
                             'when the name carries no date - so each run writes a NEW file: '
                             'Excel holds an open workbook, and a same-named rewrite is not '
                             'what the open window shows'),

@@ -25,12 +25,12 @@ basic_example:
         sheet_name: "Data"
         rules:
           - # Formula rules use the SAME convention as inject_formulas:
-            # write for data row 2 with {col:Header Name} placeholders.
+            # write for data row 2 with {{col:Header Name}} placeholders.
             # Here placeholders resolve $-LOCKED ($AX2) so the row-wise
             # test cannot drift sideways as Excel translates the rule
             # across the range. Modern function names get their _xlfn
             # storage prefix automatically.
-            when_formula: '=AND({col:Contracts}2<>"", {col:Price}2="")'
+            when_formula: '=AND({{col:Contracts}}2<>"", {{col:Price}}2="")'
             # REQ (formula rules) - exactly one target: apply_to:
             # "entire_row", column_names: [names], or range: "F2:F500"
             apply_to: "entire_row"
@@ -106,7 +106,7 @@ parameter_details:
     description: "Workbook to modify; opened through the workbook session, so run after the export that creates it and before any flush"
     supports_variables: true
     examples:
-      - "{output_dir}/{output_basename}.xlsx"
+      - "{{output_dir}}/{{output_basename}}.xlsx"
 
   sheet_name:
     type: string
@@ -118,7 +118,7 @@ parameter_details:
     required: true
     description: "Rules in Excel priority order (list order). Each carries exactly one kind plus an optional style and stop_if_true."
     rule_kinds:
-      when_formula: "Raw Excel formula written for data row 2; {col:Header Name} resolves to a $-locked column letter; needs exactly one of apply_to: \"entire_row\", columns: [...], or range:"
+      when_formula: "Raw Excel formula written for data row 2; {{col:Header Name}} resolves to a $-locked column letter; needs exactly one of apply_to: \"entire_row\", columns: [...], or range:"
       when_cell: "columns: [header names] + condition + value. Canonical conditions: equals, not_equals, greater_than, greater_equal, less_than, less_equal, between, not_between, contains, not_contains, starts_with, ends_with, is_empty, not_empty, duplicates, unique. Excel-native spellings accepted with a warning."
       color_scale: "columns: [...] with min_color / max_color and optional mid_color"
       data_bar: "columns: [...] with color"

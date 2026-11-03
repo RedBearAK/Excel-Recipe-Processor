@@ -3,7 +3,7 @@ Typed dict-reference family: value conversion, key doctrine, retirement.
 
 tests/test_typed_dict_references.py
 
-Bare {dict:name} is retired (2026-08-17), mirroring the list-family
+Bare {{dict:name}} is retired (2026-08-17), mirroring the list-family
 migration: every dict reference declares its VALUE typing, even when
 that declaration is "any". Keys are ALWAYS normalized to str - recipe
 dict variables are string-keyed mappings (column names, labels, status
@@ -11,10 +11,10 @@ codes) by doctrine, which is what collapses the key-x-value combination
 space to the value axis alone and makes an underscore family workable
 where a bracketed mini-grammar was rejected. The family:
 
-    {dict_int:name}    values converted to int, loudly on failure
-    {dict_float:name}  values converted to float, loudly on failure
-    {dict_str:name}    values converted to str
-    {dict_any:name}    values pass through as declared (acknowledged
+    {{dict_int:name}}    values converted to int, loudly on failure
+    {{dict_float:name}}  values converted to float, loudly on failure
+    {{dict_str:name}}    values converted to str
+    {{dict_any:name}}    values pass through as declared (acknowledged
                        untyped/mixed/nested); keys still become str
 
 Runnable standalone or under pytest; the exit code carries the verdict.
@@ -46,10 +46,10 @@ def test_value_conversion_per_family():
 
     substitution = make_substitution()
     cases = [
-        ('{dict_int:quoted_values}', {'a': 100, 'b': 200}),
-        ('{dict_float:quoted_values}', {'a': 100.0, 'b': 200.0}),
-        ('{dict_str:mixed_values}', {'a': '1', 'b': '2', 'c': '3.0'}),
-        ('{dict_any:nested}', {'level1': {'level2': ['deep']}}),
+        ('{{dict_int:quoted_values}}', {'a': 100, 'b': 200}),
+        ('{{dict_float:quoted_values}}', {'a': 100.0, 'b': 200.0}),
+        ('{{dict_str:mixed_values}}', {'a': '1', 'b': '2', 'c': '3.0'}),
+        ('{{dict_any:nested}}', {'level1': {'level2': ['deep']}}),
     ]
     passed = True
     for template, expected in cases:
@@ -71,7 +71,7 @@ def test_keys_always_normalized_to_str():
 
     substitution = make_substitution()
     passed = True
-    for template in ('{dict_str:int_keys}', '{dict_any:int_keys}'):
+    for template in ('{{dict_str:int_keys}}', '{{dict_any:int_keys}}'):
         result = substitution.substitute_structure(template)
         key_types = sorted({type(key).__name__ for key in result})
         if key_types == ['str'] and set(result) == {'1', '2'}:
@@ -88,7 +88,7 @@ def test_unconvertible_value_fails_loud_with_key():
 
     substitution = make_substitution()
     try:
-        substitution.substitute_structure('{dict_int:unconvertible}')
+        substitution.substitute_structure('{{dict_int:unconvertible}}')
         print("  ✗ unconvertible value was accepted")
         return False
     except VariableSubstitutionError as error:
@@ -101,12 +101,12 @@ def test_unconvertible_value_fails_loud_with_key():
 
 
 def test_bare_dict_is_retired_with_guidance():
-    """{dict:name} fails loud naming the whole replacement family."""
+    """{{dict:name}} fails loud naming the whole replacement family."""
     print("\nTesting the bare-dict retirement...")
 
     substitution = make_substitution()
     try:
-        substitution.substitute_structure('{dict:mixed_values}')
+        substitution.substitute_structure('{{dict:mixed_values}}')
         print("  ✗ bare dict reference was accepted")
         return False
     except VariableSubstitutionError as error:
@@ -126,7 +126,7 @@ def test_container_check_still_guards_non_dicts():
 
     substitution = make_substitution()
     try:
-        substitution.substitute_structure('{dict_int:cli_string}')
+        substitution.substitute_structure('{{dict_int:cli_string}}')
         print("  ✗ string variable accepted as a dict")
         return False
     except VariableSubstitutionError as error:

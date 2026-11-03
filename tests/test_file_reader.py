@@ -222,7 +222,7 @@ def test_tsv_file_reading():
 def test_variable_substitution():
     """
     FileReader does NOT substitute variables (2026 doctrine): that moved
-    to the processor layer, which resolves {date}-style templates BEFORE
+    to the processor layer, which resolves {{date}}-style templates BEFORE
     calling FileReader. A template path reaching this layer unresolved is
     a bug upstream, so FileReader must fail loud with the literal braces
     visible in the error. Substitution itself is covered in
@@ -232,14 +232,14 @@ def test_variable_substitution():
     print("\nTesting variable substitution layer boundary...")
 
     temp_dir = Path(tempfile.gettempdir())
-    template_filename = str(temp_dir / "test_data_{date}.xlsx")
+    template_filename = str(temp_dir / "test_data_{{date}}.xlsx")
 
     try:
         FileReader.read_file(template_filename)
         print("✗ Unresolved template should have failed loud")
         return False
     except FileReaderError as error:
-        if '{date}' in str(error):
+        if '{{date}}' in str(error):
             print("✓ Unresolved template failed loud with the literal braces visible")
             return True
         print(f"✗ Braces not visible in error: {error}")
@@ -271,7 +271,7 @@ def test_file_existence_checking():
         # moved to the processor layer), so an unresolved template path is
         # simply a filename that does not exist.
         temp_dir = Path(tempfile.gettempdir())
-        template_filename = str(temp_dir / "exists_test_{date}.xlsx")
+        template_filename = str(temp_dir / "exists_test_{{date}}.xlsx")
         template_exists = FileReader.file_exists(template_filename)
         print(f"✓ Unresolved template treated as literal path: exists={template_exists}")
 

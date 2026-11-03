@@ -353,7 +353,7 @@ def structured_cli_value(value: str):
         --set var_integer_columns '["Packages", "Units"]'
         --var var_text_columns='["Lot Number"]'
 
-    A recipe declaring {list_str:var_integer_columns} then receives a
+    A recipe declaring {{list_str:var_integer_columns}} then receives a
     list, as it would from settings.variables. Anything not starting with
     '[' or '{', or that does not parse, is the string it always was.
     """

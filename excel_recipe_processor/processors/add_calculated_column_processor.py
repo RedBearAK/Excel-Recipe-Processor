@@ -65,7 +65,7 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
         ])
         calculation_by_type = {
             'expression': Schema([
-                Key('pandas_formula', 'str', description='pandas text with {col:Name} references'),
+                Key('pandas_formula', 'str', description='pandas text with {{col:Name}} references'),
                 Key('formula_components', 'list', item_kind='any',
                     description='Structured column / operator / value parts'),
             ], at_least_one=[['pandas_formula', 'formula_components']]),
@@ -378,11 +378,11 @@ class AddCalculatedColumnProcessor(TransformBaseProcessor):
             return self._apply_formula_components(df, new_column, calculation)
         
         # The key names its language (2026-08-26): the expression is
-        # pandas syntax with {col:Name} column references
+        # pandas syntax with {{col:Name}} column references
         if 'formula' in calculation:
             raise StepProcessorError(
                 "'formula' was renamed 'pandas_formula' (2026-08-26): the "
-                "expression is pandas syntax with {col:Name} column "
+                "expression is pandas syntax with {{col:Name}} column "
                 "references, and the key now says so. Rename the key; the "
                 "value is unchanged."
             )

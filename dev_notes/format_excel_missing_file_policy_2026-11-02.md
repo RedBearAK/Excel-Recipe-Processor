@@ -54,20 +54,44 @@ and every presence-signal export is followed by:
 Convention recorded in the recipe header: a new presence-signal report
 is an export + format PAIR.
 
+## Also in this delivery: undeclared template names fail `--validate`
+
+Noticed while drilling: an unknown name in `apply_templates` was a
+WARNING in `format_excel` ("Template 'x' not found - will be skipped"),
+so a typo'd recipe validated clean (0 warnings, exit 0), ran for
+minutes, and produced an unstyled sheet with the only trace in the log.
+Kris's ruling: the templates are declared in the same step, so this is
+a validation issue, not a style preference.
+
+Two changes:
+
+1. `format_excel` refuses the undeclared name at construction (and again
+   at apply time, for callers that bypass validation), naming the sheet,
+   the bad name and the declared names.
+2. The validation phase gains a per-processor hook. `--validate` was
+   schema + stage graph only; processor-specific semantic checks ran at
+   step construction, which in a real run is when the step's turn comes.
+   `BaseStepProcessor.config_errors(config) -> list` (default `[]`) is
+   a sibling of `computed_stage_writes`: defects knowable from the
+   resolved config alone that a schema cannot express. `validate_recipe`
+   calls it after the schema pass and reports each message as a step
+   error. `format_excel` is the first implementer. Any processor with a
+   "this name must match that list" rule should implement it rather than
+   check at construction.
+
+Planted-typo proof against `vms_process.yaml`: `--validate` now fails
+with one error per affected step and sheet (`step 12 'Format the
+corrections report': apply_templates names 'tpl_sizzing' for
+['?sheet_001?'], which this step's templates do not declare:
+['tpl_header', 'tpl_sizing']`), exit 1; the clean recipe passes.
+
 ## Test
 
-`tests/test_format_excel_missing_file_policy.py` (5 checks): default
+`tests/test_format_excel_missing_file_policy.py` (7 checks): default
 halts on a missing file; skip passes a missing file and creates nothing;
 skip still formats a present file through a template; skip still halts
-on a bad config (zoom 999) on a present file; an unknown policy value is
-refused by the schema.
-
-## Noticed while drilling, NOT changed
-
-An unknown name in `apply_templates` is a WARNING in `format_excel`
-("Template 'x' not found - will be skipped"), not a halt. A typo there
-silently yields an unformatted sheet. That is a fail-loud gap of its
-own and should probably become an error; left alone here to keep this
-change to its one purpose.
+on a bad config (zoom 999) on a present file; an undeclared template is
+refused at construction; the same is reported by `validate_recipe`
+through the hook; an unknown policy value is refused by the schema.
 
 # End of file #

@@ -191,6 +191,38 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         ])
 
     @classmethod
+    def config_errors(cls, config: dict) -> list:
+        """
+        apply_templates names must be declared in this step's templates -
+        knowable from the YAML alone, so reported by --validate (2026-11-02;
+        the same rule is enforced again at construction for callers that
+        bypass validation). Shapes are not re-checked here: the schema pass
+        has already reported a non-list or a non-mapping, so anything
+        malformed is skipped rather than reported twice.
+        """
+        templates = config.get('templates') or []
+        declared = sorted(
+            entry['template_name'] for entry in templates
+            if isinstance(entry, dict) and isinstance(entry.get('template_name'), str)
+        )
+        messages = []
+        for entry in config.get('formatting') or []:
+            if not isinstance(entry, dict):
+                continue
+            applied = entry.get('apply_templates')
+            if not isinstance(applied, list):
+                continue
+            sheets = entry.get('sheet_names')
+            where = qlist(sheets) if isinstance(sheets, list) else 'a formatting entry'
+            for name in applied:
+                if isinstance(name, str) and name not in declared:
+                    messages.append(
+                        f"apply_templates names '{name}' for {where}, which this step's "
+                        f"templates do not declare: {qlist(declared)}"
+                    )
+        return messages
+
+    @classmethod
     def get_minimal_config(cls) -> dict:
         return {
             'target_file': 'output.xlsx',
@@ -342,7 +374,16 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                         raise StepProcessorError(f"Template names must be strings, got {type(template_name).__name__} for sheet {sheet_spec}")
                     
                     if template_name not in template_lookup:
-                        logger.warning(f"⚠️ Template '{template_name}' referenced by sheet {sheet_spec} not found - will be skipped")
+                        # A template is declared in the same step it is applied
+                        # in, so a name that resolves to nothing is a recipe
+                        # defect knowable at --validate time. Until 2026-11-02
+                        # this was a warning, and a typo'd name validated
+                        # clean, ran six minutes, and produced an unstyled
+                        # sheet with the only trace in the log.
+                        raise StepProcessorError(
+                            f"Template '{template_name}' applied to sheet {sheet_spec} is not "
+                            f"declared in this step's templates: {qlist(sorted(template_lookup))}"
+                        )
             
             # Validate the formatting options for this sheet
             self._validate_sheet_formatting_options(sheet_config, f"sheet {sheet_spec}")
@@ -441,8 +482,14 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
                 logger.debug(f"Applying template '{template_name}' with {len(template_config)} rules")
                 enhanced_config.update(template_config)
             else:
-                logger.warning(f"⚠️ Template '{template_name}' not found - skipping")
-        
+                # Unreachable for a validated config (the validator raises
+                # first, 2026-11-02); kept as the same refusal for any
+                # caller that bypasses validation.
+                raise StepProcessorError(
+                    f"Template '{template_name}' is not declared in this step's "
+                    f"templates: {qlist(sorted(template_lookup))}"
+                )
+
         # Apply direct sheet rules (these override template rules)
         for key, value in sheet_config.items():
             if key not in ['apply_templates']:  # Don't copy the apply_templates directive itself

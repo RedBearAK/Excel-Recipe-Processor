@@ -25,8 +25,13 @@ Three checks:
    - a stage written twice without confirm_stage_replacement
    - a declared stage that no step writes or no step reads (declarations
      exist to catch drift; an unused one IS drift)
+   - a stage used but not declared, when the recipe declares ANY stages
+     (2026-11-02: it was a warning, so a recipe that had opted into the
+     drift check still let a new stage in unchecked - the inverse of the
+     unused-declaration error, and the gap between them)
    Warnings:
-   - a stage used but not declared (allowed, as today)
+   - a stage used but not declared, in a recipe that declares none (it
+     has opted out of the drift check; the warning says so)
 
 Stage reads, writes and releases come from the schema (stage_in /
 stage_out / stage_release kinds) and from computed_stage_writes().
@@ -87,6 +92,22 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
     released = {}      # stage -> step number that freed it
     read = set()
     used = set()
+    # A recipe that declares stages has opted into the drift check, and an
+    # undeclared stage is then an error; one that declares none gets the
+    # warning (2026-11-02).
+    undeclared_is_error = bool(declared)
+
+    def report_undeclared(label, stage):
+        if undeclared_is_error:
+            report.errors.append(
+                f"{label}: stage '{stage}' is not declared in settings.stages "
+                f"(this recipe declares stages, so every stage must be)"
+            )
+        else:
+            report.warnings.append(
+                f"{label}: stage '{stage}' is not declared (settings.stages is empty, "
+                f"so the drift check is off for this recipe)"
+            )
 
     for index, raw in enumerate(steps, 1):
         if not isinstance(raw, dict):
@@ -132,7 +153,7 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
             if stage not in written:
                 report.errors.append(f"{label}: reads stage '{stage}' before any step writes it")
             if stage not in declared:
-                report.warnings.append(f"{label}: stage '{stage}' is not declared in settings.stages")
+                report_undeclared(label, stage)
         for stage in writes:
             used.add(stage)
             if stage in written and not config.get('confirm_stage_replacement', False):
@@ -143,7 +164,7 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
             written[stage] = index
             released.pop(stage, None)
             if stage not in declared:
-                report.warnings.append(f"{label}: stage '{stage}' is not declared in settings.stages")
+                report_undeclared(label, stage)
         for stage in releases:
             if stage not in written:
                 report.errors.append(f"{label}: releases stage '{stage}' that no earlier step wrote")

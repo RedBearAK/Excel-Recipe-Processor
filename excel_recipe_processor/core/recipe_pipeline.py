@@ -12,7 +12,6 @@ import time
 import pandas as pd
 from excel_recipe_processor.core.log_format import clock, now_stamp
 
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +29,8 @@ from excel_recipe_processor.core.base_processor import (
     registry,
     StepProcessorError,
 )
+from excel_recipe_processor.core.config_schema import ErrorAction, ERROR_ACTION_CHOICES
+from excel_recipe_processor.core.run_log import mirror_print, attach_log_file, discard_early_log_buffer
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.core.stage_inspection import (
     dump_stage_to_file, StageInspectionError
@@ -71,14 +72,6 @@ def count_recipe_elements(recipe_data: dict) -> int:
     """Sum of per-step elements across the recipe, each step counting at least 1."""
     steps = recipe_data.get('recipe', []) if isinstance(recipe_data, dict) else []
     return sum(max(count_step_elements(step), 1) for step in steps)
-
-
-class ErrorAction(Enum):
-    """Defines possible actions when an error occurs during step execution."""
-    HALT = "halt"                    # Stop processing immediately (default)
-    CONTINUE = "continue"            # Log error but continue to next step
-    LOG_AND_CONTINUE = "log_and_continue"  # Detailed logging then continue
-    SKIP_REMAINING = "skip_remaining"      # Skip all remaining steps but don't raise
 
 
 class RecipePipelineError(Exception):
@@ -162,25 +155,24 @@ class RecipePipeline:
             logger.error(f"❌ Failed to load recipe: {e}")
             raise RecipePipelineError(f"Failed to load recipe: {e}")
     
-    def _parse_error_action(self, action_str: str, context: str) -> ErrorAction:
-        """Parse error action string into ErrorAction enum."""
-        if not isinstance(action_str, str):
-            logger.warning(f"⚠️ Invalid on_error value in {context}: {action_str}. Using 'halt'")
-            return ErrorAction.HALT
-        
-        try:
-            return ErrorAction(action_str.lower())
-        except ValueError:
-            valid_actions = [action.value for action in ErrorAction]
-            logger.warning(f"⚠️ Unknown on_error action '{action_str}' in {context}. "
-                            f"Valid options: {valid_actions}. Using 'halt'")
-            return ErrorAction.HALT
+    def _parse_error_action(self, action_str, context: str) -> ErrorAction:
+        """
+        on_error value -> ErrorAction. A step's on_error is checked by the
+        schema (same choices); settings.on_error only reaches here, so an
+        unknown value is refused rather than quietly run as halt (which it
+        was until 2026-11-02 - a warning, then the wrong policy).
+        """
+        if not isinstance(action_str, str) or action_str.lower() not in ERROR_ACTION_CHOICES:
+            raise RecipePipelineError(
+                f"Unknown on_error value {action_str!r} in {context}; "
+                f"valid: {', '.join(ERROR_ACTION_CHOICES)}"
+            )
+        return ErrorAction(action_str.lower())
     
     def _log_step_separator(self, step_index: int, step_desc: str) -> None:
         """Log a clean separator before each step for better readability."""
         # Add blank line before step (except for first step)
         if step_index >= 0:
-            from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # per-step separator; mirrored to the log file
         
         # # Add START STEP marker
@@ -341,8 +333,6 @@ class RecipePipeline:
                     # Count remaining steps as skipped
                     skipped_steps = len(recipe_steps) - (step_index + 1)
                     break
-        
-        from excel_recipe_processor.core.main import mirror_print
         mirror_print()  # separator; mirrored so the file keeps the spacing
         
         # Generate completion report
@@ -467,7 +457,6 @@ class RecipePipeline:
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
-            from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # separator; buffered for the file's head
             # Load recipe
             logger.info(f"📖 Loading recipe: '{recipe_path}'")
@@ -538,16 +527,13 @@ class RecipePipeline:
             except ValueError as error:
                 raise RecipePipelineError(str(error))
             if resolved_log_path is not None:
-                from excel_recipe_processor.core.main import attach_log_file
                 attach_log_file(str(resolved_log_path), source='recipe')
             else:
                 # Opted out, and any CLI attach already consumed the
                 # buffer - drop what remains
-                from excel_recipe_processor.core.main import discard_early_log_buffer
                 discard_early_log_buffer()
 
             # Execute recipe
-            from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # separator; mirrored so the file keeps the spacing
             logger.info("⚡ Starting recipe execution...")
             return self.execute_recipe()

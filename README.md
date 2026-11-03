@@ -5,7 +5,7 @@
 Transform your Excel automation workflows into reusable, version-controlled recipes. No more manual clicking through Excel - define your data processing steps once and run them repeatedly with consistent results.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 ## 🎯 **What It Does**
 
@@ -103,7 +103,7 @@ report = RecipePipeline().run_complete_recipe("my_recipe.yaml")
 
 ## 🔧 **What It Can Do**
 
-46 processors in five families. The one-line version is here; the prose
+48 processors in five families. The one-line version is here; the prose
 description of each, with the run-level features (stages, validation,
 auto-free, variables, the workbook session, audits), is in
 [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
@@ -154,7 +154,7 @@ out beside the source - is a few steps; the `parquet_to_xlsx` and
 | Summarise | `aggregate_data`, `pivot_table`, `add_subtotals` |
 | Check | `verify_columns`, `verify_stage_data` (stages); `verify_sheet_data`, `verify_excel_storage` (files) |
 | Write files | `export_file`, `debug_breakpoint`, `export_filter_step` |
-| Work on the workbook | `format_excel`, `inject_formulas`, `manage_named_objects`, `conditional_format`, `excel_data_validation`, `seed_donor_formulas`, `declare_dynamic_formulas`, `strip_formula_caches`, `generate_column_config`, `flush_workbooks` |
+| Work on the workbook | `format_excel`, `inject_formulas`, `manage_named_objects`, `conditional_format`, `excel_data_validation`, `seed_donor_formulas`, `declare_dynamic_formulas`, `strip_formula_caches`, `generate_column_config`, `flush_workbooks`, `audit_external_ties`, `sever_external_ties` |
 | Stage utilities | `free_stages`, `filter_terms_detector` |
 
 The workbook row is what makes the output a real Excel deliverable rather
@@ -225,6 +225,12 @@ family contributes the step keys it needs and decides how columns may be named:
 ### Conventions the schemas enforce
 
 - One key per concept, no aliases. Renames are breaking and land with the recipes.
+  The project is in alpha: the recipe vocabulary can still change between
+  versions, and a recipe written against an older vocabulary may need
+  updating - the loader names the retired key and its replacement, and an LLM
+  can carry a large recipe across such a change in one pass. Each recipe
+  records the ERP version that last validated it (`erp_metadata`), so a
+  mismatch is announced at the top of the run.
 - An evaluated string never sits under a bare key: `pandas_formula`,
   `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
 - Column-name lists are lists of strings, never positions.
@@ -414,5 +420,5 @@ GNU General Public License 3.0 - see LICENSE file for details.
 
 ## 🔗 **Links**
 
-- **Documentation:** [Full documentation](https://github.com/your-repo/docs)
-- **Issues:** [Report bugs](https://github.com/your-repo/issues)
+- **Repository:** [RedBearAK/Excel-Recipe-Processor](https://github.com/RedBearAK/Excel-Recipe-Processor)
+- **Issues:** [Report bugs](https://github.com/RedBearAK/Excel-Recipe-Processor/issues)

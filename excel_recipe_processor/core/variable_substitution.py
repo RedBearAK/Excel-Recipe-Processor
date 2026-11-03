@@ -652,12 +652,26 @@ class VariableSubstitution:
         if format_spec in self.DATE_TIME_FORMATS:
             return self.now.strftime(self.DATE_TIME_FORMATS[format_spec])
         
-        # Fallback to direct strftime format
+        # Fallback to direct strftime format. A bad format is a recipe
+        # defect, and until 2026-11-02 it reached the output NAME: strftime
+        # on glibc/macOS does not raise on an unknown directive, it passes
+        # it through ('%Y-%m-%Q' -> '2026-11-%Q'), and a spec with no
+        # directive at all ('YYYY-MM' misspelled as 'YYY-MM') comes back
+        # verbatim - so the warn-and-return-the-spec branch below it was
+        # nearly dead and the file got a plausible-looking wrong name. The
+        # test is on the RESULT: a '%' surviving, or nothing substituted.
         try:
-            return self.now.strftime(format_spec)
-        except ValueError:
-            logger.warning(f"Invalid date format: {format_spec}")
-            return format_spec
+            rendered = self.now.strftime(format_spec)
+        except ValueError as error:
+            raise VariableSubstitutionError(
+                f"Invalid date/time format '{format_spec}': {error}"
+            )
+        if '%' in rendered or rendered == format_spec:
+            raise VariableSubstitutionError(
+                f"Date/time format '{format_spec}' did not render (got '{rendered}'). Use one "
+                f"of {', '.join(sorted(self.DATE_TIME_FORMATS))} or a valid strftime format"
+            )
+        return rendered
 
     def validate_template(self, template: str) -> list:
         """

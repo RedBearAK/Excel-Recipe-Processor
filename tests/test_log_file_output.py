@@ -16,7 +16,10 @@ import sys
 import logging
 import tempfile
 
-from excel_recipe_processor.core import main as erp_main
+# The plumbing under test moved from core/main.py to core/run_log.py on
+# 2026-11-02 (core must not depend on the CLI); the alias name is kept so
+# the test bodies read as before.
+from excel_recipe_processor.core import run_log as erp_main
 
 
 def reset_state():

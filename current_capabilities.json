@@ -66,6 +66,7 @@
         "conditional",
         "math",
         "date",
+        "next_workday",
         "text"
       ],
       "conditional_operations": [
@@ -94,10 +95,12 @@
         "conditional_logic",
         "mathematical_operations",
         "date_calculations",
+        "next_workday",
         "text_operations",
         "multi_column_aggregations",
         "column_overwriting"
       ],
+      "next_workday": "calculation: {date_column, holidays_stage, holidays_column, weekmask}; Excel's WORKDAY(date - 1, 1, holidays): the first working day on or after each date, blank stays blank; the holidays are a column of another stage",
       "spill_columns": "Extra columns a calculation fills beside new_column, in order; only for expression and first_match; the result width must match",
       "first_match": "calculation: {pandas_rules: [{when, then: [one slot per column]}], pandas_default: [one slot per column]}; first true 'when' wins the row; \"\" is the typed blank",
       "examples": {

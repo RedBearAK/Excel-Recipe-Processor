@@ -42,6 +42,25 @@ are checked when the class is DEFINED, not when a recipe runs.
 
 import difflib
 
+from enum import Enum
+
+
+class ErrorAction(Enum):
+    """
+    What a failing step does, for settings.on_error and a step's on_error.
+    Lives here, in the vocabulary module, so the schema choices and the
+    pipeline's dispatch are one list (2026-11-02: the schema said
+    halt | skip | continue while the pipeline knew halt | continue |
+    log_and_continue | skip_remaining - 'skip' validated clean and ran
+    as halt after a warning, and two real actions were unreachable).
+    """
+    HALT = 'halt'                          # stop at the failing step (default)
+    CONTINUE = 'continue'                  # log the error, run the next step
+    LOG_AND_CONTINUE = 'log_and_continue'  # same, with the error type and step spelled out
+    SKIP_REMAINING = 'skip_remaining'      # stop running steps, but exit clean
+
+
+ERROR_ACTION_CHOICES = [action.value for action in ErrorAction]
 
 SCALAR_KINDS = ('str', 'int', 'number', 'bool')
 CONTAINER_KINDS = ('list', 'mapping', 'open_mapping', 'list_of_mappings', 'any')
@@ -346,8 +365,8 @@ def stage_references(config: dict, schema: Schema) -> tuple:
 COMMON_STEP_KEYS = [
     Key('step_description', 'str', description='Human-readable step name; apostrophe-free by house style'),
     Key('processor_type', 'str', required=True, description='Registered processor name'),
-    Key('on_error', 'str', choices=['halt', 'skip', 'continue'],
-        description='Per-step override of the recipe error policy'),
+    Key('on_error', 'str', choices=ERROR_ACTION_CHOICES,
+        description='Per-step override of settings.on_error; same vocabulary (ErrorAction)'),
 ]
 
 STAGE_READ_KEYS = [

@@ -1,22 +1,19 @@
 """
-Pipeline orchestrator for Excel automation recipes.
+Processor registration and capability reporting.
 
-Coordinates loading recipes, reading files, executing steps, and saving results
-with enhanced FileReader/FileWriter integration, comprehensive variable substitution,
-and external variable support.
+excel_recipe_processor/core/pipeline.py
+
+Despite the name, the orchestrator is core/recipe_pipeline.py (RecipePipeline).
+This module holds register_standard_processors() - the one hand-maintained
+list of processor_type -> class - and the --list-capabilities /
+--get-usage-examples reporters that walk that registry. The docstring claimed
+orchestration until 2026-11-02; the module name is left alone because the
+import path is referenced widely.
 """
 
-import pandas as pd
 import logging
 
-from pathlib import Path
-
-from excel_recipe_processor.core.file_reader import FileReader, FileReaderError
-from excel_recipe_processor.core.file_writer import FileWriter, FileWriterError
-from excel_recipe_processor.core.stage_manager import StageManager, StageError
-from excel_recipe_processor.core.base_processor import registry, StepProcessorError
-from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
-from excel_recipe_processor.core.variable_substitution import VariableSubstitution
+from excel_recipe_processor.core.base_processor import registry
 
 
 logger = logging.getLogger(__name__)

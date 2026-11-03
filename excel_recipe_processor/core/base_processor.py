@@ -72,6 +72,19 @@ class BaseStepProcessor(ABC):
         return []
 
     @classmethod
+    def config_errors(cls, config: dict) -> list:
+        """
+        Defects knowable from the variable-resolved step config alone that
+        the schema cannot express - a name that must match another list in
+        the same step, say. The validation phase reports each returned
+        message as an error for that step, so --validate catches them
+        before any run; nothing here may touch files, stages or data.
+        Default: none. (2026-11-02, born of a format_excel template typo
+        that validated clean and ran for minutes before warning.)
+        """
+        return []
+
+    @classmethod
     def full_schema(cls):
         """Family contribution merged with the processor's own schema, or None."""
         return cls._full_schema

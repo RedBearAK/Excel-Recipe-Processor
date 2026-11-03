@@ -8,12 +8,17 @@ any step touches data; --validate stops the run after this phase. One
 code path, two exits, so what the flag checks is exactly what a real run
 checks (2026-09-03).
 
-Two checks:
+Three checks:
 
 1. Step schemas. Every step is validated against its processor's declared
    schema: unknown keys (with a nearest-name suggestion), wrong types,
    missing required keys, variant mismatches. Every registered processor
    declares one; a processor without a schema is a defect and errors.
+
+1b. Processor config checks (2026-11-02). Each processor may report, via
+   its config_errors() classmethod, defects knowable from the resolved
+   config that a schema cannot express - format_excel's apply_templates
+   naming a template the step does not declare was the first.
 
 2. Stage graph, walked in step order. Errors:
    - a stage read before any earlier step wrote it
@@ -106,6 +111,10 @@ def validate_recipe(recipe_data: dict, registry, substitute) -> RecipeValidation
             report.errors.append(f"{label}: processor '{processor_type}' declares no schema")
             continue
         for message in validate_config(config, schema, '', False):
+            report.errors.append(f"{label}: {message}")
+        # Processor-specific checks the schema cannot express (2026-11-02);
+        # see BaseStepProcessor.config_errors
+        for message in processor_class.config_errors(config):
             report.errors.append(f"{label}: {message}")
         reads, writes, releases = stage_references(config, schema)
         writes = list(writes) + list(processor_class.computed_stage_writes(config))

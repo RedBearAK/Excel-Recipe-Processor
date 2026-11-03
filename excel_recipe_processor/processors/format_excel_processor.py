@@ -175,6 +175,13 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         ])
         return Schema([
             Key('target_file', 'str', required=True),
+            Key('missing_file_policy', 'str', default='error', choices=['error', 'skip'],
+                description="What to do when target_file does not exist (on disk or in the session): "
+                            "'error' (default) halts, as a missing workbook is a defect; 'skip' logs "
+                            "and does nothing - the format_excel mirror of export_file's "
+                            "empty_stage_policy: skip, for a presence-is-the-signal report that is "
+                            "absent on a clean run. Only absence is tolerated: every other failure "
+                            "still halts, unlike a blanket on_error: continue"),
             Key('formatting', 'list_of_mappings', required=True, schema=sheet_entry),
             Key('templates', 'list_of_mappings', schema=template),
             Key('active_sheet_name', 'str'),
@@ -220,6 +227,22 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
         # Check file exists
         # On-disk OR live in the session (the export bridge)
         if not Path(resolved_file).exists() and not WorkbookSession.is_open(resolved_file):
+            # OPT missing_file_policy (2026-11-02): 'skip' is for the side
+            # reports an export_file writes under empty_stage_policy: skip -
+            # the file is absent on a clean run BY DESIGN, so absence is a
+            # quiet success here, not a failure. Deliberately narrow: only
+            # the missing-file case is tolerated; a bad template, an
+            # unresolved variable or a corrupt file still halts, which is
+            # the whole reason this exists instead of on_error: continue.
+            missing_file_policy = self.get_config_value('missing_file_policy', 'error')
+            if missing_file_policy not in ('error', 'skip'):
+                raise StepProcessorError(
+                    f"Format Excel step '{self.step_name}': invalid missing_file_policy "
+                    f"'{missing_file_policy}'. Supported: error (default), skip"
+                )
+            if missing_file_policy == 'skip':
+                logger.info(f"✓ No file to format; {q(Path(str(resolved_file)).name)} was not written this run")
+                return f"skipped: {resolved_file} does not exist (missing_file_policy: skip)"
             raise StepProcessorError(f"Target file not found: {resolved_file}")
         
         # Load and format the workbook

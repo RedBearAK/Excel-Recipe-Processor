@@ -125,11 +125,11 @@ parameter_details:
   on_missing_expected:
     required: false
     default: "error"
-    description: "An expected column absent from the data: error halts naming it; warn proceeds"
+    description: "An expected column absent from the data: error halts naming it; warn proceeds; skip proceeds silently"
   on_unexpected:
     required: false
     default: "warn"
-    description: "A data column absent from the expectation: warn logs it; error halts"
+    description: "A data column absent from the expectation: warn logs it; error halts; skip counts it silently (a wide tab read for a few columns)"
   optional_columns:
     required: false
     description: "Columns that may be present or absent without notice - a field the source added mid-season"

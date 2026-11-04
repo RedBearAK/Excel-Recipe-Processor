@@ -116,11 +116,16 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
                 f"(a list) or 'expected_from_stage' (a stage name)"
             )
 
+        # skip: the drift is counted in the summary and nothing is logged -
+        # for a recipe that reads a few columns off a wide tab and would
+        # otherwise warn about a hundred columns it never asked about
+        # (vms_inventory.yaml, 2026-11-03). The schema always listed it;
+        # this check used to refuse it.
         for knob, value in (('on_unexpected', self.on_unexpected),
                             ('on_missing_expected', self.on_missing_expected)):
-            if value not in ('warn', 'error'):
+            if value not in ('warn', 'error', 'skip'):
                 raise StepProcessorError(
-                    f"Invalid {knob} '{value}'. Supported: warn, error"
+                    f"Invalid {knob} '{value}'. Supported: warn, error, skip"
                 )
 
     # A CHECK: a transform that reads a stage and writes nothing
@@ -177,7 +182,8 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
                 )
             if self.on_missing_expected == 'error':
                 raise StepProcessorError(f"Step '{self.step_name}': {message}")
-            logger.warning(f"⚠️  {message}")
+            if self.on_missing_expected == 'warn':
+                logger.warning(f"⚠️  {message}")
 
         if unexpected:
             if self.expected_from_stage:
@@ -194,7 +200,8 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
                 )
             if self.on_unexpected == 'error':
                 raise StepProcessorError(f"Step '{self.step_name}': {message}")
-            logger.warning(f"⚠️  {message}")
+            if self.on_unexpected == 'warn':
+                logger.warning(f"⚠️  {message}")
 
         self.check_summary = f"column drift: {len(missing)} missing, {len(unexpected)} new"
         logger.info(f"   {self.check_summary}")
@@ -211,7 +218,7 @@ class VerifyColumnsProcessor(TransformBaseProcessor):
             'description': "Verify a stage's columns against an expected list, announcing drift",
             'directions': {
                 'missing expected column': 'on_missing_expected: error (default) / warn',
-                'new unexpected column': 'on_unexpected: warn (default) / error',
+                'new unexpected column': 'on_unexpected: warn (default) / error / skip',
             },
             'order_checking': 'deliberately none - downstream steps address columns by name',
             'memory': 'reads the stage without re-saving it',

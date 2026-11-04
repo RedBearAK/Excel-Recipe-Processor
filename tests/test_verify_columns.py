@@ -150,6 +150,28 @@ def test_knobs_invert_the_defaults():
     return passed
 
 
+def test_skip_is_silent_but_counted():
+    """on_unexpected: skip (2026-11-03): the schema always allowed it and the
+    runtime refused it. A wide tab read for a few columns must not warn
+    about the rest; the drift still shows in the summary."""
+    print("\nTesting on_unexpected: skip...")
+    import logging
+    records = []
+    handler = logging.Handler(); handler.emit = lambda record: records.append(record.getMessage())
+    logging.getLogger().addHandler(handler)
+    try:
+        stage_with(['A', 'B', 'Surprise'])
+        _p = build(['A', 'B'], on_unexpected='skip'); _p.execute_stage_to_stage(); result = _p.check_summary
+    finally:
+        logging.getLogger().removeHandler(handler)
+    warned = any('Surprise' in message and 'NEW column' in message for message in records)
+    if '1 new' in result and not warned:
+        print(f"  ✓ Proceeded silently, drift counted: {result!r}")
+        return True
+    print(f"  ✗ summary={result!r} warned={warned}")
+    return False
+
+
 def test_expected_from_stage_compares_two_stages():
     """The expectation can be another stage's columns; messages name both."""
     print("\nTesting expected_from_stage...")
@@ -208,6 +230,7 @@ def main():
         test_new_column_warns_and_proceeds,
         test_optional_columns_are_neither_new_nor_missing,
         test_knobs_invert_the_defaults,
+        test_skip_is_silent_but_counted,
         test_expected_from_stage_compares_two_stages,
         test_exactly_one_expectation_source,
     ]

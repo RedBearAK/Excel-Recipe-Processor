@@ -15,12 +15,13 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 
 - `step_description`: str - Human-readable step name; apostrophe-free by house style
 - `processor_type`: str; REQUIRED - Registered processor name
-- `on_error`: str; one of halt, skip, continue - Per-step override of the recipe error policy
+- `on_error`: str; one of halt, continue, log_and_continue, skip_remaining - Per-step override of settings.on_error; same vocabulary (ErrorAction)
 - `source_stage`: stage_in; REQUIRED - Stage to read
 - `expected_columns`: list of str - Column names
 - `expected_from_stage`: stage_in - Take the expected list from another stage
 - `on_unexpected`: str; default "warn"; one of error, warn, skip
 - `on_missing_expected`: str; default "error"; one of error, warn, skip
+- `optional_columns`: list of str - Columns that may be present or absent: neither NEW when present nor MISSING when absent (a column the source system added that older exports lack); names only, order ignored
 - at least one of: `expected_columns`, `expected_from_stage`
 
 ## Examples
@@ -119,11 +120,36 @@ recipe:
     on_unexpected: "warn"
 ```
 
+### optional columns
+
+A column the source system added mid-season
+
+```yaml
+# The online database gained a field on 2026-10-06; every export from
+# that day carries it and none before it. Listed in expected_columns
+# it would HALT every older export (on_missing_expected: error);
+# left off, every new export would raise the NEW notice, and a notice
+# that fires every day is one nobody reads. optional_columns is the
+# third state: present or absent, no notice either way - and a column
+# that is NOT optional still gets its notice.
+
+recipe:
+  - step_description: "Verify the download carries the expected columns"
+    processor_type: "verify_columns"
+    source_stage: "stg_vms_import_raw"
+    expected_columns: "{{list_str:var_expected_download_columns}}"
+    on_missing_expected: "error"
+    on_unexpected: "warn"
+    # OPT - may be present or absent
+    optional_columns: ["Due Date Indicator"]
+```
+
 ## Parameter notes
 
 - `source_stage` (required): Stage whose columns to verify; read without re-saving
 - `expected_columns`: The full expected column list; names only, order ignored
 - `expected_from_stage`: Stage whose columns form the expectation - two-file comparisons
-- `on_missing_expected` (default `error`): An expected column absent from the data: error halts naming it; warn proceeds
-- `on_unexpected` (default `warn`): A data column absent from the expectation: warn logs it; error halts
+- `on_missing_expected` (default `error`): An expected column absent from the data: error halts naming it; warn proceeds; skip proceeds silently
+- `on_unexpected` (default `warn`): A data column absent from the expectation: warn logs it; error halts; skip counts it silently (a wide tab read for a few columns)
+- `optional_columns`: Columns that may be present or absent without notice - a field the source added mid-season
 

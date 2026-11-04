@@ -474,7 +474,7 @@
       "description": "Verify a stage's columns against an expected list, announcing drift",
       "directions": {
         "missing expected column": "on_missing_expected: error (default) / warn",
-        "new unexpected column": "on_unexpected: warn (default) / error"
+        "new unexpected column": "on_unexpected: warn (default) / error / skip"
       },
       "order_checking": "deliberately none - downstream steps address columns by name",
       "memory": "reads the stage without re-saving it"

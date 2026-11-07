@@ -261,8 +261,8 @@ recipe:
     step_description: "Import monthly sales report"
     processor_type: "import_file"
     # REQ - Input file path with variable support
-    # Variables: {report_date}, {department} defined in settings
-    input_file: "reports/{department}_{report_date}.xlsx"
+    # Variables: {{report_date}}, {{department}} defined in settings
+    input_file: "reports/{{department}}_{{report_date}}.xlsx"
     save_to_stage: "stg_imported_report"
 
   - # Extract core columns by name reference

@@ -77,7 +77,7 @@ advanced_example:
         # Default value: false (only create main stage)
         create_filtered_stages: true
         # OPT - Stage naming pattern for filtered outputs
-        # Default value: "stg_diff_{change_type}_rows_subset"
+        # Default value: "stg_diff_{{change_type}}_rows_subset"
         filtered_stage_prefix: "stg_diff_analysis"
         # OPT - Include JSON format of change details
         # Default value: false (only pipe-separated format)
@@ -274,7 +274,7 @@ parameter_details:
     examples:
       - "stg_diff_analysis"
       - "stg_customer_changes"
-    note: "Results in stages like '{prefix}_new_rows_subset', '{prefix}_changed_rows_subset'"
+    note: "Results in stages like '{{prefix}}_new_rows_subset', '{{prefix}}_changed_rows_subset'"
   
   include_json_details:
     type: boolean
@@ -325,22 +325,22 @@ metadata_columns_added:
 
 filtered_stages_created:
   new_rows_stage:
-    naming_pattern: "{filtered_stage_prefix}_new_rows_subset"
+    naming_pattern: "{{filtered_stage_prefix}}_new_rows_subset"
     description: "Rows that exist in current data but not in baseline"
     filter_criteria: "Row_Status = 'NEW'"
     
   changed_rows_stage:
-    naming_pattern: "{filtered_stage_prefix}_changed_rows_subset"
+    naming_pattern: "{{filtered_stage_prefix}}_changed_rows_subset"
     description: "Rows that exist in both datasets but have different values"
     filter_criteria: "Row_Status = 'CHANGED'"
     
   unchanged_rows_stage:
-    naming_pattern: "{filtered_stage_prefix}_unchanged_rows_subset"
+    naming_pattern: "{{filtered_stage_prefix}}_unchanged_rows_subset"
     description: "Rows that exist in both datasets with identical values"
     filter_criteria: "Row_Status = 'UNCHANGED'"
     
   deleted_rows_stage:
-    naming_pattern: "{filtered_stage_prefix}_deleted_rows_subset"
+    naming_pattern: "{{filtered_stage_prefix}}_deleted_rows_subset"
     description: "Rows that exist in baseline but not in current data"
     filter_criteria: "Row_Status = 'DELETED'"
     condition: "Only created when handle_deleted_rows is 'include' or 'separate_stage'"

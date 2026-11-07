@@ -35,7 +35,7 @@ basic_example:
             # REQ - Aggregation function to apply
             function: "sum"
             # OPT - Name for the new aggregated column
-            # Default value: "{column}_{function}" (e.g., "Revenue_sum")
+            # Default value: "{{column}}_{{function}}" (e.g., "Revenue_sum")
             output_name: "Total_Revenue"
 
 multiple_aggregations_example:
@@ -209,7 +209,7 @@ parameter_details:
     required: false
     context: "Within aggregations list items"
     description: "Custom name for the aggregated column"
-    default: "Uses format: {column}_{function} (e.g., Revenue_sum, Customer_ID_nunique)"
+    default: "Uses format: {{column}}_{{function}} (e.g., Revenue_sum, Customer_ID_nunique)"
     examples: ["Total_Revenue", "Unique_Customers", "Average_Order_Value"]
   
   keep_group_columns:

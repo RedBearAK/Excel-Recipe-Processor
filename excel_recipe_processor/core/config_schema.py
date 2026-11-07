@@ -31,7 +31,7 @@ which column-selector constructs a processor MAY use:
   name_ref_pair    column_names / column_refs siblings, at least one
                    present - legal only where a positional Excel ref is a
                    real way to say which column (file-addressing families)
-  typed_item_list  ordered entries of {name: ...} or {ref: ...}, for a
+  typed_item_list  ordered entries of {{name: ...}} or {{ref: ...}}, for a
                    file-addressing operation whose order matters
 
 A processor declares its own keys with config_schema(); the family's
@@ -42,6 +42,25 @@ are checked when the class is DEFINED, not when a recipe runs.
 
 import difflib
 
+from enum import Enum
+
+
+class ErrorAction(Enum):
+    """
+    What a failing step does, for settings.on_error and a step's on_error.
+    Lives here, in the vocabulary module, so the schema choices and the
+    pipeline's dispatch are one list (2026-11-02: the schema said
+    halt | skip | continue while the pipeline knew halt | continue |
+    log_and_continue | skip_remaining - 'skip' validated clean and ran
+    as halt after a warning, and two real actions were unreachable).
+    """
+    HALT = 'halt'                          # stop at the failing step (default)
+    CONTINUE = 'continue'                  # log the error, run the next step
+    LOG_AND_CONTINUE = 'log_and_continue'  # same, with the error type and step spelled out
+    SKIP_REMAINING = 'skip_remaining'      # stop running steps, but exit clean
+
+
+ERROR_ACTION_CHOICES = [action.value for action in ErrorAction]
 
 SCALAR_KINDS = ('str', 'int', 'number', 'bool')
 CONTAINER_KINDS = ('list', 'mapping', 'open_mapping', 'list_of_mappings', 'any')
@@ -175,7 +194,7 @@ def name_ref_pair(description: str = '') -> tuple:
 
 
 def typed_item_list(name: str, required: bool = False, description: str = '') -> Key:
-    """Ordered entries, each {name: ...} or {ref: ...}, for order-sensitive mixed selection."""
+    """Ordered entries, each {{name: ...}} or {{ref: ...}}, for order-sensitive mixed selection."""
     item = Schema([
         Key('name', 'str', description='Header name'),
         Key('ref', 'str', description='Positional Excel ref'),
@@ -232,9 +251,9 @@ def validate_config(config: dict, schema: Schema, path: str = '', allow_unresolv
     """
     Validate a mapping against a Schema. Returns a list of error strings.
 
-    allow_unresolved: a string value holding a {token} placeholder passes
+    allow_unresolved: a string value holding a {{token}} placeholder passes
     the kind check where a non-string kind is declared, because variable
-    substitution may still turn it into the right shape (a {list_str:...}
+    substitution may still turn it into the right shape (a {{list_str:...}}
     token becomes a list). Validation runs after substitution in the
     pipeline, so the allowance only matters for callers validating raw
     recipe text.
@@ -285,7 +304,7 @@ def validate_config(config: dict, schema: Schema, path: str = '', allow_unresolv
             continue
         key = legal[name]
         child = f"{path}.{name}" if path else name
-        if (allow_unresolved and isinstance(value, str) and '{' in value and '}' in value
+        if (allow_unresolved and isinstance(value, str) and '{{' in value and '}}' in value
                 and key.kind not in ('str', 'stage_in', 'stage_out', 'stage_release', 'any')):
             continue
         if not _kind_matches(value, key.kind, key.item_kind):
@@ -346,8 +365,8 @@ def stage_references(config: dict, schema: Schema) -> tuple:
 COMMON_STEP_KEYS = [
     Key('step_description', 'str', description='Human-readable step name; apostrophe-free by house style'),
     Key('processor_type', 'str', required=True, description='Registered processor name'),
-    Key('on_error', 'str', choices=['halt', 'skip', 'continue'],
-        description='Per-step override of the recipe error policy'),
+    Key('on_error', 'str', choices=ERROR_ACTION_CHOICES,
+        description='Per-step override of settings.on_error; same vocabulary (ErrorAction)'),
 ]
 
 STAGE_READ_KEYS = [

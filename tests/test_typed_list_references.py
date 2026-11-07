@@ -3,13 +3,13 @@ Typed list-reference family: member conversion, retirement, bracket net.
 
 tests/test_typed_list_references.py
 
-Bare {list:name} is retired (2026-08-17): every list reference declares
+Bare {{list:name}} is retired (2026-08-17): every list reference declares
 its member typing, even when that declaration is "any". The family:
 
-    {list_int:name}    members converted to int, loudly on failure
-    {list_float:name}  members converted to float, loudly on failure
-    {list_str:name}    members converted to str
-    {list_any:name}    members pass through as declared (acknowledged
+    {{list_int:name}}    members converted to int, loudly on failure
+    {{list_float:name}}  members converted to float, loudly on failure
+    {{list_str:name}}    members converted to str
+    {{list_any:name}}    members pass through as declared (acknowledged
                        untyped/mixed)
 
 The bracketed alternative {list[int]:name} was considered and rejected:
@@ -46,10 +46,10 @@ def test_member_conversion_per_family():
 
     substitution = make_substitution()
     cases = [
-        ('{list_int:quoted_numbers}', [100, 200], [int, int]),
-        ('{list_float:mixed_floats}', [1.5, 2.0], [float, float]),
-        ('{list_str:mixed_bag}', ['1', '2', '3.0'], [str, str, str]),
-        ('{list_any:mixed_bag}', [1, '2', 3.0], [int, str, float]),
+        ('{{list_int:quoted_numbers}}', [100, 200], [int, int]),
+        ('{{list_float:mixed_floats}}', [1.5, 2.0], [float, float]),
+        ('{{list_str:mixed_bag}}', ['1', '2', '3.0'], [str, str, str]),
+        ('{{list_any:mixed_bag}}', [1, '2', 3.0], [int, str, float]),
     ]
     passed = True
     for template, expected_values, expected_types in cases:
@@ -70,7 +70,7 @@ def test_unconvertible_member_fails_loud_with_index():
 
     substitution = make_substitution()
     try:
-        substitution.substitute_structure('{list_int:unconvertible}')
+        substitution.substitute_structure('{{list_int:unconvertible}}')
         print("  ✗ unconvertible member was accepted")
         return False
     except VariableSubstitutionError as error:
@@ -83,12 +83,12 @@ def test_unconvertible_member_fails_loud_with_index():
 
 
 def test_bare_list_is_retired_with_guidance():
-    """{list:name} fails loud naming the whole replacement family."""
+    """{{list:name}} fails loud naming the whole replacement family."""
     print("\nTesting the bare-list retirement...")
 
     substitution = make_substitution()
     try:
-        substitution.substitute_structure('{list:mixed_bag}')
+        substitution.substitute_structure('{{list:mixed_bag}}')
         print("  ✗ bare list reference was accepted")
         return False
     except VariableSubstitutionError as error:
@@ -108,7 +108,7 @@ def test_container_check_still_guards_cli_strings():
 
     substitution = make_substitution()
     try:
-        substitution.substitute_structure('{list_int:cli_string}')
+        substitution.substitute_structure('{{list_int:cli_string}}')
         print("  ✗ string variable accepted as a list")
         return False
     except VariableSubstitutionError as error:
@@ -156,13 +156,13 @@ def test_pipeline_substitution_fails_loud():
 
     pipeline = RecipePipeline.__new__(RecipePipeline)
     pipeline.variable_substitution = make_substitution()
-    config = {'expected_columns': '{list:quoted_numbers}'}
+    config = {'expected_columns': '{{list:quoted_numbers}}'}
     try:
         pipeline._substitute_variables_in_config(config)
         print("  ✗ substitution failure was swallowed")
         return False
     except StepProcessorError as error:
-        if 'retired' in str(error) and '{list_str:quoted_numbers}' in str(error):
+        if 'retired' in str(error) and '{{list_str:quoted_numbers}}' in str(error):
             print("  ✓ pipeline halts with the guided error itself")
             return True
         print(f"  ✗ wrong error surfaced: {error}")

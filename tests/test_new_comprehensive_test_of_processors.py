@@ -64,9 +64,9 @@ def test_processor_with_recipe(processor_type, recipe_config, test_name):
             
             # Update file paths in recipe config
             recipe_str = yaml.dump(recipe_config)
-            recipe_str = recipe_str.replace('{input_file}', str(input_file))
-            recipe_str = recipe_str.replace('{lookup_file}', str(lookup_file))
-            recipe_str = recipe_str.replace('{output_file}', str(output_file))
+            recipe_str = recipe_str.replace('{{input_file}}', str(input_file))
+            recipe_str = recipe_str.replace('{{lookup_file}}', str(lookup_file))
+            recipe_str = recipe_str.replace('{{output_file}}', str(output_file))
             
             recipe_config = yaml.safe_load(recipe_str)
             
@@ -121,14 +121,14 @@ def get_processor_test_recipes():
                 {
                     'step_description': 'Import test data',
                     'processor_type': 'import_file',
-                    'input_file': '{input_file}',
+                    'input_file': '{{input_file}}',
                     'save_to_stage': 'imported_data'
                 },
                 {
                     'step_description': 'Export results',
                     'processor_type': 'export_file',
                     'source_stage': 'imported_data', 
-                    'output_file': '{output_file}'
+                    'output_file': '{{output_file}}'
                 }
             ]
         },
@@ -139,7 +139,7 @@ def get_processor_test_recipes():
                 {
                     'step_description': 'Import test data',
                     'processor_type': 'import_file',
-                    'input_file': '{input_file}',
+                    'input_file': '{{input_file}}',
                     'save_to_stage': 'raw_data'
                 },
                 {
@@ -155,7 +155,7 @@ def get_processor_test_recipes():
                     'step_description': 'Export results',
                     'processor_type': 'export_file',
                     'source_stage': 'processed_data',
-                    'output_file': '{output_file}'
+                    'output_file': '{{output_file}}'
                 }
             ]
         },
@@ -166,7 +166,7 @@ def get_processor_test_recipes():
                 {
                     'step_description': 'Import test data',
                     'processor_type': 'import_file', 
-                    'input_file': '{input_file}',
+                    'input_file': '{{input_file}}',
                     'save_to_stage': 'raw_data'
                 },
                 {
@@ -177,14 +177,14 @@ def get_processor_test_recipes():
                     'new_column': 'Revenue',
                     'calculation_type': 'expression',
                     'calculation': {
-                        'pandas_formula': '{col:Sales} * 10'
+                        'pandas_formula': '{{col:Sales}} * 10'
                     }
                 },
                 {
                     'step_description': 'Export results',
                     'processor_type': 'export_file',
                     'source_stage': 'processed_data',
-                    'output_file': '{output_file}'
+                    'output_file': '{{output_file}}'
                 }
             ]
         },
@@ -195,13 +195,13 @@ def get_processor_test_recipes():
                 {
                     'step_description': 'Import main data',
                     'processor_type': 'import_file',
-                    'input_file': '{input_file}',
+                    'input_file': '{{input_file}}',
                     'save_to_stage': 'raw_data'
                 },
                 {
                     'step_description': 'Import lookup data',
                     'processor_type': 'import_file',
-                    'input_file': '{lookup_file}',
+                    'input_file': '{{lookup_file}}',
                     'save_to_stage': 'lookup_data'
                 },
                 {
@@ -218,7 +218,7 @@ def get_processor_test_recipes():
                     'step_description': 'Export results',
                     'processor_type': 'export_file',
                     'source_stage': 'processed_data',
-                    'output_file': '{output_file}'
+                    'output_file': '{{output_file}}'
                 }
             ]
         },
@@ -229,7 +229,7 @@ def get_processor_test_recipes():
                 {
                     'step_description': 'Import test data',
                     'processor_type': 'import_file',
-                    'input_file': '{input_file}',
+                    'input_file': '{{input_file}}',
                     'save_to_stage': 'raw_data'
                 },
                 {
@@ -244,7 +244,7 @@ def get_processor_test_recipes():
                     'step_description': 'Export results',
                     'processor_type': 'export_file',
                     'source_stage': 'processed_data',
-                    'output_file': '{output_file}'
+                    'output_file': '{{output_file}}'
                 }
             ]
         },
@@ -255,7 +255,7 @@ def get_processor_test_recipes():
                 {
                     'step_description': 'Import test data',
                     'processor_type': 'import_file',
-                    'input_file': '{input_file}',
+                    'input_file': '{{input_file}}',
                     'save_to_stage': 'raw_data'
                 },
                 {
@@ -274,7 +274,7 @@ def get_processor_test_recipes():
                     'step_description': 'Export results',
                     'processor_type': 'export_file',
                     'source_stage': 'processed_data',
-                    'output_file': '{output_file}'
+                    'output_file': '{{output_file}}'
                 }
             ]
         }
@@ -335,7 +335,7 @@ def test_multi_processor_workflow():
             {
                 'step_description': 'Import sales data',
                 'processor_type': 'import_file',
-                'input_file': '{input_file}',
+                'input_file': '{{input_file}}',
                 'save_to_stage': 'raw_data'
             },
             {
@@ -345,10 +345,10 @@ def test_multi_processor_workflow():
                 'save_to_stage': 'filtered_data',
                 'filters': [
                     # Typed reference: substitutes the actual int from
-                    # settings variables. An untyped '{min_sales}'
+                    # settings variables. An untyped '{{min_sales}}'
                     # would deliver the STRING '120' and draw the
                     # guided ordering-comparison error.
-                    {'column': 'Sales', 'condition': 'greater_than', 'value': '{int:min_sales}'}
+                    {'column': 'Sales', 'condition': 'greater_than', 'value': '{{int:min_sales}}'}
                 ]
             },
             {
@@ -359,7 +359,7 @@ def test_multi_processor_workflow():
                 'new_column': 'Revenue',
                 'calculation_type': 'expression',
                 'calculation': {
-                    'pandas_formula': '{col:Sales} * 12.5'
+                    'pandas_formula': '{{col:Sales}} * 12.5'
                 }
             },
             {
@@ -374,7 +374,7 @@ def test_multi_processor_workflow():
                 'step_description': 'Export final results',
                 'processor_type': 'export_file',
                 'source_stage': 'sorted_data',
-                'output_file': '{output_file}'  
+                'output_file': '{{output_file}}'  
             }
         ]
     }

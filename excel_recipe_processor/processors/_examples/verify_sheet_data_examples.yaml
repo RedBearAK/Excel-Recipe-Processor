@@ -21,7 +21,7 @@ basic_example:
         step_description: "Verify the written detail sheet"
         processor_type: "verify_sheet_data"
         # REQ - Workbook to verify (session-held files are read live, pre-save)
-        target_file: "{output_dir}/{output_basename}.xlsx"
+        target_file: "{{output_dir}}/{{output_basename}}.xlsx"
         # REQ (file mode) - Tab to read
         # REQ - Tab name, number, or ?sheet_NNN? token
         sheet_name: "Detail"

@@ -25,7 +25,7 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 - `overwrite`: bool; default false
 - when `calculation_type` = `expression`:
   - `calculation`: mapping; REQUIRED
-    - `pandas_formula`: str - pandas text with {col:Name} references
+    - `pandas_formula`: str - pandas text with {{col:Name}} references
     - `formula_components`: list of any - Structured column / operator / value parts
     - at least one of: `pandas_formula`, `formula_components`
 - when `calculation_type` = `first_match`:
@@ -306,7 +306,7 @@ recipe:
     calculation:
       # Legacy formula - works only with simple column names (no spaces/special chars)
       # For robust column name handling, use formula_components instead
-      pandas_formula: "{col:Price} * {col:Quantity}"
+      pandas_formula: "{{col:Price}} * {{col:Quantity}}"
 ```
 
 ### spill columns
@@ -343,7 +343,7 @@ recipe:
     calculation_type: "expression"
     calculation:
       # A DataFrame (or a tuple of Series) with one column per declared name
-      pandas_formula: "pd.DataFrame({'d': {col:Ship Date} + pd.to_timedelta({col:Terms Days}, unit='D'), 'b': 'Ship + terms'})"
+      pandas_formula: "pd.DataFrame({'d': {{col:Ship Date}} + pd.to_timedelta({{col:Terms Days}}, unit='D'), 'b': 'Ship + terms'})"
 ```
 
 ### first match
@@ -360,7 +360,7 @@ Ordered rule table - first true predicate wins the row and fills every declared 
 # typed blank - a blank is always visible, never an omitted term.
 #
 # Keys name their dialect: pandas_rules and pandas_default hold
-# pandas text with {col:Name} references, so a quoted string inside
+# pandas text with {{col:Name}} references, so a quoted string inside
 # a slot is a literal exactly as it would be inside pandas_formula.
 # Shape and column references are checked for every rule BEFORE any
 # evaluation, so a mistake is reported by rule number. The log
@@ -389,16 +389,16 @@ recipe:
       # REQ - Ordered rules; each 'then' has one slot per declared column,
       # in the order new_column, then spill_columns
       pandas_rules:
-        - when: "{col:Paid Date}.notna() | ~({col:Price}.fillna(0) > 0)"
+        - when: "{{col:Paid Date}}.notna() | ~({{col:Price}}.fillna(0) > 0)"
           then: ["", "'Paid or No Price'"]
-        - when: "({col:Kind} == 'Fresh') & {col:Ship Date}.notna()"
-          then: ["{col:Ship Date} + pd.to_timedelta({col:Terms Days} + 7, unit='D')", "'Fr-Ship'"]
-        - when: "{col:Kind} == 'Fresh'"
+        - when: "({{col:Kind}} == 'Fresh') & {{col:Ship Date}}.notna()"
+          then: ["{{col:Ship Date}} + pd.to_timedelta({{col:Terms Days}} + 7, unit='D')", "'Fr-Ship'"]
+        - when: "{{col:Kind}} == 'Fresh'"
           then: ["", "'Fr-NoShip'"]
-        - when: "({col:Kind} == 'Frozen') & {col:Invoice Date}.notna()"
-          then: ["{col:Invoice Date} + pd.to_timedelta({col:Terms Days}, unit='D')", "'Fz-Invoice'"]
-        - when: "({col:Kind} == 'Frozen') & {col:Ship Date}.notna()"
-          then: ["{col:Ship Date} + pd.to_timedelta({col:Terms Days} + 30, unit='D')", "'Fz-ShipFallback'"]
+        - when: "({{col:Kind}} == 'Frozen') & {{col:Invoice Date}}.notna()"
+          then: ["{{col:Invoice Date}} + pd.to_timedelta({{col:Terms Days}}, unit='D')", "'Fz-Invoice'"]
+        - when: "({{col:Kind}} == 'Frozen') & {{col:Ship Date}}.notna()"
+          then: ["{{col:Ship Date}} + pd.to_timedelta({{col:Terms Days}} + 30, unit='D')", "'Fz-ShipFallback'"]
       # REQ - What a row gets when no rule matches, same shape as a 'then'
       pandas_default: ["", "'Unknown-Kind'"]
 ```

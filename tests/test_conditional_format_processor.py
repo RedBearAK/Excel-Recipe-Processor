@@ -52,14 +52,14 @@ def run_rules(file_path, rules):
 
 
 def test_formula_rule_locked_and_prefixed():
-    """when_formula: {col:} resolves $-locked, _xlfn applied, entire_row range built."""
+    """when_formula: {{col:}} resolves $-locked, _xlfn applied, entire_row range built."""
     print("\nTesting formula rule locking and prefixing...")
 
     passed = True
 
     with tempfile.TemporaryDirectory() as work_dir:
         xml = run_rules(build_target(work_dir), [
-            {'when_formula': '=AND({col:Contracts}2<>"", IFS({col:Price}2="",TRUE,TRUE,FALSE))',
+            {'when_formula': '=AND({{col:Contracts}}2<>"", IFS({{col:Price}}2="",TRUE,TRUE,FALSE))',
              'apply_to': 'entire_row',
              'style': {'fill': 'FFC7CE'}, 'stop_if_true': True},
         ])

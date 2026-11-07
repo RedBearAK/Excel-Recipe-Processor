@@ -245,11 +245,11 @@ def test_variable_substitution():
 
     with tempfile.TemporaryDirectory() as temp_dir:
         # FileWriter does NOT substitute variables (2026 doctrine): the
-        # processor layer resolves {date}-style templates BEFORE calling
+        # processor layer resolves {{date}}-style templates BEFORE calling
         # FileWriter. Braces are legal filename characters, so a template
         # reaching this layer unresolved is written literally - visible
         # evidence of an upstream bug rather than a silent wrong file.
-        template_filename = str(Path(temp_dir) / "output_{date}.xlsx")
+        template_filename = str(Path(temp_dir) / "output_{{date}}.xlsx")
 
         FileWriter.write_file(sample_data, template_filename)
 
@@ -351,7 +351,7 @@ def test_backup_creation():
         print(f"✓ Wrote file with backup enabled: {final_path}")
         
         # Check for backup file
-        # Backup naming: {stem}_erpbkup_{timestamp}{ext}
+        # Backup naming: {{stem}}_erpbkup_{{timestamp}}{{ext}}
         backup_files = list(temp_path.parent.glob(
             f"{temp_path.stem}_erpbkup_*{temp_path.suffix}"))
         
@@ -481,7 +481,7 @@ def test_writable_check():
             return False
         
         # Test with variable substitution
-        template_path = str(Path(temp_dir) / "test_{date}.xlsx")
+        template_path = str(Path(temp_dir) / "test_{{date}}.xlsx")
         is_writable_with_vars = FileWriter.file_writable(template_path)
         
         print(f"✓ Writable with variables: {is_writable_with_vars}")

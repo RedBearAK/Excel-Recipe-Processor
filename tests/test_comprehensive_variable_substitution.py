@@ -45,7 +45,7 @@ def test_edge_cases():
     
     # Test empty structures
     tests += 1
-    result = substitution.substitute_structure('{list_str:empty_list}')
+    result = substitution.substitute_structure('{{list_str:empty_list}}')
     if result == []:
         print("  ✓ Empty list substitution works")
         success += 1
@@ -53,7 +53,7 @@ def test_edge_cases():
         print(f"  ✗ Empty list failed: {result}")
     
     tests += 1
-    result = substitution.substitute_structure('{dict_any:empty_dict}')
+    result = substitution.substitute_structure('{{dict_any:empty_dict}}')
     if result == {}:
         print("  ✓ Empty dict substitution works")
         success += 1
@@ -63,7 +63,7 @@ def test_edge_cases():
     # Test None values
     tests += 1
     try:
-        result = substitution.substitute_structure('{str:none_value}')
+        result = substitution.substitute_structure('{{str:none_value}}')
         if result == 'None':
             print("  ✓ None to string conversion works")
             success += 1
@@ -74,7 +74,7 @@ def test_edge_cases():
     
     # Test large structures
     tests += 1
-    result = substitution.substitute_structure('{list_int:large_list}')
+    result = substitution.substitute_structure('{{list_int:large_list}}')
     if len(result) == 100 and result[99] == 99:
         print("  ✓ Large list substitution works")
         success += 1
@@ -83,7 +83,7 @@ def test_edge_cases():
     
     # Test deeply nested structures
     tests += 1
-    config = {'nested_config': '{dict_any:deeply_nested}'}
+    config = {'nested_config': '{{dict_any:deeply_nested}}'}
     result = substitution.substitute_structure(config)
     expected_deep_list = ['deep', 'nesting']
     if result['nested_config']['level1']['level2']['level3'] == expected_deep_list:
@@ -114,7 +114,7 @@ def test_error_conditions():
     # Test missing variable
     tests += 1
     try:
-        substitution.substitute_structure('{list_any:nonexistent}')
+        substitution.substitute_structure('{{list_any:nonexistent}}')
         print("  ✗ Should have failed for missing variable")
     except VariableSubstitutionError as e:
         if 'nonexistent' in str(e):
@@ -128,7 +128,7 @@ def test_error_conditions():
     # Test unsupported type
     tests += 1
     try:
-        substitution.substitute_structure('{tuple:list_var}')
+        substitution.substitute_structure('{{tuple:list_var}}')
         print("  ✗ Should have failed for unsupported type")
     except VariableSubstitutionError as e:
         if 'tuple' in str(e):
@@ -142,7 +142,7 @@ def test_error_conditions():
     # Test type mismatch
     tests += 1
     try:
-        substitution.substitute_structure('{dict_any:list_var}')
+        substitution.substitute_structure('{{dict_any:list_var}}')
         print("  ✗ Should have failed for type mismatch")
     except VariableSubstitutionError as e:
         if 'list_var' in str(e) and 'dict' in str(e):
@@ -156,7 +156,7 @@ def test_error_conditions():
     # Test malformed syntax
     tests += 1
     try:
-        substitution.substitute_structure('{list_any:}')
+        substitution.substitute_structure('{{list_any:}}')
         print("  ✗ Should have failed for empty variable name")
     except Exception as e:
         print("  ✓ Correctly caught malformed syntax")
@@ -165,7 +165,7 @@ def test_error_conditions():
     # Test structure in string context
     tests += 1
     try:
-        substitution.substitute('filename_{list_any:list_var}.xlsx')
+        substitution.substitute('filename_{{list_any:list_var}}.xlsx')
         print("  ✗ Should have failed for list in string context")
     except VariableSubstitutionError as e:
         if 'string context' in str(e):
@@ -200,7 +200,7 @@ recipe:
     processor_type: "select_columns"
     source_stage: "raw_data"
     save_to_stage: "selected_data"
-    columns_to_keep: "{list_str:customer_cols}"
+    columns_to_keep: "{{list_str:customer_cols}}"
     
   - step_description: "Create lookup"
     processor_type: "create_stage"
@@ -209,7 +209,7 @@ recipe:
       format: "dictionary"
       key_column: "Region_Code"
       value_column: "Region_Name"
-      data: "{dict_str:region_mapping}"
+      data: "{{dict_str:region_mapping}}"
 '''
     
     success = 0
@@ -286,12 +286,12 @@ def test_variable_resolution_order():
     tests += 1
     complex_config = {
         'primary_processing': {
-            'columns': '{list_str:base_cols}',
-            'region_filter': '{region}'
+            'columns': '{{list_str:base_cols}}',
+            'region_filter': '{{region}}'
         },
         'secondary_processing': {
-            'columns': '{list_str:all_cols}',
-            'output': '{full_filename}'
+            'columns': '{{list_str:all_cols}}',
+            'output': '{{full_filename}}'
         }
     }
     
@@ -337,7 +337,7 @@ def test_type_conversions():
     # Test string to number conversions
     tests += 1
     try:
-        result = substitution.substitute_structure('{int:string_number}')
+        result = substitution.substitute_structure('{{int:string_number}}')
         if result == 42 and isinstance(result, int):
             print("  ✓ String to int conversion works")
             success += 1
@@ -348,7 +348,7 @@ def test_type_conversions():
     
     tests += 1
     try:
-        result = substitution.substitute_structure('{float:string_float}')
+        result = substitution.substitute_structure('{{float:string_float}}')
         if abs(result - 3.14159) < 0.001 and isinstance(result, float):
             print("  ✓ String to float conversion works")
             success += 1
@@ -360,7 +360,7 @@ def test_type_conversions():
     # Test boolean conversions
     tests += 1
     try:
-        result = substitution.substitute_structure('{bool:string_bool_true}')
+        result = substitution.substitute_structure('{{bool:string_bool_true}}')
         if result is True:
             print("  ✓ String 'true' to bool conversion works")
             success += 1
@@ -371,7 +371,7 @@ def test_type_conversions():
     
     tests += 1
     try:
-        result = substitution.substitute_structure('{bool:string_bool_false}')
+        result = substitution.substitute_structure('{{bool:string_bool_false}}')
         if result is False:
             print("  ✓ String 'False' to bool conversion works")
             success += 1
@@ -383,7 +383,7 @@ def test_type_conversions():
     # Test invalid conversions
     tests += 1
     try:
-        substitution.substitute_structure('{int:string_bool_true}')
+        substitution.substitute_structure('{{int:string_bool_true}}')
         print("  ✗ Should have failed converting 'true' to int")
     except VariableSubstitutionError:
         print("  ✓ Correctly caught invalid int conversion")
@@ -422,13 +422,13 @@ recipe:
     processor_type: "select_columns"
     source_stage: "raw_customers"
     save_to_stage: "base_customers"
-    columns_to_keep: "{list_str:base_customer_cols}"
+    columns_to_keep: "{{list_str:base_customer_cols}}"
     
   - step_description: "Select full customer profile"
     processor_type: "select_columns"
     source_stage: "raw_customers"
     save_to_stage: "full_customers"
-    columns_to_keep: "{list_str:all_customer_cols}"
+    columns_to_keep: "{{list_str:all_customer_cols}}"
     
   - step_description: "Create status lookup"
     processor_type: "create_stage"
@@ -437,7 +437,7 @@ recipe:
       format: "dictionary"
       key_column: "Status_Code"
       value_column: "Status_Name"
-      data: "{dict_str:status_mapping}"
+      data: "{{dict_str:status_mapping}}"
       
   - step_description: "Filter by amount"
     processor_type: "filter_data"
@@ -446,7 +446,7 @@ recipe:
     conditions:
       - column: "Amount"
         operator: "greater_than"
-        value: "{int:min_amount}"
+        value: "{{int:min_amount}}"
 '''
     
     success = 0
@@ -534,8 +534,8 @@ def test_circular_references():
     # This is tricky - we'd need to implement cycle detection
     # For now, test that at least we don't infinite loop
     custom_vars = {
-        'var_a': '{var_b}',  # References B
-        'var_b': '{var_a}',  # References A - circular!
+        'var_a': '{{var_b}}',  # References B
+        'var_b': '{{var_a}}',  # References A - circular!
         'good_var': 'safe_value'
     }
     
@@ -548,7 +548,7 @@ def test_circular_references():
     tests += 1
     try:
         # This should either work (if we handle it) or fail gracefully
-        result = substitution.substitute('output_{var_a}.xlsx')
+        result = substitution.substitute('output_{{var_a}}.xlsx')
         # If we get here without hanging, that's good
         print("  ✓ Circular reference doesn't cause infinite loop")
         success += 1
@@ -559,7 +559,7 @@ def test_circular_references():
     # Test that non-circular variables still work
     tests += 1
     try:
-        result = substitution.substitute('output_{good_var}.xlsx')
+        result = substitution.substitute('output_{{good_var}}.xlsx')
         if 'safe_value' in result:
             print("  ✓ Non-circular variables still work")
             success += 1
@@ -592,14 +592,14 @@ def test_mixed_syntax_scenarios():
     tests += 1
     try:
         mixed_config = {
-            'old_style_filename': 'report_{region}_{date}.xlsx',
-            'new_style_columns': '{list_str:cols}',
-            'explicit_string': '{str:region}',
-            'lookup_data': '{dict_str:mapping}',
+            'old_style_filename': 'report_{{region}}_{{date}}.xlsx',
+            'new_style_columns': '{{list_str:cols}}',
+            'explicit_string': '{{str:region}}',
+            'lookup_data': '{{dict_str:mapping}}',
             'nested_mixing': {
-                'file': 'data_{region}.csv',
-                'columns': '{list_str:cols}',
-                'threshold': '{int:count}'
+                'file': 'data_{{region}}.csv',
+                'columns': '{{list_str:cols}}',
+                'threshold': '{{int:count}}'
             }
         }
         
@@ -636,10 +636,12 @@ def test_malformed_syntax():
     
     # Test only the critical syntax errors that should be caught
     critical_patterns = [
-        '{list_any:}',       # Empty variable name
-        '{:test}',           # Empty type name  
-        '{list_str:test',        # Missing closing brace
-        'list:test}',        # Missing opening brace
+        '{{list_any:}}',       # Empty variable name
+        '{{:test}}',         # Empty type name
+        '{{list_str:test',   # Missing closing braces
+        'list:test}}',       # Missing opening braces
+        # (the single-brace spellings of these are ordinary text since the
+        # 2026-11-02 delimiter change, and are not expected to fail)
     ]
     
     success = 0
@@ -654,7 +656,7 @@ def test_malformed_syntax():
             success += 1
     
     print(f"  Malformed syntax: {success}/{tests} tests passed")
-    print(f"  Note: Less critical typos like '{{listtest}}' or '{{}}' are handled gracefully")
+    print(f"  Note: Less critical typos like '{{{{listtest}}}}' or '{{{{}}}}' are handled gracefully")
     return success == tests
 
 
@@ -680,7 +682,7 @@ def test_performance_stress():
     # Test large list substitution
     tests += 1
     try:
-        config = {'columns': '{list_str:large_columns}'}
+        config = {'columns': '{{list_str:large_columns}}'}
         result = substitution.substitute_structure(config)
         
         if len(result['columns']) == 500 and result['columns'][499] == 'column_499':
@@ -694,7 +696,7 @@ def test_performance_stress():
     # Test large dict substitution
     tests += 1
     try:
-        config = {'mapping': '{dict_str:large_mapping}'}
+        config = {'mapping': '{{dict_str:large_mapping}}'}
         result = substitution.substitute_structure(config)
         
         if len(result['mapping']) == 500 and result['mapping']['key_499'] == 'value_499':
@@ -712,8 +714,8 @@ def test_performance_stress():
             'processing_configs': [
                 {
                     'name': f'config_{i}',
-                    'columns': '{list_str:large_columns}',
-                    'region': '{region}'
+                    'columns': '{{list_str:large_columns}}',
+                    'region': '{{region}}'
                 }
                 for i in range(10)
             ]
@@ -757,14 +759,14 @@ def test_integration_with_pipeline():
     try:
         step_config = {
             'processor_type': 'select_columns',
-            'step_description': 'Select {region} customer columns',
+            'step_description': 'Select {{region}} customer columns',
             'source_stage': 'raw_data',
             'save_to_stage': 'customer_data', 
-            'columns_to_keep': '{list_str:customer_columns}',
+            'columns_to_keep': '{{list_str:customer_columns}}',
             'settings': {
-                'region_filter': '{region}',
-                'debug': '{bool:debug_mode}',
-                'threshold': '{int:min_amount}'
+                'region_filter': '{{region}}',
+                'debug': '{{bool:debug_mode}}',
+                'threshold': '{{int:min_amount}}'
             }
         }
         
@@ -796,7 +798,7 @@ def test_integration_with_pipeline():
                 'format': 'dictionary',
                 'key_column': 'Status_Code',
                 'value_column': 'Status_Name',
-                'data': '{dict_str:status_mapping}'
+                'data': '{{dict_str:status_mapping}}'
             }
         }
         
@@ -820,12 +822,12 @@ def test_integration_with_pipeline():
                 {
                     'column': 'Region',
                     'operator': 'equals',
-                    'value': '{region}'
+                    'value': '{{region}}'
                 },
                 {
                     'column': 'Amount', 
                     'operator': 'greater_than',
-                    'value': '{int:min_amount}'
+                    'value': '{{int:min_amount}}'
                 }
             ]
         }
@@ -879,17 +881,17 @@ def test_variable_interdependencies():
         complex_config = {
             'data_pipeline': {
                 'input': {
-                    'file': '{input_file}',
-                    'columns': '{list_str:base_columns}'
+                    'file': '{{input_file}}',
+                    'columns': '{{list_str:base_columns}}'
                 },
                 'processing': {
-                    'select_columns': '{list_str:full_columns}',
-                    'region_filter': '{region}',
-                    'intermediate_columns': '{list_str:location_columns}'
+                    'select_columns': '{{list_str:full_columns}}',
+                    'region_filter': '{{region}}',
+                    'intermediate_columns': '{{list_str:location_columns}}'
                 },
                 'output': {
-                    'file': '{output_file}',
-                    'final_columns': '{list_str:full_columns}'
+                    'file': '{{output_file}}',
+                    'final_columns': '{{list_str:full_columns}}'
                 }
             }
         }
@@ -934,10 +936,10 @@ def test_comprehensive_datetime_patterns():
     
     success = 0
     for pattern in new_patterns:
-        template = f"file_{{{pattern}}}.xlsx"
+        template = f"file_{{{{{pattern}}}}}.xlsx"
         try:
             result = substitution.substitute(template)
-            if f'{{{pattern}}}' not in result:  # Should be substituted
+            if f'{{{{{pattern}}}}}' not in result:  # Should be substituted
                 print(f"  ✓ {pattern} -> {result}")
                 success += 1
             else:
@@ -950,7 +952,7 @@ def test_comprehensive_datetime_patterns():
 
 
 def test_enhanced_formatted_variables():
-    """Test both {date:format} and {time:format} work with same formats."""
+    """Test both {{date:format}} and {{time:format}} work with same formats."""
     print("\nTesting enhanced formatted variables...")
     
     substitution = VariableSubstitution()
@@ -960,11 +962,11 @@ def test_enhanced_formatted_variables():
     
     for fmt in test_formats:
         # Test date: prefix 
-        date_template = f"{{date:{fmt}}}"
+        date_template = f"{{{{date:{fmt}}}}}"
         
         try:
             date_result = substitution.substitute(date_template)
-            # Check that the format was actually substituted (not left as {date:YYYYMMDD})
+            # Check that the format was actually substituted (not left as {{date:YYYYMMDD}})
             if date_template not in date_result and len(date_result) > 0:
                 print(f"  ✓ {fmt} -> {date_result}")
                 success += 1
@@ -1021,7 +1023,7 @@ def test_dynamic_documentation():
                         return False
                         
                 elif isinstance(formatted_vars, list):
-                    # Legacy format: ['{date:MMDD}', '{time:HHMMSS}', ...]
+                    # Legacy format: ['{{date:MMDD}}', '{{time:HHMMSS}}', ...]
                     has_date_examples = any('date:YYYYMMDD' in str(fmt) for fmt in formatted_vars)
                     has_time_examples = any('time:HHMMSS' in str(fmt) for fmt in formatted_vars)
                     
@@ -1063,7 +1065,7 @@ def test_backward_compatibility():
     ]
     
     success = sum(1 for pattern in legacy_patterns 
-                    if f'{{{pattern}}}' not in substitution.substitute(f'{{{pattern}}}'))
+                    if f'{{{{{pattern}}}}}' not in substitution.substitute(f'{{{{{pattern}}}}}'))
     
     print(f"  Legacy compatibility: {success}/{len(legacy_patterns)} passed")
     return success == len(legacy_patterns)

@@ -114,7 +114,7 @@ multi_level_example:
       - # Step 1: Import order data
         step_description: "Import order transaction data"
         processor_type: "import_file"
-        input_file: "data/orders_{year}.xlsx"
+        input_file: "data/orders_{{year}}.xlsx"
         save_to_stage: "stg_order_data"
 
       - # Step 2: Create multi-level pivot table
@@ -200,7 +200,7 @@ advanced_aggregation_example:
       - # Step 1: Import transaction data
         step_description: "Import financial transactions"
         processor_type: "import_file"
-        input_file: "data/transactions_{analysis_year}.xlsx"
+        input_file: "data/transactions_{{analysis_year}}.xlsx"
         save_to_stage: "stg_transaction_data"
 
       - # Step 2: Create financial summary pivot
@@ -262,7 +262,7 @@ time_series_pivot_example:
         source_stage: "stg_sales_history"
         new_column: "Month"
         calculation:
-          pandas_formula: "pd.to_datetime({col:Sale_Date}).dt.month_name()"
+          pandas_formula: "pd.to_datetime({{col:Sale_Date}}).dt.month_name()"
         save_to_stage: "stg_sales_with_month"
 
       - # Step 3: Create monthly trend pivot

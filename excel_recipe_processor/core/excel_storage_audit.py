@@ -95,7 +95,7 @@ def audit_legacy_cse(xlsx_source) -> list:
     """(sheet part, cell ref) for every t="array" cell missing cm.
 
     A bare t="array" is a legacy Ctrl+Shift+Enter formula: Excel shows
-    {braces} and a spill collapses to one value (the Dom_View braces
+    {{braces}} and a spill collapses to one value (the Dom_View braces
     incident, 2026-08-16). Empty list = every array formula carries its
     dynamic declaration.
     """

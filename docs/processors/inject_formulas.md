@@ -6,11 +6,11 @@ Inject live or dead formulas with name-addressed cells and fill-down
 
 ## Notes
 
-- **column placeholders**: {col:Header Name} in cell refs and formulas resolves to the column letter from the header row at injection time, so upstream column insertions cannot silently repoint a formula
+- **column placeholders**: {{col:Header Name}} in cell refs and formulas resolves to the column letter from the header row at injection time, so upstream column insertions cannot silently repoint a formula
 - **fill down**: fill_down: true fills a formula from its origin cell to the last data row, translating relative references per row the way Excel's own fill handle does
 - **function name translation**: modern function names (XLOOKUP, IFS, FILTER, ...) are stored with the _xlfn. prefixes Excel requires internally, and display without them
 - **dynamic array declaration**: live-mode cells register with the workbook session as recipe-authored; with settings declare_dynamic_formulas: true they are declared dynamic-array-aware at save and open without the implicit-intersection @ (any function, by provenance)
-- **array formula caveat**: array_formula: true stores a legacy CSE array formula ({braces}); use it only for formulas that genuinely are array formulas - it is NOT the fix for the @ display
+- **array formula caveat**: array_formula: true stores a legacy CSE array formula ({{braces}}); use it only for formulas that genuinely are array formulas - it is NOT the fix for the @ display
 
 ## Keys
 
@@ -24,7 +24,7 @@ Generated from the declared schema; keys not listed are refused at recipe load.
 - `sheets_to_receive_formulas`: list_of_mappings
   - `sheet_names`: list of str; REQUIRED - Tab names or ?sheet_NNN? tokens
   - `formulas`: list_of_mappings; REQUIRED
-    - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
+    - `excel_formula`: str; REQUIRED - Excel formula text; {{col:Header}} resolves to that column letter on the sheet
     - `cell`: str - Target cell like B2
     - `range`: str - Target range like B2:B100
     - `fill_down`: bool; default false - Cell target: fill down the data extent
@@ -32,7 +32,7 @@ Generated from the declared schema; keys not listed are refused at recipe load.
     - at least one of: `cell`, `range`
 - `sheet_names`: any - awaken mode: a list of tabs, "all", or omit for the active sheet
 - `formulas`: list_of_mappings - awaken / single-sheet form
-  - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
+  - `excel_formula`: str; REQUIRED - Excel formula text; {{col:Header}} resolves to that column letter on the sheet
   - `cell`: str - Target cell like B2
   - `range`: str - Target range like B2:B100
   - `fill_down`: bool; default false - Cell target: fill down the data extent
@@ -147,7 +147,7 @@ recipe:
             excel_formula: "=B2*C2"
           # Tax calculation column
           - range: "E2:E50"
-            excel_formula: "=D2*{tax_rate}"
+            excel_formula: "=D2*{{tax_rate}}"
           # Total formulas
           - cell: "D51"
             excel_formula: "=SUM(D2:D50)"
@@ -191,7 +191,7 @@ recipe:
       - sheet_names: ["?sheet_001?"]
         formulas:
           - cell: "E2"
-            excel_formula: "={col:Units}2*{col:Unit Price}2"
+            excel_formula: "={{col:Units}}2*{{col:Unit Price}}2"
             fill_down: true
 ```
 
@@ -246,7 +246,7 @@ settings:
       protected: false
 
 recipe:
-  - # The exported sheet carries headers; {col:Name} resolves each name
+  - # The exported sheet carries headers; {{col:Name}} resolves each name
     # to its column letter from the header row AT INJECTION TIME, so a
     # column inserted upstream cannot silently repoint any reference.
     step_description: "Inject the margin formulas by column name"
@@ -258,20 +258,20 @@ recipe:
     sheets_to_receive_formulas:
       - sheet_names: ["Data"]
         formulas:
-          - # {col:...} works in the cell address AND inside the formula.
-            cell: "{col:Margin}2"
+          - # {{col:...}} works in the cell address AND inside the formula.
+            cell: "{{col:Margin}}2"
             # OPT - Fill from the origin row to the last data row,
             # translating relative references per row like Excel's fill
             # handle. Default value: false
             fill_down: true
-            excel_formula: '={col:Price}2-{col:Cost}2'
+            excel_formula: '={{col:Price}}2-{{col:Cost}}2'
           - # Modern function names are stored with the _xlfn. prefix Excel
             # requires internally; they display without it. With settings
             # declare_dynamic_formulas: true, injected cells open WITHOUT
             # the implicit-intersection @ (declared by provenance).
-            cell: "{col:Supplier Region}2"
+            cell: "{{col:Supplier Region}}2"
             fill_down: true
-            excel_formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
+            excel_formula: '=XLOOKUP({{col:Supplier}}2,rng_suppliers,rng_regions)'
 ```
 
 ### grouped sheets

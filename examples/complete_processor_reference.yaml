@@ -12,7 +12,7 @@
 settings:
   # Modern approach: Use export_file processors instead of output_filename
   variables:
-    date_suffix: "{YY}{MMDD}"
+    date_suffix: "{{YY}}{{MMDD}}"
     company: "AcmeCorp"
   create_backup: true  # optional - creates .backup files before overwriting
 
@@ -25,7 +25,7 @@ recipe:
   # Import data from external files (Excel, CSV, etc.)
   - step_description: "Import customer data from Excel file"
     processor_type: "import_file"
-    input_file: "data/customers_{date_suffix}.xlsx"  # required - supports variables
+    input_file: "data/customers_{{date_suffix}}.xlsx"  # required - supports variables
     sheet: "Customer List"  # optional - sheet name or index, default: 0
     encoding: "utf-8"  # optional - for CSV files
     save_to_stage: "Raw Customers"  # optional - save imported data to stage
@@ -34,7 +34,7 @@ recipe:
   # Export data to files with multiple sheets and formatting
   - step_description: "Export processed data to multi-sheet Excel file"
     processor_type: "export_file"
-    file_path: "reports/{company}_Report_{date_suffix}.xlsx"  # required - supports variables
+    file_path: "reports/{{company}}_Report_{{date_suffix}}.xlsx"  # required - supports variables
     file_format: "excel"  # optional - excel, csv, json, default: excel
     sheets:  # optional for excel, required for multi-sheet
       - sheet_name: "Summary Data"  # required
@@ -50,7 +50,7 @@ recipe:
   # Format Excel files with styling and layout
   - step_description: "Apply professional formatting to Excel output"
     processor_type: "format_excel"
-    target_file: "reports/{company}_Report_{date_suffix}.xlsx"  # required
+    target_file: "reports/{{company}}_Report_{{date_suffix}}.xlsx"  # required
     formatting:  # required
       auto_fit_columns: true  # optional - auto-size columns to content
       freeze_panes:  # optional - freeze header rows/columns
@@ -377,7 +377,7 @@ recipe:
 
 # settings:
 #   # File output (deprecated - use export_file instead)
-#   output_filename: "results_{date}.xlsx"  # optional
+#   output_filename: "results_{{date}}.xlsx"  # optional
 #   
 #   # Backup management
 #   create_backup: true  # optional - create .backup files before overwriting
@@ -386,7 +386,7 @@ recipe:
 #   variables:  # optional - custom variables for substitution
 #     department: "sales"
 #     quarter: "Q4"
-#     nested_var: "{department}_{quarter}"  # variables can reference other variables
+#     nested_var: "{{department}}_{{quarter}}"  # variables can reference other variables
 #   
 #   # External variable requirements (interactive prompting)
 #   required_external_vars:  # optional - prompt user for variables

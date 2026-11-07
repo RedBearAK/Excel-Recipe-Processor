@@ -38,7 +38,7 @@ basic_example:
         source_stage: "stg_import_raw"
         # REQ - The expectation; keep it in a variable beside the recipe's
         # other lists so shape changes are a one-line maintenance edit
-        expected_columns: "{list_str:var_expected_columns}"
+        expected_columns: "{{list_str:var_expected_columns}}"
         # OPT - "error" (default) or "warn"
         on_missing_expected: "error"
         # OPT - "warn" (default) or "error"
@@ -73,12 +73,12 @@ compare_two_files_example:
     recipe:
       - step_description: "Import A"
         processor_type: "import_file"
-        input_file: "{file_a}"
+        input_file: "{{file_a}}"
         save_to_stage: "stg_a"
 
       - step_description: "Import B"
         processor_type: "import_file"
-        input_file: "{file_b}"
+        input_file: "{{file_b}}"
         save_to_stage: "stg_b"
 
       - step_description: "Compare columns, both directions"
@@ -106,7 +106,7 @@ optional_columns_example:
       - step_description: "Verify the download carries the expected columns"
         processor_type: "verify_columns"
         source_stage: "stg_vms_import_raw"
-        expected_columns: "{list_str:var_expected_download_columns}"
+        expected_columns: "{{list_str:var_expected_download_columns}}"
         on_missing_expected: "error"
         on_unexpected: "warn"
         # OPT - may be present or absent
@@ -125,11 +125,11 @@ parameter_details:
   on_missing_expected:
     required: false
     default: "error"
-    description: "An expected column absent from the data: error halts naming it; warn proceeds"
+    description: "An expected column absent from the data: error halts naming it; warn proceeds; skip proceeds silently"
   on_unexpected:
     required: false
     default: "warn"
-    description: "A data column absent from the expectation: warn logs it; error halts"
+    description: "A data column absent from the expectation: warn logs it; error halts; skip counts it silently (a wide tab read for a few columns)"
   optional_columns:
     required: false
     description: "Columns that may be present or absent without notice - a field the source added mid-season"

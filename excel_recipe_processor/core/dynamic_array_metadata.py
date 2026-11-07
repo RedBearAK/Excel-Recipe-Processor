@@ -18,7 +18,7 @@ an Excel-authored workbook (and byte-identical to what xlsxwriter produces):
        <f t="array" ref="AV2">            (in xl/worksheets/sheetN.xml)
     2. An xl/metadata.xml part holds the XLDAPR record declaring
        fDynamic="1" - "this array formula is the DYNAMIC kind, not
-       legacy CSE"; without it, t="array" alone renders as {braces}
+       legacy CSE"; without it, t="array" alone renders as {{braces}}
     3. [Content_Types].xml and xl/_rels/workbook.xml.rels register the part
 
 All three travel together. This module applies them to a finished xlsx -
@@ -38,7 +38,7 @@ extend the vocabulary per call.
 
 COMPATIBILITY NOTE
 
-Pre-2019 Excel shows marked cells as legacy {CSE} formulas - Microsoft's
+Pre-2019 Excel shows marked cells as legacy {{CSE}} formulas - Microsoft's
 intended graceful degradation. Results are unchanged either way.
 """
 
@@ -414,7 +414,7 @@ def _mark_sheet_cells(sheet_bytes: bytes, detection_rgx, injected_ranges) -> tup
         new_open_tag = open_tag[:-1] + ' cm="1">'
 
         if 't="array"' in f_open:
-            # Already an array formula (legacy CSE, showing {braces});
+            # Already an array formula (legacy CSE, showing {{braces}});
             # adding cm completes it into a dynamic-array formula.
             new_f_open = f_open
             sheet_report['cells_completed'] += 1

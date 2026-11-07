@@ -247,7 +247,7 @@ recipe:
   - # Step 1: Import address data
     step_description: "Import customer addresses"
     processor_type: "import_file"
-    input_file: "data/addresses_{import_date}.xlsx"
+    input_file: "data/addresses_{{import_date}}.xlsx"
     save_to_stage: "stg_raw_addresses"
 
   - # Step 2: Split full address into components

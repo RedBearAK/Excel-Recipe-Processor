@@ -403,7 +403,7 @@ def test_variable_substitution():
     try:
         step_config = {
             'processor_type': 'format_excel',
-            'target_file': test_file,  # In real usage this might be "{date}_report.xlsx"
+            'target_file': test_file,  # In real usage this might be "{{date}}_report.xlsx"
             'formatting': [{
                 'sheet_names': ['?sheet_001?'],
                 'auto_fit_columns': True
@@ -445,7 +445,7 @@ def test_variable_substitution_real():
             # Configure processor with variable template
             step_config = {
                 'processor_type': 'format_excel',
-                'target_file': str(temp_path / "{date}_test_report.xlsx"),
+                'target_file': str(temp_path / "{{date}}_test_report.xlsx"),
                 'formatting': [{
                     'sheet_names': ['?sheet_001?'],
                     'auto_fit_columns': True,

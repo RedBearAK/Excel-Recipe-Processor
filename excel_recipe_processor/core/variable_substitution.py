@@ -5,10 +5,15 @@ excel_recipe_processor/core/variable_substitution.py
 
 Handles dynamic variable replacement in filenames and other strings
 using date/time variables, file-based variables, and custom variables.
-Now supports structured data types with explicit type declarations.
+Supports structured data types with explicit type declarations.
+
+Placeholders are written with DOUBLED braces - {{name}}, {{str:name}},
+{{list_str:name}}, {{date:YYYYMMDD}}, {{col:Header}} - since 2026-11-02;
+the grammar and the reasons live in variable_substitution_rgx.py. A
+single brace is ordinary text, and the retired single-brace token is
+refused with the doubled form named.
 """
 
-import re
 import logging
 
 from pathlib import Path
@@ -18,14 +23,37 @@ from typing import Any
 from excel_recipe_processor.core.variable_substitution_rgx import (
     BRACKETED_TYPE_COMPLETE_RGX,
     BRACKETED_TYPE_DANGLING_RGX,
+    COLUMN_PLACEHOLDER_RGX,
+    FORMATTED_VARIABLE_RGX,
+    MISMATCHED_CLOSE_RGX,
+    MISMATCHED_OPEN_RGX,
+    PADDED_TOKEN_RGX,
+    RETIRED_SINGLE_BRACE_RGX,
+    SIMPLE_VARIABLE_RGX,
+    TOKEN_CLOSE,
+    TOKEN_OPEN,
+    TYPED_VARIABLE_RGX,
+    retired_form_message,
 )
 
 
 logger = logging.getLogger(__name__)
 
 
+def _tok(*parts) -> str:
+    """Spell a placeholder in the live syntax for a message: _tok('str', 'x') -> '{{str:x}}'."""
+    return TOKEN_OPEN + ':'.join(parts) + TOKEN_CLOSE
+
+
 class VariableSubstitutionError(Exception):
     """Raised when variable substitution fails."""
+
+
+class RetiredPlaceholderSyntaxError(VariableSubstitutionError):
+    """The pre-2026-11-02 single-brace placeholder was found. A subclass
+    so generic handlers still see a substitution error, but its OWN type
+    so a path that tolerates a substitution failure (forward references
+    between settings variables, say) can catch it first and refuse."""
     pass
 
 
@@ -35,8 +63,8 @@ class VariableSubstitution:
     
     Supports:
     - Date/time variables, file-based variables, and custom variables
-    - String substitution: {variable} (backwards compatible)
-    - Typed substitution: {type:variable} for lists, dicts, etc.
+    - String substitution: {{variable}} (backwards compatible)
+    - Typed substitution: {{type:variable}} for lists, dicts, etc.
     """
     
     # Supported types for structured variables. Bare 'list' and bare
@@ -133,12 +161,12 @@ class VariableSubstitution:
         Substitute variables in a template string (string output only).
         
         Supports:
-        - {variable} - untyped (assumes string, backwards compatible)
-        - {str:variable} - explicit string
+        - {{variable}} - untyped (assumes string, backwards compatible)
+        - {{str:variable}} - explicit string
         - Other types will raise error in string context
         
         Args:
-            template: Template string with {variable} placeholders
+            template: Template string with {{variable}} placeholders
             
         Returns:
             String with variables substituted
@@ -149,26 +177,32 @@ class VariableSubstitution:
         if not isinstance(template, str):
             return template
         
-        if '{' not in template:
-            # No variables to substitute
+        if '{' not in template and '}' not in template:
+            # No placeholder and nothing that could be a mistyped one
             return template
         
         try:
-            # Check for potential typos before processing
+            # Check for potential typos (and the retired single-brace
+            # form) before processing - on ANY brace, not only doubled
             self._detect_variable_syntax_typos(template)
+            if TOKEN_OPEN not in template:
+                # Single braces are ordinary text (2026-11-02)
+                return template
             
-            # Handle typed variables first: {type:variable}
+            # Handle typed variables first: {{type:variable}}
             result = self._substitute_typed_variables_in_string(template)
             
-            # Then handle untyped variables: {variable} (backwards compatible)
+            # Then handle untyped variables: {{variable}}
             result = self._substitute_untyped_variables(result)
             
-            # Finally handle formatted variables: {date:MMDD}
+            # Finally handle formatted variables: {{date:MMDD}}
             result = self._substitute_formatted_variables(result)
             
             logger.debug(f"Variable substitution: '{template}' → '{result}'")
             return result
             
+        except RetiredPlaceholderSyntaxError:
+            raise
         except Exception as e:
             raise VariableSubstitutionError(f"Error substituting variables in '{template}': {e}")
     
@@ -177,7 +211,7 @@ class VariableSubstitution:
         Alias for substitute() method for backward compatibility.
         
         Args:
-            template: Template string with {variable} placeholders
+            template: Template string with {{variable}} placeholders
             
         Returns:
             String with variables substituted
@@ -210,20 +244,23 @@ class VariableSubstitution:
         """
         Substitute variables in a string, returning either string or structure.
         
-        If the entire string is a single typed variable like "{list_str:columns}",
+        If the entire string is a single typed variable like "{{list_str:columns}}",
         return the actual structure. Otherwise, do string substitution.
         """
         if not isinstance(template, str):
             return template
         
+        if '{' not in template and '}' not in template:
+            return template
+
         # Check for potential typos in variable syntax
         self._detect_variable_syntax_typos(template)
         
-        if '{' not in template:
+        if TOKEN_OPEN not in template:
             return template
         
-        # Check if entire string is a single typed variable: "{type:variable}"
-        typed_match = re.fullmatch(r'\{(\w+):(\w+)\}', template)
+        # Check if entire string is a single typed variable: "{{type:variable}}"
+        typed_match = TYPED_VARIABLE_RGX.fullmatch(template)
         if typed_match:
             type_name, var_name = typed_match.groups()
             return self._get_typed_variable_value(type_name, var_name)
@@ -242,7 +279,7 @@ class VariableSubstitution:
             type_name = match.group(1)
             var_name = match.group(2)
             
-            # Skip formatted variables like {date:format} and {time:format}
+            # Skip formatted variables like {{date:format}} and {{time:format}}
             if type_name in ['date', 'time']:
                 return match.group(0)  # Return unchanged, let _substitute_formatted_variables handle it
             
@@ -253,24 +290,23 @@ class VariableSubstitution:
             # Only string type allowed in string context
             if type_name != 'str':
                 raise VariableSubstitutionError(
-                    f"Cannot use {{{type_name}:{var_name}}} in string context. "
-                    f"Only {{str:variable}} is allowed in strings."
+                    f"Cannot use {_tok(type_name, var_name)} in string context. "
+                    f"Only {_tok('str', 'variable')} is allowed in strings."
                 )
             
             # Get variable value and convert to string
             if var_name not in self.custom_variables:
                 available_vars = list(self.custom_variables.keys())
                 raise VariableSubstitutionError(
-                    f"Unknown variable '{var_name}' in {{str:{var_name}}}. "
+                    f"Unknown variable '{var_name}' in {_tok('str', var_name)}. "
                     f"Available variables: {available_vars}"
                 )
             
             value = self.custom_variables[var_name]
             return str(value)
         
-        # Pattern for typed variables: {type:variable}
-        pattern = r'\{(\w+):(\w+)\}'
-        return re.sub(pattern, replace_typed_var, template)
+        # Pattern for typed variables: {{type:variable}}
+        return TYPED_VARIABLE_RGX.sub(replace_typed_var, template)
 
     # def _substitute_untyped_variables(self, template: str) -> str:
     #     """
@@ -280,7 +316,7 @@ class VariableSubstitution:
     #         # Build variable dictionary (string values only for compatibility)
     #         variables = self._build_string_variable_dict()
             
-    #         # Simple variable substitution: {variable}
+    #         # Simple variable substitution: {{variable}}
     #         return template.format(**variables)
             
     #     except KeyError as e:
@@ -294,26 +330,26 @@ class VariableSubstitution:
     def _substitute_untyped_variables(self, template: str) -> str:
         """
         Substitute untyped variables (backwards compatible string substitution).
-        Only handles simple {variable} patterns, not {variable:format} patterns.
+        Only handles simple {{variable}} patterns, not {{variable:format}} patterns.
         """
         try:
             # Build variable dictionary (string values only for compatibility)
             variables = self._build_string_variable_dict()
             
-            # Use regex to find and replace only simple variables {variable}
-            # Exclude patterns that contain colons like {date:YYYY} 
+            # Use regex to find and replace only simple variables {{variable}}
+            # Exclude patterns that contain colons like {{date:YYYY}} 
             def replace_simple_variable(match):
                 var_name = match.group(1)
                 full_match = match.group(0)
                 
                 # A colon INSIDE the braces marks a typed or formatted
-                # reference ({int:name}, {date:YYYY}), which other passes
+                # reference ({{int:name}}, {{date:YYYY}}), which other passes
                 # own; the simple pattern cannot match one anyway, so this
                 # is only a guard. A colon AFTER the closing brace is just
-                # the next character - "{start}:{end}" is two variables
+                # the next character - "{{start}}:{{end}}" is two variables
                 # around an A1 range separator - and used to be skipped
                 # here as if it were part of a format, which half-substituted
-                # the string ("{x}:{y}" -> "{x}:2", 2026-09-10).
+                # the string ("{{x}}:{{y}}" -> "{{x}}:2", 2026-09-10).
                 if ':' in full_match:
                     return full_match
                     
@@ -324,9 +360,8 @@ class VariableSubstitution:
                     # Variable not found - leave unchanged for error handling
                     return full_match
             
-            # Pattern matches {word} but not {word:anything}
-            simple_pattern = r'\{([a-zA-Z_]\w*)\}'
-            result = re.sub(simple_pattern, replace_simple_variable, template)
+            # Pattern matches {{word}} but not {{word:anything}}
+            result = SIMPLE_VARIABLE_RGX.sub(replace_simple_variable, template)
             
             return result
             
@@ -353,38 +388,38 @@ class VariableSubstitution:
         # every structural reference declares its typing, even 'any'.
         if type_name == 'list':
             raise VariableSubstitutionError(
-                f"Bare {{list:{var_name}}} is retired (2026-08-17): "
-                f"declare the member typing - {{list_int:{var_name}}}, "
-                f"{{list_float:{var_name}}}, {{list_str:{var_name}}} "
+                f"Bare {_tok('list', var_name)} is retired (2026-08-17): "
+                f"declare the member typing - {_tok('list_int', var_name)}, "
+                f"{_tok('list_float', var_name)}, {_tok('list_str', var_name)} "
                 f"(members converted, loudly on failure), or "
-                f"{{list_any:{var_name}}} for intentionally mixed or "
+                f"{_tok('list_any', var_name)} for intentionally mixed or "
                 f"untyped members."
             )
         if type_name == 'dict':
             raise VariableSubstitutionError(
-                f"Bare {{dict:{var_name}}} is retired (2026-08-17): "
-                f"declare the value typing - {{dict_int:{var_name}}}, "
-                f"{{dict_float:{var_name}}}, {{dict_str:{var_name}}} "
+                f"Bare {_tok('dict', var_name)} is retired (2026-08-17): "
+                f"declare the value typing - {_tok('dict_int', var_name)}, "
+                f"{_tok('dict_float', var_name)}, {_tok('dict_str', var_name)} "
                 f"(values converted, loudly on failure; keys always "
-                f"normalized to str), or {{dict_any:{var_name}}} for "
+                f"normalized to str), or {_tok('dict_any', var_name)} for "
                 f"intentionally mixed, untyped, or nested values."
             )
 
-        # RESERVED DOWNSTREAM NAMESPACES (2026-08-26): {col:Name} is
+        # RESERVED DOWNSTREAM NAMESPACES (2026-08-26): {{col:Name}} is
         # the uniform column-reference grammar consumed by processors
         # (expression engine, conditional_format, inject_formulas) -
         # the variable pass leaves it verbatim for them. Single-word
-        # names ({col:Carrier}) previously matched the typed-variable
+        # names ({{col:Carrier}}) previously matched the typed-variable
         # pattern here and died as an unsupported type, while
         # multi-word names slipped through on a space technicality.
         if type_name in self.RESERVED_PASSTHROUGH_NAMESPACES:
-            return '{' + type_name + ':' + var_name + '}'
+            return _tok(type_name, var_name)
 
         # Validate type is supported
         if type_name not in self.SUPPORTED_TYPES:
             supported_types = list(self.SUPPORTED_TYPES.keys())
             raise VariableSubstitutionError(
-                f"Unsupported type '{type_name}' in {{{type_name}:{var_name}}}. "
+                f"Unsupported type '{type_name}' in {_tok(type_name, var_name)}. "
                 f"Supported types: {supported_types}"
             )
         
@@ -392,7 +427,7 @@ class VariableSubstitution:
         if var_name not in self.custom_variables:
             available_vars = list(self.custom_variables.keys())
             raise VariableSubstitutionError(
-                f"Unknown variable '{var_name}' in {{{type_name}:{var_name}}}. "
+                f"Unknown variable '{var_name}' in {_tok(type_name, var_name)}. "
                 f"Available variables: {available_vars}"
             )
         
@@ -408,7 +443,7 @@ class VariableSubstitution:
             if not isinstance(value, list):
                 raise VariableSubstitutionError(
                     f"Variable '{var_name}' is {type(value).__name__} "
-                    f"but {{{type_name}:{var_name}}} expects a list"
+                    f"but {_tok(type_name, var_name)} expects a list"
                 )
             member_type = self.LIST_MEMBER_TYPES[type_name]
             if member_type is None:
@@ -423,7 +458,7 @@ class VariableSubstitution:
                         f"Cannot convert member {index} of variable "
                         f"'{var_name}' (value: {member!r}) to "
                         f"{member_type.__name__} for "
-                        f"{{{type_name}:{var_name}}}"
+                        f"{_tok(type_name, var_name)}"
                     )
             return converted_members
         elif type_name in self.DICT_VALUE_TYPES:
@@ -431,7 +466,7 @@ class VariableSubstitution:
             if not isinstance(value, dict):
                 raise VariableSubstitutionError(
                     f"Variable '{var_name}' is {type(value).__name__} "
-                    f"but {{{type_name}:{var_name}}} expects a dict"
+                    f"but {_tok(type_name, var_name)} expects a dict"
                 )
             value_type = self.DICT_VALUE_TYPES[type_name]
             if value_type is None:
@@ -447,7 +482,7 @@ class VariableSubstitution:
                         f"Cannot convert value for key {str(key)!r} of "
                         f"variable '{var_name}' (value: {member!r}) to "
                         f"{value_type.__name__} for "
-                        f"{{{type_name}:{var_name}}}"
+                        f"{_tok(type_name, var_name)}"
                     )
             return converted_mapping
         elif type_name in ['int', 'float', 'bool']:
@@ -466,93 +501,88 @@ class VariableSubstitution:
             except (ValueError, TypeError):
                 raise VariableSubstitutionError(
                     f"Cannot convert variable '{var_name}' (value: {value}) "
-                    f"to {type_name} for {{{type_name}:{var_name}}}"
+                    f"to {type_name} for {_tok(type_name, var_name)}"
                 )
         
         return value
 
     def _detect_variable_syntax_typos(self, template: str) -> None:
         """
-        Detect potential typos in variable syntax using simple checks.
-        
-        Args:
-            template: Template string to check for typos
-            
+        Refuse the shapes a mistyped placeholder takes. Runs on any string
+        with a brace in it, so the RETIRED single-brace form is caught
+        even where no live token exists.
+
         Raises:
             VariableSubstitutionError: If likely typos are detected
         """
-        # Bracketed member typing like {list[int]:name} was considered
+        # The pre-2026-11-02 delimiter: single braces around name,
+        # type:name, date:FMT or col:Header. Fatal, naming the doubled form, so a recipe the
+        # sweep missed stops at --validate instead of passing the token
+        # through as literal text.
+        retired = RETIRED_SINGLE_BRACE_RGX.search(template)
+        if retired:
+            raise RetiredPlaceholderSyntaxError(retired_form_message(retired))
+
+        # Bracketed member typing like {{list[int]:name}} was considered
         # and rejected in favor of the underscore family; the syntax is
         # intuitive enough to reach for accidentally, and unimplemented
         # it would pass through as LITERAL TEXT - so it fails loud here
         # with the real vocabulary. The dangling pattern also catches
-        # half-typed forms like {list[int:name}.
+        # half-typed forms like {{list[int:name}}.
         if (BRACKETED_TYPE_COMPLETE_RGX.search(template)
                 or BRACKETED_TYPE_DANGLING_RGX.search(template)):
             raise VariableSubstitutionError(
                 f"Bracketed type syntax in {template!r} is not ERP "
                 f"vocabulary. Use the underscore families instead: "
-                f"{{list_int:name}}, {{list_float:name}}, "
-                f"{{list_str:name}}, {{list_any:name}} for lists; "
-                f"{{dict_int:name}}, {{dict_float:name}}, "
-                f"{{dict_str:name}}, {{dict_any:name}} for dicts "
+                f"{_tok('list_int', 'name')}, {_tok('list_float', 'name')}, "
+                f"{_tok('list_str', 'name')}, {_tok('list_any', 'name')} for lists; "
+                f"{_tok('dict_int', 'name')}, {_tok('dict_float', 'name')}, "
+                f"{_tok('dict_str', 'name')}, {_tok('dict_any', 'name')} for dicts "
                 f"(values typed; keys always normalized to str)."
             )
 
-        # Simple check 1: If we see "word:word}" check if there's a "{" to the left
-        if ':' in template and '}' in template:
-            for i in range(len(template)):
-                if template[i] == ':':
-                    # An A1 range between two placeholders -
-                    # "{col:Start}2:{col:End}5" - has a colon that is
-                    # followed by the NEXT placeholder's opening brace.
-                    # That colon is the range separator, not a half-typed
-                    # variable, and the check must not read the earlier
-                    # "}" as proof of a missing "{" (2026-09-10).
-                    if template[i + 1:].lstrip().startswith('{'):
-                        continue
-                    # Look for closing brace after this colon
-                    for j in range(i + 1, len(template)):
-                        if template[j] == '}':
-                            # Found colon followed by closing brace
-                            # Check if there's an opening brace before the colon
-                            has_opening_brace = False
-                            for k in range(i - 1, -1, -1):
-                                if template[k] == '{':
-                                    has_opening_brace = True
-                                    break
-                                if template[k] == '}':
-                                    # Hit another closing brace first, stop looking
-                                    break
-                            
-                            if not has_opening_brace:
-                                # Extract the problematic part for error message
-                                start = max(0, i - 10)
-                                end = min(len(template), j + 1)
-                                problem_part = template[start:end]
-                                raise VariableSubstitutionError(
-                                    f"Missing opening brace: found '{problem_part}' - "
-                                    f"add '{{' before the colon"
-                                )
-                            break  # Found matching pattern, move to next colon
-        
-        # Simple check 2: Count braces to make sure they're balanced
-        open_count = template.count('{')
-        close_count = template.count('}')
+        if TOKEN_OPEN not in template and TOKEN_CLOSE not in template:
+            # Only single braces, none in a retired shape: ordinary text
+            # (a regex quantifier, an Excel array constant, a dict)
+            return
+
+        # One side doubled, the other single
+        mismatch = MISMATCHED_OPEN_RGX.search(template) or MISMATCHED_CLOSE_RGX.search(template)
+        if mismatch:
+            raise VariableSubstitutionError(
+                f"Mismatched placeholder braces {mismatch.group(0)!r}: both sides are "
+                f"doubled - {TOKEN_OPEN}name{TOKEN_CLOSE}"
+            )
+
+        # Every {{ has its }}
+        open_count = template.count(TOKEN_OPEN)
+        close_count = template.count(TOKEN_CLOSE)
         if open_count != close_count:
             raise VariableSubstitutionError(
-                f"Unbalanced braces: {open_count} opening, {close_count} closing"
+                f"Unbalanced placeholder braces in {template!r}: {open_count} opening "
+                f"{TOKEN_OPEN}, {close_count} closing {TOKEN_CLOSE}"
             )
-        
-        # Simple check 3: Look for obviously empty patterns
-        if '{:' in template:
+
+        # {{ name }} is not a token: the name is taken verbatim, so padding
+        # would be part of it, and the whole thing would pass through as text
+        padded = PADDED_TOKEN_RGX.search(template)
+        if padded:
             raise VariableSubstitutionError(
-                f"Empty type name: found '{{:' - specify type like '{{list_str:variable}}'"
+                f"Whitespace inside the placeholder braces in {template!r}: write "
+                f"{TOKEN_OPEN}name{TOKEN_CLOSE} with no padding (the text between the "
+                f"braces is taken verbatim)"
             )
-        
-        if ':}' in template:
+
+        # Obviously empty pieces
+        if TOKEN_OPEN + ':' in template:
             raise VariableSubstitutionError(
-                f"Empty variable name: found ':}}' - specify variable like '{{type:variable}}'"
+                f"Empty type name: found '{TOKEN_OPEN}:' - specify the type like "
+                f"'{_tok('list_str', 'variable')}'"
+            )
+        if ':' + TOKEN_CLOSE in template:
+            raise VariableSubstitutionError(
+                f"Empty variable name: found ':{TOKEN_CLOSE}' - specify the variable like "
+                f"'{_tok('type', 'variable')}'"
             )
 
     def _build_base_variables(self) -> dict:
@@ -630,9 +660,7 @@ class VariableSubstitution:
         return variables
 
     def _substitute_formatted_variables(self, text: str) -> str:
-        """Handle formatted variables like {date:MMDD}."""
-        # Pattern to match {variable:format}
-        pattern = r'\{(\w+):([^}]+)\}'
+        """Handle formatted variables like {{date:MMDD}}."""
         
         def replace_formatted(match):
             var_name = match.group(1)
@@ -645,19 +673,33 @@ class VariableSubstitution:
                 variables = self._build_string_variable_dict()
                 return variables.get(var_name, match.group(0))
         
-        return re.sub(pattern, replace_formatted, text)
+        return FORMATTED_VARIABLE_RGX.sub(replace_formatted, text)
 
     def _format_date_or_time(self, format_spec: str) -> str:
         """Format date using master format definitions."""
         if format_spec in self.DATE_TIME_FORMATS:
             return self.now.strftime(self.DATE_TIME_FORMATS[format_spec])
         
-        # Fallback to direct strftime format
+        # Fallback to direct strftime format. A bad format is a recipe
+        # defect, and until 2026-11-02 it reached the output NAME: strftime
+        # on glibc/macOS does not raise on an unknown directive, it passes
+        # it through ('%Y-%m-%Q' -> '2026-11-%Q'), and a spec with no
+        # directive at all ('YYYY-MM' misspelled as 'YYY-MM') comes back
+        # verbatim - so the warn-and-return-the-spec branch below it was
+        # nearly dead and the file got a plausible-looking wrong name. The
+        # test is on the RESULT: a '%' surviving, or nothing substituted.
         try:
-            return self.now.strftime(format_spec)
-        except ValueError:
-            logger.warning(f"Invalid date format: {format_spec}")
-            return format_spec
+            rendered = self.now.strftime(format_spec)
+        except ValueError as error:
+            raise VariableSubstitutionError(
+                f"Invalid date/time format '{format_spec}': {error}"
+            )
+        if '%' in rendered or rendered == format_spec:
+            raise VariableSubstitutionError(
+                f"Date/time format '{format_spec}' did not render (got '{rendered}'). Use one "
+                f"of {', '.join(sorted(self.DATE_TIME_FORMATS))} or a valid strftime format"
+            )
+        return rendered
 
     def validate_template(self, template: str) -> list:
         """
@@ -669,33 +711,33 @@ class VariableSubstitution:
         Returns:
             List of unknown variable names (empty if all variables are valid)
         """
-        if not isinstance(template, str) or '{' not in template:
+        if not isinstance(template, str) or TOKEN_OPEN not in template:
             return []
         
         available_vars = set(self._build_variable_dict().keys())
         unknown_vars = []
         
-        # Find typed variables: {type:variable}
-        typed_vars = re.findall(r'\{(\w+):(\w+)\}', template)
+        # Find typed variables: {{type:variable}}
+        typed_vars = TYPED_VARIABLE_RGX.findall(template)
         for type_name, var_name in typed_vars:
             if type_name not in self.SUPPORTED_TYPES:
                 unknown_vars.append(f"unsupported_type:{type_name}")
             elif var_name not in available_vars:
                 unknown_vars.append(var_name)
         
-        # Find simple variables: {variable} (but exclude typed ones we already processed)
-        simple_vars = re.findall(r'\{(\w+)\}', template)
+        # Find simple variables: {{variable}} (but exclude typed ones we already processed)
+        simple_vars = SIMPLE_VARIABLE_RGX.findall(template)
         for var_name in simple_vars:
             # Skip if this variable was already processed as part of a typed variable
-            is_typed_var = any(f'{{{t}:{var_name}}}' in template for t in self.SUPPORTED_TYPES.keys())
+            is_typed_var = any(_tok(t, var_name) in template for t in self.SUPPORTED_TYPES.keys())
             if not is_typed_var and var_name not in available_vars:
-                # Check if it's a formatted variable like {date:MMDD}
-                is_formatted = f'{{{var_name}:' in template
+                # Check if it's a formatted variable like {{date:MMDD}}
+                is_formatted = (TOKEN_OPEN + var_name + ':') in template
                 if not is_formatted:
                     unknown_vars.append(var_name)
         
-        # Also check for formatted variables: {variable:format}
-        formatted_vars = re.findall(r'\{(\w+):[^}]+\}', template)
+        # Also check for formatted variables: {{variable:format}}
+        formatted_vars = [name for name, _spec in FORMATTED_VARIABLE_RGX.findall(template)]
         for var_name in formatted_vars:
             if var_name not in available_vars and var_name not in ['date', 'time']:
                 unknown_vars.append(var_name)
@@ -712,7 +754,7 @@ class VariableSubstitution:
         Returns:
             True if text contains variables
         """
-        return isinstance(text, str) and '{' in text and '}' in text
+        return isinstance(text, str) and TOKEN_OPEN in text and TOKEN_CLOSE in text
     
     def add_custom_variable(self, name: str, value: Any) -> None:
         """
@@ -844,21 +886,21 @@ def get_variable_documentation() -> dict:
 
     return {
         'string_variables': {
-            'untyped_syntax': '{variable}',
-            'typed_syntax': '{str:variable}',
+            'untyped_syntax': '{{variable}}',
+            'typed_syntax': '{{str:variable}}',
             'description': 'Backwards compatible string substitution'
         },
         'structured_variables': {
-            'list_syntax': '{list_int:variable} / {list_float:variable} / '
-                           '{list_str:variable} / {list_any:variable}',
-            'dict_syntax': '{dict_int:variable} / {dict_float:variable} / '
-                           '{dict_str:variable} / {dict_any:variable}',
+            'list_syntax': '{{list_int:variable}} / {{list_float:variable}} / '
+                           '{{list_str:variable}} / {{list_any:variable}}',
+            'dict_syntax': '{{dict_int:variable}} / {{dict_float:variable}} / '
+                           '{{dict_str:variable}} / {{dict_any:variable}}',
             'description': 'Direct structure replacement (lists, dicts)'
         },
         'convertible_variables': {
-            'int_syntax': '{int:variable}',
-            'float_syntax': '{float:variable}', 
-            'bool_syntax': '{bool:variable}',
+            'int_syntax': '{{int:variable}}',
+            'float_syntax': '{{float:variable}}', 
+            'bool_syntax': '{{bool:variable}}',
             'description': 'Type conversion from string or compatible types'
         },
 
@@ -869,10 +911,10 @@ def get_variable_documentation() -> dict:
         ] + available_formats,  # ← Auto-generated from master list!
 
         'formatted_variables': {
-            'description': 'Both {date:format} and {time:format} use the same format specifications',
-            'date_formats': [f'{{date:{fmt}}}' for fmt in available_formats],
-            'time_formats': [f'{{time:{fmt}}}' for fmt in available_formats],
-            'examples': ['{date:YYYYMMDD}', '{time:HHMMSS}', '{date:YYYY_MM_DD}']
+            'description': 'Both {{date:format}} and {{time:format}} use the same format specifications',
+            'date_formats': [_tok('date', fmt) for fmt in available_formats],
+            'time_formats': [_tok('time', fmt) for fmt in available_formats],
+            'examples': ['{{date:YYYYMMDD}}', '{{time:HHMMSS}}', '{{date:YYYY_MM_DD}}']
         },
 
         'file_variables': [
@@ -884,12 +926,12 @@ def get_variable_documentation() -> dict:
 
         'examples': {
             'string_usage': {
-                'untyped': 'output_file: "report_{timestamp}.xlsx"',
-                'typed': 'output_file: "{str:filename_template}"'
+                'untyped': 'output_file: "report_{{timestamp}}.xlsx"',
+                'typed': 'output_file: "{{str:filename_template}}"'
             },
             'structure_usage': {
-                'list': 'columns_to_keep: "{list_str:customer_columns}"',
-                'dict': 'lookup_mapping: "{dict_str:status_codes}"'
+                'list': 'columns_to_keep: "{{list_str:customer_columns}}"',
+                'dict': 'lookup_mapping: "{{dict_str:status_codes}}"'
             },
             'mixed_recipe': '''
 settings:
@@ -900,8 +942,8 @@ settings:
 
 recipe:
   - processor_type: "select_columns"
-    columns_to_keep: "{list_str:customer_cols}"
-    output_file: "{str:report_name}_{date}.xlsx"
+    columns_to_keep: "{{list_str:customer_cols}}"
+    output_file: "{{str:report_name}}_{{date}}.xlsx"
             '''
         }
     }

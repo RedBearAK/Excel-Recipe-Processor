@@ -11,7 +11,7 @@ same style (between, duplicates, unique). One spelling per condition;
 Excel's own dialog spellings are refused by the schema (2026-09-04).
 
 Formula rules use the SAME authoring convention as inject_formulas: write
-the formula as if for data row 2, with {col:Header Name} placeholders. Two
+the formula as if for data row 2, with {{col:Header Name}} placeholders. Two
 deliberate differences from injection, both because conditional formatting
 translates one formula across a whole range: placeholders here resolve to
 $-LOCKED columns ($AX2, not AX2) so a row-wise test cannot drift sideways,
@@ -120,7 +120,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             Key('style', 'mapping', schema=style),
             Key('apply_to', 'str', choices=['entire_row']),
             name_list('column_names', description='Target columns for when_* rules'),
-            Key('range', 'str', description='Target range like A2:B99; columns may be named by header, {col:Header}2:{col:Other}5, so the range follows the columns when others are inserted'),
+            Key('range', 'str', description='Target range like A2:B99; columns may be named by header, {{col:Header}}2:{{col:Other}}5, so the range follows the columns when others are inserted'),
             Key('stop_if_true', 'bool', default=False),
         ], at_least_one=[['when_cell', 'when_formula', 'color_scale', 'data_bar']])
         return Schema([
@@ -278,7 +278,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
         worksheet = workbook[sheet_name]
 
         headers = self._build_header_map(worksheet)
-        self._worksheet = worksheet          # for {col:} in literal ranges
+        self._worksheet = worksheet          # for {{col:}} in literal ranges
         last_row = worksheet.max_row
         last_col_letter = get_column_letter(worksheet.max_column)
 
@@ -414,7 +414,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
     # ------------------------------------------------------------------
 
     def _prepare_formula(self, formula_text: str, headers, context) -> str:
-        """{col:} placeholders to $-locked letters, then _xlfn prefixes; no leading =."""
+        """{{col:}} placeholders to $-locked letters, then _xlfn prefixes; no leading =."""
         def substitute(match):
             header_name = match.group(1).strip()
             if header_name not in headers:
@@ -444,7 +444,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
             return ' '.join(ranges)
 
         # A literal range may name its columns by header - "{col:Filter:
-        # SALE TYPE1}2:{col:Filter: Process Year}5" - so it follows the
+        # SALE TYPE1}2:{{col:Filter: Process Year}}5" - so it follows the
         # columns when others are inserted to the left (2026-09-10)
         return self._resolve_range(str(rule['range']), context)
 
@@ -549,7 +549,7 @@ class ConditionalFormatProcessor(FileOpsBaseProcessor):
                           'unique in the same style); one spelling per condition',
             'rule_kinds': ['when_formula', 'when_cell', 'color_scale', 'data_bar'],
             'formula_convention': 'same as inject_formulas - write for data row 2 '
-                                  'with {col:Header Name} placeholders - except '
+                                  'with {{col:Header Name}} placeholders - except '
                                   'placeholders resolve $-LOCKED here so row-wise '
                                   'tests cannot drift sideways as Excel translates '
                                   'the rule across its range; modern function names '

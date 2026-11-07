@@ -2,7 +2,7 @@
 # Import retain/discard lists and filter target data accordingly
 
 settings:
-  # output_filename: "filtered_shipments_{date}.xlsx"
+  # output_filename: "filtered_shipments_{{date}}.xlsx"
   create_backup: true
   description: "Filter shipments using retain/discard lists"
 
@@ -51,5 +51,5 @@ recipe:
   # Step 6: Export the final filtered results
   - step_description: "Export filtered shipment data"
     processor_type: "export_file"
-    output_file: "filtered_shipments_{date}.xlsx"
+    output_file: "filtered_shipments_{{date}}.xlsx"
     create_backup: true

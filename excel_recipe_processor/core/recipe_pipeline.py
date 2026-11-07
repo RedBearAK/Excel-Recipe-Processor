@@ -12,7 +12,6 @@ import time
 import pandas as pd
 from excel_recipe_processor.core.log_format import clock, now_stamp
 
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +29,15 @@ from excel_recipe_processor.core.base_processor import (
     registry,
     StepProcessorError,
 )
+from excel_recipe_processor.core.config_schema import ErrorAction, ERROR_ACTION_CHOICES
+from excel_recipe_processor.core.run_log import mirror_print, attach_log_file, discard_early_log_buffer
 from excel_recipe_processor.config.recipe_loader import RecipeLoader, RecipeValidationError
 from excel_recipe_processor.core.stage_inspection import (
     dump_stage_to_file, StageInspectionError
 )
-from excel_recipe_processor.core.variable_substitution import VariableSubstitution
+from excel_recipe_processor.core.variable_substitution import (
+    RetiredPlaceholderSyntaxError, VariableSubstitution,
+)
 from excel_recipe_processor.core.interactive_variables import (
     InteractiveVariablePrompt, InteractiveVariableError
 )
@@ -53,7 +56,7 @@ def count_step_elements(value) -> int:
     format_excel step counts its sheet entries plus each entry's nested
     column_formats rules.
 
-    Known ballpark limits, accepted on purpose: a "{list_str:variable}" string
+    Known ballpark limits, accepted on purpose: a "{{list_str:variable}}" string
     counts as 1 though it may expand to many items, and a step with no
     list content at all reports 0 here (the caller floors it to 1). The
     number is a property of what the author WROTE - stable across data
@@ -71,14 +74,6 @@ def count_recipe_elements(recipe_data: dict) -> int:
     """Sum of per-step elements across the recipe, each step counting at least 1."""
     steps = recipe_data.get('recipe', []) if isinstance(recipe_data, dict) else []
     return sum(max(count_step_elements(step), 1) for step in steps)
-
-
-class ErrorAction(Enum):
-    """Defines possible actions when an error occurs during step execution."""
-    HALT = "halt"                    # Stop processing immediately (default)
-    CONTINUE = "continue"            # Log error but continue to next step
-    LOG_AND_CONTINUE = "log_and_continue"  # Detailed logging then continue
-    SKIP_REMAINING = "skip_remaining"      # Skip all remaining steps but don't raise
 
 
 class RecipePipelineError(Exception):
@@ -162,25 +157,24 @@ class RecipePipeline:
             logger.error(f"❌ Failed to load recipe: {e}")
             raise RecipePipelineError(f"Failed to load recipe: {e}")
     
-    def _parse_error_action(self, action_str: str, context: str) -> ErrorAction:
-        """Parse error action string into ErrorAction enum."""
-        if not isinstance(action_str, str):
-            logger.warning(f"⚠️ Invalid on_error value in {context}: {action_str}. Using 'halt'")
-            return ErrorAction.HALT
-        
-        try:
-            return ErrorAction(action_str.lower())
-        except ValueError:
-            valid_actions = [action.value for action in ErrorAction]
-            logger.warning(f"⚠️ Unknown on_error action '{action_str}' in {context}. "
-                            f"Valid options: {valid_actions}. Using 'halt'")
-            return ErrorAction.HALT
+    def _parse_error_action(self, action_str, context: str) -> ErrorAction:
+        """
+        on_error value -> ErrorAction. A step's on_error is checked by the
+        schema (same choices); settings.on_error only reaches here, so an
+        unknown value is refused rather than quietly run as halt (which it
+        was until 2026-11-02 - a warning, then the wrong policy).
+        """
+        if not isinstance(action_str, str) or action_str.lower() not in ERROR_ACTION_CHOICES:
+            raise RecipePipelineError(
+                f"Unknown on_error value {action_str!r} in {context}; "
+                f"valid: {', '.join(ERROR_ACTION_CHOICES)}"
+            )
+        return ErrorAction(action_str.lower())
     
     def _log_step_separator(self, step_index: int, step_desc: str) -> None:
         """Log a clean separator before each step for better readability."""
         # Add blank line before step (except for first step)
         if step_index >= 0:
-            from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # per-step separator; mirrored to the log file
         
         # # Add START STEP marker
@@ -341,8 +335,6 @@ class RecipePipeline:
                     # Count remaining steps as skipped
                     skipped_steps = len(recipe_steps) - (step_index + 1)
                     break
-        
-        from excel_recipe_processor.core.main import mirror_print
         mirror_print()  # separator; mirrored so the file keeps the spacing
         
         # Generate completion report
@@ -467,7 +459,6 @@ class RecipePipeline:
     def run_complete_recipe(self, recipe_path, cli_variables: dict = None) -> dict:
         """Load recipe, collect variables, and execute with comprehensive error handling."""
         try:
-            from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # separator; buffered for the file's head
             # Load recipe
             logger.info(f"📖 Loading recipe: '{recipe_path}'")
@@ -522,7 +513,7 @@ class RecipePipeline:
 
             # The log-file decision (2026-09-04): every run writes a log.
             # A recipe log_file template attaches HERE because paths like
-            # {output_dir}/{output_basename}_log.txt need the external
+            # {{output_dir}}/{{output_basename}}_log.txt need the external
             # variables just resolved above; no directive means the
             # platform default location (core/default_log_path.py); false
             # opts out. The buffered startup lines become the file's head.
@@ -538,16 +529,13 @@ class RecipePipeline:
             except ValueError as error:
                 raise RecipePipelineError(str(error))
             if resolved_log_path is not None:
-                from excel_recipe_processor.core.main import attach_log_file
                 attach_log_file(str(resolved_log_path), source='recipe')
             else:
                 # Opted out, and any CLI attach already consumed the
                 # buffer - drop what remains
-                from excel_recipe_processor.core.main import discard_early_log_buffer
                 discard_early_log_buffer()
 
             # Execute recipe
-            from excel_recipe_processor.core.main import mirror_print
             mirror_print()  # separator; mirrored so the file keeps the spacing
             logger.info("⚡ Starting recipe execution...")
             return self.execute_recipe()
@@ -569,7 +557,7 @@ class RecipePipeline:
         unresolved_vars = []
         
         for name, value in available_vars.items():
-            if isinstance(value, str) and '{' in value and '}' in value:
+            if isinstance(value, str) and '{{' in value and '}}' in value:
                 # This variable still contains unresolved references
                 unresolved_vars.append(f"{name} = '{value}'")
         
@@ -633,6 +621,10 @@ class RecipePipeline:
                 try:
                     resolved_value = self.variable_substitution.substitute(template_value)
                     self.variable_substitution.add_custom_variable(name, resolved_value)
+                except RetiredPlaceholderSyntaxError as e:
+                    # A forward reference may legitimately fail on this pass
+                    # (the warning below); the retired delimiter never may
+                    raise RecipePipelineError(f"settings.variables.{name}: {e}")
                 except Exception as e:
                     logger.warning(f"Failed to re-resolve variable '{name}': {e}")
     
@@ -668,8 +660,8 @@ class RecipePipeline:
             
         # Create variable system.
         #
-        # Passing the recipe path is what supplies {recipe_dir} and
-        # {recipe_parent_dir}, which let a recipe reference its own siblings
+        # Passing the recipe path is what supplies {{recipe_dir}} and
+        # {{recipe_parent_dir}}, which let a recipe reference its own siblings
         # regardless of the directory the command was run from. Without it those
         # variables never resolve and the run fails at load with "Unresolved
         # variables detected" - correct, but only after the user wonders why.
@@ -737,7 +729,7 @@ class RecipePipeline:
             # Fail LOUD (2026-08-17). The old warn-and-continue returned
             # the UNSUBSTITUTED config, so the step then failed on a
             # misleading shape complaint (e.g. verify_columns seeing the
-            # literal '{list:...}' string instead of a list) while the
+            # literal '{{list:...}}' string instead of a list) while the
             # real, guided error - a retired reference, an unconvertible
             # member, a typo'd template - scrolled past as a warning.
             raise StepProcessorError(

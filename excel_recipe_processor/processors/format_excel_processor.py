@@ -122,7 +122,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
             Key('whole_column', 'bool', default=False,
                 description='Column-dimension style, for cells Excel creates at calculation time'),
         ], at_least_one=[pair_group])
-        cell_rule = Schema([Key('cells', 'list', item_kind='str', required=True, description='A1-style cells or ranges, e.g. ["B2"] or ["A4:D4"]; columns may be named by header, "{col:Header}2:{col:Other}5", so the rule follows the columns when others are inserted')]
+        cell_rule = Schema([Key('cells', 'list', item_kind='str', required=True, description='A1-style cells or ranges, e.g. ["B2"] or ["A4:D4"]; columns may be named by header, "{{col:Header}}2:{{col:Other}}5", so the rule follows the columns when others are inserted')]
                            + style_keys())
 
         def sheet_option_keys():
@@ -809,7 +809,7 @@ class FormatExcelProcessor(FileOpsBaseProcessor):
 
     @staticmethod
     def _resolve_cell_placeholders(rules: list, worksheet, header_row: int, sheet_name: str) -> list:
-        """cell_formats rules with any {col:Header} in their 'cells' resolved
+        """cell_formats rules with any {{col:Header}} in their 'cells' resolved
         to letters from this sheet's header row, so a cell rule follows
         its column when others are inserted (2026-09-10). Rules are
         copied; the recipe's config is not mutated."""

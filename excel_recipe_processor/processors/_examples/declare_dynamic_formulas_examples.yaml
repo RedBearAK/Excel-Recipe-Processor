@@ -2,7 +2,7 @@
 
 description: >
   Declare dynamic-era formulas in a finished xlsx so Excel shows them without
-  the implicit-intersection @ (and without legacy {CSE} braces). Adds the
+  the implicit-intersection @ (and without legacy {{CSE}} braces). Adds the
   cm="1" cell markers plus the XLDAPR xl/metadata.xml part - exactly what
   Excel writes for the same formula typed by hand. A file operation on a
   CLOSED file; for a recipe's own outputs, prefer the recipe-wide settings
@@ -77,7 +77,7 @@ parameter_details:
     supports_variables: true
     examples:
       - "reports/quarterly_report.xlsx"
-      - "{output_dir}/{output_basename}.xlsx"
+      - "{{output_dir}}/{{output_basename}}.xlsx"
 
   output_file:
     type: string

@@ -88,7 +88,7 @@ Profile a stage and a disk sheet side by side, with width clamps
 settings:
   description: "Profile a stage in memory and a reference sheet on disk"
   variables:
-    lookup_dir: "{recipe_parent_dir}/lookup_source_files"
+    lookup_dir: "{{recipe_parent_dir}}/lookup_source_files"
   stages:
     - stage_name: "stg_main_data"
       description: "Processed data"
@@ -104,7 +104,7 @@ recipe:
     # REQ - One entry per input; the disk entry names its sheet
     sheets:
       - source_stage: "stg_main_data"
-      - input_file: "{lookup_dir}/reference.xlsx"
+      - input_file: "{{lookup_dir}}/reference.xlsx"
         # OPT - Tab to profile; first sheet when omitted
         sheet_name: "Rates"
     # REQ - Stage receiving the profile frame
@@ -134,7 +134,7 @@ settings:
 recipe:
   - step_description: "View tab inherits the seed sheet's widths"
     processor_type: "format_excel"
-    target_file: "{output_dir}/output.xlsx"
+    target_file: "{{output_dir}}/output.xlsx"
     formatting:
       - sheet_names: ["Exp_View"]
         # Reads the profile stage by COLUMN NAME

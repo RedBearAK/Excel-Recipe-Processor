@@ -43,7 +43,7 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
 - `overwrite`: bool; default false
 - when `calculation_type` = `expression`:
   - `calculation`: mapping; REQUIRED
-    - `pandas_formula`: str - pandas text with {col:Name} references
+    - `pandas_formula`: str - pandas text with {{col:Name}} references
     - `formula_components`: list of any - Structured column / operator / value parts
     - at least one of: `pandas_formula`, `formula_components`
 - when `calculation_type` = `first_match`:
@@ -719,7 +719,7 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
 - `sheets_to_receive_formulas`: list_of_mappings
   - `sheet_names`: list of str; REQUIRED - Tab names or ?sheet_NNN? tokens
   - `formulas`: list_of_mappings; REQUIRED
-    - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
+    - `excel_formula`: str; REQUIRED - Excel formula text; {{col:Header}} resolves to that column letter on the sheet
     - `cell`: str - Target cell like B2
     - `range`: str - Target range like B2:B100
     - `fill_down`: bool; default false - Cell target: fill down the data extent
@@ -727,7 +727,7 @@ Convention: An evaluated string never sits under a bare key: pandas_formula, pan
     - at least one of: `cell`, `range`
 - `sheet_names`: any - awaken mode: a list of tabs, "all", or omit for the active sheet
 - `formulas`: list_of_mappings - awaken / single-sheet form
-  - `excel_formula`: str; REQUIRED - Excel formula text; {col:Header} resolves to that column letter on the sheet
+  - `excel_formula`: str; REQUIRED - Excel formula text; {{col:Header}} resolves to that column letter on the sheet
   - `cell`: str - Target cell like B2
   - `range`: str - Target range like B2:B100
   - `fill_down`: bool; default false - Cell target: fill down the data extent

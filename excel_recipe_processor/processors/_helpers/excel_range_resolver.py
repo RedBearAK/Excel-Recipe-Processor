@@ -114,7 +114,7 @@ class ColumnVocabularyError(Exception):
 def resolve_column_placeholders(text: str, worksheet, header_row: int = 1,
                                 context: str = '', lock: bool = False) -> str:
     """
-    Replace every {col:Header Name} in an A1 range string with that
+    Replace every {{col:Header Name}} in an A1 range string with that
     header's column letter, read from the worksheet at apply time.
 
     This is what lets a formatting or validation directive follow a
@@ -123,11 +123,11 @@ def resolve_column_placeholders(text: str, worksheet, header_row: int = 1,
     columns joined the spill, because their conditional-format ranges,
     cell formats and dropdown validations all said "N2:P5" literally.
     With placeholders they say
-    "{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5" and stay
+    "{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5" and stay
     right whatever lands to their left.
 
     Args:
-        text:       "{col:Header}2:{col:Other}5", "{col:Header}2", or plain
+        text:       "{{col:Header}}2:{{col:Other}}5", "{{col:Header}}2", or plain
                     A1 text (returned unchanged)
         worksheet:  openpyxl worksheet whose header row names the columns
         header_row: 1-based header row
@@ -140,7 +140,9 @@ def resolve_column_placeholders(text: str, worksheet, header_row: int = 1,
         ExcelRangeResolverError: a named header is not in the header row,
         or appears more than once
     """
-    if '{col:' not in text:
+    if '{{col:' not in text:
+        # The retired single-brace form is refused by the variable pass
+        # before any step config reaches here; plain text passes through
         return text
 
     def substitute(match):

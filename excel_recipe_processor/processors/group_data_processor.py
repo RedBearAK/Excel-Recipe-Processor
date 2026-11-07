@@ -634,7 +634,7 @@ class GroupDataProcessor(TransformBaseProcessor):
                 'file_groups': "Group using definitions from external Excel/CSV file",
                 'lookup_groups': "Group based on cross-reference with validation data",
                 'hierarchical': "Multi-level grouping (city → region → territory)",
-                'variable_substitution': "Use group definitions from file_{date}.xlsx"
+                'variable_substitution': "Use group definitions from file_{{date}}.xlsx"
             },
             'configuration_options': {
                 'source_column': 'Column to group',

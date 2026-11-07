@@ -24,18 +24,18 @@ basic_example:
         # REQ - Stage to export data from (must be declared in settings.stages)
         source_stage: "stg_processed_data"
         # REQ - Output file path with variable substitution support
-        # Variable examples: {date}, {timestamp}, {company}
+        # Variable examples: {{date}}, {{timestamp}}, {{company}}
         #
         # STAMP THE NAME (2026-09-04). A same-named rewrite while Excel has
         # the previous file open is invisible: the window keeps showing the
         # old one, and the "why doesn't this look any different" hunt
-        # begins. A run stamp makes every run a new file; {hour}{minute}
-        # {second} suffices when the name already carries a date (as a
-        # download stem does), {timestamp} when it does not. The house
+        # begins. A run stamp makes every run a new file; {{hour}}{{minute}}
+        # {{second}} suffices when the name already carries a date (as a
+        # download stem does), {{timestamp}} when it does not. The house
         # pattern is one settings variable, e.g.
-        #   output_basename: "{source_stem}_proc_{hour}{minute}{second}"
+        #   output_basename: "{{source_stem}}_proc_{{hour}}{{minute}}{{second}}"
         # and every output plus the log named from it.
-        output_file: "reports/monthly_report_{timestamp}.xlsx"
+        output_file: "reports/monthly_report_{{timestamp}}.xlsx"
         # OPT - Sheet name for single-sheet export
         # Default value: "Data"
         sheet_name: "Monthly Data"
@@ -72,9 +72,9 @@ multi_sheet_example:
         # goes on each tab; source_stage is what the step consumes.
         source_stage: "stg_executive_summary"
         # REQ - Output file path with variable substitution
-        # Built-in variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}
+        # Built-in variables: {{date}}, {{timestamp}}, {{YYYY}}, {{MM}}, {{DD}}
         # Custom variables: defined in recipe settings or CLI --var
-        output_file: "reports/{company}_Q{quarter}_{date}.xlsx"
+        output_file: "reports/{{company}}_Q{{quarter}}_{{date}}.xlsx"
         create_backup: true
         # OPT - List of sheet configurations for multi-sheet Excel export
         sheets_to_create:
@@ -142,9 +142,9 @@ variable_substitution_example:
         processor_type: "export_file"
         source_stage: "stg_final_results"
         # REQ - Output file with multiple variable types
-        # Built-in date variables: {date}, {timestamp}, {YYYY}, {MM}, {DD}, {YY}, {MMDD}
-        # Custom variables: {department}, {batch_id} - defined in recipe settings or CLI
-        output_file: "reports/{department}_{YYYY}{MM}{DD}_{batch_id}.xlsx"
+        # Built-in date variables: {{date}}, {{timestamp}}, {{YYYY}}, {{MM}}, {{DD}}, {{YY}}, {{MMDD}}
+        # Custom variables: {{department}}, {{batch_id}} - defined in recipe settings or CLI
+        output_file: "reports/{{department}}_{{YYYY}}{{MM}}{{DD}}_{{batch_id}}.xlsx"
         # OPT - Create backup of existing files
         # Default value: false
         create_backup: true
@@ -171,7 +171,7 @@ complete_workflow_example:
       # Step 1: Import data
       - step_description: "Import raw sales data"
         processor_type: "import_file"
-        input_file: "sales_data_{region}.xlsx"
+        input_file: "sales_data_{{region}}.xlsx"
         save_to_stage: "stg_raw_data"
       
       # Step 2: Process data
@@ -188,7 +188,7 @@ complete_workflow_example:
       - step_description: "Export filtered results"
         processor_type: "export_file"
         source_stage: "stg_filtered_data"
-        output_file: "output/{output_prefix}_{region}_{date}.xlsx"
+        output_file: "output/{{output_prefix}}_{{region}}_{{date}}.xlsx"
         create_backup: true
 
 parameter_details:
@@ -208,10 +208,10 @@ parameter_details:
     description: "Output file path with variable substitution support. Stamp the name with the run time so each run writes a new file; Excel keeps showing a file it already has open, so a same-named rewrite looks like nothing happened."
     supports_variables: true
     examples:
-      - "reports/monthly_report_{timestamp}.xlsx"
-      - "exports/data_{date}_{time}.csv"
-      - "{output_dir}/{output_basename}.xlsx"
-    naming_convention: "One settings variable such as output_basename: \"{source_stem}_proc_{hour}{minute}{second}\", with every output and the log_file named from it, so a run's files pair up by name"
+      - "reports/monthly_report_{{timestamp}}.xlsx"
+      - "exports/data_{{date}}_{{time}}.csv"
+      - "{{output_dir}}/{{output_basename}}.xlsx"
+    naming_convention: "One settings variable such as output_basename: \"{{source_stem}}_proc_{{hour}}{{minute}}{{second}}\", with every output and the log_file named from it, so a run's files pair up by name"
 
   sheet_name:
     type: string
@@ -376,7 +376,7 @@ empty_stage_example:
       - step_description: "Report the van numbers that were corrected, if any were"
         processor_type: "export_file"
         source_stage: "stg_vms_van_seq_corrections_applied"
-        output_file: "{output_dir}/{output_basename}_van_seq_corrected.xlsx"
+        output_file: "{{output_dir}}/{{output_basename}}_van_seq_corrected.xlsx"
         # OPT - write (default) | skip | error
         empty_stage_policy: "skip"
 

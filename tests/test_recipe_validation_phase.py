@@ -85,9 +85,20 @@ def test_stage_graph_errors() -> bool:
 
 
 def test_undeclared_is_warning_only() -> bool:
-    print('\nTesting undeclared stages warn but pass...')
+    print('\nTesting undeclared stages warn but pass when the recipe declares NO stages...')
     r = run(recipe([imp('stg_a'), exp('stg_a')], []))
     return report('warning, ok', r.ok and len(r.warnings) == 2, f'{r.warnings}')
+
+
+def test_undeclared_is_error_once_any_stage_is_declared() -> bool:
+    # 2026-11-02: declared-but-unused was an error while used-but-undeclared
+    # was a warning, so a recipe that opted into the drift check still let
+    # a new stage in unchecked. Declaring any stage now means declaring all.
+    print('\nTesting an undeclared stage is an error when the recipe declares any...')
+    r = run(recipe([imp('stg_a'), calc('stg_a', 'stg_b'), exp('stg_b')], ['stg_a']))
+    hits = [e for e in r.errors if "'stg_b' is not declared" in e]
+    return report('error names the stage', (not r.ok) and len(hits) == 2 and not r.warnings,
+                  f'{r.errors} {r.warnings}')
 
 
 def test_schema_less_processor_cannot_register() -> bool:
@@ -116,6 +127,7 @@ def main() -> int:
         test_schema_errors_by_step,
         test_stage_graph_errors,
         test_undeclared_is_warning_only,
+        test_undeclared_is_error_once_any_stage_is_declared,
         test_schema_less_processor_cannot_register,
         test_unknown_processor_type,
     ]

@@ -37,7 +37,7 @@ settings:
       template_name: "tpl_lookup_header"
       header_bold: true
       header_background: true
-      header_background_color: "{var_header_green}"
+      header_background_color: "{{var_header_green}}"
       header_text_color: "white"
       freeze_top_row: true
   stages:
@@ -226,7 +226,7 @@ def test_a_recipe_without_the_key_is_unaffected() -> bool:
         '    templates:\n      - *tpl_lookup_header',
         '    templates:\n      - template_name: "tpl_lookup_header"\n'
         '        header_bold: true\n        header_background: true\n'
-        '        header_background_color: "{var_header_green}"\n'
+        '        header_background_color: "{{var_header_green}}"\n'
         '        header_text_color: "white"\n        freeze_top_row: true')
     errors, warnings = load_errors(without, 'no_anchors.yaml')
     about_anchors = [message for message in errors + warnings if 'yaml_anchors' in message]
@@ -252,7 +252,7 @@ def test_the_documented_example_validates() -> bool:
     loader.load_recipe_file(path)
     result = loader.validate_recipe_structure()
     steps = yaml.safe_load(text)['recipe']
-    both_hold_block = all(step['templates'][0].get('header_background_color') == '{var_header_green}' for step in steps)
+    both_hold_block = all(step['templates'][0].get('header_background_color') == '{{var_header_green}}' for step in steps)
     good = result['valid'] and both_hold_block
     print(f"  loader valid={result['valid']} errors={result['errors'] or 'none'}; both steps carry the anchored block={both_hold_block} -> {'OK' if good else 'FAIL'}")
     return good

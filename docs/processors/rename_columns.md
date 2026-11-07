@@ -188,7 +188,7 @@ recipe:
   - # Step 1: Import SQL export
     step_description: "Import database export file"
     processor_type: "import_file"
-    input_file: "exports/database_export_{report_date}.csv"
+    input_file: "exports/database_export_{{report_date}}.csv"
     save_to_stage: "stg_sql_export"
 
   - # Step 2: Remove technical prefixes and suffixes

@@ -68,7 +68,7 @@ recipe:
   - step_description: "Export results"
     processor_type: "export_file"
     source_stage: "filtered_data"
-    output_file: "{temp_path}/{{output_prefix}}_results.xlsx"
+    output_file: "{temp_path}/{{{{output_prefix}}}}_results.xlsx"
 """
             
             recipe_file = temp_path / 'test_recipe.yaml'
@@ -147,7 +147,7 @@ recipe:
   - step_description: "Export with variables"
     processor_type: "export_file"
     source_stage: "student_data"
-    output_file: "{temp_path}/{{report_type}}_{{version}}_{{date}}.xlsx"
+    output_file: "{temp_path}/{{{{report_type}}}}_{{{{version}}}}_{{{{date}}}}.xlsx"
 """
             
             recipe_file = temp_path / 'var_test_recipe.yaml'

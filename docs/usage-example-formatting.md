@@ -36,7 +36,7 @@ step_description: "Process the data"
 # Default value: false
 create_backup: true
 # REQ - Input file path with variable support
-# Valid examples: "data.xlsx", "files/{date}.csv", "{batch_id}_input.xlsx"
+# Valid examples: "data.xlsx", "files/{{date}}.csv", "{{batch_id}}_input.xlsx"
 input_file: "data/monthly_sales.xlsx"
 ```
 
@@ -48,10 +48,10 @@ input_file: "data/monthly_sales.xlsx"
 ```yaml
 # ... (formatting illustration, not a complete step)
 # REQ - Output file path with variable substitution support
-# Built-in variables: {date}, {timestamp}, {company}, {batch_id}
+# Built-in variables: {{date}}, {{timestamp}}, {{company}}, {{batch_id}}
 # Valid extensions: .xlsx, .csv, .tsv
 # Variable examples: company="AcmeCorp", batch_id="B001"
-output_file: "reports/{company}_{date}.xlsx"
+output_file: "reports/{{company}}_{{date}}.xlsx"
 # OPT - Text encoding for CSV files (ignored for Excel files)
 # Valid values: "utf-8", "latin1", "cp1252", "ascii"
 # Default value: "utf-8"

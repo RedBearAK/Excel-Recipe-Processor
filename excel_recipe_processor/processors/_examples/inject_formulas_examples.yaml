@@ -104,7 +104,7 @@ range_formulas_example:
                 excel_formula: "=B2*C2"
               # Tax calculation column
               - range: "E2:E50"
-                excel_formula: "=D2*{tax_rate}"
+                excel_formula: "=D2*{{tax_rate}}"
               # Total formulas
               - cell: "D51"
                 excel_formula: "=SUM(D2:D50)"
@@ -145,7 +145,7 @@ text_formulas_example:
           - sheet_names: ["?sheet_001?"]
             formulas:
               - cell: "E2"
-                excel_formula: "={col:Units}2*{col:Unit Price}2"
+                excel_formula: "={{col:Units}}2*{{col:Unit Price}}2"
                 fill_down: true
 
 awaken_dead_formulas_example:
@@ -194,7 +194,7 @@ named_columns_fill_down_example:
           protected: false
 
     recipe:
-      - # The exported sheet carries headers; {col:Name} resolves each name
+      - # The exported sheet carries headers; {{col:Name}} resolves each name
         # to its column letter from the header row AT INJECTION TIME, so a
         # column inserted upstream cannot silently repoint any reference.
         step_description: "Inject the margin formulas by column name"
@@ -206,20 +206,20 @@ named_columns_fill_down_example:
         sheets_to_receive_formulas:
           - sheet_names: ["Data"]
             formulas:
-              - # {col:...} works in the cell address AND inside the formula.
-                cell: "{col:Margin}2"
+              - # {{col:...}} works in the cell address AND inside the formula.
+                cell: "{{col:Margin}}2"
                 # OPT - Fill from the origin row to the last data row,
                 # translating relative references per row like Excel's fill
                 # handle. Default value: false
                 fill_down: true
-                excel_formula: '={col:Price}2-{col:Cost}2'
+                excel_formula: '={{col:Price}}2-{{col:Cost}}2'
               - # Modern function names are stored with the _xlfn. prefix Excel
                 # requires internally; they display without it. With settings
                 # declare_dynamic_formulas: true, injected cells open WITHOUT
                 # the implicit-intersection @ (declared by provenance).
-                cell: "{col:Supplier Region}2"
+                cell: "{{col:Supplier Region}}2"
                 fill_down: true
-                excel_formula: '=XLOOKUP({col:Supplier}2,rng_suppliers,rng_regions)'
+                excel_formula: '=XLOOKUP({{col:Supplier}}2,rng_suppliers,rng_regions)'
 
 parameter_details:
   target_file:
@@ -229,8 +229,8 @@ parameter_details:
     supports_variables: true
     examples:
       - "reports/sales_report.xlsx"
-      - "output/{date}_calculations.xlsx"
-      - "{output_dir}/financial_model.xlsx"
+      - "output/{{date}}_calculations.xlsx"
+      - "{{output_dir}}/financial_model.xlsx"
 
   mode:
     type: string
@@ -249,11 +249,11 @@ parameter_details:
     default: []
     description: "List of formulas to inject with target locations"
     formula_object_structure:
-      cell: "Single cell reference: 'A1', 'D5', or name-addressed '{col:Header Name}2'"
+      cell: "Single cell reference: 'A1', 'D5', or name-addressed '{{col:Header Name}}2'"
       range: "Cell range reference (e.g., 'A1:A10', 'D2:F20')"
-      excel_formula: "Excel formula to inject (with or without leading =); {col:Header Name} placeholders resolve to column letters from the header row"
+      excel_formula: "Excel formula to inject (with or without leading =); {{col:Header Name}} placeholders resolve to column letters from the header row"
       fill_down: "true fills the formula from its origin cell to the last data row, translating relative references per row (default false)"
-      array_formula: "true stores a legacy CSE array formula shown in {braces} - only for formulas that genuinely ARE array formulas; NOT the fix for the @ display (that is the recipe-wide declare_dynamic_formulas setting)"
+      array_formula: "true stores a legacy CSE array formula shown in {{braces}} - only for formulas that genuinely ARE array formulas; NOT the fix for the @ display (that is the recipe-wide declare_dynamic_formulas setting)"
     examples:
       - - cell: "D2"
           excel_formula: "=B2*C2"

@@ -300,7 +300,7 @@ def test_variable_substitution():
                                 description='Variable substitution source')
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            template_path = str(Path(temp_dir) / "report_{date}.xlsx")
+            template_path = str(Path(temp_dir) / "report_{{date}}.xlsx")
 
             step_config = {
                 'processor_type': 'export_file',
@@ -372,7 +372,7 @@ def test_backup_creation():
             ExportFileProcessor(step_config_2).execute()
             print("✓ Exported with backup enabled")
 
-            # Backup naming: {stem}_erpbkup_{timestamp}{ext}
+            # Backup naming: {{stem}}_erpbkup_{{timestamp}}{{ext}}
             backup_files = list(output_path.parent.glob(
                 f"{output_path.stem}_erpbkup_*{output_path.suffix}"))
 

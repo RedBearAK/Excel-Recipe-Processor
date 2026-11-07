@@ -13,17 +13,35 @@ rewritten by a column named sum) was interest on that decision.
 
 The grammar now matches the house convention that has a zero-incident
 record in conditional_format and inject_formulas: a column reference
-is ALWAYS {col:Column Name}. Uniform for every column - a column
-named sum is {col:sum} exactly as Price is {col:Price} - so there is
+is ALWAYS {{col:Column Name}}. Uniform for every column - a column
+named sum is {{col:sum}} exactly as Price is {{col:Price}} - so there is
 no collision concept and no disambiguation burden. Bare identifiers
 in code are always python. The engine parses delimiters; it never
 recognizes names in free text. A bare known column name found loose
 in code is refusal-time forensics only: a guided error naming the
-{col:} fix, never a substitution.
+{{col:}} fix, never a substitution.
 
 Name hygiene at the boundary: names containing braces, backticks, or
 newlines are refused loudly, never escaped.
+
+DELIMITER (2026-11-02): the reference is {{col:Column Name}} - doubled
+braces, like every other placeholder (see variable_substitution_rgx).
+The name is taken VERBATIM up to the closing }}. A single brace is
+ordinary python ({'a': 1} in an expression is fine); the retired
+single-brace col: token is refused with the doubled form named.
 """
+
+from excel_recipe_processor.core.variable_substitution_rgx import (
+    RETIRED_SINGLE_BRACE_RGX, TOKEN_CLOSE, TOKEN_OPEN, retired_form_message,
+)
+
+
+COL_OPEN = TOKEN_OPEN + 'col:'
+
+
+def col_tok(name) -> str:
+    """Spell a column reference in the live syntax for a message."""
+    return COL_OPEN + str(name) + TOKEN_CLOSE
 
 
 class ColumnTokenError(Exception):
@@ -51,10 +69,14 @@ def tokenize_formula(formula: str) -> list:
     """One linear scan into typed segments.
 
     Returns (kind, text) pairs: 'code', 'literal' (raw, quotes
-    included), or 'column' (the name from a {col:Name} placeholder).
+    included), or 'column' (the name from a {{col:Name}} placeholder).
     Unterminated literals or placeholders are hard errors - a formula
     that cannot be parsed cleanly must not be guessed at.
     """
+    retired = RETIRED_SINGLE_BRACE_RGX.search(formula)
+    if retired and retired.group(1) == 'col':
+        raise ColumnTokenError(retired_form_message(retired))
+
     segments = []
     code_start = 0
     i = 0
@@ -86,22 +108,22 @@ def tokenize_formula(formula: str) -> list:
             i = j + 1
             code_start = i
             continue
-        if formula.startswith('{col:', i):
-            j = formula.find('}', i + 5)
+        if formula.startswith(COL_OPEN, i):
+            j = formula.find(TOKEN_CLOSE, i + len(COL_OPEN))
             if j < 0:
                 raise ColumnTokenError(
                     f"Unterminated column reference at position {i}: "
                     f"{formula[i:i + 30]!r}... References are written "
-                    f"{{col:Column Name}} with a closing brace."
+                    f"{col_tok('Column Name')} with a doubled closing brace."
                 )
-            name = formula[i + 5:j]
+            name = formula[i + len(COL_OPEN):j]
             if not name.strip():
                 raise ColumnTokenError(
-                    f"Empty column reference {{col:}} at position {i}"
+                    f"Empty column reference {col_tok('')} at position {i}"
                 )
             flush_code(i)
             segments.append(('column', name))
-            i = j + 1
+            i = j + len(TOKEN_CLOSE)
             code_start = i
             continue
         i += 1
@@ -111,11 +133,11 @@ def tokenize_formula(formula: str) -> list:
 
 def build_dataframe_expression(formula: str, column_names,
                                frame_symbol: str = 'df') -> str:
-    """Translate {col:Name} references into dataframe accesses.
+    """Translate {{col:Name}} references into dataframe accesses.
 
     Code segments pass through UNTOUCHED except for refusal-time
     forensics: a bare known column name loose in code is a guided
-    error naming the {col:} form - never a substitution. Literals are
+    error naming the {{col:}} form - never a substitution. Literals are
     structurally separate and never inspected.
     """
     import re
@@ -134,7 +156,7 @@ def build_dataframe_expression(formula: str, column_names,
                          or k.lower() in text.lower()][:4]
                 hint = f" Near matches: {close}" if close else ''
                 raise ColumnTokenError(
-                    f"{{col:{text}}} names no column in the current "
+                    f"{col_tok(text)} names no column in the current "
                     f"data.{hint}"
                 )
             pieces.append(f"{frame_symbol}[{text!r}]")
@@ -142,14 +164,14 @@ def build_dataframe_expression(formula: str, column_names,
             # Bare identifiers are ALWAYS python (the 2026-08-26
             # ruling) - code passes through untouched. Unmigrated
             # column references surface as eval NameErrors, where
-            # name_error_guidance() turns them into {col:} guidance
+            # name_error_guidance() turns them into {{col:}} guidance
             # with zero false positives.
             pieces.append(text)
     return ''.join(pieces)
 
 
 def name_error_guidance(error, column_names) -> str:
-    """Turn a NameError over a known column into {col:} guidance.
+    """Turn a NameError over a known column into {{col:}} guidance.
 
     Returns a guidance string when the missing name matches a column
     (exactly, or as the first word of a multi-word name - python
@@ -167,7 +189,7 @@ def name_error_guidance(error, column_names) -> str:
     for candidate in exact + prefixed:
         return (f"Bare name {missing!r} looks like the column "
                 f"{str(candidate)!r} - column references are written "
-                f"{{col:{candidate}}} so names can never be misread "
+                f"{col_tok(candidate)} so names can never be misread "
                 f"as code.")
     return ''
 
@@ -176,7 +198,7 @@ def formula_failure_guidance(formula: str, column_names) -> str:
     """Refusal-time forensics for an ALREADY-FAILED formula.
 
     Scans code segments for bare known-column occurrences and names the
-    {col:} fix. Runs only after eval has failed, so it can never accept
+    {{col:}} fix. Runs only after eval has failed, so it can never accept
     or rewrite anything - it only improves the epitaph.
     """
     import re
@@ -200,7 +222,7 @@ def formula_failure_guidance(formula: str, column_names) -> str:
     worst = sorted(set(hits), key=len, reverse=True)[0]
     return (f"Bare column name(s) {sorted(set(hits), key=len, reverse=True)[:4]} "
             f"in the formula - column references are written "
-            f"{{col:{worst}}} so names can never be misread as code.")
+            f"{col_tok(worst)} so names can never be misread as code.")
 
 
 

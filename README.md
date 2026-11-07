@@ -5,7 +5,7 @@
 Transform your Excel automation workflows into reusable, version-controlled recipes. No more manual clicking through Excel - define your data processing steps once and run them repeatedly with consistent results.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 ## 🎯 **What It Does**
 
@@ -66,7 +66,7 @@ recipe:
     source_stage: "stg_electronics"
     new_column: "Total_Value"
     calculation:
-      pandas_formula: "{col:Quantity} * {col:Price}"
+      pandas_formula: "{{col:Quantity}} * {{col:Price}}"
     save_to_stage: "stg_valued"
 
   - step_description: "Highest value first"
@@ -81,9 +81,9 @@ recipe:
     source_stage: "stg_sorted"
     # Stamped, so every run is a new file: Excel keeps showing a workbook
     # it already has open, and a same-named rewrite looks like nothing
-    # changed. {timestamp} here; {hour}{minute}{second} is enough when the
+    # changed. {{timestamp}} here; {{hour}}{{minute}}{{second}} is enough when the
     # name already carries a date.
-    output_file: "electronics_report_{timestamp}.xlsx"
+    output_file: "electronics_report_{{timestamp}}.xlsx"
 ```
 
 Check it, then run it:
@@ -103,7 +103,7 @@ report = RecipePipeline().run_complete_recipe("my_recipe.yaml")
 
 ## 🔧 **What It Can Do**
 
-46 processors in five families. The one-line version is here; the prose
+48 processors in five families. The one-line version is here; the prose
 description of each, with the run-level features (stages, validation,
 auto-free, variables, the workbook session, audits), is in
 [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
@@ -127,7 +127,7 @@ and took 290 s on the same sheet. Use one or the other, not both.
 A `--set` or `--var` value written as a YAML/JSON list or mapping is
 passed to the recipe as that structure (2026-09-14), so a launcher can
 hand a recipe a list variable: `--set var_integer_columns '["Packages"]'`
-reaches `{list_str:var_integer_columns}` as a list. Anything not starting
+reaches `{{list_str:var_integer_columns}}` as a list. Anything not starting
 with `[` or `{` is the string it always was.
 
 **csv and tsv columns arrive as text** (breaking change, 2026-09-14).
@@ -154,7 +154,7 @@ out beside the source - is a few steps; the `parquet_to_xlsx` and
 | Summarise | `aggregate_data`, `pivot_table`, `add_subtotals` |
 | Check | `verify_columns`, `verify_stage_data` (stages); `verify_sheet_data`, `verify_excel_storage` (files) |
 | Write files | `export_file`, `debug_breakpoint`, `export_filter_step` |
-| Work on the workbook | `format_excel`, `inject_formulas`, `manage_named_objects`, `conditional_format`, `excel_data_validation`, `seed_donor_formulas`, `declare_dynamic_formulas`, `strip_formula_caches`, `generate_column_config`, `flush_workbooks` |
+| Work on the workbook | `format_excel`, `inject_formulas`, `manage_named_objects`, `conditional_format`, `excel_data_validation`, `seed_donor_formulas`, `declare_dynamic_formulas`, `strip_formula_caches`, `generate_column_config`, `flush_workbooks`, `audit_external_ties`, `sever_external_ties` |
 | Stage utilities | `free_stages`, `filter_terms_detector` |
 
 The workbook row is what makes the output a real Excel deliverable rather
@@ -225,12 +225,18 @@ family contributes the step keys it needs and decides how columns may be named:
 ### Conventions the schemas enforce
 
 - One key per concept, no aliases. Renames are breaking and land with the recipes.
+  The project is in alpha: the recipe vocabulary can still change between
+  versions, and a recipe written against an older vocabulary may need
+  updating - the loader names the retired key and its replacement, and an LLM
+  can carry a large recipe across such a change in one pass. Each recipe
+  records the ERP version that last validated it (`erp_metadata`), so a
+  mismatch is announced at the top of the run.
 - An evaluated string never sits under a bare key: `pandas_formula`,
   `pandas_rules`, `pandas_default`, `excel_formula` name their dialect.
 - Column-name lists are lists of strings, never positions.
 - A cell or range address may name its columns by header instead of
-  by letter: `{col:Header}2:{col:Other}5`. `inject_formulas` and
-  `conditional_format` have always resolved `{col:}` inside formulas;
+  by letter: `{{col:Header}}2:{{col:Other}}5`. `inject_formulas` and
+  `conditional_format` have always resolved `{{col:}}` inside formulas;
   since 2026-09-10 the RANGE fields do too - `conditional_format`'s
   `range:`, `format_excel`'s `cells:`, `excel_data_validation`'s
   `apply_to_ranges` - so a directive follows its columns when others are
@@ -272,7 +278,7 @@ settings:
     - &tpl_lookup_header
       template_name: "tpl_lookup_header"
       header_bold: true
-      header_background_color: "{var_header_green}"
+      header_background_color: "{{var_header_green}}"
 
 recipe:
   - step_description: "Format the reference workbook"
@@ -414,5 +420,5 @@ GNU General Public License 3.0 - see LICENSE file for details.
 
 ## 🔗 **Links**
 
-- **Documentation:** [Full documentation](https://github.com/your-repo/docs)
-- **Issues:** [Report bugs](https://github.com/your-repo/issues)
+- **Repository:** [RedBearAK/Excel-Recipe-Processor](https://github.com/RedBearAK/Excel-Recipe-Processor)
+- **Issues:** [Report bugs](https://github.com/RedBearAK/Excel-Recipe-Processor/issues)

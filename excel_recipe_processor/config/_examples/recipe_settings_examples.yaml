@@ -19,20 +19,20 @@ recommended_example:
       description: "Process customer orders with data validation and regional analysis"
       
       # Custom variables for reuse throughout recipe. Declare real
-      # types: numbers unquoted, strings quoted. In steps, "{name}"
-      # substitutes TEXT; typed references - {int:name}, {float:name},
-      # {bool:name}, and the structural families - lists:
-      # {list_int:name}, {list_float:name}, {list_str:name} (members
-      # converted, loudly on failure) or {list_any:name} (intentionally
-      # untyped members); dicts: {dict_int:name}, {dict_float:name},
-      # {dict_str:name} (values converted, keys always normalized to
-      # str) or {dict_any:name} (untyped/nested values) - substitute
+      # types: numbers unquoted, strings quoted. In steps, "{{name}}"
+      # substitutes TEXT; typed references - {{int:name}}, {{float:name}},
+      # {{bool:name}}, and the structural families - lists:
+      # {{list_int:name}}, {{list_float:name}}, {{list_str:name}} (members
+      # converted, loudly on failure) or {{list_any:name}} (intentionally
+      # untyped members); dicts: {{dict_int:name}}, {{dict_float:name}},
+      # {{dict_str:name}} (values converted, keys always normalized to
+      # str) or {{dict_any:name}} (untyped/nested values) - substitute
       # the actual typed value,
       # preventing type errors where the value is not meant to be a
       # string (numeric filter thresholds, row counts, and so on).
       variables:
         region: "west"
-        min_order_amount: 500     # reference as {int:min_order_amount}
+        min_order_amount: 500     # reference as {{int:min_order_amount}}
         output_prefix: "processed"
       
       # Stage declarations for auto-completion and protection
@@ -75,7 +75,7 @@ yaml_anchors_example:
           template_name: "tpl_lookup_header"
           header_bold: true
           header_background: true
-          header_background_color: "{var_header_green}"
+          header_background_color: "{{var_header_green}}"
           header_text_color: "white"
           freeze_top_row: true
 
@@ -148,7 +148,7 @@ advanced_example:
           
         report_date:
           description: "Report generation date (YYYYMMDD)"
-          default_value: "{date}"
+          default_value: "{{date}}"
           validation: "^\\d{8}$"
           example: "20250803"
       
@@ -200,7 +200,7 @@ external_variables_example:
         # Variable with dynamic default
         report_date:
           description: "Report generation date"
-          default_value: "{date}"  # Uses current date
+          default_value: "{{date}}"  # Uses current date
           validation: "^\\d{8}$"
           example: "20250803"
         
@@ -248,7 +248,7 @@ comprehensive_example:
         batch_date:
           description: "Processing batch date (YYYYMMDD format)"
           validation: "^\\d{8}$"
-          default_value: "{date}"
+          default_value: "{{date}}"
           example: "20250803"
           
         department:
@@ -323,7 +323,7 @@ parameter_details:
     required: false
     description: "Custom variables for use throughout the recipe with variable substitution"
     use_cases: ["Repeated values", "Dynamic content", "Configuration parameters"]
-    syntax: "Reference with {variable_name} in any string field"
+    syntax: "Reference with {{variable_name}} in any string field"
     examples:
       basic: {"region": "west", "batch_id": "A47"}
       advanced: {"output_prefix": "processed", "min_amount": "1000", "company": "TechCorp"}
@@ -369,7 +369,7 @@ parameter_details:
         type: string
         required: false
         description: "Default value (supports variable substitution)"
-        examples: ["west", "{date}", "admin@company.com"]
+        examples: ["west", "{{date}}", "admin@company.com"]
       
       example:
         type: string
@@ -450,9 +450,9 @@ portable_paths_example:
         # recipe_dir        the folder holding this recipe
         # recipe_parent_dir its parent, which is the useful one when recipes
         #                   live in a recipe_files/ subfolder
-        project_dir: "{recipe_parent_dir}"
-        lookup_dir:  "{recipe_parent_dir}/lookup_source_files"
-        output_dir:  "{recipe_parent_dir}/output"
+        project_dir: "{{recipe_parent_dir}}"
+        lookup_dir:  "{{recipe_parent_dir}}/lookup_source_files"
+        output_dir:  "{{recipe_parent_dir}}/output"
 
       required_external_vars:
         source_download:

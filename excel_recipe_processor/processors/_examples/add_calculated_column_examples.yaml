@@ -220,7 +220,7 @@ legacy_formula_example:
         calculation:
           # Legacy formula - works only with simple column names (no spaces/special chars)
           # For robust column name handling, use formula_components instead
-          pandas_formula: "{col:Price} * {col:Quantity}"
+          pandas_formula: "{{col:Price}} * {{col:Quantity}}"
 
 spill_columns_example:
   description: "One calculation filling two columns - a horizontal spill, declared and shape-checked"
@@ -254,7 +254,7 @@ spill_columns_example:
         calculation_type: "expression"
         calculation:
           # A DataFrame (or a tuple of Series) with one column per declared name
-          pandas_formula: "pd.DataFrame({'d': {col:Ship Date} + pd.to_timedelta({col:Terms Days}, unit='D'), 'b': 'Ship + terms'})"
+          pandas_formula: "pd.DataFrame({'d': {{col:Ship Date}} + pd.to_timedelta({{col:Terms Days}}, unit='D'), 'b': 'Ship + terms'})"
 
 first_match_example:
   description: "Ordered rule table - first true predicate wins the row and fills every declared column"
@@ -268,7 +268,7 @@ first_match_example:
     # typed blank - a blank is always visible, never an omitted term.
     #
     # Keys name their dialect: pandas_rules and pandas_default hold
-    # pandas text with {col:Name} references, so a quoted string inside
+    # pandas text with {{col:Name}} references, so a quoted string inside
     # a slot is a literal exactly as it would be inside pandas_formula.
     # Shape and column references are checked for every rule BEFORE any
     # evaluation, so a mistake is reported by rule number. The log
@@ -297,16 +297,16 @@ first_match_example:
           # REQ - Ordered rules; each 'then' has one slot per declared column,
           # in the order new_column, then spill_columns
           pandas_rules:
-            - when: "{col:Paid Date}.notna() | ~({col:Price}.fillna(0) > 0)"
+            - when: "{{col:Paid Date}}.notna() | ~({{col:Price}}.fillna(0) > 0)"
               then: ["", "'Paid or No Price'"]
-            - when: "({col:Kind} == 'Fresh') & {col:Ship Date}.notna()"
-              then: ["{col:Ship Date} + pd.to_timedelta({col:Terms Days} + 7, unit='D')", "'Fr-Ship'"]
-            - when: "{col:Kind} == 'Fresh'"
+            - when: "({{col:Kind}} == 'Fresh') & {{col:Ship Date}}.notna()"
+              then: ["{{col:Ship Date}} + pd.to_timedelta({{col:Terms Days}} + 7, unit='D')", "'Fr-Ship'"]
+            - when: "{{col:Kind}} == 'Fresh'"
               then: ["", "'Fr-NoShip'"]
-            - when: "({col:Kind} == 'Frozen') & {col:Invoice Date}.notna()"
-              then: ["{col:Invoice Date} + pd.to_timedelta({col:Terms Days}, unit='D')", "'Fz-Invoice'"]
-            - when: "({col:Kind} == 'Frozen') & {col:Ship Date}.notna()"
-              then: ["{col:Ship Date} + pd.to_timedelta({col:Terms Days} + 30, unit='D')", "'Fz-ShipFallback'"]
+            - when: "({{col:Kind}} == 'Frozen') & {{col:Invoice Date}}.notna()"
+              then: ["{{col:Invoice Date}} + pd.to_timedelta({{col:Terms Days}}, unit='D')", "'Fz-Invoice'"]
+            - when: "({{col:Kind}} == 'Frozen') & {{col:Ship Date}}.notna()"
+              then: ["{{col:Ship Date}} + pd.to_timedelta({{col:Terms Days}} + 30, unit='D')", "'Fz-ShipFallback'"]
           # REQ - What a row gets when no rule matches, same shape as a 'then'
           pandas_default: ["", "'Unknown-Kind'"]
 
@@ -428,7 +428,7 @@ parameter_details:
     required: false (alternative to formula_components)
     description: >
       Pandas expression computed statically. Column references are
-      ALWAYS written {col:Column Name} - uniform for every column,
+      ALWAYS written {{col:Column Name}} - uniform for every column,
       including names like sum that shadow python identifiers. Bare
       identifiers are always python.
     description: "Legacy string-based formula (limited column name support)"

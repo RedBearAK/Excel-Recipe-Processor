@@ -462,7 +462,7 @@ recipe:
     processor_type: "filter_data"
     source_stage: "stg_all_orders"
     # Logic: NOT (Completed Vans AND old date) = Keep everything except old Completed Vans
-    pandas_expression: '~(Workflow.str.contains("Completed Vans") & (`Paid Date` < "{week_start_date}"))'
+    pandas_expression: '~(Workflow.str.contains("Completed Vans") & (`Paid Date` < "{{week_start_date}}"))'
     save_to_stage: "stg_filtered_orders"
 ```
 
@@ -536,9 +536,9 @@ Numeric thresholds from recipe variables via typed references
 
 ```yaml
 # Recipe variables substitute as STRINGS unless typed at the
-# reference site. An untyped "{min_sales}" delivers the TEXT
+# reference site. An untyped "{{min_sales}}" delivers the TEXT
 # "120", and ordering comparisons fail loud rather than guess.
-# Typed references - {int:name}, {float:name}, {list_int:name} -
+# Typed references - {{int:name}}, {{float:name}}, {{list_int:name}} -
 # substitute the actual typed value, preventing the error when
 # the value is not meant to be a string. This also works when
 # the variable arrives as a string from --variable on the CLI
@@ -571,15 +571,15 @@ recipe:
         # REQ - Numeric comparison condition
         condition: "greater_equal"
         # REQ - Typed reference: substitutes the int 120, not "120"
-        value: "{int:min_sales}"
+        value: "{{int:min_sales}}"
       - # REQ - Column name to filter on
         column: "Tier"
         # REQ - Membership condition
         condition: "in_list"
         # REQ - Typed list reference: every member converted to
-        # int, loudly on failure ({list_any:...} passes mixed
+        # int, loudly on failure ({{list_any:...}} passes mixed
         # members through as declared)
-        value: "{list_int:allowed_tiers}"
+        value: "{{list_int:allowed_tiers}}"
 ```
 
 ## Parameter notes

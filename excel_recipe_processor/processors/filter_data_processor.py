@@ -194,11 +194,11 @@ class FilterDataProcessor(TransformBaseProcessor):
         Guard clause: ordering comparisons never accept string values.
 
         Substituted recipe variables arrive as STRINGS unless typed at
-        the reference site, so 'value': '{min_sales}' yields '120' and
+        the reference site, so 'value': '{{min_sales}}' yields '120' and
         pandas raises a baffling "Invalid comparison between dtype=int64
         and str". A string here can never be a valid ordering operand,
         so this fails first with the fix in the message: typed variable
-        references like {int:min_sales} or {float:threshold} substitute
+        references like {{int:min_sales}} or {{float:threshold}} substitute
         the actual numeric value (see core/variable_substitution.py).
         """
         if isinstance(value, bool) or not isinstance(value, str):
@@ -208,7 +208,7 @@ class FilterDataProcessor(TransformBaseProcessor):
             f"column '{column}' received the STRING value {value!r}, and "
             f"ordering comparisons need a number. If this came from a "
             f"recipe variable, reference it typed - "
-            f"{{int:variable_name}} or {{float:variable_name}} - so the "
+            f"{{{{int:variable_name}}}} or {{{{float:variable_name}}}} - so the "
             f"actual numeric value is substituted instead of its text. "
             f"For DATE comparisons use a pandas_expression filter "
             f"instead: the ordering conditions coerce the column "
@@ -223,8 +223,8 @@ class FilterDataProcessor(TransformBaseProcessor):
         referenced untyped, or authored with quoted numbers, delivers
         strings that min()/max() would order LEXICALLY ('9' > '100')
         before the comparison even fails. Typed references -
-        {list_int:thresholds} or {list_float:thresholds} - convert every
-        member loudly; {list_any:name} passes members through as
+        {{list_int:thresholds}} or {{list_float:thresholds}} - convert every
+        member loudly; {{list_any:name}} passes members through as
         declared for intentionally mixed lists.
         """
         string_members = [member for member in value if isinstance(member, str)]
@@ -236,7 +236,7 @@ class FilterDataProcessor(TransformBaseProcessor):
             f"{string_members!r}, and min/max ordering needs numbers "
             f"(strings would order lexically: '9' > '100'). If the list "
             f"comes from a recipe variable, reference it typed - "
-            f"{{list_int:variable_name}} or {{list_float:variable_name}} "
+            f"{{{{list_int:variable_name}}}} or {{{{list_float:variable_name}}}} "
             f"- so every member is converted, loudly on failure."
         )
 

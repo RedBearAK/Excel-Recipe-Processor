@@ -136,7 +136,7 @@ def prefix_future_functions(formula: str) -> str:
 def apply_outside_strings(formula: str, transform) -> str:
     """
     Apply a text transform to the parts of a formula OUTSIDE string
-    literals and OUTSIDE {col:...} placeholders, so neither "text like
+    literals and OUTSIDE {{col:...}} placeholders, so neither "text like
     Z1# or SUM" nor a column name like AUTO PRODUCT  FORM can ever be
     rewritten. The split preserves both verbatim, "" escapes included.
     """

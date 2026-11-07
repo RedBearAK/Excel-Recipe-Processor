@@ -4,7 +4,7 @@ Test: the run timestamp is frozen at recipe load, not per substitution.
 tests/test_frozen_run_timestamp.py
 
 The output workbook name and the recipe-triggered log file both build
-on {hour}{minute}{second}. They resolve at DIFFERENT moments of the
+on {{hour}}{{minute}}{{second}}. They resolve at DIFFERENT moments of the
 run (the log at the post-external-variables seam, the export path tens
 of steps later), and they must land the SAME stamp - one provenance
 pair, one clock. VariableSubstitution guarantees this by capturing
@@ -26,8 +26,8 @@ def test_timestamp_frozen_across_time():
     print("\nTesting the frozen run timestamp...")
 
     substitution = VariableSubstitution()
-    template = "{source_stem}_proc_{hour}{minute}{second}" \
-        .replace("{source_stem}", "x")  # keep only the builtins
+    template = "{{source_stem}}_proc_{{hour}}{{minute}}{{second}}" \
+        .replace("{{source_stem}}", "x")  # keep only the builtins
 
     first = substitution.substitute(template)
     time.sleep(1.1)  # guarantees a wall-clock second boundary can pass

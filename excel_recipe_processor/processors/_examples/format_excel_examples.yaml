@@ -1,15 +1,19 @@
-# Enhanced Format Excel Examples - Template Support Addition
+# Format Excel Examples
 # excel_recipe_processor/processors/_examples/format_excel_examples.yaml
 #
-# NEW: Template support for reusable formatting configurations
-# Revision date: 2025-08-11
+# Revision date: 2026-11-02
+#
+# Template support for reusable formatting configurations (2025-08-11);
+# an apply_templates name the step does not declare is a validation error
+# (2026-11-02), and a missing target_file is tolerated only under
+# missing_file_policy: skip (same day).
 
 description: >
   Format existing Excel files with professional presentation features. 
   Enhanced with template support for reusable formatting configurations
   to reduce redundancy in multi-sheet workbooks.
 
-# NEW: Basic template usage example
+# Basic template usage example
 basic_template_example:
   description: "Use templates to reduce formatting configuration redundancy"
   yaml: |
@@ -46,7 +50,7 @@ basic_template_example:
         output_file: "reports/q3_executive_report.xlsx"
         sheet_name: "Sales Performance"
 
-      - # NEW: Template-based formatting step
+      - # Template-based formatting step
         step_description: "Apply consistent formatting using templates"
         processor_type: "format_excel"
         target_file: "reports/q3_executive_report.xlsx"
@@ -367,13 +371,10 @@ validation_example:
             apply_templates: ["valid_template"]
 
           - sheet_names: ["?sheet_002?"]
-            # Reference to non-existent template (will be warned and skipped)
+            # Reference to a template this step does not declare: refused
+            # by --validate and at construction (2026-11-02), naming the
+            # sheet, the bad name and the declared names
             apply_templates: ["valid_template", "missing_template"]
-            header_bold: true  # This will still be applied
-
-          - sheet_names: ["?sheet_003?"]
-            # Mix of valid and invalid templates
-            apply_templates: ["valid_template", "invalid_template"]
 
 template_best_practices:
   description: "Best practices for using templates effectively"

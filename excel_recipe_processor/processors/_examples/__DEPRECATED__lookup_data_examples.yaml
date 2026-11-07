@@ -121,7 +121,7 @@ csv_lookup_example:
         lookup_source:
           type: "file"
           # REQ - CSV file path with variable substitution
-          filename: "territories/sales_territories_{territory_year}.csv"
+          filename: "territories/sales_territories_{{territory_year}}.csv"
           # OPT - Text encoding for CSV files
           # Default value: "utf-8"
           encoding: "utf-8"

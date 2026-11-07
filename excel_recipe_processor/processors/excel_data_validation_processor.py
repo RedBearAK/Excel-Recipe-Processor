@@ -122,7 +122,7 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
         ])
         entry = Schema([
             Key('sheet_name', 'any', required=True, description='Tab name, number, or ?sheet_NNN? token'),
-            Key('apply_to_ranges', 'list', item_kind='str', required=True, description='A1 ranges the validation covers; columns may be named by header, "{col:Header}2:{col:Header}5", so the validation follows its column when others are inserted'),
+            Key('apply_to_ranges', 'list', item_kind='str', required=True, description='A1 ranges the validation covers; columns may be named by header, "{{col:Header}}2:{{col:Header}}5", so the validation follows its column when others are inserted'),
             Key('validation_type', 'str', required=True, choices=list(VALIDATION_TYPES)),
             Key('values_list', 'list', item_kind='any', description='list: literal choices'),
             Key('list_from_named_range', 'str', description='list: a defined name'),
@@ -239,8 +239,8 @@ class ExcelDataValidationProcessor(FileOpsBaseProcessor):
                     f"got {range_text!r}"
                 )
             candidate = range_text.strip()
-            if '{col:' in candidate:
-                # columns named by header - "{col:Filter: SALE TYPE1}2:{col:Filter:
+            if '{{col:' in candidate:
+                # columns named by header - "{{col:Filter: SALE TYPE1}}2:{col:Filter:
                 # SALE TYPE1}5" - resolve against the sheet at apply time, so the
                 # validation follows its column when others are inserted
                 # (2026-09-10). Check the shape with the placeholders stood in

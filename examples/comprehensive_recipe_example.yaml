@@ -13,7 +13,7 @@ settings:
   # Dynamic filename with current date (DEPRECATED - use export_file instead)
   # This is kept for backward compatibility but export_file processor is 
   # preferred
-  output_filename: "Q{quarter}_{YY}_ComprehensiveReport_{timestamp}.xlsx"
+  output_filename: "Q{{quarter}}_{{YY}}_ComprehensiveReport_{{timestamp}}.xlsx"
   
   # Custom variables for this workflow
   variables:
@@ -23,9 +23,9 @@ settings:
     
     # Nested variable example - variables can reference other variables!
     # These are resolved in order, so earlier variables can be used in later ones
-    period_code: "{report_year}_{quarter}"
-    full_report_name: "{analysis_type}_{period_code}_analysis"
-    archive_path: "archive/{report_year}/{quarter}"
+    period_code: "{{report_year}}_{{quarter}}"
+    full_report_name: "{{analysis_type}}_{{period_code}}_analysis"
+    archive_path: "archive/{{report_year}}/{{quarter}}"
     
   # Processing options
   create_backup: true # Create .backup files before overwriting 
@@ -39,7 +39,7 @@ recipe:
   # Import customer master data and save to stage for reuse
   - step_description: "Import customer master data with current date"
     processor_type: "import_file"
-    input_file: "reference/customer_master_{date:YYYYMMDD}.xlsx"
+    input_file: "reference/customer_master_{{date:YYYYMMDD}}.xlsx"
     sheet: "Customer Data"
     save_to_stage: "Customer Master"
     stage_description: "Customer reference data with tiers and regions"
@@ -86,9 +86,9 @@ recipe:
   - step_description: "Debug nested variables"
     processor_type: "debug_breakpoint"
     message: >
-      Variables resolved: quarter={quarter}, 
-      period_code={period_code}, 
-      full_report_name={full_report_name}
+      Variables resolved: quarter={{quarter}}, 
+      period_code={{period_code}}, 
+      full_report_name={{full_report_name}}
     show_summary: false
 
   # =============================================================================
@@ -262,8 +262,8 @@ recipe:
   # Import external benchmarking data for comparison
   - step_description: "Import industry benchmarks"
     processor_type: "import_file"
-    input_file: "benchmarks/industry_benchmarks_{report_year}.xlsx"
-    sheet: "Q{quarter} Benchmarks"
+    input_file: "benchmarks/industry_benchmarks_{{report_year}}.xlsx"
+    sheet: "Q{{quarter}} Benchmarks"
     save_to_stage: "Industry Benchmarks"
     stage_description: "Industry performance benchmarks for comparison"
     
@@ -311,7 +311,7 @@ recipe:
   # Export main comprehensive report with multiple sheets
   - step_description: "Export comprehensive Excel report"
     processor_type: "export_file"
-    output_file: "reports/{full_report_name}_{YY}{MMDD}.xlsx"  # Nested variable
+    output_file: "reports/{{full_report_name}}_{{YY}}{{MMDD}}.xlsx"  # Nested variable
     create_backup: true
     sheets:
       - sheet_name: "Executive Summary"
@@ -326,13 +326,13 @@ recipe:
   # Export to archive location using nested variables
   - step_description: "Archive results with nested variable paths"
     processor_type: "export_file"
-    output_file: "{archive_path}/final_results_{timestamp}.xlsx"
+    output_file: "{{archive_path}}/final_results_{{timestamp}}.xlsx"
     data_source: "current"
     
   # Export regional data as CSV for external systems
   - step_description: "Export regional summary as CSV"
     processor_type: "export_file"
-    output_file: "exports/regional_summary_{timestamp}.csv"
+    output_file: "exports/regional_summary_{{timestamp}}.csv"
     data_source: "Regional Summary"
     encoding: "utf-8"
     
@@ -354,8 +354,8 @@ recipe:
         
   - step_description: "Export top products to Excel"
     processor_type: "export_file"
-    output_file: "supplier_reports/top_products_{YY}Q{quarter}.xlsx"
-    sheet_name: "Top Products {quarter} {report_year}"
+    output_file: "supplier_reports/top_products_{{YY}}Q{{quarter}}.xlsx"
+    sheet_name: "Top Products {{quarter}} {{report_year}}"
     
   # =============================================================================
   # STAGE 6: AUDIT AND DEBUG EXPORTS
@@ -364,7 +364,7 @@ recipe:
   # Export all stages for audit purposes
   - step_description: "Export stage audit report"
     processor_type: "export_file"
-    output_file: "audit/stage_audit_{timestamp}.xlsx"
+    output_file: "audit/stage_audit_{{timestamp}}.xlsx"
     sheets:
       - sheet_name: "Customer Master"
         data_source: "Customer Master"
@@ -381,9 +381,9 @@ recipe:
   - step_description: "Debug nested variables"
     processor_type: "debug_breakpoint"
     message: >
-      Variables resolved: quarter={quarter}, 
-      period_code={period_code}, 
-      full_report_name={full_report_name}
+      Variables resolved: quarter={{quarter}}, 
+      period_code={{period_code}}, 
+      full_report_name={{full_report_name}}
     show_summary: false
 
   # Create final debug checkpoint
@@ -405,9 +405,9 @@ recipe:
 #    - Stage-based lookups, merges, filters, and grouping
 #
 # 2. VARIABLE SUBSTITUTION:
-#    - Dynamic filenames with dates: {YY}{MMDD}, {timestamp}
-#    - Custom variables: {quarter}, {report_year}
-#    - Date formatting: {date:YYYYMMDD}
+#    - Dynamic filenames with dates: {{YY}}{{MMDD}}, {{timestamp}}
+#    - Custom variables: {{quarter}}, {{report_year}}
+#    - Date formatting: {{date:YYYYMMDD}}
 #    - Multiple contexts: import files, export files, sheet names
 #
 # 3. MULTI-FILE OPERATIONS:
@@ -436,8 +436,8 @@ recipe:
 #
 # 6. ADVANCED VARIABLE FEATURES:
 #    - Nested variables: Variables can reference other variables
-#      * period_code: "{report_year}_{quarter}" becomes "2024_Q4"
-#      * full_report_name: "{analysis_type}_{period_code}_analysis" becomes 
+#      * period_code: "{{report_year}}_{{quarter}}" becomes "2024_Q4"
+#      * full_report_name: "{{analysis_type}}_{{period_code}}_analysis" becomes 
 #         "comprehensive_2024_Q4_analysis"
 #      * Variables are resolved in definition order
 #

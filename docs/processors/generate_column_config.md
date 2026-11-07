@@ -56,7 +56,7 @@ settings:
   description: "Generate column config with specific sheet selection"
   variables:
     config_date: "{YYYY-MM-DD}"
-    raw_file: "exports/database_export_{YYYYMMDD}.xlsx"
+    raw_file: "exports/database_export_{{YYYYMMDD}}.xlsx"
     template_file: "templates/cash_flow_format.xlsx"
     
 recipe:
@@ -64,15 +64,15 @@ recipe:
     step_description: "Generate column config from specific Excel sheets"
     processor_type: "generate_column_config"
     # REQ - Source Excel file path
-    source_file: "{str:raw_file}"
+    source_file: "{{str:raw_file}}"
     # REQ - Template Excel file path  
-    template_file: "{str:template_file}"
+    template_file: "{{str:template_file}}"
     # OPT - Specific sheet in source file (name or 1-based number)
     source_sheet: "Database Export"
     # OPT - Specific sheet in template file (name or 1-based number)
     template_sheet: 2
     # REQ - Output configuration file
-    output_file: "configs/cash_flow_column_config_{str:config_date}.yaml"
+    output_file: "configs/cash_flow_column_config_{{str:config_date}}.yaml"
     # OPT - Include ready-to-use recipe section
     include_recipe_section: true
 ```

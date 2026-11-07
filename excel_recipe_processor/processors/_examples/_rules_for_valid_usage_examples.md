@@ -3,7 +3,7 @@
 ## File Structure Requirements
 
 ### 1. **File Naming**
-- Format: `{processor_name}_examples.yaml`
+- Format: `{{processor_name}}_examples.yaml`
 - Location: `excel_recipe_processor/processors/_examples/`
 - Examples: `filter_data_examples.yaml`, `export_file_examples.yaml`
 
@@ -34,7 +34,7 @@ advanced_example:
   yaml: |
     # Example content here
 
-{specific}_example:
+{{specific}}_example:
   description: "Specific scenario description"
   yaml: |
     # Example content here
@@ -128,12 +128,12 @@ create_backup: true
 Use multiple comment lines for complex parameters:
 ```yaml
 # REQ - Output file path with variable substitution support
-# Built-in variables: {date}, {time}, {timestamp}, {YYYY}, {MM}, {DD}
-# Custom variables: {department}, {batch_id} - defined in recipe settings
+# Built-in variables: {{date}}, {{time}}, {{timestamp}}, {{YYYY}}, {{MM}}, {{DD}}
+# Custom variables: {{department}}, {{batch_id}} - defined in recipe settings
 # Variable examples: department="sales", batch_id="B001"
 # Stamped with the run time so each run is a new file (Excel keeps
 # showing an open workbook; a same-named rewrite looks unchanged)
-output_file: "reports/{department}_{date}_{time}.xlsx"
+output_file: "reports/{{department}}_{{date}}_{{time}}.xlsx"
 ```
 
 Examples that write files should carry a run stamp in the name, and say

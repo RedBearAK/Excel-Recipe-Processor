@@ -39,8 +39,8 @@ def test_expression_spills_two_columns() -> bool:
     result = run({
         'new_column': 'Due', 'spill_columns': ['Why'],
         'calculation': {'pandas_formula':
-            "pd.DataFrame({'d': {col:Shipped} + pd.to_timedelta({col:Terms}, unit='D'), "
-            "'w': {col:Kind} + ' terms'})"},
+            "pd.DataFrame({'d': {{col:Shipped}} + pd.to_timedelta({{col:Terms}}, unit='D'), "
+            "'w': {{col:Kind}} + ' terms'})"},
     }, orders())
     good = (list(result.columns)[-2:] == ['Due', 'Why']
             and result['Due'].iloc[0] == pd.Timestamp('2026-07-31')
@@ -53,15 +53,15 @@ def test_shape_checks() -> bool:
     print('\nTesting spill shape checks...')
     cases = [
         ('undeclared spill', {'new_column': 'Due',
-            'calculation': {'pandas_formula': "pd.DataFrame({'a': {col:Terms}, 'b': {col:Terms}})"}}),
+            'calculation': {'pandas_formula': "pd.DataFrame({'a': {{col:Terms}}, 'b': {col:Terms}})"}}),
         ('missing spill', {'new_column': 'Due', 'spill_columns': ['Why'],
-            'calculation': {'pandas_formula': "{col:Terms} * 2"}}),
+            'calculation': {'pandas_formula': "{{col:Terms}} * 2"}}),
         ('vertical spill', {'new_column': 'Due',
-            'calculation': {'pandas_formula': "{col:Terms}.unique()"}}),
+            'calculation': {'pandas_formula': "{{col:Terms}}.unique()"}}),
         ('spill on declarative type', {'new_column': 'Due', 'spill_columns': ['Why'],
             'calculation_type': 'concat', 'calculation': {'columns': ['Kind', 'Terms']}}),
         ('duplicate names', {'new_column': 'Due', 'spill_columns': ['Due'],
-            'calculation': {'pandas_formula': "{col:Terms}"}}),
+            'calculation': {'pandas_formula': "{{col:Terms}}"}}),
     ]
     ok = True
     for label, config in cases:
@@ -78,13 +78,13 @@ def first_match_config() -> dict:
         'new_column': 'Due', 'spill_columns': ['Why'], 'calculation_type': 'first_match',
         'calculation': {
             'pandas_rules': [
-                {'when': "~({col:Price} > 0)", 'then': ['', "'No Price'"]},
-                {'when': "({col:Kind} == 'Fresh') & {col:Shipped}.notna()",
-                 'then': ["{col:Shipped} + pd.to_timedelta({col:Terms} + 7, unit='D')", "'Fr-Ship'"]},
-                {'when': "{col:Kind} == 'Fresh'", 'then': ['', "'Fr-NoShip'"]},
-                {'when': "{col:Kind} == 'Never'", 'then': ['', "'Unreachable'"]},
-                {'when': "({col:Kind} == 'Frozen') & {col:Shipped}.notna()",
-                 'then': ["{col:Shipped} + pd.to_timedelta({col:Terms}, unit='D')", "'Fz-Ship'"]},
+                {'when': "~({{col:Price}} > 0)", 'then': ['', "'No Price'"]},
+                {'when': "({{col:Kind}} == 'Fresh') & {{col:Shipped}}.notna()",
+                 'then': ["{{col:Shipped}} + pd.to_timedelta({{col:Terms}} + 7, unit='D')", "'Fr-Ship'"]},
+                {'when': "{{col:Kind}} == 'Fresh'", 'then': ['', "'Fr-NoShip'"]},
+                {'when': "{{col:Kind}} == 'Never'", 'then': ['', "'Unreachable'"]},
+                {'when': "({{col:Kind}} == 'Frozen') & {{col:Shipped}}.notna()",
+                 'then': ["{{col:Shipped}} + pd.to_timedelta({{col:Terms}}, unit='D')", "'Fz-Ship'"]},
             ],
             'pandas_default': ['', "'Unknown'"],
         },
@@ -127,7 +127,7 @@ def test_first_match_validation() -> bool:
     variant(lambda c: c['pandas_rules'][1]['then'].append("'x'"), 'long then')
     variant(lambda c: c.pop('pandas_default'), 'no default')
     variant(lambda c: c.__setitem__('pandas_default', ["'only one'"]), 'short default')
-    variant(lambda c: c['pandas_rules'][2].__setitem__('when', "{col:Nope} == 1"), 'unknown column by rule')
+    variant(lambda c: c['pandas_rules'][2].__setitem__('when', "{{col:Nope}} == 1"), 'unknown column by rule')
     variant(lambda c: c['pandas_rules'][2]['then'].__setitem__(1, 'Fr-NoShip'), 'unquoted literal')
     variant(lambda c: c['pandas_rules'][0].__setitem__('else', 1), 'unknown rule key')
     variant(lambda c: c.__setitem__('rules', c.pop('pandas_rules')), 'bare rules key')

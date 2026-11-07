@@ -543,10 +543,10 @@ class DiffDataProcessor(TransformBaseProcessor):
                 'Change_Details_JSON (optional machine-readable)'
             ],
             'filtered_stages': {
-                'new_rows': '{prefix}_new_rows_subset',
-                'changed_rows': '{prefix}_changed_rows_subset', 
-                'unchanged_rows': '{prefix}_unchanged_rows_subset',
-                'deleted_rows': '{prefix}_deleted_rows_subset'
+                'new_rows': '{{prefix}}_new_rows_subset',
+                'changed_rows': '{{prefix}}_changed_rows_subset', 
+                'unchanged_rows': '{{prefix}}_unchanged_rows_subset',
+                'deleted_rows': '{{prefix}}_deleted_rows_subset'
             },
             'deleted_row_handling': ['include', 'exclude', 'separate_stage'],
             'use_cases': [

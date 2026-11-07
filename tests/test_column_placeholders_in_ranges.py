@@ -1,11 +1,11 @@
 """
-Test {col:Header} in the RANGE fields of three processors.
+Test {{col:Header}} in the RANGE fields of three processors.
 
 File: excel_recipe_processor/tests/test_column_placeholders_in_ranges.py
 
 conditional_format's `range:`, format_excel's `cells:`, and
 excel_data_validation's `apply_to_ranges` accept
-"{col:Header}2:{col:Other}5" and resolve the letters from the sheet's
+"{{col:Header}}2:{{col:Other}}5" and resolve the letters from the sheet's
 header row at apply time (2026-09-10). The point of the feature is that a
 directive follows its columns when columns are inserted to their left,
 so the decisive test builds the same workbook twice - once with the
@@ -49,7 +49,7 @@ RECIPE = '''
 settings:
   description: "Directives addressed by header, not by letter"
   yaml_anchors:
-    - &pick_block "{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5"
+    - &pick_block "{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5"
 
 recipe:
   - step_description: "Gray when empty, bold when picked"
@@ -57,11 +57,11 @@ recipe:
     target_file: "__FILE__"
     sheet_name: "Van_List"
     rules:
-      - when_formula: '=LEN({col:Filter: SALE TYPE1}2)=0'
+      - when_formula: '=LEN({{col:Filter: SALE TYPE1}}2)=0'
         range: *pick_block
         style:
           fill: "EEEEEE"
-      - when_formula: '=LEN({col:Filter: SALE TYPE1}2)>0'
+      - when_formula: '=LEN({{col:Filter: SALE TYPE1}}2)>0'
         range: *pick_block
         style:
           bold: true
@@ -72,7 +72,7 @@ recipe:
     formatting:
       - sheet_names: ["Van_List"]
         cell_formats:
-          - cells: ["{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5"]
+          - cells: ["{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5"]
             font_italic: true
 
   - step_description: "Dropdowns on each pick block"
@@ -80,11 +80,11 @@ recipe:
     target_file: "__FILE__"
     validations:
       - sheet_name: "Van_List"
-        apply_to_ranges: ["{col:Filter: SALE TYPE1}2:{col:Filter: SALE TYPE1}5"]
+        apply_to_ranges: ["{{col:Filter: SALE TYPE1}}2:{{col:Filter: SALE TYPE1}}5"]
         validation_type: "list"
         values_list: ["Fresh", "Frozen"]
       - sheet_name: "Van_List"
-        apply_to_ranges: ["{col:Filter: Process Year}2:{col:Filter: Process Year}5"]
+        apply_to_ranges: ["{{col:Filter: Process Year}}2:{{col:Filter: Process Year}}5"]
         validation_type: "list"
         values_list: ["2025", "2026"]
 '''
@@ -151,9 +151,9 @@ def test_literal_ranges_still_work() -> bool:
     target = os.path.join(WORK, 'literal.xlsx')
     build_workbook(target, 12)
     literal = RECIPE.replace('*pick_block', '"N2:P5"') \
-                    .replace('cells: ["{col:Filter: SALE TYPE1}2:{col:Filter: Process Year}5"]', 'cells: ["N2:P5"]') \
-                    .replace('apply_to_ranges: ["{col:Filter: SALE TYPE1}2:{col:Filter: SALE TYPE1}5"]', 'apply_to_ranges: ["N2:N5"]') \
-                    .replace('apply_to_ranges: ["{col:Filter: Process Year}2:{col:Filter: Process Year}5"]', 'apply_to_ranges: ["P2:P5"]')
+                    .replace('cells: ["{{col:Filter: SALE TYPE1}}2:{{col:Filter: Process Year}}5"]', 'cells: ["N2:P5"]') \
+                    .replace('apply_to_ranges: ["{{col:Filter: SALE TYPE1}}2:{{col:Filter: SALE TYPE1}}5"]', 'apply_to_ranges: ["N2:N5"]') \
+                    .replace('apply_to_ranges: ["{{col:Filter: Process Year}}2:{{col:Filter: Process Year}}5"]', 'apply_to_ranges: ["P2:P5"]')
     try:
         run_recipe(literal, target, 'literal.yaml')
     except Exception as error:
@@ -169,7 +169,7 @@ def test_unknown_header_is_a_clear_error() -> bool:
     print('\nA header that is not on the sheet fails with a message naming it and the sheet...')
     target = os.path.join(WORK, 'unknown.xlsx')
     build_workbook(target, 12)
-    broken = RECIPE.replace('{col:Filter: Process Year}5"', '{col:Filter: Nope}5"', 1)
+    broken = RECIPE.replace('{{col:Filter: Process Year}}5"', '{{col:Filter: Nope}}5"', 1)
     try:
         run_recipe(broken, target, 'unknown.yaml')
         print('  FAIL: ran without complaint')
